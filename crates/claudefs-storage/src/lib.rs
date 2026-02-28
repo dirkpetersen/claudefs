@@ -38,4 +38,4 @@ pub use segment::{SegmentPacker, SegmentPackerConfig, PackedSegment, SegmentHead
 pub use superblock::{Superblock, DeviceRoleCode, SUPERBLOCK_MAGIC, SUPERBLOCK_VERSION};
 
 #[cfg(feature = "uring")]
-pub use uring_engine::{UringConfig, UringIoEngine, UringError, UringStats};
+pub use uring_engine::{UringConfig, UringIoEngine, UringStats};
