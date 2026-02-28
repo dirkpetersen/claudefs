@@ -20,6 +20,7 @@ pub mod io_uring_bridge;
 pub mod segment;
 pub mod superblock;
 pub mod zns;
+pub mod s3_tier;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
