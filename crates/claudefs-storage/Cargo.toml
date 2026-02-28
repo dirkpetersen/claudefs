@@ -10,6 +10,7 @@ description = "ClaudeFS subsystem: Local NVMe I/O via io_uring, FDP/ZNS placemen
 tokio.workspace = true
 thiserror.workspace = true
 serde.workspace = true
+bincode.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 libc.workspace = true
