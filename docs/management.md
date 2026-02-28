@@ -140,6 +140,64 @@ The metadata search index is **eventually consistent** — typically seconds beh
 - For very large clusters (>1 billion files), partition the Parquet output by path hash — DuckDB parallelizes reads across partitions
 - The index is read-only from the query gateway's perspective — no locking, no contention with the storage engine
 
+## Management API and Web Interface
+
+### Why Rust for the API (Not Go)
+
+Gemini correctly identifies that the management API should be in Rust rather than Go, but the reasoning goes deeper than GC pauses:
+
+- **Shared type safety** — the API uses the same Rust structs as the storage engine. When the metadata schema changes, the compiler catches every API endpoint that needs updating. In a Go API talking to a C/Rust storage engine, type mismatches are runtime bugs.
+- **Multi-tenancy safety** — Rust's ownership model makes it structurally difficult to accidentally leak data between tenants or organizations. A `Tenant<T>` wrapper type ensures tenant context is threaded through every operation at compile time.
+- **Single binary** — the API, CLI, and core storage engine share one Cargo workspace. No separate build system, no version skew between API and engine.
+
+### Authentication
+
+- **OIDC (OpenID Connect)** — integrate with Keycloak, Auth0, or institutional SAML/OIDC providers for user authentication and RBAC
+- **Short-lived JWTs** — API tokens with configurable expiry. No long-lived API keys.
+- **mTLS for inter-daemon communication** — `claudefs-monitor`, `claudefs-index`, and the storage nodes authenticate to the API via mutual TLS certificates. Even on a compromised network, commands without valid certificates are rejected.
+- **RBAC roles** — admin (full control), operator (monitoring + tiering), viewer (read-only dashboards and queries), tenant-admin (manage own namespace)
+
+### Web Interface
+
+The Web UI is a separate static frontend served by `claudefs-admin`, not embedded in the Rust binary:
+
+- **Framework:** React + TypeScript + Tailwind CSS — the standard for enterprise admin dashboards in 2026
+- **Component library:** Mantine or Ant Design — purpose-built for data-dense admin interfaces with tables, tree views, and form controls
+- **Visualizations:** Apache ECharts for real-time IOPS/bandwidth heatmaps, capacity treemaps, and latency distribution charts
+- **DuckDB-WASM** — the browser executes SQL queries locally against Parquet files fetched from the API, enabling responsive exploration without server round-trips for every filter change
+
+**Key dashboard views:**
+
+| View | Description |
+|------|-------------|
+| **Cluster Overview** | Node health, aggregate IOPS/throughput, capacity utilization, replication lag |
+| **Top Consumers** | Real-time: which client IPs/UIDs are hitting the mesh hardest. Historical: space consumption by user/group/department |
+| **Data Lifecycle** | Visual tiering status: hot (flash) vs cold (S3), with controls to set tiering policies per directory or file pattern |
+| **Snapshot Browser** | Timeline view — click a point in time and browse the metadata as it existed then (powered by DuckDB over historical Parquet snapshots) |
+| **Reduction Analytics** | Dedupe hit rate, compression ratio, similarity pipeline effectiveness, per-directory savings |
+| **Cross-Site Status** | Replication lag, conflict log, UID mapping table, last sync timestamps |
+
+### CLI (claudefs-admin)
+
+The CLI is the same Rust binary as the API server, invoked with subcommands. It authenticates via OIDC token or mTLS certificate:
+
+```bash
+claudefs-admin cluster status          # Cluster health summary
+claudefs-admin node list               # All nodes with status, capacity, drive count
+claudefs-admin node drain <node-id>    # Gracefully migrate data off a node
+claudefs-admin tier set-policy /data/archive --target s3 --age 30d
+claudefs-admin snapshot create /data/project --name weekly-backup
+claudefs-admin snapshot browse weekly-backup --path /data/project/results/
+claudefs-admin replication status       # Cross-site lag, conflict count
+claudefs-admin user quota set jjoe 10TB # Set per-user quota
+```
+
+### Deployment
+
+- `claudefs-admin` serves both the API and the static React frontend on a single port (default: 8443/HTTPS)
+- The React build is embedded in the Rust binary via `include_dir!` or served from a filesystem path (configurable)
+- For air-gapped environments, the entire management stack is a single binary + optional Grafana/Prometheus containers
+
 ## Capacity Planning
 
 The monitoring and indexing daemons also feed capacity planning:
