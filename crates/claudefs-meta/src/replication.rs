@@ -189,6 +189,7 @@ mod tests {
             repl_state: crate::types::ReplicationState::Local,
             vector_clock: VectorClock::new(1, 0),
             generation: 0,
+            symlink_target: None,
         };
         MetaOp::CreateInode { attr }
     }
@@ -217,6 +218,7 @@ mod tests {
             repl_state: crate::types::ReplicationState::Local,
             vector_clock: VectorClock::new(1, 0),
             generation: 0,
+            symlink_target: None,
         };
         MetaOp::SetAttr {
             ino: InodeId::new(ino),
