@@ -17,10 +17,14 @@ pub mod protocol;
 pub mod rdma;
 pub mod rpc;
 pub mod tcp;
+pub mod tls;
+pub mod tls_tcp;
 pub mod transport;
 
 pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
 pub use error::{TransportError, Result};
 pub use message::{serialize_message, deserialize_message};
 pub use protocol::{Frame, FrameHeader, Opcode, FrameFlags};
+pub use tls::{TlsConfig, TlsConnector, TlsAcceptor};
+pub use tls_tcp::TlsTcpTransport;
 pub use transport::{Transport, Connection, Listener};
