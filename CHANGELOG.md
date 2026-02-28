@@ -10,14 +10,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### 2026-03-01 (Session 4 - Latest)
 
+##### A1: Storage Engine — Phase 1+ Hardening (172 tests ✅)
+
+**New modules and fixes:**
+- ✅ **Fixed buddy allocator merge bug**: Replaced broken XOR-based buddy pairing with correct
+  N-ary child group merge (16:1 for 4KB→64KB/64KB→1MB, 64:1 for 1MB→64MB). The previous
+  merge_buddies used XOR which only works for binary (2:1) splits, causing free_blocks_4k to
+  exceed total_blocks_4k after alloc/free cycles. Proptest caught this invariant violation.
+- ✅ **UringIoEngine**: Real io_uring-based NVMe I/O engine behind `uring` feature gate.
+  O_DIRECT for NVMe passthrough, configurable queue depth, IOPOLL/SQPOLL options,
+  CString path handling, proper Fd type wrapping, spawn_blocking async bridge.
+- ✅ **Flash defragmentation module**: DefragEngine with fragmentation analysis per size class,
+  DefragPlan generation with relocation suggestions, cooldown-based scheduling, statistics.
+- ✅ **Proptest property-based tests**: 16 tests covering allocator invariants (total_blocks ==
+  free + allocated), unique offsets, in-bounds offsets, checksum determinism, segment packer
+  roundtrip, BlockHeader serialization, BlockSize/PlacementHint/SegmentEntry serialization.
+- ✅ Workspace Cargo.toml updated with io-uring and proptest workspace deps
+- ✅ Storage Cargo.toml uses workspace deps, adds `uring` feature gate, proptest dev-dep
+- ✅ 172 tests passing (156 unit + 16 proptest), 0 clippy warnings
+
+**Commits:**
+- 485dbe0: Fix buddy allocator merge bug, add io_uring engine, defrag, and proptest
+- f3ead30: Add doc comments to uring_engine.rs, fix clippy warnings
+
 ##### A11: Infrastructure & CI — All Tests Passing, CI Ready ✅
 
 **Test Summary (by crate):**
-- ✅ A1 Storage: **156 tests passing** (100%)
+- ✅ A1 Storage: **172 tests passing** (100%) — 156 unit + 16 proptest
 - ✅ A2 Metadata: **233 tests passing** (100%) - includes new FileHandleManager tests
 - ✅ A3 Reduce: **25 tests passing** (100%)
 - ✅ A4 Transport: **49 tests passing** (100%) - TLS tests fixed
-- ✅ **TOTAL: 463 tests passing, 0 failures, 0 clippy warnings**
+- ✅ **TOTAL: 479 tests passing, 0 failures, 0 clippy warnings**
 
 **Work Completed:**
 - ✅ Completed FileHandleManager implementation for A2 metadata crate (via OpenCode)
@@ -101,13 +124,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Zero clippy warnings; no unsafe code (pure safe Rust per A3 spec)
 - Pipeline order per docs/reduction.md: dedupe → compress → encrypt (non-negotiable)
 
-##### A1: Storage Engine (PHASE 1 COMPLETE ✅ — 141 tests)
+##### A1: Storage Engine (PHASE 1+ COMPLETE ✅ — 172 tests)
 - Core types: BlockId, BlockRef, BlockSize, PlacementHint with serde/Display impls
 - StorageError: 10 error variants covering I/O, allocation, alignment, checksum, corruption, serialization
-- Buddy block allocator: 4KB/64KB/1MB/64MB size classes, split/merge, thread-safe
+- Buddy block allocator: 4KB/64KB/1MB/64MB size classes, N-ary group merge, thread-safe
+  - **Fixed**: merge_buddies now correctly handles 16:1 and 64:1 child-to-parent ratios
 - NVMe device manager: NvmeDeviceInfo, DeviceConfig, DeviceRole, DevicePool
 - IoEngine trait: async block read/write/flush/discard with Send futures
 - MockIoEngine: in-memory HashMap implementation for testing
+- **UringIoEngine**: Real io_uring NVMe I/O with O_DIRECT, behind `uring` feature gate
 - StorageEngine<E>: unified API combining device pool + allocator + I/O engine
 - ZNS zone management: ZoneManager with state transitions, append, GC candidates
 - Write journal: crash-consistent coalescing per D3/D8, replication state tracking
@@ -117,8 +142,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Age-weighted scoring (age_secs × size_bytes), S3-confirmation check, tier overrides
 - **FDP hint manager**: Maps PlacementHints to NVMe Reclaim Unit Handles, per-RUH stats
 - **Superblock**: Device identity (UUIDs), layout (bitmap + data offsets), CRC32C integrity, crash recovery
-- 141 unit tests passing, 0 clippy warnings (with -D warnings), 0 unsafe code in allocator/engine
-- Ready for integration with A2 (metadata), A3 (reduction), A4 (transport)
+- **Flash defragmentation**: DefragEngine with per-size-class analysis, relocation planning, scheduling
+- 172 tests passing (156 unit + 16 proptest), 0 clippy warnings, 0 unsafe code in allocator/engine
+- Ready for integration with A2 (metadata), A3 (reduction), A4 (transport), A5 (FUSE)
 
 ##### A2: Metadata Service (PHASE 2 COMPLETE — 233 tests ✅, 25 modules)
 
