@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # storage-node-user-data.sh — Cloud-init for ClaudeFS storage spot nodes (i4i.2xlarge)
+# Base AMI: Ubuntu 25.10 Questing (kernel 6.17+)
 # Sets up NVMe drives, installs minimal tooling for running compiled ClaudeFS binaries
 
 set -euo pipefail
