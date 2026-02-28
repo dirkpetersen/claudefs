@@ -52,6 +52,7 @@ Single FUSE v3 client binary (`claudefs`) with pluggable network transport:
 - **Metadata service:** Distributed hash-based metadata, Raft consensus intra-site, async journal replication cross-site via cloud conduit — see [docs/metadata.md](docs/metadata.md)
 - **Data reduction:** Inline dedupe -> compress -> encrypt pipeline, CAS model, CoW snapshots — see [docs/reduction.md](docs/reduction.md)
 - **Hardware reference:** Solidigm FDP/QLC, AMD EPYC, NVIDIA/Broadcom/Intel NICs, Supermicro chassis — see [docs/hardware.md](docs/hardware.md)
+- **AI inference:** NVIDIA Dynamo/NIXL KV cache on the storage mesh; GPUs in compute nodes, not storage — see [docs/inference.md](docs/inference.md)
 - **Management:** Prometheus monitoring, Parquet/DuckDB metadata search lakehouse, Grafana dashboards — see [docs/management.md](docs/management.md)
 - **POSIX validation:** pjdfstest, xfstests, fsx, LTP, Connectathon, Jepsen, FIO, CrashMonkey — see [docs/posix.md](docs/posix.md)
 
