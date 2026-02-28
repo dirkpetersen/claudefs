@@ -36,6 +36,10 @@ SSH_KEY=$(aws secretsmanager get-secret-value \
   --secret-id cfs/ssh-private-key --region "$REGION" \
   --query 'SecretString' --output text)
 
+FIREWORKS_API_KEY=$(aws secretsmanager get-secret-value \
+  --secret-id cfs/fireworks-api-key --region "$REGION" \
+  --query 'SecretString' --output text | jq -r .FIREWORKS_API_KEY)
+
 # Set up SSH key for cfs user
 sudo -u cfs mkdir -p /home/cfs/.ssh
 echo "$SSH_KEY" > /home/cfs/.ssh/id_ed25519
@@ -64,6 +68,9 @@ corepack enable
 
 # --- Install Claude Code ---
 npm install -g @anthropic-ai/claude-code
+
+# --- Install OpenCode (Rust code authoring via Fireworks AI) ---
+sudo -u cfs bash -c 'curl -fsSL https://opencode.ai/install | bash'
 
 # --- Install GitHub CLI ---
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -102,13 +109,15 @@ CCEOF
 chown -R cfs:cfs /home/cfs/.config
 
 # --- Environment variables for Claude Code / Bedrock ---
-cat >> /home/cfs/.bashrc << 'ENVEOF'
+cat >> /home/cfs/.bashrc << ENVEOF
 # ClaudeFS development environment
 export AWS_REGION=us-west-2
 export AWS_DEFAULT_REGION=us-west-2
 export ANTHROPIC_MODEL=global.anthropic.claude-sonnet-4-6-v1
 export CLAUDE_CODE_USE_BEDROCK=1
 export DISABLE_PROMPT_CACHING=0
+export FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
+export PATH="\$HOME/.opencode/bin:\$PATH"
 source ~/.cargo/env
 ENVEOF
 
