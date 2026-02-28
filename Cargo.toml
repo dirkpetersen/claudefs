@@ -18,3 +18,4 @@ prost = "0.13"
 tonic = "0.12"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"] }
+libc = "0.2"
