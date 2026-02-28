@@ -102,6 +102,9 @@ impl fmt::Display for Term {
 pub struct LogIndex(u64);
 
 impl LogIndex {
+    /// A zero log index
+    pub const ZERO: LogIndex = LogIndex(0);
+
     /// Creates a new LogIndex from a raw u64 value
     pub fn new(i: u64) -> Self {
         LogIndex(i)
@@ -111,9 +114,6 @@ impl LogIndex {
     pub fn as_u64(&self) -> u64 {
         self.0
     }
-
-    /// A zero log index
-    pub const ZERO: LogIndex = LogIndex(0);
 }
 
 impl fmt::Display for LogIndex {
@@ -191,16 +191,16 @@ impl PartialOrd for VectorClock {
 /// Error types for metadata operations in the distributed metadata service
 #[derive(Debug, thiserror::Error)]
 pub enum MetaError {
-    #[error("inode {0} not found")]
     /// The requested inode does not exist.
+    #[error("inode {0} not found")]
     InodeNotFound(InodeId),
 
-    #[error("directory inode {0} not found")]
     /// The requested directory inode does not exist.
+    #[error("directory inode {0} not found")]
     DirectoryNotFound(InodeId),
 
-    #[error("entry '{name}' not found in directory {parent}")]
     /// A directory entry with the given name was not found.
+    #[error("entry '{name}' not found in directory {parent}")]
     EntryNotFound {
         /// Parent directory inode
         parent: InodeId,
@@ -208,8 +208,8 @@ pub enum MetaError {
         name: String,
     },
 
-    #[error("entry '{name}' already exists in directory {parent}")]
     /// A directory entry with the given name already exists.
+    #[error("entry '{name}' already exists in directory {parent}")]
     EntryExists {
         /// Parent directory inode
         parent: InodeId,
@@ -217,58 +217,58 @@ pub enum MetaError {
         name: String,
     },
 
-    #[error("inode {0} is not a directory")]
     /// The specified inode is not a directory when a directory was required.
+    #[error("inode {0} is not a directory")]
     NotADirectory(InodeId),
 
-    #[error("directory {0} is not empty")]
     /// Attempted to delete a non-empty directory.
+    #[error("directory {0} is not empty")]
     DirectoryNotEmpty(InodeId),
 
-    #[error("no space left on device")]
     /// No space left on device (metadata quota exceeded or storage full).
+    #[error("no space left on device")]
     NoSpace,
 
-    #[error("permission denied")]
     /// Operation denied due to insufficient permissions.
+    #[error("permission denied")]
     PermissionDenied,
 
-    #[error("not the Raft leader")]
     /// Operation requires the Raft leader but this node is not the leader.
+    #[error("not the Raft leader")]
     NotLeader {
         /// Hint about the current leader
         leader_hint: Option<NodeId>,
     },
 
-    #[error("raft error: {0}")]
     /// An error occurred in the Raft consensus layer.
+    #[error("raft error: {0}")]
     RaftError(String),
 
-    #[error("kv store error: {0}")]
     /// An error occurred in the KV store layer.
+    #[error("kv store error: {0}")]
     KvError(String),
 
-    #[error(transparent)]
     /// A lower-level I/O error occurred.
+    #[error(transparent)]
     IoError(#[from] std::io::Error),
 }
 
 /// File type enumeration matching POSIX file types
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileType {
-    /// Regular file (S_IFREG).
+    /// Regular file (S_IFREG)
     RegularFile,
-    /// Directory (S_IFDIR).
+    /// Directory (S_IFDIR)
     Directory,
-    /// Symbolic link (S_IFLNK).
+    /// Symbolic link (S_IFLNK)
     Symlink,
-    /// Block device (S_IFBLK).
+    /// Block device (S_IFBLK)
     BlockDevice,
-    /// Character device (S_IFCHR).
+    /// Character device (S_IFCHR)
     CharDevice,
-    /// FIFO/named pipe (S_IFIFO).
+    /// FIFO/named pipe (S_IFIFO)
     Fifo,
-    /// Socket (S_IFSOCK).
+    /// Socket (S_IFSOCK)
     Socket,
 }
 
@@ -290,13 +290,13 @@ impl FileType {
 /// Replication state for cross-site metadata synchronization
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReplicationState {
-    /// Metadata exists only locally.
+    /// Metadata exists only locally
     Local,
-    /// Replication in progress.
+    /// Replication in progress
     Pending,
-    /// Metadata replicated to other sites.
+    /// Metadata replicated to other sites
     Replicated,
-    /// Write conflict detected during replication.
+    /// Write conflict detected during replication
     Conflict,
 }
 
@@ -419,7 +419,6 @@ pub enum MetaOp {
     /// Create a directory entry
     CreateEntry {
         /// Parent directory inode
-        /// Parent directory ID.
         parent: InodeId,
         /// Entry name
         name: String,
@@ -429,10 +428,8 @@ pub enum MetaOp {
     /// Delete a directory entry
     DeleteEntry {
         /// Parent directory inode
-        /// Parent directory ID.
         parent: InodeId,
         /// Entry name to delete
-        /// Entry name.
         name: String,
     },
     /// Rename a directory entry
@@ -526,12 +523,9 @@ pub enum RaftMessage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RaftState {
     /// Following a leader
-    /// Follower state (following a leader).
     Follower,
     /// Campaigning for leadership
-    /// Candidate state (running for leader election).
     Candidate,
     /// Leading the cluster
-    /// Leader state (elected leader).
     Leader,
 }
