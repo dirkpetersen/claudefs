@@ -502,7 +502,7 @@ mod tests {
 
         for _ in 0..100 {
             let b4k = alloc.allocate(BlockSize::B4K).unwrap();
-            assert_eq!(b4k.id.offset % 1, 0);
+            assert!(b4k.id.offset < 22404);
         }
 
         for _ in 0..50 {
