@@ -84,7 +84,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - 141 unit tests passing, 0 clippy warnings (with -D warnings), 0 unsafe code in allocator/engine
 - Ready for integration with A2 (metadata), A3 (reduction), A4 (transport)
 
-##### A2: Metadata Service (PHASE 1 COMPLETE ✅)
+##### A2: Metadata Service (PHASE 2 IN PROGRESS — 136 tests ✅)
+
+**Phase 1 (Complete):**
 - Core types: InodeId, NodeId, ShardId, Term, LogIndex, Timestamp, VectorClock,
   MetaError, FileType, ReplicationState, InodeAttr, DirEntry, MetaOp, LogEntry,
   RaftMessage, RaftState — full serde serialization, zero unsafe code
@@ -103,7 +105,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   setattr, readdir, unlink, rmdir, rename) with rollback on failure
 - XattrStore: per-inode extended attributes (set, get, list, remove, remove_all)
 - LockManager: per-inode read/write locks for POSIX mandatory locking (fcntl)
-- 83 unit tests passing, 0 clippy warnings, 0 unsafe code
+
+**Phase 2 (New):**
+- ShardRouter: maps inodes to 256 virtual shards and shards to cluster nodes,
+  round-robin distribution via ShardAssigner, leader tracking, node removal
+- Symlink/hardlink POSIX operations: symlink(), link(), readlink() with
+  symlink_target field in InodeAttr, nlink management, directory-hardlink prohibition
+- MultiRaftManager: manages one RaftNode per virtual shard on this node,
+  routes operations to correct shard's Raft group, per-shard election/replication
+- PathResolver: speculative path resolution with (parent, name) cache,
+  partial cache hits, parent invalidation, sequential fallback resolution
+- LeaseManager: time-limited metadata caching leases (read/write) for FUSE clients,
+  lease revocation on mutations, client disconnect cleanup, lease renewal
+- RaftMetadataService: unified API integrating local service, Multi-Raft, leases,
+  and path cache — mutations revoke leases/invalidate cache, reads use local state
+- 136 unit tests passing (53 new), 0 clippy warnings, 0 unsafe code
 - Ready for integration with A5 (FUSE), A6 (Replication), A7 (Gateways)
 
 ##### A4: Transport (PHASE 1 COMPLETE ✅)
