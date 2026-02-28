@@ -166,11 +166,9 @@ The key principle: implement using published open algorithms (FastCDC, MinHash, 
 
 ### Foundational Papers
 
-- *"Finesse: Fine-Grained Feature Locality based Fast Resemblance Detection"* (FAST '14) — the closest academic blueprint for similarity-based deduplication
-- *"FastCDC: A Fast and Efficient Content-Defined Chunking Approach"* (USENIX ATC '16) — industry-standard content-defined chunking
-- *"Edelta: A Word-Enlarging Based Fast Delta Compression Approach"* (FAST '20) — flash-speed delta compression
-- *"SiLo: A Similarity-Locality based Near-Exact Deduplication Scheme"* (USENIX ATC '11) — locality-aware similarity detection
-- VAST patents US10860548B2, US10656844B2, US11281387B2 — useful for understanding the problem space (read the claims section to understand what to avoid)
+See [docs/literature.md](literature.md) section 5 for full descriptions. Key papers: Finesse (FAST '14), FastCDC (USENIX ATC '16), Edelta (FAST '20), SiLo (USENIX ATC '11).
+
+VAST patents US10860548B2, US10656844B2, US11281387B2 are useful for understanding the problem space (read the claims section to understand what to avoid).
 
 ## Compression
 
@@ -255,14 +253,8 @@ Snapshots interact with cross-site replication:
 
 ## Related Literature
 
-- **Z-LFS** (USENIX ATC 2025) — ZNS-tailored log-structured filesystem. Solves small-zone ZNS constraints with speculative log stream management. Up to 33x performance gains over standard LFS on ZNS. Direct blueprint for ClaudeFS's flash layer data placement.
-- **Speed-Dedup** (MDPI 2024) — Scale-out deduplication framework that avoids WAL performance hits. Focuses on reducing I/O amplification — critical when combining dedupe with flash.
-- **Distributed Data Deduplication for Big Data: A Survey** (ACM Computing Surveys 2025) — Comprehensive survey on routing data between clients and nodes to maximize dedupe ratios.
-- **ZNSage** (2025) — Hardware-agnostic swap and metadata placement on ZNS, relevant to ClaudeFS's metadata store design.
-- **Linux Storage Stack Diagram 6.20** (Thomas-Krenn / Werner Fischer) — Canonical visualization of how io_uring, NVMe-oF, and VFS interact in modern kernels.
-- **NFS LOCALIO** (kernel 6.12+) — Bypasses the network stack when NFS client and server are on the same host. Relevant for containerized ClaudeFS deployments where the NFS gateway is co-located.
+See [docs/literature.md](literature.md) for the full paper catalog. Key references for data reduction:
 
-### Rust Ecosystem
-
-- **Thread-per-core (TPC) architecture** — `glommio` and `monoio` crates use io_uring to avoid Tokio's thread pool overhead, essential for microsecond-level latency. See technical blogs on TPC patterns in Rust.
-- **Beyond-Refs / Field Projections** (Rust Blog 2026) — Latest research on `Pin` and memory-mapped buffer management in Rust, relevant to zero-copy I/O paths.
+- **Section 5** — Finesse, FastCDC, SiLo, Edelta, Speed-Dedup, ACM Dedup Survey (similarity deduplication and delta compression)
+- **Section 6** — Z-LFS, ZNSage, FDP vs ZNS (flash management and data placement)
+- **Section 8** — Linux Storage Stack Diagram 6.20, NFS LOCALIO, Rust Beyond-Refs (infrastructure)

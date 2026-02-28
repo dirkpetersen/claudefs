@@ -170,6 +170,8 @@ Supermicro's Petascale line provides the physical density for NVMe-heavy ClaudeF
 
 ## Related Research
 
-- **"FDP vs. ZNS: A Comparative Study for Hyperscale Workloads"** (2025) — argues FDP provides 90% of ZNS efficiency gains while maintaining the standard block interface. Supports ClaudeFS's "FDP default, ZNS optional" decision.
-- **"BaM (Bulk Analogous Memory) & GIDS"** (Solidigm/NVIDIA 2026) — GPU-to-storage communication via NVMe-oF without CPU involvement. If ClaudeFS serves AI/ML workloads, the transport layer must be compatible with BaM/GIDS memory pointers.
-- **Linux Storage Stack Diagram 6.20** (Werner Fischer, Thomas-Krenn) — canonical visualization of how io_uring, NVMe-oF, FDP, and VFS interact in modern kernels.
+See [docs/literature.md](literature.md) for the full paper catalog. Key references for hardware:
+
+- **Section 6** — FDP vs ZNS comparative study (supports "FDP default, ZNS optional")
+- **Section 7** — BaM/GIDS GPU-to-storage communication (GPUDirect Storage compatibility)
+- **Section 8** — Linux Storage Stack Diagram 6.20 (io_uring, NVMe-oF, FDP kernel interfaces)
