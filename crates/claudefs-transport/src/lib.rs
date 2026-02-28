@@ -1,4 +1,4 @@
-#![allow(missing_docs)]
+#![warn(missing_docs)]
 
 //! ClaudeFS transport subsystem: RDMA via libfabric, TCP via io_uring, custom RPC protocol.
 //!
@@ -16,4 +16,5 @@ pub mod rdma;
 pub mod rpc;
 pub mod tcp;
 
-pub use error::{Result, TransportError};
+pub use error::{TransportError, Result};
+pub use protocol::{Frame, FrameHeader, Opcode, FrameFlags};
