@@ -10,6 +10,7 @@
       ],
       "Resource": [
         "arn:aws:bedrock:us-west-2:405644541454:inference-profile/us.anthropic.*",
+        "arn:aws:bedrock:us-west-2:405644541454:inference-profile/global.anthropic.*",
         "arn:aws:bedrock:*::foundation-model/anthropic.*"
       ]
     },
