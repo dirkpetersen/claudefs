@@ -43,16 +43,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Zero clippy warnings; no unsafe code (pure safe Rust per A3 spec)
 - Pipeline order per docs/reduction.md: dedupe → compress → encrypt (non-negotiable)
 
-##### A1: Storage Engine (TESTS PASSING, CLIPPY FIXING 🔨)
-- Block types (BlockId, BlockRef, BlockSize) implemented ✅
-- Error types (StorageError enum with 10 variants) implemented ✅
-- Buddy allocator implementation COMPLETE with all 25 tests passing ✅
-  - test_buddy_merge: PASSING
-  - test_free_and_reallocate: PASSING
-  - test_alignment: PASSING
-  - test_split_on_demand: PASSING
-- **Issue #2 created:** 3 clippy errors need fixing (manual_is_multiple_of, modulo_one, erasing_op)
-- Next: Fix 3 clippy errors in allocator.rs to pass `make check`
+##### A1: Storage Engine (PHASE 1 COMPLETE ✅)
+- Core types: BlockId, BlockRef, BlockSize, PlacementHint with serde/Display impls
+- StorageError: 8 error variants covering I/O, allocation, alignment, checksum
+- Buddy block allocator: 4KB/64KB/1MB/64MB size classes, split/merge, thread-safe
+- NVMe device manager: NvmeDeviceInfo, DeviceConfig, DeviceRole, DevicePool
+- FDP hint tagging: PlacementHint enum (Metadata/HotData/WarmData/ColdData/Snapshot/Journal)
+- IoEngine trait: async block read/write/flush/discard with Send futures
+- MockIoEngine: in-memory HashMap implementation for testing
+- StorageEngine<E>: unified API combining device pool + allocator + I/O engine
+- ZNS zone management: ZoneManager with state transitions, append, GC candidates
+- Write journal: crash-consistent coalescing per D3/D8, replication state tracking
+- 73 unit tests passing, 0 clippy warnings, 0 unsafe code in allocator/engine
+- Ready for integration with A2 (metadata), A3 (reduction), A4 (transport)
 
 ##### A2: Metadata Service (TESTS PASSING 🔨)
 - KV store module with bincode serialization (22 tests passing) ✅
