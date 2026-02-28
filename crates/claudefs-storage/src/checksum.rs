@@ -20,12 +20,6 @@ pub enum ChecksumAlgorithm {
     None,
 }
 
-impl Default for ChecksumAlgorithm {
-    fn default() -> Self {
-        ChecksumAlgorithm::Crc32c
-    }
-}
-
 impl std::fmt::Display for ChecksumAlgorithm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
