@@ -14,6 +14,8 @@ pub mod journal;
 pub mod kvstore;
 /// Distributed lock manager
 pub mod locking;
+/// Multi-Raft group manager
+pub mod multiraft;
 /// Cross-site replication
 pub mod replication;
 /// High-level metadata service API
@@ -26,6 +28,7 @@ pub mod types;
 pub mod xattr;
 
 pub use locking::{LockManager, LockType};
+pub use multiraft::MultiRaftManager;
 pub use service::MetadataService;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use xattr::XattrStore;
