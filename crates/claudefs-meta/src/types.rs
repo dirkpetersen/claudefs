@@ -192,51 +192,83 @@ impl PartialOrd for VectorClock {
 #[derive(Debug, thiserror::Error)]
 pub enum MetaError {
     #[error("inode {0} not found")]
+    /// The requested inode does not exist.
     InodeNotFound(InodeId),
 
     #[error("directory inode {0} not found")]
+    /// The requested directory inode does not exist.
     DirectoryNotFound(InodeId),
 
     #[error("entry '{name}' not found in directory {parent}")]
-    EntryNotFound { parent: InodeId, name: String },
+    /// A directory entry with the given name was not found.
+    EntryNotFound {
+        /// Parent directory inode
+        parent: InodeId,
+        /// Entry name that was not found
+        name: String,
+    },
 
     #[error("entry '{name}' already exists in directory {parent}")]
-    EntryExists { parent: InodeId, name: String },
+    /// A directory entry with the given name already exists.
+    EntryExists {
+        /// Parent directory inode
+        parent: InodeId,
+        /// Existing entry name
+        name: String,
+    },
 
     #[error("inode {0} is not a directory")]
+    /// The specified inode is not a directory when a directory was required.
     NotADirectory(InodeId),
 
     #[error("directory {0} is not empty")]
+    /// Attempted to delete a non-empty directory.
     DirectoryNotEmpty(InodeId),
 
     #[error("no space left on device")]
+    /// No space left on device (metadata quota exceeded or storage full).
     NoSpace,
 
     #[error("permission denied")]
+    /// Operation denied due to insufficient permissions.
     PermissionDenied,
 
     #[error("not the Raft leader")]
-    NotLeader { leader_hint: Option<NodeId> },
+    /// Operation requires the Raft leader but this node is not the leader.
+    NotLeader {
+        /// Hint about the current leader
+        leader_hint: Option<NodeId>,
+    },
 
     #[error("raft error: {0}")]
+    /// An error occurred in the Raft consensus layer.
     RaftError(String),
 
     #[error("kv store error: {0}")]
+    /// An error occurred in the KV store layer.
     KvError(String),
 
     #[error(transparent)]
+    /// A lower-level I/O error occurred.
     IoError(#[from] std::io::Error),
 }
 
 /// File type enumeration matching POSIX file types
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileType {
+    /// Regular file (S_IFREG).
     RegularFile,
+    /// Directory (S_IFDIR).
     Directory,
+    /// Symbolic link (S_IFLNK).
     Symlink,
+    /// Block device (S_IFBLK).
     BlockDevice,
+    /// Character device (S_IFCHR).
     CharDevice,
+    /// FIFO/named pipe (S_IFIFO).
     Fifo,
+    /// Socket (S_IFSOCK).
     Socket,
 }
 
@@ -258,30 +290,50 @@ impl FileType {
 /// Replication state for cross-site metadata synchronization
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReplicationState {
+    /// Metadata exists only locally.
     Local,
+    /// Replication in progress.
     Pending,
+    /// Metadata replicated to other sites.
     Replicated,
+    /// Write conflict detected during replication.
     Conflict,
 }
 
 /// Inode attributes combining POSIX stat fields with ClaudeFS extensions
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InodeAttr {
+    /// Inode number
     pub ino: InodeId,
+    /// File type
     pub file_type: FileType,
+    /// Permission bits (lower 12 bits)
     pub mode: u32,
+    /// Hard link count
     pub nlink: u32,
+    /// Owner user ID
     pub uid: u32,
+    /// Owner group ID
     pub gid: u32,
+    /// File size in bytes
     pub size: u64,
+    /// 512-byte blocks allocated
     pub blocks: u64,
+    /// Last access time
     pub atime: Timestamp,
+    /// Last modification time
     pub mtime: Timestamp,
+    /// Last status change time
     pub ctime: Timestamp,
+    /// Creation time (Linux statx)
     pub crtime: Timestamp,
+    /// BLAKE3 hash of content
     pub content_hash: Option<[u8; 32]>,
+    /// Replication state
     pub repl_state: ReplicationState,
+    /// Vector clock for conflict resolution
     pub vector_clock: VectorClock,
+    /// Inode generation number (for NFS handle stability)
     pub generation: u64,
 }
 
@@ -336,46 +388,78 @@ impl InodeAttr {
 /// A directory entry linking a name to an inode
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DirEntry {
+    /// Entry name
     pub name: String,
+    /// Inode number
     pub ino: InodeId,
+    /// File type
     pub file_type: FileType,
 }
 
 /// Metadata operations recorded in the replication journal
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum MetaOp {
+    /// Create a new inode
     CreateInode {
+        /// Inode attributes
         attr: InodeAttr,
     },
+    /// Delete an inode
     DeleteInode {
+        /// Inode ID to delete
         ino: InodeId,
     },
+    /// Set inode attributes
     SetAttr {
+        /// Target inode
         ino: InodeId,
+        /// New attributes
         attr: InodeAttr,
     },
+    /// Create a directory entry
     CreateEntry {
+        /// Parent directory inode
+        /// Parent directory ID.
         parent: InodeId,
+        /// Entry name
         name: String,
+        /// Directory entry
         entry: DirEntry,
     },
+    /// Delete a directory entry
     DeleteEntry {
+        /// Parent directory inode
+        /// Parent directory ID.
         parent: InodeId,
+        /// Entry name to delete
+        /// Entry name.
         name: String,
     },
+    /// Rename a directory entry
     Rename {
+        /// Source parent directory
         src_parent: InodeId,
+        /// Source name
         src_name: String,
+        /// Destination parent directory
         dst_parent: InodeId,
+        /// Destination name
         dst_name: String,
     },
+    /// Set extended attribute
     SetXattr {
+        /// Target inode
         ino: InodeId,
+        /// Attribute key
         key: String,
+        /// Attribute value
         value: Vec<u8>,
     },
+    /// Remove extended attribute
     RemoveXattr {
+        /// Target inode
         ino: InodeId,
+        /// Attribute key
         key: String,
     },
 }
@@ -383,35 +467,57 @@ pub enum MetaOp {
 /// A single entry in the Raft log
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LogEntry {
+    /// Log index
     pub index: LogIndex,
+    /// Term when entry was created
     pub term: Term,
+    /// Operation to apply
     pub op: MetaOp,
 }
 
 /// Messages exchanged between Raft peers
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum RaftMessage {
+    /// Request for vote from candidate
     RequestVote {
+        /// Candidate's term
         term: Term,
+        /// Candidate node ID
         candidate_id: NodeId,
+        /// Index of candidate's last log entry
         last_log_index: LogIndex,
+        /// Term of candidate's last log entry
         last_log_term: Term,
     },
+    /// Response to RequestVote
     RequestVoteResponse {
+        /// Responder's term
         term: Term,
+        /// Whether vote was granted
         vote_granted: bool,
     },
+    /// Append entries from leader to follower
     AppendEntries {
+        /// Leader's term
         term: Term,
+        /// Leader node ID
         leader_id: NodeId,
+        /// Index of log entry preceding new entries
         prev_log_index: LogIndex,
+        /// Term of prev_log_index entry
         prev_log_term: Term,
+        /// Log entries to append
         entries: Vec<LogEntry>,
+        /// Leader's commit index
         leader_commit: LogIndex,
     },
+    /// Response to AppendEntries
     AppendEntriesResponse {
+        /// Follower's term
         term: Term,
+        /// Whether append succeeded
         success: bool,
+        /// Match index for leader
         match_index: LogIndex,
     },
 }
@@ -419,7 +525,13 @@ pub enum RaftMessage {
 /// Current state of a Raft node
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RaftState {
+    /// Following a leader
+    /// Follower state (following a leader).
     Follower,
+    /// Campaigning for leadership
+    /// Candidate state (running for leader election).
     Candidate,
+    /// Leading the cluster
+    /// Leader state (elected leader).
     Leader,
 }

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["consensus","directory","inode","journal","kvstore","replication"]};
+window.SIDEBAR_ITEMS = {"mod":["consensus","directory","inode","journal","kvstore","replication","types"]};
