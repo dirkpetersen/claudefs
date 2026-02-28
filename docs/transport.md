@@ -56,7 +56,7 @@ ClaudeFS uses a layered approach — a high-performance internal protocol with c
 
 ### Core: Custom RPC over io_uring
 
-The internal cluster protocol between ClaudeFS nodes (server-to-server and performance-client-to-server) uses a custom binary RPC built on io_uring shared buffers. This is where maximum performance lives:
+The internal cluster protocol between ClaudeFS nodes (server-to-server and client-to-server) uses a custom binary RPC built on io_uring shared buffers. This is where maximum performance lives:
 
 - Thread-per-core architecture via `tokio-uring` or `glommio`
 - Zero-copy disk-to-network via `splice`/`sendfile` through io_uring

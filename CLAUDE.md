@@ -13,7 +13,7 @@ License: MIT. Author: Dirk Petersen.
 - **Distributed flash layer** spanning multiple nodes, hosting both data and metadata
 - **S3-compatible object store backend** for tiered storage — only uses GET, PUT, DELETE operations with 64MB blob chunks, written asynchronously to tolerate high-latency or unreliable stores
 - **Distributed metadata servers** with asynchronous cross-site replication; eventually-consistent with last-write-wins conflict resolution and administrator alerting on write conflicts
-- **Two client modes** developed independently (see below)
+- **Single FUSE client** with pluggable transport (RDMA or TCP); pNFS/NFS gateway for legacy access
 - **Cross-site replication** designed from day one — two metadata servers syncing asynchronously
 - **No single points of failure** — erasure coding, cross-site replication, end-to-end checksums
 - **Zero external dependencies** — no ZooKeeper/etcd/external DB; single binary per client
@@ -21,27 +21,25 @@ License: MIT. Author: Dirk Petersen.
 ## Target Platform
 
 - **Server nodes:** kernel 6.20+ (Ubuntu 26.04, April 2026) — atomic writes, dynamic io_uring, EEVDF scheduler
-- **Clients:** kernel 5.14+ (RHEL 9, Ubuntu 22.04+) — FUSE passthrough requires 6.8+; performance client has minimal kernel dependency via LD_PRELOAD
+- **Clients:** kernel 5.14+ (RHEL 9, Ubuntu 22.04+) — FUSE passthrough requires 6.8+; degrades gracefully on older kernels
 - Supported distros: Ubuntu 24.04, Ubuntu 26.04, RHEL 9, RHEL 10
 - Standard Linux deployment model (similar to Weka IO)
 
-## Dual-Client Architecture
+## Client Architecture
 
-Both clients share the same cluster, metadata protocol, storage backend, and replication. They are developed as independent workstreams.
+Single FUSE v3 client binary (`claudefs`) with pluggable network transport:
 
-### Performance Client (`claudefs-rdma`)
-- `LD_PRELOAD` libc interception — bypasses kernel entirely
-- RDMA one-sided verbs via `libfabric` — zero-copy, no remote CPU
+- FUSE v3 with passthrough mode (6.8+) — metadata through daemon, data I/O at native NVMe speed
+- io_uring for all async I/O (disk + network)
+- **RDMA transport** via `libfabric` — one-sided verbs, zero-copy (requires InfiniBand/RoCE)
+- **TCP transport** via io_uring zero-copy — automatic fallback, no special hardware
 - Per-core NVMe queue alignment, speculative metadata resolution
-- Relaxed POSIX mount flags for line-rate throughput
-- Requires RDMA NICs (InfiniBand, RoCE)
-
-### Universal Client (`claudefs-fuse`)
-- FUSE v3 with passthrough mode (kernel 6.8+)
-- io_uring async I/O, standard TCP/IP networking
 - Full POSIX by default, optional relaxation flags
-- NFS v4.2+ kernel export as additional fallback
 - Runs on kernel 5.14+ (RHEL 9+); passthrough on 6.8+
+
+### Access without installing ClaudeFS
+- **pNFS (NFSv4.1+)** — parallel direct-to-node via standard kernel NFS client
+- **NFS gateway (NFSv3)** — legacy translation proxy
 
 ## Implementation
 
