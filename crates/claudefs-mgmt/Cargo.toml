@@ -1,0 +1,23 @@
+[package]
+name = "claudefs-mgmt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ClaudeFS subsystem: Prometheus exporter, DuckDB analytics, Web UI, CLI, admin API"
+
+[[bin]]
+name = "cfs-mgmt"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lib]
+name = "claudefs_mgmt"
+path = "src/lib.rs"

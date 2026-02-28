@@ -1,0 +1,25 @@
+[package]
+name = "claudefs-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ClaudeFS subsystem: NFSv3 gateway, pNFS layouts, S3 API endpoint"
+
+[[bin]]
+name = "cfs-gateway"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+prost.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lib]
+name = "claudefs_gateway"
+path = "src/lib.rs"

@@ -1,0 +1,18 @@
+[package]
+name = "claudefs-reduce"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ClaudeFS subsystem: Inline dedupe (BLAKE3), compression (LZ4/Zstd), encryption (AES-GCM)"
+
+[dependencies]
+tokio.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lib]
+name = "claudefs_reduce"
+path = "src/lib.rs"

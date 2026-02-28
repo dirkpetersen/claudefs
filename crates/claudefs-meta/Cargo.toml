@@ -1,0 +1,25 @@
+[package]
+name = "claudefs-meta"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ClaudeFS subsystem: Distributed metadata, Raft consensus, inode/directory operations"
+
+[[bin]]
+name = "cfs-meta"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+prost.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lib]
+name = "claudefs_meta"
+path = "src/lib.rs"
