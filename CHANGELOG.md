@@ -91,7 +91,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - 141 unit tests passing, 0 clippy warnings (with -D warnings), 0 unsafe code in allocator/engine
 - Ready for integration with A2 (metadata), A3 (reduction), A4 (transport)
 
-##### A2: Metadata Service (PHASE 2 COMPLETE — 184 tests ✅)
+##### A2: Metadata Service (PHASE 2 COMPLETE — 233 tests ✅, 25 modules)
 
 **Phase 1 (Complete):**
 - Core types: InodeId, NodeId, ShardId, Term, LogIndex, Timestamp, VectorClock,
@@ -137,11 +137,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **ConflictDetector**: vector clock conflict detection for cross-site replication,
   Last-Write-Wins resolution (sequence first, site_id tiebreaker), concurrent
   modification detection, conflict event logging with per-inode filtering
-- 184 unit tests passing (48 new in this session), 0 clippy warnings, 0 unsafe code
-- 20 modules total: types, kvstore, inode, directory, consensus, journal, locking,
+- **ReadIndexManager**: linearizable reads via ReadIndex protocol (Raft paper §8),
+  pending read tracking, heartbeat quorum confirmation, apply-index waiting
+- **WatchManager**: inotify-like watch/notify for directory change events,
+  per-client event queuing, recursive watches, 6 event types (Create, Delete,
+  Rename, AttrChange, DataChange, XattrChange)
+- **POSIX access control**: check_access with owner/group/other bit evaluation,
+  root bypass, sticky bit enforcement, supplementary group support
+- **FileHandleManager**: open file descriptor tracking for FUSE integration,
+  per-inode and per-client indexing, is_open_for_write check, disconnect cleanup
+- **MetricsCollector**: per-operation counts/errors/latencies for Prometheus export,
+  cache hit/miss counters, point-in-time snapshot, 15 MetricOp types
+- 233 unit tests passing, 0 clippy warnings, 0 unsafe code
+- 25 modules total: types, kvstore, inode, directory, consensus, journal, locking,
   lease, xattr, shard, replication, pathres, multiraft, service, raftservice,
-  transaction, snapshot, quota, conflict, main
-- Ready for integration with A5 (FUSE), A6 (Replication), A7 (Gateways)
+  transaction, snapshot, quota, conflict, readindex, watch, access, filehandle,
+  metrics, main
+- Ready for integration with A5 (FUSE), A6 (Replication), A7 (Gateways), A8 (Mgmt)
 
 ##### A4: Transport (PHASE 1 COMPLETE ✅)
 - Binary RPC protocol: 24-byte header (magic, version, flags, opcode, request_id, CRC32)
