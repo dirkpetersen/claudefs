@@ -133,9 +133,14 @@ echo "*/15 * * * * root /opt/cfs-cost-monitor.sh" > /etc/cron.d/cfs-cost-monitor
 mkdir -p /var/log/cfs-agents
 chown cfs:cfs /var/log/cfs-agents
 
-# --- Install agent launcher ---
+# --- Install agent launcher, watchdog, and supervisor ---
 cp /home/cfs/claudefs/tools/cfs-agent-launcher.sh /opt/cfs-agent-launcher.sh
-chmod +x /opt/cfs-agent-launcher.sh
+cp /home/cfs/claudefs/tools/cfs-watchdog.sh /opt/cfs-watchdog.sh
+cp /home/cfs/claudefs/tools/cfs-supervisor.sh /opt/cfs-supervisor.sh
+chmod +x /opt/cfs-agent-launcher.sh /opt/cfs-watchdog.sh /opt/cfs-supervisor.sh
+
+# --- Supervisor cron: Claude checks on agents every 15 minutes ---
+echo "*/15 * * * * cfs /opt/cfs-supervisor.sh >> /var/log/cfs-agents/supervisor.log 2>&1" > /etc/cron.d/cfs-supervisor
 
 # --- Tag self (IMDSv2) ---
 IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
