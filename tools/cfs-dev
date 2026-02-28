@@ -1,0 +1,476 @@
+#!/usr/bin/env bash
+# cfs-dev — ClaudeFS development cluster management tool
+# Usage: cfs-dev <command> [options]
+#
+# Commands:
+#   up         Provision orchestrator and start agents
+#   status     Show cluster status
+#   logs       Stream agent logs
+#   down       Tear down spot cluster (keep orchestrator)
+#   destroy    Tear down everything including orchestrator
+#   cost       Show current AWS spend
+#   ssh        SSH into orchestrator or named node
+
+set -euo pipefail
+
+REGION="us-west-2"
+ACCOUNT_ID="405644541454"
+PROJECT_TAG="claudefs"
+ORCH_INSTANCE_TYPE="c7a.2xlarge"
+ORCH_AMI=""  # Resolved dynamically (Ubuntu 24.04)
+KEY_NAME="${CFS_KEY_NAME:-}"  # SSH key pair name; set CFS_KEY_NAME or pass --key
+SECURITY_GROUP="cfs-cluster-sg"
+INSTANCE_PROFILE="cfs-orchestrator-profile"
+SPOT_PROFILE="cfs-spot-node-profile"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# --- Helpers ---
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+info() { echo "==> $*"; }
+warn() { echo "WARNING: $*" >&2; }
+
+resolve_ami() {
+  # Get latest Ubuntu 24.04 amd64 AMI
+  aws ec2 describe-images \
+    --owners 099720109477 \
+    --filters \
+      "Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*" \
+      "Name=state,Values=available" \
+    --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+    --output text --region "$REGION"
+}
+
+get_orchestrator_id() {
+  aws ec2 describe-instances \
+    --filters \
+      "Name=tag:project,Values=$PROJECT_TAG" \
+      "Name=tag:role,Values=orchestrator" \
+      "Name=instance-state-name,Values=running,pending" \
+    --query 'Reservations[].Instances[0].InstanceId' \
+    --output text --region "$REGION" 2>/dev/null | head -1
+}
+
+get_orchestrator_ip() {
+  aws ec2 describe-instances \
+    --filters \
+      "Name=tag:project,Values=$PROJECT_TAG" \
+      "Name=tag:role,Values=orchestrator" \
+      "Name=instance-state-name,Values=running" \
+    --query 'Reservations[].Instances[0].PublicIpAddress' \
+    --output text --region "$REGION" 2>/dev/null | head -1
+}
+
+get_sg_id() {
+  aws ec2 describe-security-groups \
+    --group-names "$SECURITY_GROUP" \
+    --query 'SecurityGroups[0].GroupId' \
+    --output text --region "$REGION" 2>/dev/null
+}
+
+wait_for_instance() {
+  local instance_id="$1"
+  local max_wait="${2:-300}"
+  info "Waiting for instance $instance_id to be running..."
+  aws ec2 wait instance-running --instance-ids "$instance_id" --region "$REGION"
+  info "Instance running. Waiting for status checks..."
+  local elapsed=0
+  while (( elapsed < max_wait )); do
+    local status
+    status=$(aws ec2 describe-instance-status \
+      --instance-ids "$instance_id" \
+      --query 'InstanceStatuses[0].InstanceStatus.Status' \
+      --output text --region "$REGION" 2>/dev/null)
+    if [[ "$status" == "ok" ]]; then
+      info "Instance status checks passed"
+      return 0
+    fi
+    sleep 10
+    elapsed=$((elapsed + 10))
+  done
+  warn "Timed out waiting for status checks (instance may still be bootstrapping)"
+}
+
+wait_for_bootstrap() {
+  local ip="$1"
+  local max_wait="${2:-600}"
+  local key_arg=""
+  [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+  info "Waiting for orchestrator bootstrap to complete..."
+  local elapsed=0
+  while (( elapsed < max_wait )); do
+    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 $key_arg "ubuntu@${ip}" \
+      "test -f /tmp/cfs-bootstrap-complete" 2>/dev/null; then
+      info "Bootstrap complete!"
+      return 0
+    fi
+    sleep 15
+    elapsed=$((elapsed + 15))
+    echo -n "."
+  done
+  echo ""
+  warn "Timed out waiting for bootstrap (check /var/log/cfs-bootstrap.log on instance)"
+  return 1
+}
+
+# --- Commands ---
+
+cmd_up() {
+  local phase=1
+  local skip_agents=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --phase) phase="$2"; shift 2 ;;
+      --key) KEY_NAME="$2"; shift 2 ;;
+      --no-agents) skip_agents=true; shift ;;
+      *) die "Unknown option: $1" ;;
+    esac
+  done
+
+  # Check if orchestrator already exists
+  local orch_id
+  orch_id=$(get_orchestrator_id)
+  if [[ -n "$orch_id" && "$orch_id" != "None" ]]; then
+    info "Orchestrator already running: $orch_id"
+    local orch_ip
+    orch_ip=$(get_orchestrator_ip)
+    info "IP: $orch_ip"
+
+    if [[ "$skip_agents" == "false" ]]; then
+      info "Starting agents (phase $phase)..."
+      local key_arg=""
+      [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+      ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
+        "sudo -u cfs /opt/cfs-agent-launcher.sh --phase $phase"
+    fi
+    return 0
+  fi
+
+  # Resolve AMI
+  info "Resolving Ubuntu 24.04 AMI..."
+  ORCH_AMI=$(resolve_ami)
+  info "AMI: $ORCH_AMI"
+
+  # Resolve security group
+  local sg_id
+  sg_id=$(get_sg_id)
+  [[ -z "$sg_id" || "$sg_id" == "None" ]] && die "Security group $SECURITY_GROUP not found. Run setup first."
+  info "Security group: $sg_id"
+
+  # Build key arg
+  local key_spec=""
+  if [[ -n "$KEY_NAME" ]]; then
+    key_spec="--key-name $KEY_NAME"
+  fi
+
+  # Encode user-data
+  local userdata_path="${SCRIPT_DIR}/orchestrator-user-data.sh"
+  [[ -f "$userdata_path" ]] || die "User data script not found: $userdata_path"
+
+  # Launch orchestrator
+  info "Launching orchestrator ($ORCH_INSTANCE_TYPE)..."
+  local instance_id
+  instance_id=$(aws ec2 run-instances \
+    --image-id "$ORCH_AMI" \
+    --instance-type "$ORCH_INSTANCE_TYPE" \
+    --iam-instance-profile Name="$INSTANCE_PROFILE" \
+    --security-group-ids "$sg_id" \
+    --user-data "file://${userdata_path}" \
+    --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":100,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=cfs-orchestrator},{Key=project,Value=$PROJECT_TAG},{Key=role,Value=orchestrator}]" \
+    $key_spec \
+    --query 'Instances[0].InstanceId' --output text \
+    --region "$REGION")
+
+  info "Orchestrator launched: $instance_id"
+
+  # Wait for instance
+  wait_for_instance "$instance_id" 300
+
+  local orch_ip
+  orch_ip=$(get_orchestrator_ip)
+  info "Orchestrator IP: $orch_ip"
+
+  # Wait for bootstrap
+  wait_for_bootstrap "$orch_ip" 900
+
+  if [[ "$skip_agents" == "false" ]]; then
+    info "Starting agents (phase $phase)..."
+    local key_arg=""
+    [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+    ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
+      "sudo -u cfs /opt/cfs-agent-launcher.sh --phase $phase"
+  fi
+
+  info "Orchestrator ready at $orch_ip"
+  echo ""
+  echo "  SSH:    cfs-dev ssh"
+  echo "  Status: cfs-dev status"
+  echo "  Logs:   cfs-dev logs"
+}
+
+cmd_status() {
+  echo "=== ClaudeFS Development Cluster Status ==="
+  echo ""
+
+  # Orchestrator
+  local orch_id
+  orch_id=$(get_orchestrator_id)
+  if [[ -z "$orch_id" || "$orch_id" == "None" ]]; then
+    echo "Orchestrator: NOT RUNNING"
+  else
+    local orch_ip
+    orch_ip=$(get_orchestrator_ip)
+    echo "Orchestrator: $orch_id ($orch_ip)"
+    local orch_type
+    orch_type=$(aws ec2 describe-instances --instance-ids "$orch_id" \
+      --query 'Reservations[0].Instances[0].InstanceType' --output text --region "$REGION" 2>/dev/null)
+    echo "  Type: $orch_type"
+    local orch_launch
+    orch_launch=$(aws ec2 describe-instances --instance-ids "$orch_id" \
+      --query 'Reservations[0].Instances[0].LaunchTime' --output text --region "$REGION" 2>/dev/null)
+    echo "  Running since: $orch_launch"
+  fi
+
+  echo ""
+
+  # Spot nodes
+  echo "Cluster Nodes:"
+  aws ec2 describe-instances \
+    --filters \
+      "Name=tag:project,Values=$PROJECT_TAG" \
+      "Name=instance-state-name,Values=running,pending" \
+    --query 'Reservations[].Instances[].[Tags[?Key==`Name`].Value|[0],InstanceId,InstanceType,PrivateIpAddress,State.Name]' \
+    --output table --region "$REGION" 2>/dev/null || echo "  No nodes found"
+
+  echo ""
+
+  # Agent sessions (if orchestrator is running)
+  if [[ -n "$orch_id" && "$orch_id" != "None" ]]; then
+    local orch_ip
+    orch_ip=$(get_orchestrator_ip)
+    if [[ -n "$orch_ip" && "$orch_ip" != "None" ]]; then
+      echo "Agent Sessions:"
+      local key_arg=""
+      [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+      ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 $key_arg "ubuntu@${orch_ip}" \
+        "sudo -u cfs tmux ls 2>/dev/null || echo '  No agent sessions running'" 2>/dev/null || echo "  (cannot reach orchestrator)"
+    fi
+  fi
+}
+
+cmd_logs() {
+  local agent=""
+  local follow=true
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="$2"; shift 2 ;;
+      --no-follow) follow=false; shift ;;
+      --key) KEY_NAME="$2"; shift 2 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+  done
+
+  local orch_ip
+  orch_ip=$(get_orchestrator_ip)
+  [[ -z "$orch_ip" || "$orch_ip" == "None" ]] && die "Orchestrator not running"
+
+  local key_arg=""
+  [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+
+  if [[ -n "$agent" ]]; then
+    local agent_upper="${agent^^}"
+    local log_file="/var/log/cfs-agents/${agent_upper}.log"
+    if [[ "$follow" == "true" ]]; then
+      ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" "tail -f $log_file"
+    else
+      ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" "cat $log_file"
+    fi
+  else
+    if [[ "$follow" == "true" ]]; then
+      ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" "tail -f /var/log/cfs-agents/*.log"
+    else
+      ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" "ls -la /var/log/cfs-agents/"
+    fi
+  fi
+}
+
+cmd_down() {
+  info "Tearing down spot cluster (keeping orchestrator)..."
+
+  local instance_ids
+  instance_ids=$(aws ec2 describe-instances \
+    --filters \
+      "Name=tag:project,Values=$PROJECT_TAG" \
+      "Name=instance-lifecycle,Values=spot" \
+      "Name=instance-state-name,Values=running,pending" \
+    --query 'Reservations[].Instances[].InstanceId' \
+    --output text --region "$REGION" 2>/dev/null)
+
+  if [[ -z "$instance_ids" ]]; then
+    info "No spot instances to terminate"
+    return 0
+  fi
+
+  info "Terminating spot instances: $instance_ids"
+  aws ec2 terminate-instances --instance-ids $instance_ids --region "$REGION"
+  info "Spot instances terminated"
+}
+
+cmd_destroy() {
+  warn "This will terminate ALL ClaudeFS instances including the orchestrator!"
+  read -r -p "Type 'destroy' to confirm: " confirm
+  [[ "$confirm" == "destroy" ]] || die "Aborted"
+
+  local instance_ids
+  instance_ids=$(aws ec2 describe-instances \
+    --filters \
+      "Name=tag:project,Values=$PROJECT_TAG" \
+      "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+    --query 'Reservations[].Instances[].InstanceId' \
+    --output text --region "$REGION" 2>/dev/null)
+
+  if [[ -z "$instance_ids" ]]; then
+    info "No instances to terminate"
+    return 0
+  fi
+
+  info "Terminating: $instance_ids"
+  aws ec2 terminate-instances --instance-ids $instance_ids --region "$REGION"
+  info "All ClaudeFS instances terminated"
+}
+
+cmd_cost() {
+  echo "=== ClaudeFS AWS Spend ==="
+  echo ""
+
+  local today
+  today=$(date -u +%Y-%m-%d)
+  local tomorrow
+  tomorrow=$(date -u -d '+1 day' +%Y-%m-%d)
+  local month_start
+  month_start=$(date -u +%Y-%m-01)
+
+  echo "Today ($today):"
+  aws ce get-cost-and-usage \
+    --time-period "Start=$today,End=$tomorrow" \
+    --granularity DAILY \
+    --metrics UnblendedCost \
+    --group-by Type=DIMENSION,Key=SERVICE \
+    --query 'ResultsByTime[0].Groups[?Metrics.UnblendedCost.Amount!=`0`].[Keys[0],Metrics.UnblendedCost.Amount]' \
+    --output table --region "$REGION" 2>/dev/null || echo "  (cost data not yet available)"
+
+  echo ""
+  echo "This month ($month_start to $today):"
+  aws ce get-cost-and-usage \
+    --time-period "Start=$month_start,End=$tomorrow" \
+    --granularity MONTHLY \
+    --metrics UnblendedCost \
+    --query 'ResultsByTime[0].Total.UnblendedCost.Amount' \
+    --output text --region "$REGION" 2>/dev/null || echo "  (cost data not yet available)"
+
+  echo ""
+  echo "Budget: \$100/day"
+  aws budgets describe-budget \
+    --account-id "$ACCOUNT_ID" \
+    --budget-name "cfs-daily-100" \
+    --query 'Budget.{Limit:BudgetLimit.Amount,Actual:CalculatedSpend.ActualSpend.Amount}' \
+    --output table --region "$REGION" 2>/dev/null || echo "  (budget data not yet available)"
+}
+
+cmd_ssh() {
+  local target="${1:-orchestrator}"
+  local key_arg=""
+  shift || true
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --key) KEY_NAME="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+
+  if [[ "$target" == "orchestrator" ]]; then
+    local orch_ip
+    orch_ip=$(get_orchestrator_ip)
+    [[ -z "$orch_ip" || "$orch_ip" == "None" ]] && die "Orchestrator not running"
+    info "Connecting to orchestrator at $orch_ip..."
+    exec ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}"
+  else
+    # Find node by name tag
+    local node_ip
+    node_ip=$(aws ec2 describe-instances \
+      --filters \
+        "Name=tag:project,Values=$PROJECT_TAG" \
+        "Name=tag:Name,Values=cfs-${target}*" \
+        "Name=instance-state-name,Values=running" \
+      --query 'Reservations[].Instances[0].PublicIpAddress' \
+      --output text --region "$REGION" 2>/dev/null | head -1)
+    [[ -z "$node_ip" || "$node_ip" == "None" ]] && die "Node '$target' not found"
+    info "Connecting to $target at $node_ip..."
+    exec ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${node_ip}"
+  fi
+}
+
+cmd_help() {
+  cat << 'HELP'
+cfs-dev — ClaudeFS development cluster management
+
+Usage: cfs-dev <command> [options]
+
+Commands:
+  up [--phase N] [--key KEY] [--no-agents]
+      Provision or reuse orchestrator, optionally start agents.
+      --phase 1|2|3    Development phase (default: 1)
+      --key KEY        SSH key pair name
+      --no-agents      Just provision, don't start agents
+
+  status
+      Show orchestrator, cluster nodes, and agent session status.
+
+  logs [--agent A1] [--no-follow] [--key KEY]
+      Stream agent logs from orchestrator.
+      --agent A1       Stream specific agent (e.g., A1, A2)
+      --no-follow      Dump logs instead of tailing
+
+  down
+      Terminate spot cluster nodes (keep orchestrator running).
+
+  destroy
+      Terminate everything including orchestrator. Requires confirmation.
+
+  cost
+      Show today's AWS spend, monthly total, and budget status.
+
+  ssh [target] [--key KEY]
+      SSH into orchestrator (default) or named node.
+      Examples: cfs-dev ssh
+               cfs-dev ssh storage-0
+               cfs-dev ssh client
+
+Environment:
+  CFS_KEY_NAME    Default SSH key pair name
+HELP
+}
+
+# --- Main ---
+
+COMMAND="${1:-help}"
+shift || true
+
+case "$COMMAND" in
+  up)      cmd_up "$@" ;;
+  status)  cmd_status "$@" ;;
+  logs)    cmd_logs "$@" ;;
+  down)    cmd_down "$@" ;;
+  destroy) cmd_destroy "$@" ;;
+  cost)    cmd_cost "$@" ;;
+  ssh)     cmd_ssh "$@" ;;
+  help|--help|-h) cmd_help ;;
+  *)       die "Unknown command: $COMMAND. Run 'cfs-dev help' for usage." ;;
+esac

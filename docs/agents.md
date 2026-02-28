@@ -262,11 +262,57 @@ Spun up for testing, torn down when idle. A11 automates the lifecycle.
 
 ### Cost Management
 
+- **Daily budget: $100** (EC2 + Bedrock combined)
 - All 9 test nodes are **spot/preemptible instances** — 60-90% cheaper than on-demand
 - A11 provisions the cluster on demand: `cfs-dev up` before a test run, `cfs-dev down` after
 - Estimated cost: ~$5-10/hour when the full cluster is running, $0 when idle (only the orchestrator runs)
 - CI runs nightly on the full cluster; developers trigger on-demand runs for specific test suites
 - Instance types can be downgraded for basic functional testing, upgraded for performance benchmarks
+
+### AWS Budget Breakdown
+
+| Resource | Type | Estimated Daily Cost |
+|----------|------|---------------------|
+| Orchestrator | EC2 c7a.2xlarge on-demand | ~$10/day |
+| 5x storage nodes | EC2 i4i.2xlarge spot (8 hrs) | ~$14/day |
+| 2x client nodes | EC2 c7a.xlarge spot (8 hrs) | ~$1/day |
+| 1x conduit | EC2 t3.medium spot (8 hrs) | ~$0.15/day |
+| 1x Jepsen | EC2 c7a.xlarge spot (8 hrs) | ~$0.50/day |
+| Secrets Manager | 2 secrets | ~$0.03/day |
+| **EC2 subtotal** | | **~$26/day** |
+| **Bedrock** | 5-7 agents, Opus/Sonnet/Haiku | **~$55-70/day** |
+| **Grand total** | | **~$80-96/day** |
+
+### Budget Enforcement
+
+- AWS Budgets: `cfs-daily-100` — $100/day with alerts at 80% and 100%
+- SNS topic `cfs-budget-alerts` — notification endpoint
+- Cost monitor cron: `tools/cfs-cost-monitor.sh` runs every 15 minutes on orchestrator, auto-terminates spot instances at budget limit
+
+### Bootstrap Infrastructure (tools/)
+
+| Script | Purpose |
+|--------|---------|
+| `tools/cfs-dev` | Main CLI: `up`, `status`, `logs`, `down`, `destroy`, `cost`, `ssh` |
+| `tools/orchestrator-user-data.sh` | Cloud-init: Rust 1.93, Node.js 22, Claude Code, GitHub CLI |
+| `tools/storage-node-user-data.sh` | Cloud-init: NVMe setup, kernel tuning for storage |
+| `tools/client-node-user-data.sh` | Cloud-init: FUSE/NFS/SMB client tools, POSIX test deps |
+| `tools/cfs-agent-launcher.sh` | Launches agents as tmux sessions with per-agent model selection |
+| `tools/cfs-cost-monitor.sh` | Budget enforcement cron job |
+| `tools/iam-policies/*.json` | IAM policies for orchestrator and spot nodes |
+
+### AWS Resources (Pre-provisioned)
+
+| Resource | Name | Notes |
+|----------|------|-------|
+| Secrets | `cfs/github-token`, `cfs/ssh-private-key` | In Secrets Manager (us-west-2) |
+| IAM role | `cfs-orchestrator-role` | Bedrock, EC2, Secrets, CloudWatch, Budgets |
+| IAM role | `cfs-spot-node-role` | Secrets, CloudWatch logs, EC2 describe |
+| Instance profile | `cfs-orchestrator-profile` | Attached to orchestrator |
+| Instance profile | `cfs-spot-node-profile` | Attached to spot nodes |
+| Security group | `cfs-cluster-sg` | All traffic within group + SSH from dev IP |
+| Budget | `cfs-daily-100` | $100/day with 80%/100% alerts |
+| SNS topic | `cfs-budget-alerts` | Budget alert notifications |
 
 ### Scaling for Performance Benchmarks
 
