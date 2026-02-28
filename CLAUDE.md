@@ -36,7 +36,7 @@ Both clients share the same cluster, metadata protocol, storage backend, and rep
 - Requires RDMA NICs (InfiniBand, RoCE)
 
 ### Universal Client (`claudefs-fuse`)
-- FUSE v3 with passthrough mode (kernel 6.9+)
+- FUSE v3 with passthrough mode (kernel 6.8+)
 - io_uring async I/O, standard TCP/IP networking
 - Full POSIX by default, optional relaxation flags
 - NFS v4.2+ kernel export as additional fallback
@@ -47,7 +47,7 @@ Both clients share the same cluster, metadata protocol, storage backend, and rep
 - **Language:** Rust
 - **Key crates:** `fuser` (FUSE v3), `io-uring`, `libfabric` bindings, `aws-sdk-rust` (S3)
 - **Async runtime:** Tokio with io_uring backend
-- **Key kernel features:** FUSE passthrough (6.9+), io_uring, kTLS, ID-mapped mounts — see [docs/kernel.md](docs/kernel.md)
+- **Key kernel features:** FUSE passthrough (6.8+), io_uring + NVMe passthrough, atomic writes (6.11+), kTLS, ID-mapped mounts — see [docs/kernel.md](docs/kernel.md)
 - **Research foundations:** InfiniFS, Orion, Assise, MadFS, DAOS, LineFS, FLEX — see [docs/literature.md](docs/literature.md)
 - **POSIX validation:** pjdfstest, xfstests, fsx, LTP, Connectathon, Jepsen, FIO, CrashMonkey — see [docs/posix.md](docs/posix.md)
 

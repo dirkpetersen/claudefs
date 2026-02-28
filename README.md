@@ -49,7 +49,7 @@ Goal: **Maximum throughput, minimum latency — no compromises.**
 #### Universal Client (`claudefs-fuse`)
 Goal: **Works everywhere, easy to deploy, full POSIX compatibility.**
 
-- FUSE v3 userspace mount with passthrough mode (kernel 6.9+) for near-kernel-native data path performance
+- FUSE v3 userspace mount with passthrough mode (kernel 6.8+) for near-kernel-native data path performance
 - io_uring for async I/O — high concurrency with minimal syscall overhead
 - Standard TCP/IP networking — no special hardware required
 - Full POSIX semantics by default, with optional relaxation flags for performance
@@ -82,7 +82,7 @@ Goal: **Works everywhere, easy to deploy, full POSIX compatibility.**
 
 ## Target Platform
 
-- Linux kernel 6.0+ (6.9+ recommended for FUSE passthrough)
+- Linux kernel 6.0+ (6.8+ recommended for FUSE passthrough)
 - Ubuntu 24.04, Ubuntu 26.04, Red Hat 10
 - Standard Linux server hardware with NVMe/SSD storage
 
