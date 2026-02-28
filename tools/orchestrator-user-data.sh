@@ -60,7 +60,9 @@ sudo -u cfs bash -c 'source ~/.cargo/env && rustup default stable'
 sudo -u cfs bash -c 'source ~/.cargo/env && rustup component add clippy rustfmt'
 
 # --- Install cargo tools ---
-sudo -u cfs bash -c 'source ~/.cargo/env && cargo install cargo-audit cargo-deny cargo-nextest'
+sudo -u cfs bash -c 'source ~/.cargo/env && cargo install cargo-audit cargo-deny' || true
+# nextest: install from pre-built binary (faster, avoids compilation issues)
+sudo -u cfs bash -c 'curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ~/.cargo/bin' || true
 
 # --- Install Node.js 22 ---
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
