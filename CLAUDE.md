@@ -49,6 +49,7 @@ Single FUSE v3 client binary (`claudefs`) with pluggable network transport:
 - **Key kernel features:** FUSE passthrough (6.8+), io_uring + NVMe passthrough, atomic writes (6.11+), kTLS, ID-mapped mounts — see [docs/kernel.md](docs/kernel.md)
 - **Research foundations:** InfiniFS, Orion, Assise, MadFS, DAOS, LineFS, FLEX — see [docs/literature.md](docs/literature.md)
 - **Transport layer:** Custom RPC over io_uring (core), pNFS layouts (modern clients), NFS gateway (legacy) — see [docs/transport.md](docs/transport.md)
+- **Data reduction:** Inline dedupe -> compress -> encrypt pipeline, CAS model, CoW snapshots — see [docs/reduction.md](docs/reduction.md)
 - **POSIX validation:** pjdfstest, xfstests, fsx, LTP, Connectathon, Jepsen, FIO, CrashMonkey — see [docs/posix.md](docs/posix.md)
 
 ## Reference Systems
