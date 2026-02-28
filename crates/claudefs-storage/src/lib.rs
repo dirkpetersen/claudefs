@@ -8,6 +8,7 @@
 
 pub mod allocator;
 pub mod block;
+pub mod capacity;
 pub mod checksum;
 pub mod device;
 pub mod engine;
@@ -18,6 +19,7 @@ pub mod segment;
 pub mod zns;
 
 pub use block::{BlockId, BlockRef, BlockSize, PlacementHint};
+pub use capacity::{CapacityTracker, CapacityLevel, CapacityTrackerStats, SegmentTracker, TierOverride, WatermarkConfig};
 pub use checksum::{Checksum, ChecksumAlgorithm, BlockHeader};
 pub use device::{DeviceConfig, DevicePool, DeviceRole, ManagedDevice, NvmeDeviceInfo, DeviceHealth};
 pub use allocator::{BuddyAllocator, AllocatorConfig, AllocatorStats};
