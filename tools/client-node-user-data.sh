@@ -43,7 +43,7 @@ ROLE=$(aws ec2 describe-tags \
 aws ec2 create-tags --resources "$INSTANCE_ID" --tags \
   Key=Name,Value="cfs-${ROLE}" \
   Key=project,Value=claudefs \
-  --region "$REGION"
+  --region "$REGION" || echo "WARNING: Failed to tag instance (non-fatal)"
 
 # --- Kernel tuning for client ---
 cat >> /etc/sysctl.d/99-cfs-client.conf << 'EOF'
