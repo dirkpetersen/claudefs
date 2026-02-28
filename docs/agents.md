@@ -286,6 +286,69 @@ These scale-up clusters are short-lived (hours) and fully preemptible.
 | Phase 2 | 6 (A3, A5, A6, A7, A8 + fixes) | 3 (A9, A10, A11) | **9** | 10 (full cluster) |
 | Phase 3 | 8 (all, bug fixes + features) | 3 (A9, A10, A11) | **11** | 10-20 (scale tests) |
 
+## Model Selection: Cost vs Accuracy
+
+Five Claude models are available. Each agent task is assigned the cheapest model that can do the job reliably. The principle: **Opus for architecture, Sonnet for implementation, Haiku for repetition.**
+
+### Available Models
+
+| Model | ID | Strengths | Relative Cost |
+|-------|-----|-----------|--------------|
+| **Opus** | `global.anthropic.claude-opus-4-6-v1` | Complex architecture, multi-file reasoning, subtle correctness bugs | $$$$$ |
+| **Opus Fast** | `global.anthropic.claude-opus-4-6-v1[1m]` | Same quality, faster output, larger context | $$$$ |
+| **Sonnet** | `global.anthropic.claude-sonnet-4-6` | Solid implementation, single-crate work, tests, refactoring | $$$ |
+| **Sonnet Fast** | `global.anthropic.claude-sonnet-4-6[1m]` | Same as Sonnet, faster, good for bulk code generation | $$ |
+| **Haiku** | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Boilerplate, formatting, simple edits, repetitive transforms | $ |
+
+### Model Assignment by Agent
+
+| Agent | Primary Task | Model | Rationale |
+|-------|-------------|-------|-----------|
+| **A1: Storage Engine** | io_uring FFI, unsafe code, block allocator | **Opus** | Low-level unsafe Rust + io_uring requires highest accuracy. Bugs here corrupt data silently. |
+| **A2: Metadata Service** | Raft consensus, distributed locking | **Opus** | Distributed consensus is the hardest correctness problem. Subtle bugs cause split-brain. |
+| **A3: Data Reduction** | Dedupe pipeline, compression, encryption | **Sonnet** | Well-defined algorithms with existing crate wrappers. Trait implementations against known interfaces. |
+| **A4: Transport** | RDMA FFI, custom RPC protocol | **Opus** | Unsafe libfabric bindings + zero-copy buffer management. Correctness-critical network code. |
+| **A5: FUSE Client** | FUSE daemon, passthrough, caching | **Sonnet** | Mostly wiring A2+A4 together via fuser crate. Passthrough mode is well-documented. |
+| **A6: Replication** | gRPC conduit, conflict resolution | **Sonnet** | Straightforward async Rust (tonic + tokio). Conflict logic is well-specified in decisions.md. |
+| **A7: Protocol Gateways** | NFS/pNFS, Samba VFS (C), S3 API | **Sonnet** | Protocol translation layers. The Samba VFS plugin is small C, NFS is well-documented. |
+| **A8: Management** | Prometheus, DuckDB, Web UI, CLI | **Sonnet Fast** | High-volume code gen (React components, CLI subcommands, Grafana JSON). Well-understood patterns. |
+| **A9: Test & Validation** | Test suites, benchmarks, CI integration | **Sonnet** | Writing test harnesses, wrappers around existing test tools. Needs to understand the codebase but not architect it. |
+| **A10: Security Audit** | Unsafe review, fuzzing, crypto audit | **Opus** | Reviewing other agents' unsafe code requires the deepest reasoning. Must catch what the author missed. |
+| **A11: Infrastructure & CI** | Terraform, GitHub Actions, deployment | **Haiku** | Boilerplate-heavy infrastructure-as-code. Terraform modules, YAML pipelines, shell scripts. Well-templated work. |
+
+### Model Usage by Task Type (Within Any Agent)
+
+Agents can switch models for different sub-tasks within their work:
+
+| Task Type | Model | Examples |
+|-----------|-------|---------|
+| **Architecture decisions** (trait design, API surface, cross-crate interfaces) | Opus | Defining the `StorageEngine` trait, designing the RPC protocol schema |
+| **Core implementation** (new complex logic) | Opus or Sonnet | Raft state machine, EC stripe calculation, RDMA buffer management |
+| **Standard implementation** (known patterns) | Sonnet | Implementing a gRPC service, writing a FUSE handler, Axum route handlers |
+| **Bulk code generation** (repetitive structure) | Sonnet Fast | CLI subcommands, Protobuf message types, Parquet schema definitions |
+| **Tests and fixtures** | Sonnet | Property-based tests, integration test setup, mock implementations |
+| **Boilerplate and config** | Haiku | Cargo.toml manifests, GitHub Actions YAML, Dockerfile, Terraform resources, Grafana dashboard JSON |
+| **Documentation and comments** | Haiku | README updates, doc comments, CHANGELOG entries |
+| **Code review and security audit** | Opus | Reviewing unsafe blocks, checking for timing side channels, validating error handling |
+| **Bug investigation** (cross-crate, subtle) | Opus | Why does Jepsen find a consistency violation? Why does this crash under load? |
+| **Bug fix** (single-crate, obvious) | Sonnet | Fix a failing test, handle an edge case, update a type signature |
+
+### Estimated Cost Distribution
+
+Assuming a full development day (8 hours of agent activity):
+
+| Model | % of Total Tokens | Relative Cost/Token | % of Total Cost |
+|-------|-------------------|--------------------|-----------------|
+| Opus | ~20% | 5x | ~50% |
+| Sonnet / Sonnet Fast | ~60% | 1.5x | ~40% |
+| Haiku | ~20% | 0.3x | ~10% |
+
+**Cost optimization levers:**
+- A1, A2, A4, A10 are Opus-heavy but they produce the smallest volume of code (low-level, careful work)
+- A3, A5, A6, A7, A9 are the bulk of the codebase and run on Sonnet
+- A8 and A11 produce the most lines of code (UI, infra) and use the cheapest models
+- Any agent can drop to Haiku for boilerplate sub-tasks (Cargo.toml, config files, doc comments)
+
 ## Shared Conventions (All Agents)
 
 - **Error handling:** `thiserror` for library errors, `anyhow` at binary entry points
