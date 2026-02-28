@@ -43,7 +43,7 @@ Single FUSE v3 client binary (`claudefs`) with pluggable network transport:
 
 ## Implementation
 
-- **Language:** Rust
+- **Language:** Rust — compiler-enforced memory safety and data-race freedom; `unsafe` isolated to io_uring/RDMA/FUSE FFI boundaries — see [docs/language.md](docs/language.md)
 - **Key crates:** `fuser` (FUSE v3), `io-uring`, `libfabric` bindings, `aws-sdk-rust` (S3)
 - **Async runtime:** Tokio with io_uring backend
 - **Key kernel features:** FUSE passthrough (6.8+), io_uring + NVMe passthrough, atomic writes (6.11+), kTLS, ID-mapped mounts — see [docs/kernel.md](docs/kernel.md)
