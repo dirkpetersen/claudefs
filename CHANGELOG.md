@@ -91,7 +91,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - 141 unit tests passing, 0 clippy warnings (with -D warnings), 0 unsafe code in allocator/engine
 - Ready for integration with A2 (metadata), A3 (reduction), A4 (transport)
 
-##### A2: Metadata Service (PHASE 2 IN PROGRESS — 136 tests ✅)
+##### A2: Metadata Service (PHASE 2 COMPLETE — 184 tests ✅)
 
 **Phase 1 (Complete):**
 - Core types: InodeId, NodeId, ShardId, Term, LogIndex, Timestamp, VectorClock,
@@ -113,7 +113,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - XattrStore: per-inode extended attributes (set, get, list, remove, remove_all)
 - LockManager: per-inode read/write locks for POSIX mandatory locking (fcntl)
 
-**Phase 2 (New):**
+**Phase 2 (Complete):**
 - ShardRouter: maps inodes to 256 virtual shards and shards to cluster nodes,
   round-robin distribution via ShardAssigner, leader tracking, node removal
 - Symlink/hardlink POSIX operations: symlink(), link(), readlink() with
@@ -122,11 +122,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   routes operations to correct shard's Raft group, per-shard election/replication
 - PathResolver: speculative path resolution with (parent, name) cache,
   partial cache hits, parent invalidation, sequential fallback resolution
+- **Negative caching**: "entry not found" results cached with configurable TTL,
+  auto-invalidated on creates, expired entry cleanup — common build system optimization
 - LeaseManager: time-limited metadata caching leases (read/write) for FUSE clients,
   lease revocation on mutations, client disconnect cleanup, lease renewal
 - RaftMetadataService: unified API integrating local service, Multi-Raft, leases,
   and path cache — mutations revoke leases/invalidate cache, reads use local state
-- 136 unit tests passing (53 new), 0 clippy warnings, 0 unsafe code
+- **TransactionManager**: two-phase commit coordinator for cross-shard rename/link,
+  begin/vote/commit/abort lifecycle, timeout-based cleanup for timed-out transactions
+- **SnapshotManager**: Raft log snapshot and compaction, configurable thresholds,
+  compaction point calculation, snapshot restore for follower catch-up
+- **QuotaManager**: per-user/group storage quotas (Priority 1 feature gap),
+  byte and inode limits, usage tracking, enforcement via check_quota(), over-quota detection
+- **ConflictDetector**: vector clock conflict detection for cross-site replication,
+  Last-Write-Wins resolution (sequence first, site_id tiebreaker), concurrent
+  modification detection, conflict event logging with per-inode filtering
+- 184 unit tests passing (48 new in this session), 0 clippy warnings, 0 unsafe code
+- 20 modules total: types, kvstore, inode, directory, consensus, journal, locking,
+  lease, xattr, shard, replication, pathres, multiraft, service, raftservice,
+  transaction, snapshot, quota, conflict, main
 - Ready for integration with A5 (FUSE), A6 (Replication), A7 (Gateways)
 
 ##### A4: Transport (PHASE 1 COMPLETE ✅)
