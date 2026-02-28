@@ -680,7 +680,7 @@ mod tests {
         // Invalidate and it should work
         resolver.invalidate_negative(InodeId::ROOT_INODE, "missing");
 
-        let result = resolver.resolve_path("/missing/file", |parent, name| {
+        let result = resolver.resolve_path("/missing/file", |_parent, name| {
             Ok(DirEntry {
                 name: name.to_string(),
                 ino: InodeId::new(100),
