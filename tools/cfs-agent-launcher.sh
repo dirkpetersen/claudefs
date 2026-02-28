@@ -158,6 +158,16 @@ done
 
 echo ""
 echo "=== All agents launched ==="
+
+# Start watchdog if not already running
+if ! tmux has-session -t cfs-watchdog 2>/dev/null; then
+  echo "Starting watchdog..."
+  tmux new-session -d -s cfs-watchdog \
+    "cd $REPO_DIR && /opt/cfs-watchdog.sh --phase $PHASE 2>&1 | tee -a $LOG_DIR/watchdog.log"
+  echo "Watchdog started (checks every 2 min, relaunches dead agents, pushes commits)"
+fi
+
 echo "Monitor with: tmux ls"
 echo "Attach to agent: tmux attach -t cfs-a1"
 echo "View logs: tail -f $LOG_DIR/A*.log"
+echo "Watchdog log: tail -f $LOG_DIR/watchdog.log"
