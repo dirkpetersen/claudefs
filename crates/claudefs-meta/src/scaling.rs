@@ -172,7 +172,7 @@ impl ScalingManager {
             return tasks;
         }
 
-        let target_shards_per_node = self.num_shards as usize / remaining_nodes.len();
+        let _target_shards_per_node = self.num_shards as usize / remaining_nodes.len();
 
         let mut shards_to_reassign: Vec<ShardId> = Vec::new();
         let mut leaving_replica_shards: Vec<ShardId> = Vec::new();
@@ -239,8 +239,9 @@ impl ScalingManager {
             );
             Ok(())
         } else {
-            Err(MetaError::InodeNotFound(InodeId(
-                task.shard_id.as_u64() as u64
+            Err(MetaError::KvError(format!(
+                "shard {:?} not found",
+                task.shard_id
             )))
         }
     }
@@ -386,7 +387,7 @@ mod tests {
         ];
         mgr.initialize_placements(&nodes);
 
-        let tasks = mgr.plan_remove_node(
+        let _tasks = mgr.plan_remove_node(
             NodeId::new(1),
             &[NodeId::new(2), NodeId::new(3), NodeId::new(4)],
         );
