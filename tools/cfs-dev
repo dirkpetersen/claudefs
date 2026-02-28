@@ -31,6 +31,26 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
 warn() { echo "WARNING: $*" >&2; }
 
+resolve_ssh_key() {
+  local key="$1"
+  # Accept full path as-is
+  if [[ -f "$key" ]]; then echo "$key"; return; fi
+  # Try ~/.ssh/KEY, ~/.ssh/KEY.pem, ~/.ssh/KEY.cer
+  for suffix in "" ".pem" ".cer"; do
+    local path="$HOME/.ssh/${key}${suffix}"
+    if [[ -f "$path" ]]; then echo "$path"; return; fi
+  done
+  die "SSH key not found: tried ~/.ssh/$key, ~/.ssh/$key.pem, ~/.ssh/$key.cer"
+}
+
+ssh_key_arg() {
+  if [[ -n "$KEY_NAME" ]]; then
+    local resolved
+    resolved=$(resolve_ssh_key "$KEY_NAME")
+    echo "-i $resolved"
+  fi
+}
+
 resolve_ami() {
   # Get latest Ubuntu 25.10 (Questing) amd64 AMI — kernel 6.17+
   aws ec2 describe-images \
@@ -95,8 +115,8 @@ wait_for_instance() {
 wait_for_bootstrap() {
   local ip="$1"
   local max_wait="${2:-600}"
-  local key_arg=""
-  [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+  local key_arg
+  key_arg=$(ssh_key_arg)
   info "Waiting for orchestrator bootstrap to complete..."
   local elapsed=0
   while (( elapsed < max_wait )); do
@@ -140,8 +160,8 @@ cmd_up() {
 
     if [[ "$skip_agents" == "false" ]]; then
       info "Starting agents (phase $phase)..."
-      local key_arg=""
-      [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+      local key_arg
+      key_arg=$(ssh_key_arg)
       ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
         "sudo -u cfs /opt/cfs-agent-launcher.sh --phase $phase"
     fi
@@ -198,8 +218,8 @@ cmd_up() {
 
   if [[ "$skip_agents" == "false" ]]; then
     info "Starting agents (phase $phase)..."
-    local key_arg=""
-    [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+    local key_arg
+    key_arg=$(ssh_key_arg)
     ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
       "sudo -u cfs /opt/cfs-agent-launcher.sh --phase $phase"
   fi
@@ -253,8 +273,8 @@ cmd_status() {
     orch_ip=$(get_orchestrator_ip)
     if [[ -n "$orch_ip" && "$orch_ip" != "None" ]]; then
       echo "Agent Sessions:"
-      local key_arg=""
-      [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+      local key_arg
+      key_arg=$(ssh_key_arg)
       ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 $key_arg "ubuntu@${orch_ip}" \
         "sudo -u cfs tmux ls 2>/dev/null || echo '  No agent sessions running'" 2>/dev/null || echo "  (cannot reach orchestrator)"
     fi
@@ -278,8 +298,8 @@ cmd_logs() {
   orch_ip=$(get_orchestrator_ip)
   [[ -z "$orch_ip" || "$orch_ip" == "None" ]] && die "Orchestrator not running"
 
-  local key_arg=""
-  [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+  local key_arg
+  key_arg=$(ssh_key_arg)
 
   if [[ -n "$agent" ]]; then
     local agent_upper="${agent^^}"
@@ -383,7 +403,6 @@ cmd_cost() {
 
 cmd_ssh() {
   local target="${1:-orchestrator}"
-  local key_arg=""
   shift || true
 
   while [[ $# -gt 0 ]]; do
@@ -393,7 +412,8 @@ cmd_ssh() {
     esac
   done
 
-  [[ -n "$KEY_NAME" ]] && key_arg="-i ~/.ssh/$KEY_NAME"
+  local key_arg
+  key_arg=$(ssh_key_arg)
 
   if [[ "$target" == "orchestrator" ]]; then
     local orch_ip
