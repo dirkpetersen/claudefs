@@ -57,10 +57,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - 73 unit tests passing, 0 clippy warnings, 0 unsafe code in allocator/engine
 - Ready for integration with A2 (metadata), A3 (reduction), A4 (transport)
 
-##### A2: Metadata Service (TESTS PASSING 🔨)
-- KV store module with bincode serialization (22 tests passing) ✅
-- Inode operations module implemented
-- Dependency fix: Added bincode.workspace = true by A11
+##### A2: Metadata Service (PHASE 1 COMPLETE ✅)
+- Core types: InodeId, NodeId, ShardId, Term, LogIndex, Timestamp, VectorClock,
+  MetaError, FileType, ReplicationState, InodeAttr, DirEntry, MetaOp, LogEntry,
+  RaftMessage, RaftState — full serde serialization, zero unsafe code
+- In-memory KV store (BTreeMap + RwLock): get, put, delete, scan_prefix,
+  scan_range, contains_key, write_batch — KvStore trait for future NVMe backend (D10)
+- InodeStore: atomic inode allocation, CRUD with bincode serialization
+- DirectoryStore: create/delete/lookup/list entries, cross-directory rename with POSIX semantics
+- Raft consensus state machine: leader election (150-300ms randomized timeout),
+  log replication, RequestVote/AppendEntries, commit advancement via quorum,
+  step-down on higher term — per D4 (Multi-Raft, one group per 256 virtual shards)
+- MetadataJournal: append-only log with monotonic sequence numbers,
+  replication tailing, batch read, compaction, lag monitoring
+- ReplicationTracker: register/acknowledge remote sites, pending entries,
+  compact_batch() for create+delete cancellation (AsyncFS optimization)
+- MetadataService: high-level POSIX API (create_file, mkdir, lookup, getattr,
+  setattr, readdir, unlink, rmdir, rename) with rollback on failure
+- XattrStore: per-inode extended attributes (set, get, list, remove, remove_all)
+- LockManager: per-inode read/write locks for POSIX mandatory locking (fcntl)
+- 83 unit tests passing, 0 clippy warnings, 0 unsafe code
+- Ready for integration with A5 (FUSE), A6 (Replication), A7 (Gateways)
 
 ##### A4: Transport (PHASE 1 COMPLETE ✅)
 - Binary RPC protocol: 24-byte header (magic, version, flags, opcode, request_id, CRC32)
