@@ -174,4 +174,4 @@ See [docs/literature.md](literature.md) for the full paper catalog. Key referenc
 
 - **Section 6** — FDP vs ZNS comparative study (supports "FDP default, ZNS optional")
 - **Section 7** — BaM/GIDS GPU-to-storage communication (GPUDirect Storage compatibility)
-- **Section 8** — Linux Storage Stack Diagram 6.20 (io_uring, NVMe-oF, FDP kernel interfaces)
+- **Section 9** — Linux Storage Stack Diagram 6.20 (io_uring, NVMe-oF, FDP kernel interfaces)

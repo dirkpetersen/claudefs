@@ -130,7 +130,31 @@ Argues that Flexible Data Placement (FDP) provides 90% of ZNS's efficiency gains
 
 Breakthrough in GPU-to-storage communication via NVMe-oF without CPU involvement. Allows GPUs to fetch data directly from the NVMe mesh. If ClaudeFS serves AI/ML training workloads, the transport layer must be compatible with BaM/GIDS memory pointers for GPUDirect Storage.
 
-## 8. Kernel and Infrastructure
+## 8. Metadata Replication and Consistency
+
+### SwitchDelta (ICDE 2026)
+
+*"SwitchDelta: Asynchronous Metadata Buffering for Distributed File Systems"*
+
+Moving metadata updates out of the critical path using asynchronous buffers. The local filesystem stays fast because remote sync is a side-effect, not a requirement for `stat()` or `mkdir()` to return. Directly informs ClaudeFS's journal-first replication model where the local Raft log is committed first and the replication agent tails it asynchronously.
+
+### AsyncFS (2025)
+
+*"AsyncFS: Scattering and Aggregating Metadata in Distributed File Systems"*
+
+Proposes replicating the "final state" of a directory rather than every intermediate operation. If a temp file is created and deleted within one batch window, the net replication is zero. ClaudeFS's replication agent applies this batch compaction strategy to reduce cross-site traffic for transient metadata changes (builds, temp files, checkpoints).
+
+### Raft Consensus (Ongaro, 2014)
+
+*"In Search of an Understandable Consensus Protocol" (USENIX ATC '14)*
+
+Diego Ongaro's dissertation. The foundation for ClaudeFS's intra-site metadata consistency. Raft provides a replicated log with leader election, log compaction, and membership changes. ClaudeFS uses Raft groups per metadata shard, with the NVMe atomic write feature (kernel 6.11+) eliminating the need for double-writes in the Raft log.
+
+### IBM Spectrum Scale UID/GID Remapping
+
+Industry-standard reference for cross-site identity mapping in distributed filesystems. ClaudeFS adopts the "map at destination" model (each receiving site applies its own mapping table) rather than Spectrum Scale's "map at source" approach, avoiding O(N) scaling when adding sites.
+
+## 9. Kernel and Infrastructure
 
 ### Linux Storage Stack Diagram 6.20
 

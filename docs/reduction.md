@@ -257,4 +257,4 @@ See [docs/literature.md](literature.md) for the full paper catalog. Key referenc
 
 - **Section 5** — Finesse, FastCDC, SiLo, Edelta, Speed-Dedup, ACM Dedup Survey (similarity deduplication and delta compression)
 - **Section 6** — Z-LFS, ZNSage, FDP vs ZNS (flash management and data placement)
-- **Section 8** — Linux Storage Stack Diagram 6.20, NFS LOCALIO, Rust Beyond-Refs (infrastructure)
+- **Section 9** — Linux Storage Stack Diagram 6.20, NFS LOCALIO, Rust Beyond-Refs (infrastructure)
