@@ -56,6 +56,17 @@ Single FUSE v3 client binary (`claudefs`) with pluggable network transport:
 - **Management:** Prometheus monitoring, Parquet/DuckDB metadata search lakehouse, Grafana dashboards — see [docs/management.md](docs/management.md)
 - **POSIX validation:** pjdfstest, xfstests, fsx, LTP, Connectathon, Jepsen, FIO, CrashMonkey — see [docs/posix.md](docs/posix.md)
 
+## Development: Parallel Agent Plan
+
+8 agents, 3 phases — see [docs/agents.md](docs/agents.md):
+- **Phase 1 (foundation):** A1-Storage Engine + A2-Metadata + A4-Transport + A3-Reduction (4 parallel)
+- **Phase 2 (integration):** A5-FUSE Client + A3-integration + A6-Replication + A7-NFS Gateway (4 parallel)
+- **Phase 3 (production):** A8-Management + hardening + POSIX test suites across all
+
 ## Competitive Landscape
 
 See [docs/market.md](docs/market.md) for detailed analysis. Key competitors: VAST Data, Weka, DAOS, BeeGFS, CephFS, JuiceFS, Lustre, GPFS. ClaudeFS targets: Weka-class performance, VAST-class economics, open-source freedom, operational simplicity.
+
+## Feature Gaps vs VAST/Weka (Tracked)
+
+Priority 1: multi-tenancy/quotas, QoS/traffic shaping, online node scaling, flash defrag, distributed tracing. Priority 2: WORM/compliance, key rotation, S3 API, SMB gateway, migration tools. Priority 3: intelligent tiering, CDC events, active-active failover, performance SLAs. Full breakdown in [docs/agents.md](docs/agents.md).
