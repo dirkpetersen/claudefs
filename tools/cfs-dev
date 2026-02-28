@@ -149,7 +149,7 @@ cmd_up() {
   fi
 
   # Resolve AMI
-  info "Resolving Ubuntu 24.04 AMI..."
+  info "Resolving Ubuntu 25.10 (Questing) AMI..."
   ORCH_AMI=$(resolve_ami)
   info "AMI: $ORCH_AMI"
 
