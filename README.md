@@ -4,7 +4,7 @@ A distributed, scale-out POSIX file system with a high-performance flash layer a
 
 ## Overview
 
-ClaudeFS is a distributed file system designed for research and HPC environments. It combines a low-latency flash tier spanning multiple nodes with asynchronous tiering to S3-compatible object storage. The system is implemented in Rust with two client modes: a high-performance RDMA client for maximum throughput and a universal FUSE client for broad compatibility.
+ClaudeFS is a distributed file system designed for research and HPC environments. It combines a low-latency flash tier spanning multiple nodes with asynchronous tiering to S3-compatible object storage. The system is implemented in Rust as a single FUSE v3 client with pluggable network transport — RDMA for maximum throughput on HPC hardware, TCP/IP for universal compatibility. Legacy clients access the cluster via pNFS or NFS gateway without installing anything.
 
 ## Architecture
 
@@ -34,40 +34,30 @@ ClaudeFS is a distributed file system designed for research and HPC environments
 
 ### Client Architecture
 
-ClaudeFS provides two client modes that share the same cluster, metadata protocol, and storage backend. Both clients are first-class — they are developed independently and optimized for different goals.
+A single FUSE v3 client binary (`claudefs`) with pluggable network transport:
 
-#### Performance Client (`claudefs-rdma`)
-Goal: **Maximum throughput, minimum latency — no compromises.**
-
-- `LD_PRELOAD` interception of POSIX calls at the libc level, bypassing the kernel entirely
-- RDMA one-sided verbs (`READ`/`WRITE`) via `libfabric` — zero-copy, no remote CPU involvement
+- **FUSE v3 with passthrough mode** (kernel 6.8+) — the FUSE daemon handles metadata; data I/O goes directly to local NVMe at native kernel speed
+- **io_uring** for all async I/O — disk, network sends, network receives batched through the same submission ring
+- **Pluggable network transport:**
+  - **RDMA** via `libfabric` — one-sided verbs, zero-copy, no remote CPU involvement. For HPC clusters with InfiniBand/RoCE.
+  - **TCP/IP** via io_uring zero-copy — automatic fallback when RDMA hardware is not available
 - Per-core NVMe queue alignment to eliminate locking contention (MadFS pattern)
-- Speculative metadata path resolution over RDMA (InfiniFS pattern)
-- Relaxed POSIX mount flags (`O_LAZY`, bounded staleness) for full line-rate NVMe throughput
-- Target: HPC clusters and compute nodes with RDMA-capable NICs (InfiniBand, RoCE)
+- Speculative metadata path resolution (InfiniFS pattern)
+- Full POSIX semantics by default, with optional relaxation flags (`O_LAZY`, bounded staleness) for line-rate throughput
+- Target: Linux 5.14+ (RHEL 9+); FUSE passthrough active on 6.8+
 
-#### Universal Client (`claudefs-fuse`)
-Goal: **Works everywhere, easy to deploy, full POSIX compatibility.**
+### Access Without Installing ClaudeFS
 
-- FUSE v3 userspace mount with passthrough mode (kernel 6.8+) for near-kernel-native data path performance
-- io_uring for async I/O — high concurrency with minimal syscall overhead
-- Standard TCP/IP networking — no special hardware required
-- Full POSIX semantics by default, with optional relaxation flags for performance
-- NFS v4.2+ kernel export as additional fallback for clients that cannot run the FUSE daemon
-- Target: Linux 5.14+ (RHEL 9+); passthrough mode active on 6.8+ — workstations, VMs, cloud instances, containers
+For clients that cannot or prefer not to install the FUSE client:
 
-#### Shared Between Both Clients
-- Same distributed metadata protocol and consistent hashing scheme
-- Same S3 object store tiering and 64MB blob format
-- Same cross-site replication and conflict resolution
-- Same authentication and authorization model
-- A cluster serves both client types simultaneously — no configuration split
+- **pNFS (NFSv4.1+)** — modern Linux clients get parallel direct-to-node data access via standard kernel NFS. No custom software required.
+- **NFS gateway (NFSv3)** — legacy clients connect through a translation gateway. Full access, single-server bandwidth.
 
 ## Design Goals
 
-1. **Performance** — Saturate NVMe and RDMA hardware. The performance client should achieve line-rate throughput with single-digit microsecond metadata latency. No kernel bypass left on the table.
+1. **Performance** — Saturate NVMe and RDMA hardware. With RDMA transport, achieve line-rate throughput with single-digit microsecond metadata latency. FUSE passthrough + io_uring NVMe passthrough on the local path.
 
-2. **Compatibility** — The universal client runs on any Linux 6.x box with no special hardware. Full POSIX semantics out of the box. Legacy applications work unmodified.
+2. **Compatibility** — The FUSE client runs on any Linux 5.14+ box (RHEL 9+). Degrades gracefully on older kernels (no passthrough, still functional). pNFS and NFS gateway for clients with zero install. Full POSIX semantics out of the box. Legacy applications work unmodified.
 
 3. **Reliability** — No single point of failure anywhere in the system. Data survives node failures (erasure coding or replication), site failures (cross-site replication), and object store outages (flash layer absorbs writes indefinitely). Automatic failure detection, rebalancing, and recovery without administrator intervention. Silent data corruption detected via end-to-end checksums.
 

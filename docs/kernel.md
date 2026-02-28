@@ -9,10 +9,9 @@ ClaudeFS has different kernel requirements for servers and clients:
 | Role | Minimum Kernel | Rationale | Ships With |
 |------|---------------|-----------|------------|
 | **Server nodes** | 6.20+ | Atomic writes stabilized, io_uring dynamic resize, EEVDF scheduler, Rust VFS, MGLRU refinements | Ubuntu 26.04 (Apr 2026) |
-| **Universal client (claudefs-fuse)** | 5.14+ | FUSE v3 basic support; passthrough mode requires 6.8+ | RHEL 9, Ubuntu 22.04+ |
-| **Performance client (claudefs-rdma)** | 5.14+ | User-space `LD_PRELOAD` + `libfabric` — minimal kernel dependency | RHEL 9, Ubuntu 22.04+ |
+| **Client (claudefs)** | 5.14+ | FUSE v3 basic support; passthrough mode requires 6.8+ | RHEL 9, Ubuntu 22.04+ |
 
-The performance client bypasses the kernel almost entirely (`LD_PRELOAD` + RDMA + io_uring NVMe passthrough), so it runs on older kernels. The universal client degrades gracefully: on pre-6.8 kernels, FUSE operates without passthrough (slower but functional). Servers require 6.20+ to take full advantage of atomic writes, dynamic io_uring, and scheduler improvements.
+The client degrades gracefully: on pre-6.8 kernels, FUSE operates without passthrough (slower but functional). Network transport (RDMA or TCP) is selected at runtime based on available hardware. Servers require 6.20+ to take full advantage of atomic writes, dynamic io_uring, and scheduler improvements.
 
 ## 1. The Async I/O Revolution: io_uring & NVMe Passthrough
 
@@ -22,7 +21,7 @@ The performance client bypasses the kernel almost entirely (`LD_PRELOAD` + RDMA 
 
 Using `IORING_OP_URING_CMD`, user-space applications can send raw NVMe commands directly to the NVMe driver, completely bypassing the Linux block layer and VFS.
 
-**Impact on ClaudeFS:** The performance client (`claudefs-rdma`) handles data natively in user-space to pipe it into RDMA queues. `io_uring` passthrough pulls data off local NVMe at full hardware speed with zero kernel translation overhead. This is the local storage plane for both clients.
+**Impact on ClaudeFS:** The ClaudeFS client uses `io_uring` passthrough to pull data off local NVMe at full hardware speed with zero kernel translation overhead, then pipes it into RDMA queues (or TCP via io_uring zero-copy). This is the local storage plane.
 
 ### io_uring Async I/O for the FUSE Daemon
 
@@ -44,7 +43,7 @@ Running distributed FS logic in the kernel is discouraged today. The modern appr
 
 Allows the FUSE daemon to tell the kernel: "For this file, stop asking me for data. Route all reads and writes directly to this backing file." The daemon handles complex distributed POSIX metadata over RDMA (`open`, `chmod`, `rename`), but once the file is opened, the data path goes straight to local NVMe at native kernel speed, completely bypassing the FUSE daemon.
 
-**Impact on ClaudeFS:** Enables the universal client (`claudefs-fuse`) to achieve near-native performance. The FUSE daemon handles metadata and control; bulk data flows through passthrough to the local flash layer.
+**Impact on ClaudeFS:** Enables the FUSE client to achieve near-native performance. The FUSE daemon handles metadata and control; bulk data flows through passthrough to the local flash layer. This eliminates the need for `LD_PRELOAD` libc interception — FUSE passthrough closes the local I/O performance gap.
 
 ## 3. Page Cache: The Folio API (kernel 5.15+, enforced in 6.x)
 
@@ -195,6 +194,6 @@ The jump from kernel 6.11 to 6.20 represents a significant era for server-side p
 Based on these kernel features, the ClaudeFS architecture maps to four planes:
 
 1. **Control Plane (Metadata):** User-space daemon in Rust. Handles POSIX metadata, distributed coordination, replication. Atomic NVMe writes (6.11+) for crash-consistent journaling.
-2. **Network Plane:** RDMA one-sided verbs (`libfabric`) for the performance client, bypassing the kernel network stack. TCP/IP with io_uring zero-copy for the universal client.
-3. **Local Storage Plane:** Raw NVMe via `io_uring` passthrough (`IORING_OP_URING_CMD`) for both clients. Optional ZNS for log-structured metadata stores.
-4. **POSIX Mount:** Performance client via `LD_PRELOAD` libc interception. Universal client via FUSE with passthrough (6.8+) for native-speed data I/O.
+2. **Network Plane:** Pluggable transport — RDMA one-sided verbs (`libfabric`) when hardware is available, TCP/IP with io_uring zero-copy as automatic fallback. pNFS layouts and NFS gateway for clients without ClaudeFS installed.
+3. **Local Storage Plane:** Raw NVMe via `io_uring` passthrough (`IORING_OP_URING_CMD`). Optional ZNS for log-structured metadata stores.
+4. **POSIX Mount:** FUSE v3 with passthrough (6.8+) for native-speed data I/O. Degrades gracefully on older kernels.

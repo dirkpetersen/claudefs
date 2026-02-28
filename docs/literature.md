@@ -28,7 +28,7 @@ To get full NVMe throughput across a network, the file system must bypass the Li
 
 *"Assise: Performance and Availability via Client-local NVM in a Distributed File System"*
 
-Maximizes performance by treating the client's local NVMe/NVM as the primary file system tier. Uses a custom user-space file system (via `LD_PRELOAD` or FUSE) and RDMA to synchronously replicate data for crash consistency. Provides an architectural blueprint for "client-side caching + RDMA replication" — local NVMe write speeds with distributed POSIX consistency.
+Maximizes performance by treating the client's local NVMe/NVM as the primary file system tier. Uses a user-space file system and RDMA to synchronously replicate data for crash consistency. Provides an architectural blueprint for "client-side caching + RDMA replication" — local NVMe write speeds with distributed POSIX consistency.
 
 ### MadFS (SC '21)
 
@@ -66,7 +66,7 @@ Designed for environments where memory and NVMe storage are decoupled over RDMA 
 
 These papers collectively suggest the following design principles:
 
-1. **User-space first** — Implement the client in user-space. Use `LD_PRELOAD` to intercept POSIX calls (`open`, `read`, `write`) at the C-library level, bypassing the kernel entirely. FUSE is the fallback when `LD_PRELOAD` interception is not feasible.
+1. **User-space first** — Implement the client in user-space. FUSE v3 with passthrough mode (kernel 6.8+) provides native-speed data I/O while keeping the distributed logic in user-space. The `LD_PRELOAD` approach advocated by Assise and MadFS is no longer necessary — FUSE passthrough closes the local I/O performance gap that motivated libc interception.
 
 2. **Use `libfabric` or DPDK** — Do not use sockets. Use RDMA one-sided verbs (`RDMA READ` / `RDMA WRITE`) to pull data directly from remote NVMe memory buffers (using NVMe Controller Memory Buffer - CMB).
 
