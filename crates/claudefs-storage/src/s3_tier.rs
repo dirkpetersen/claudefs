@@ -341,24 +341,29 @@ impl<B: ObjectStoreBackend> TieringEngine<B> {
         successful
     }
 
+    /// Get tiering statistics.
     pub fn stats(&self) -> TieringStats {
         self.stats.lock().unwrap().clone()
     }
 }
 
+/// Builder for S3 object keys.
 pub struct S3KeyBuilder {
     prefix: String,
 }
 
 impl S3KeyBuilder {
+    /// Create a new S3 key builder with the given prefix.
     pub fn new(prefix: String) -> Self {
         Self { prefix }
     }
 
+    /// Generate the S3 key for a segment.
     pub fn segment_key(&self, segment_id: u64) -> String {
         format!("{}{}", self.prefix, segment_id)
     }
 
+    /// Parse a segment ID from an S3 key.
     pub fn parse_segment_id(&self, key: &str) -> Option<u64> {
         key.strip_prefix(&self.prefix)?.parse().ok()
     }
