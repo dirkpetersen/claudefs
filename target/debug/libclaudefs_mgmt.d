@@ -1,0 +1,1 @@
+/home/cfs/claudefs/target/debug/libclaudefs_mgmt.rlib: /home/cfs/claudefs/crates/claudefs-mgmt/src/analytics.rs /home/cfs/claudefs/crates/claudefs-mgmt/src/api.rs /home/cfs/claudefs/crates/claudefs-mgmt/src/cli.rs /home/cfs/claudefs/crates/claudefs-mgmt/src/config.rs /home/cfs/claudefs/crates/claudefs-mgmt/src/lib.rs /home/cfs/claudefs/crates/claudefs-mgmt/src/metrics.rs

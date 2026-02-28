@@ -1,0 +1,11 @@
+/home/cfs/claudefs/target/debug/deps/prost_derive-8eb2520c5179ee26.d: /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/lib.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/mod.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/group.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/map.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/message.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/oneof.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/scalar.rs
+
+/home/cfs/claudefs/target/debug/deps/libprost_derive-8eb2520c5179ee26.so: /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/lib.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/mod.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/group.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/map.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/message.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/oneof.rs /home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/scalar.rs
+
+/home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/lib.rs:
+/home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/mod.rs:
+/home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/group.rs:
+/home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/map.rs:
+/home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/message.rs:
+/home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/oneof.rs:
+/home/cfs/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/prost-derive-0.13.5/src/field/scalar.rs:
