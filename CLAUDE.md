@@ -58,6 +58,26 @@ Single FUSE v3 client (`cfs mount`) with pluggable network transport:
 - **Management:** Prometheus monitoring, Parquet/DuckDB metadata search lakehouse, Grafana dashboards — see [docs/management.md](docs/management.md)
 - **POSIX validation:** pjdfstest, xfstests, fsx, LTP, Connectathon, Jepsen, FIO, CrashMonkey — see [docs/posix.md](docs/posix.md)
 
+## Cargo Workspace Structure
+
+The Rust codebase is organized as a Cargo workspace with one crate per agent-owned subsystem:
+
+```
+claudefs/
+├── Cargo.toml              # Workspace root
+├── crates/
+│   ├── claudefs-storage/   # A1: io_uring NVMe, block allocator
+│   ├── claudefs-meta/      # A2: Raft consensus, KV store, inode ops
+│   ├── claudefs-reduce/    # A3: dedupe, compression, encryption
+│   ├── claudefs-transport/ # A4: RDMA/TCP, custom RPC
+│   ├── claudefs-fuse/      # A5: FUSE v3 daemon, passthrough
+│   ├── claudefs-repl/      # A6: cross-site journal replication
+│   ├── claudefs-gateway/   # A7: NFSv3, pNFS, S3 API
+│   └── claudefs-mgmt/      # A8: Prometheus, DuckDB, Web UI, CLI
+├── tools/                  # Bootstrap infrastructure (cfs-dev, user-data, etc.)
+└── docs/                   # Architecture decisions and design docs
+```
+
 ## Development: Parallel Agent Plan
 
 11 agents, 3 phases, up to 11 parallel — see [docs/agents.md](docs/agents.md):
