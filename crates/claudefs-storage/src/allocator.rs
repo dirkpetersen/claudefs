@@ -525,6 +525,8 @@ mod tests {
             device_idx: 0,
             total_blocks_4k: 16384,
         };
+        // Save total_blocks before moving config into BuddyAllocator::new()
+        let total_blocks = config.total_blocks_4k;
         let alloc = BuddyAllocator::new(config).unwrap();
 
         assert_eq!(alloc.total_capacity_bytes(), 16384 * 4096);
@@ -532,7 +534,9 @@ mod tests {
 
         alloc.allocate(BlockSize::B64M).unwrap();
 
-        let expected_free = (16384 - 16384) * 4096;
+        // BlockSize::B64M = 16384 blocks of 4KB, so after allocation free should be 0
+        let blocks_allocated = 16384u64;
+        let expected_free = (total_blocks - blocks_allocated) * 4096;
         assert_eq!(alloc.free_capacity_bytes(), expected_free);
     }
 }

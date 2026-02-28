@@ -451,7 +451,7 @@ mod tests {
         );
 
         let total_blocks = capacity / BLOCK_SIZE as u64;
-        let bitmap_blocks = (total_blocks + (BLOCK_SIZE as u64 * 8) - 1) / (BLOCK_SIZE as u64 * 8);
+        let bitmap_blocks = total_blocks.div_ceil(BLOCK_SIZE as u64 * 8);
 
         assert_eq!(sb.alloc_bitmap_offset_4k, 1);
         assert_eq!(sb.data_start_offset_4k, 1 + bitmap_blocks);
