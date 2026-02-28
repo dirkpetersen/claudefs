@@ -166,9 +166,4 @@ See [docs/literature.md](literature.md) for the full paper catalog. Key referenc
 - **Section 1** — InfiniFS (distributed POSIX metadata, speculative path resolution), Orion (RDMA-friendly inode structures)
 - **Section 3** — DAOS (KV-based metadata with MVCC, dfuse POSIX overlay)
 
-Additional references:
-
-- **SwitchDelta** (ICDE 2026) — moving metadata updates out of the critical path using async buffers. Mirrors ClaudeFS's journal-first model where remote sync is a side-effect.
-- **AsyncFS** (2025) — "scatter and aggregate" metadata replication: replicate final state, not intermediate operations. Directly informs ClaudeFS's batch compaction strategy.
-- **IBM Spectrum Scale (GPFS) UID/GID Remapping** — industry standard for cross-site identity mapping. ClaudeFS adopts the "map at destination" model rather than GPFS's "map at source" approach.
-- **Raft consensus** — Diego Ongaro's dissertation. The foundation for ClaudeFS's intra-site metadata consistency.
+- **Section 8** — SwitchDelta (async metadata buffering), AsyncFS (batch compaction), Raft consensus, IBM Spectrum Scale UID/GID remapping
