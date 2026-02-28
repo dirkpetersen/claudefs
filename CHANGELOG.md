@@ -43,13 +43,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Zero clippy warnings; no unsafe code (pure safe Rust per A3 spec)
 - Pipeline order per docs/reduction.md: dedupe → compress → encrypt (non-negotiable)
 
-##### A1: Storage Engine (IN PROGRESS 🔨)
-- Block types (BlockId, BlockRef, BlockSize) implemented
-- Error types (StorageError enum with 10 variants) implemented
-- Buddy allocator implementation in progress (split/merge logic)
-- 4 allocator tests failing: buddy merge, free/reallocate, split-on-demand, alignment checks
-- **Issue #1 created** with detailed failure analysis and debugging recommendations
-- Next: Fix buddy allocator logic (merge_buddies, split_and_allocate, free list initialization)
+##### A1: Storage Engine (TESTS PASSING, CLIPPY FIXING 🔨)
+- Block types (BlockId, BlockRef, BlockSize) implemented ✅
+- Error types (StorageError enum with 10 variants) implemented ✅
+- Buddy allocator implementation COMPLETE with all 25 tests passing ✅
+  - test_buddy_merge: PASSING
+  - test_free_and_reallocate: PASSING
+  - test_alignment: PASSING
+  - test_split_on_demand: PASSING
+- **Issue #2 created:** 3 clippy errors need fixing (manual_is_multiple_of, modulo_one, erasing_op)
+- Next: Fix 3 clippy errors in allocator.rs to pass `make check`
+
+##### A2: Metadata Service (TESTS PASSING 🔨)
+- KV store module with bincode serialization (22 tests passing) ✅
+- Inode operations module implemented
+- Dependency fix: Added bincode.workspace = true by A11
+
+##### A4: Transport (TESTS PASSING 🔨)
+- Frame encoding/decoding (16 tests passing) ✅
+- Protocol opcodes and error handling
+- CRC32 checksums for data integrity
 
 ### What's Next
 
