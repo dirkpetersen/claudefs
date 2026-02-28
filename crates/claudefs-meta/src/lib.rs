@@ -20,6 +20,8 @@ pub mod locking;
 pub mod multiraft;
 /// Speculative path resolution with caching
 pub mod pathres;
+/// Per-user/group quota management
+pub mod quota;
 /// Raft-integrated metadata service (Phase 2)
 pub mod raftservice;
 /// Cross-site replication
@@ -28,6 +30,10 @@ pub mod replication;
 pub mod service;
 /// Shard routing for distributed metadata
 pub mod shard;
+/// Raft log snapshot and compaction
+pub mod snapshot;
+/// Distributed transaction coordinator (two-phase commit)
+pub mod transaction;
 /// Core types for the metadata service
 pub mod types;
 /// Extended attribute operations
@@ -37,9 +43,12 @@ pub use lease::{LeaseManager, LeaseType};
 pub use locking::{LockManager, LockType};
 pub use multiraft::MultiRaftManager;
 pub use pathres::{PathCacheEntry, PathResolver};
+pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
 pub use raftservice::{RaftMetadataService, RaftServiceConfig};
 pub use service::MetadataService;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
+pub use snapshot::{RaftSnapshot, SnapshotManager};
+pub use transaction::{Transaction, TransactionId, TransactionManager, TransactionState};
 pub use xattr::XattrStore;
 
 /// Re-export key types for external users
