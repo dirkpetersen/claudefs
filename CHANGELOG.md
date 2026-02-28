@@ -27,6 +27,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - All builder agents (A1, A2, A3, A4) can begin implementation immediately
   - Infrastructure provisioned, tooling validated, documentation complete
 
+##### A1: Storage Engine (IN PROGRESS 🔨)
+- Block types (BlockId, BlockRef, BlockSize) implemented
+- Error types (StorageError enum with 10 variants) implemented
+- Buddy allocator implementation in progress (split/merge logic)
+- 4 allocator tests failing: buddy merge, free/reallocate, split-on-demand, alignment checks
+- **Issue #1 created** with detailed failure analysis and debugging recommendations
+- Next: Fix buddy allocator logic (merge_buddies, split_and_allocate, free list initialization)
+
 ### What's Next
 
 **Phase 1 (In Progress):**
