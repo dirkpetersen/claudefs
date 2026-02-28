@@ -77,6 +77,102 @@ For clients that cannot or prefer not to install the FUSE client:
 - Ubuntu 24.04, Ubuntu 26.04, RHEL 9, RHEL 10
 - Standard Linux server hardware with NVMe/SSD storage
 
+## Development
+
+### Local Setup
+
+This repository uses a **Cargo workspace** with 8 crates, each owned by an AI builder agent:
+
+- **A1: `claudefs-storage`** — io_uring NVMe I/O, FDP/ZNS placement, block allocator
+- **A2: `claudefs-meta`** — Raft consensus, distributed KV store, metadata operations
+- **A3: `claudefs-reduce`** — BLAKE3 dedupe, LZ4/Zstd compression, AES-GCM encryption
+- **A4: `claudefs-transport`** — RDMA/TCP transport, custom RPC protocol
+- **A5: `claudefs-fuse`** — FUSE v3 daemon, passthrough mode, client caching (Phase 2)
+- **A6: `claudefs-repl`** — Cross-site journal replication, cloud conduit (Phase 2)
+- **A7: `claudefs-gateway`** — NFSv3, pNFS, S3, Samba VFS gateways (Phase 2)
+- **A8: `claudefs-mgmt`** — Prometheus, DuckDB analytics, Web UI, CLI (Phase 2)
+
+### Build
+
+```bash
+# Build all crates
+cargo build
+
+# Build a specific crate
+cargo build --package claudefs-storage
+
+# Release build
+cargo build --release
+```
+
+### Test
+
+```bash
+# Run all tests
+make test
+
+# Run per-crate tests
+make test-storage
+make test-meta
+make test-reduce
+make test-transport
+
+# Full CI checks (build + test + clippy + fmt + doc)
+make check
+```
+
+### Development Commands
+
+```bash
+# Format code
+make fmt-fix
+
+# Check formatting
+make fmt
+
+# Run linter
+make clippy
+
+# Generate documentation
+make doc
+
+# Clean build artifacts
+make clean
+
+# Help
+make help
+```
+
+### Workflow
+
+1. **Read the docs first:**
+   - `CLAUDE.md` — implementation guidance (especially for Rust code generation)
+   - `docs/decisions.md` — architecture decisions (D1–D10)
+   - `docs/agents.md` — agent responsibilities and phasing
+   - `PHASE1_READINESS.md` — Phase 1 setup and conventions
+
+2. **Make changes:**
+   - Create a feature branch: `git checkout -b feature/your-feature`
+   - Implement your changes
+   - Run `make check` to validate
+
+3. **Commit with discipline:**
+   - Prefix every commit with agent tag: `[A1]`, `[A2]`, etc.
+   - Include descriptive message (1–2 sentences)
+   - Add bullet points with implementation details
+   - End with co-author tag
+
+4. **Push frequently:**
+   - Push after every commit
+   - GitHub is the single pane of glass for progress
+
+### Important Notes
+
+- **Rust code generation:** Claude agents MUST NOT write `.rs` files directly. Use OpenCode via Fireworks AI. See `CLAUDE.md` for details.
+- **Unsafe code:** Isolated to A1 (io_uring), A4 (RDMA), A5 (FUSE), A7 (Samba VFS in C).
+- **Dependencies:** Add to `[workspace.dependencies]` in `Cargo.toml` so all crates share versions.
+- **Testing:** Property-based tests for data transforms, integration tests for cross-crate functionality.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
