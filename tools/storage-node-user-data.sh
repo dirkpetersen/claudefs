@@ -55,7 +55,7 @@ aws ec2 create-tags --resources "$INSTANCE_ID" --tags \
   Key=Name,Value="cfs-storage-${NODE_INDEX}" \
   Key=project,Value=claudefs \
   Key=role,Value=storage \
-  --region "$REGION"
+  --region "$REGION" || echo "WARNING: Failed to tag instance (non-fatal)"
 
 # --- Kernel tuning for storage ---
 cat >> /etc/sysctl.d/99-cfs-storage.conf << 'EOF'

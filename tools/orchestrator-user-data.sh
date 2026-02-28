@@ -140,7 +140,7 @@ aws ec2 create-tags --resources "$INSTANCE_ID" --tags \
   Key=Name,Value=cfs-orchestrator \
   Key=project,Value=claudefs \
   Key=role,Value=orchestrator \
-  --region "$REGION"
+  --region "$REGION" || echo "WARNING: Failed to tag instance (non-fatal)"
 
 echo "=== ClaudeFS orchestrator bootstrap completed at $(date -u) ==="
 echo "READY" > /tmp/cfs-bootstrap-complete
