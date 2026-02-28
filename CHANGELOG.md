@@ -62,10 +62,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Inode operations module implemented
 - Dependency fix: Added bincode.workspace = true by A11
 
-##### A4: Transport (TESTS PASSING 🔨)
-- Frame encoding/decoding (16 tests passing) ✅
-- Protocol opcodes and error handling
-- CRC32 checksums for data integrity
+##### A4: Transport (PHASE 1 COMPLETE ✅)
+- Binary RPC protocol: 24-byte header (magic, version, flags, opcode, request_id, CRC32)
+- 24 opcodes across 4 categories: metadata (13), data (6), cluster (5), replication (3)
+- FrameFlags: COMPRESSED, ENCRYPTED, ONE_WAY, RESPONSE with bitwise ops
+- CRC32 IEEE polynomial checksum for payload integrity verification
+- TCP transport: async connect/listen/accept with timeout, TCP_NODELAY
+- TcpConnection: concurrent send/recv via Mutex-wrapped split OwnedReadHalf/OwnedWriteHalf
+- Connection pool: per-peer connection reuse with configurable max_connections_per_peer
+- RPC client: request/response multiplexing with AtomicU64 IDs, oneshot response routing
+- RPC server: accept loop with per-connection task spawning, dyn-compatible RpcHandler trait
+- Fire-and-forget (ONE_WAY) message support
+- RDMA transport stubs (RdmaConfig, RdmaTransport.is_available())
+- 17 unit tests passing: protocol codec (14), TCP send/recv, pool stats, RPC roundtrip
+- Ready for integration with A5 (FUSE), A6 (Replication), A7 (Gateways)
 
 ### What's Next
 
