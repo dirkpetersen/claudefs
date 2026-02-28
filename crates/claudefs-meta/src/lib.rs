@@ -12,6 +12,8 @@ pub mod inode;
 pub mod journal;
 /// Embedded key-value store
 pub mod kvstore;
+/// Lease-based metadata caching
+pub mod lease;
 /// Distributed lock manager
 pub mod locking;
 /// Multi-Raft group manager
@@ -29,6 +31,7 @@ pub mod types;
 /// Extended attribute operations
 pub mod xattr;
 
+pub use lease::{LeaseManager, LeaseType};
 pub use locking::{LockManager, LockType};
 pub use multiraft::MultiRaftManager;
 pub use pathres::{PathCacheEntry, PathResolver};
