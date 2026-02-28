@@ -9,10 +9,15 @@
 pub mod allocator;
 pub mod block;
 pub mod device;
+pub mod engine;
 pub mod error;
 pub mod flush;
 pub mod io_uring_bridge;
 pub mod zns;
 
 pub use block::{BlockId, BlockRef, BlockSize, PlacementHint};
+pub use device::{DeviceConfig, DevicePool, DeviceRole, ManagedDevice, NvmeDeviceInfo, DeviceHealth};
+pub use allocator::{BuddyAllocator, AllocatorConfig, AllocatorStats};
+pub use engine::{StorageEngine, StorageEngineConfig, StorageEngineStats};
 pub use error::{StorageError, StorageResult};
+pub use io_uring_bridge::{IoEngine, MockIoEngine, IoStats, IoRequestId, IoOpType};
