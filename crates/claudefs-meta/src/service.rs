@@ -296,6 +296,98 @@ impl MetadataService {
         Ok(())
     }
 
+    /// Create a symbolic link pointing to `target`.
+    pub fn symlink(
+        &self,
+        parent: InodeId,
+        name: &str,
+        target: &str,
+        uid: u32,
+        gid: u32,
+    ) -> Result<InodeAttr, MetaError> {
+        let ino = self.inodes.allocate_inode();
+        let attr = InodeAttr::new_symlink(
+            ino,
+            uid,
+            gid,
+            0o777,
+            self.config.site_id,
+            target.to_string(),
+        );
+
+        self.inodes.create_inode(&attr)?;
+
+        let entry = DirEntry {
+            name: name.to_string(),
+            ino,
+            file_type: FileType::Symlink,
+        };
+        if let Err(e) = self.dirs.create_entry(parent, &entry) {
+            let _ = self.inodes.delete_inode(ino);
+            return Err(e);
+        }
+
+        let _ = self
+            .journal
+            .append(MetaOp::CreateInode { attr: attr.clone() }, LogIndex::ZERO);
+
+        if let Ok(mut parent_attr) = self.inodes.get_inode(parent) {
+            parent_attr.mtime = Timestamp::now();
+            parent_attr.ctime = Timestamp::now();
+            let _ = self.inodes.set_inode(&parent_attr);
+        }
+
+        Ok(attr)
+    }
+
+    /// Create a hard link to an existing inode.
+    pub fn link(&self, parent: InodeId, name: &str, ino: InodeId) -> Result<InodeAttr, MetaError> {
+        let mut attr = self.inodes.get_inode(ino)?;
+
+        // Cannot hard-link directories (POSIX restriction)
+        if attr.file_type == FileType::Directory {
+            return Err(MetaError::PermissionDenied);
+        }
+
+        let entry = DirEntry {
+            name: name.to_string(),
+            ino,
+            file_type: attr.file_type,
+        };
+        self.dirs.create_entry(parent, &entry)?;
+
+        attr.nlink += 1;
+        attr.ctime = Timestamp::now();
+        self.inodes.set_inode(&attr)?;
+
+        let _ = self.journal.append(
+            MetaOp::Link {
+                parent,
+                name: name.to_string(),
+                ino,
+            },
+            LogIndex::ZERO,
+        );
+
+        if let Ok(mut parent_attr) = self.inodes.get_inode(parent) {
+            parent_attr.mtime = Timestamp::now();
+            parent_attr.ctime = Timestamp::now();
+            let _ = self.inodes.set_inode(&parent_attr);
+        }
+
+        Ok(attr)
+    }
+
+    /// Read the target of a symbolic link.
+    pub fn readlink(&self, ino: InodeId) -> Result<String, MetaError> {
+        let attr = self.inodes.get_inode(ino)?;
+        if attr.file_type != FileType::Symlink {
+            return Err(MetaError::NotADirectory(ino)); // EINVAL for non-symlink
+        }
+        attr.symlink_target
+            .ok_or_else(|| MetaError::KvError("symlink target missing".to_string()))
+    }
+
     /// Get a reference to the journal for replication.
     pub fn journal(&self) -> &Arc<MetadataJournal> {
         &self.journal
@@ -503,5 +595,90 @@ mod tests {
             Err(MetaError::EntryExists { .. }) => {}
             other => panic!("expected EntryExists, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_symlink() {
+        let svc = make_service();
+        let attr = svc
+            .symlink(InodeId::ROOT_INODE, "link", "/tmp/target", 1000, 1000)
+            .unwrap();
+        assert_eq!(attr.file_type, FileType::Symlink);
+        assert_eq!(attr.symlink_target, Some("/tmp/target".to_string()));
+        assert_eq!(attr.size, 11); // length of "/tmp/target"
+        assert_eq!(attr.mode, 0o777);
+
+        // Look it up
+        let found = svc.lookup(InodeId::ROOT_INODE, "link").unwrap();
+        assert_eq!(found.ino, attr.ino);
+        assert_eq!(found.file_type, FileType::Symlink);
+    }
+
+    #[test]
+    fn test_readlink() {
+        let svc = make_service();
+        let attr = svc
+            .symlink(InodeId::ROOT_INODE, "link", "/etc/hosts", 1000, 1000)
+            .unwrap();
+        let target = svc.readlink(attr.ino).unwrap();
+        assert_eq!(target, "/etc/hosts");
+    }
+
+    #[test]
+    fn test_readlink_not_symlink() {
+        let svc = make_service();
+        let file = svc
+            .create_file(InodeId::ROOT_INODE, "file.txt", 1000, 1000, 0o644)
+            .unwrap();
+        assert!(svc.readlink(file.ino).is_err());
+    }
+
+    #[test]
+    fn test_hard_link() {
+        let svc = make_service();
+        let file = svc
+            .create_file(InodeId::ROOT_INODE, "original.txt", 1000, 1000, 0o644)
+            .unwrap();
+        assert_eq!(file.nlink, 1);
+
+        let linked = svc.link(InodeId::ROOT_INODE, "link.txt", file.ino).unwrap();
+        assert_eq!(linked.nlink, 2);
+        assert_eq!(linked.ino, file.ino);
+
+        // Both names resolve to same inode
+        let orig = svc.lookup(InodeId::ROOT_INODE, "original.txt").unwrap();
+        let link = svc.lookup(InodeId::ROOT_INODE, "link.txt").unwrap();
+        assert_eq!(orig.ino, link.ino);
+    }
+
+    #[test]
+    fn test_hard_link_directory_denied() {
+        let svc = make_service();
+        let dir = svc
+            .mkdir(InodeId::ROOT_INODE, "subdir", 1000, 1000, 0o755)
+            .unwrap();
+
+        match svc.link(InodeId::ROOT_INODE, "dir_link", dir.ino) {
+            Err(MetaError::PermissionDenied) => {}
+            other => panic!("expected PermissionDenied, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_unlink_hard_link() {
+        let svc = make_service();
+        let file = svc
+            .create_file(InodeId::ROOT_INODE, "a.txt", 1000, 1000, 0o644)
+            .unwrap();
+        svc.link(InodeId::ROOT_INODE, "b.txt", file.ino).unwrap();
+
+        // Unlinking one name reduces nlink but doesn't delete inode
+        svc.unlink(InodeId::ROOT_INODE, "a.txt").unwrap();
+        let remaining = svc.getattr(file.ino).unwrap();
+        assert_eq!(remaining.nlink, 1);
+
+        // Unlinking last name deletes the inode
+        svc.unlink(InodeId::ROOT_INODE, "b.txt").unwrap();
+        assert!(svc.getattr(file.ino).is_err());
     }
 }

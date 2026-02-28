@@ -335,6 +335,8 @@ pub struct InodeAttr {
     pub vector_clock: VectorClock,
     /// Inode generation number (for NFS handle stability)
     pub generation: u64,
+    /// Symlink target path (only valid for FileType::Symlink)
+    pub symlink_target: Option<String>,
 }
 
 impl InodeAttr {
@@ -358,6 +360,7 @@ impl InodeAttr {
             repl_state: ReplicationState::Local,
             vector_clock: VectorClock::new(site_id, 0),
             generation: 0,
+            symlink_target: None,
         }
     }
 
@@ -381,6 +384,38 @@ impl InodeAttr {
             repl_state: ReplicationState::Local,
             vector_clock: VectorClock::new(site_id, 0),
             generation: 0,
+            symlink_target: None,
+        }
+    }
+
+    /// Creates a new symlink inode
+    pub fn new_symlink(
+        ino: InodeId,
+        uid: u32,
+        gid: u32,
+        mode: u32,
+        site_id: u64,
+        target: String,
+    ) -> Self {
+        let now = Timestamp::now();
+        Self {
+            ino,
+            file_type: FileType::Symlink,
+            mode,
+            nlink: 1,
+            uid,
+            gid,
+            size: target.len() as u64,
+            blocks: 0,
+            atime: now,
+            mtime: now,
+            ctime: now,
+            crtime: now,
+            content_hash: None,
+            repl_state: ReplicationState::Local,
+            vector_clock: VectorClock::new(site_id, 0),
+            generation: 0,
+            symlink_target: Some(target),
         }
     }
 }
@@ -458,6 +493,15 @@ pub enum MetaOp {
         ino: InodeId,
         /// Attribute key
         key: String,
+    },
+    /// Create a hard link
+    Link {
+        /// Parent directory for the new link
+        parent: InodeId,
+        /// Name of the new link
+        name: String,
+        /// Target inode
+        ino: InodeId,
     },
 }
 
