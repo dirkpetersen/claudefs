@@ -11,7 +11,7 @@ Write Path:  Data -> Deduplicate -> Compress -> Encrypt -> Store
 Read Path:   Store -> Decrypt -> Decompress -> (dedupe is transparent) -> Data
 ```
 
-1. **Deduplicate** — find identical blocks via content fingerprinting
+1. **Deduplicate** — find identical blocks (exact-match CAS) and similar blocks (similarity + delta compression)
 2. **Compress** — shrink unique blocks (skip already-deduplicated data to save CPU)
 3. **Encrypt** — secure the shrunken, unique blocks with authenticated encryption
 
@@ -21,7 +21,7 @@ Reversing any step in this order (e.g., encrypting before compressing) reduces s
 
 | Feature | Depends On | Why |
 |---------|-----------|-----|
-| **Deduplication** | Metadata engine | Needs a global fingerprint table (SHA-256/BLAKE3) to find matches |
+| **Deduplication** | Metadata engine | Exact-match via CAS fingerprints + similarity via Super-Features |
 | **Compression** | Deduplication | Only compress unique data to save CPU cycles |
 | **Encryption** | Compression | Encrypted data cannot be compressed effectively |
 | **Snapshots** | Deduplication | Snapshots are a saved set of block pointers into the CAS store |
@@ -52,6 +52,125 @@ With CAS, deleting a file or snapshot doesn't necessarily free blocks — other 
 - **Mark-and-sweep** — periodically walk all pointer trees and mark reachable blocks. Slower but simpler to keep consistent.
 
 **ClaudeFS approach:** Reference counting in the metadata engine with periodic mark-and-sweep as a consistency check. Reference count updates are part of the same atomic metadata transaction as file operations (leveraging NVMe atomic writes from kernel 6.11+).
+
+## Similarity-Based Deduplication (The VAST Approach)
+
+Traditional exact-match block deduplication requires a 1:1 hash table mapping every block's fingerprint to its location. At scale, this table consumes massive RAM — a 1PB filesystem with 64KB chunks needs ~4 billion entries, requiring hundreds of GB of RAM just for the index.
+
+VAST Data pioneered an alternative: **similarity-based resemblance detection with delta compression**. Instead of finding identical blocks, it finds *similar* blocks and stores only the differences. This achieves 3-4:1 data reduction with a fraction of the RAM overhead.
+
+### How It Works: The Pipeline
+
+In computer science literature, VAST's approach combines three well-established open algorithms:
+
+**Step 1: Content-Defined Chunking (FastCDC)**
+
+Slice incoming data into variable-length chunks (8KB–32KB) based on content boundaries, not fixed offsets. A rolling hash (Rabin fingerprint) identifies natural breakpoints in the data. This produces stable chunk boundaries even when data shifts — an insertion at byte 0 doesn't change every subsequent chunk boundary.
+
+- Paper: *"FastCDC: A Fast and Efficient Content-Defined Chunking Approach for Data Deduplication"* (USENIX ATC '16)
+- Rust implementation: the `fastcdc` crate provides a production-quality implementation
+
+**Step 2: Feature Extraction and Similarity Hashing**
+
+Instead of computing a single hash per chunk (which only finds exact matches), extract multiple small "features" from each chunk using Locality-Sensitive Hashing (LSH) or MinHash:
+
+- Divide each chunk into sub-regions
+- Compute Rabin fingerprints for each sub-region
+- Select the minimum (or maximum) fingerprints as the chunk's "Super-Features"
+- Two chunks sharing 3 out of 4 Super-Features are flagged as "similar"
+
+The key insight: the similarity index stores only these compact Super-Features, not full block hashes. This index is **orders of magnitude smaller** than a traditional 1:1 hash table.
+
+- Paper: *"Finesse: Fine-Grained Feature Locality based Fast Resemblance Detection for Post-Deduplication Delta Compression"* (FAST '14) — the closest academic blueprint to VAST's architecture
+- Mathematical foundations: MinHash and LSH date back decades and are unpatentable mathematical concepts
+
+**Step 3: Delta Compression**
+
+When a similar (but not identical) block is found, fetch the reference block and compute a byte-level delta — storing only the differences:
+
+- A 64KB chunk that differs from its reference by 200 bytes stores as a ~200 byte delta + a pointer to the reference
+- This is far more space-efficient than storing the full chunk, even after LZ4/Zstd compression
+
+- Paper: *"Edelta: A Word-Enlarging Based Fast Delta Compression Approach"* (FAST '20) — modern delta compression designed for NVMe throughput
+- Rust implementation: `xdelta3` bindings, or Zstd's dictionary compression mode (which approximates delta compression using a reference block as the dictionary)
+
+### RAM Savings vs Traditional Dedupe
+
+| Approach | Index Size (1PB, 64KB chunks) | Reduction Ratio | CPU Cost |
+|----------|-------------------------------|-----------------|----------|
+| **Exact-match block dedupe** | ~128 GB RAM (32-byte hash per chunk) | 2-3:1 (exact matches only) | Low (one hash per write) |
+| **Similarity + delta compression** | ~8-16 GB RAM (compact Super-Features) | 3-4:1 (similar + identical) | Moderate (feature extraction + delta) |
+
+The similarity approach uses 8-10x less RAM for the index while achieving higher reduction ratios — it catches data that is *almost* the same, not just exactly the same. This is common in real workloads: edited documents, recompiled binaries, VM images with small diffs, scientific datasets with shared headers.
+
+### Can AI Code This in Rust?
+
+Yes, and this is a strong case for Rust + AI development. The pipeline decomposes into clean, independent stages:
+
+1. **FastCDC chunking** — well-defined algorithm, existing Rust crate, straightforward to integrate
+2. **Feature extraction (MinHash/LSH)** — pure math, no complex state. AI excels at implementing hash functions. The Rust compiler ensures the concurrent feature extraction across io_uring threads is race-free.
+3. **Similarity index** — a distributed hash map of Super-Features. This is the hardest part — it must be consistent across nodes, low-latency for lookups, and crash-safe. The Rust ownership model helps here: the index is either owned by one thread or shared via `Arc<RwLock>`, and the compiler enforces this.
+4. **Delta compression** — Zstd dictionary mode gives ~90% of custom delta compression performance with zero custom code. Zstd is SIMD-accelerated and the Rust `zstd` crate is production-grade.
+
+The borrow checker is particularly valuable here: the pipeline passes ownership of data buffers between stages (chunk -> extract features -> compress -> encrypt), and Rust guarantees no stage accidentally holds a reference to a buffer that another stage is modifying.
+
+### Performance on Modern Hardware (2026)
+
+On AMD EPYC 9654 with AVX-512:
+
+| Stage | Throughput (per core) | Parallelism | Hardware Acceleration |
+|-------|----------------------|-------------|----------------------|
+| FastCDC chunking | ~2-4 GB/s | Embarrassingly parallel | SIMD for rolling hash |
+| BLAKE3 fingerprint | ~8 GB/s | Embarrassingly parallel | AVX-512 native |
+| MinHash features | ~3-5 GB/s | Embarrassingly parallel | SIMD for hash computation |
+| Similarity lookup | ~10M lookups/s | Distributed across nodes | L3 cache (384MB on EPYC 9654) |
+| Zstd delta compress | ~1-2 GB/s | Per-chunk parallel | AVX-512, dictionary mode |
+
+On a 96-core EPYC 9654, the entire similarity pipeline can process **~50-100 GB/s aggregate** when all cores are utilized — well above the NVMe throughput ceiling of even a fully loaded node. The pipeline is CPU-bound only on the delta compression stage, which can be offloaded to io_uring worker threads or Intel QAT hardware.
+
+The critical factor is the **similarity index lookup latency**. If the Super-Feature index fits in L3 cache (384MB on EPYC 9654 = ~24 million entries = ~1.5PB of data at 64KB chunks), lookups are sub-microsecond. Beyond L3, lookups hit DRAM (~100ns) or CXL memory (~300ns). This is why the compact Super-Feature index matters — it determines how much data a single node can deduplicate at NVMe speed.
+
+### ClaudeFS Implementation Strategy
+
+ClaudeFS implements similarity deduplication as a **two-tier approach**:
+
+**Tier 1: Exact-match CAS (inline, always on)**
+- BLAKE3 hash per chunk → exact match lookup in distributed metadata
+- If the exact block exists, skip write entirely (reference counting increment)
+- This catches the easy wins (identical blocks) at minimal CPU cost
+
+**Tier 2: Similarity + delta compression (async, background)**
+- After exact-match dedupe, extract Super-Features from remaining unique chunks
+- Background threads scan for similar blocks in the feature index
+- When similarity is found, compute delta and replace the full chunk with reference + delta
+- Runs during idle periods or as part of the S3 tiering pipeline (compress with Zstd dictionary mode using the reference block as dictionary)
+
+This two-tier approach keeps the hot write path simple (just BLAKE3 + lookup) while capturing the higher 3-4:1 reduction ratios in the background. The async tier runs on the same io_uring event loop, using worker threads for CPU-heavy delta compression.
+
+### Legal Notes for Open-Source Implementation
+
+The individual algorithms are unpatentable mathematical concepts freely usable in open source:
+- FastCDC, Rabin fingerprints, MinHash, LSH — published academic algorithms
+- BLAKE3, Zstd, LZ4 — open-source libraries with permissive licenses
+- Delta compression — decades-old technique (xdelta, bsdiff)
+
+VAST Data holds patents on their *specific combination and pipeline* (US10860548B2, US10656844B2, US11281387B2), particularly how they use SCM/NVRAM as an async staging buffer and their specific Super-Feature construction method. ClaudeFS's implementation differs in several fundamental ways:
+
+- No SCM/NVRAM dependency — uses FDP-tagged NVMe + SLC journal instead
+- Two-tier approach (exact inline + similarity async) vs VAST's single similarity pipeline
+- Different feature construction (standard MinHash vs VAST's proprietary similarity hash)
+- Different storage backend (distributed CAS with per-node metadata vs VAST's shared SCM state)
+- Different erasure coding approach (per-segment EC vs VAST's massive global stripes)
+
+The key principle: implement using published open algorithms (FastCDC, MinHash, Zstd dictionary), not by replicating VAST's patented step-by-step pipeline.
+
+### Foundational Papers
+
+- *"Finesse: Fine-Grained Feature Locality based Fast Resemblance Detection"* (FAST '14) — the closest academic blueprint for similarity-based deduplication
+- *"FastCDC: A Fast and Efficient Content-Defined Chunking Approach"* (USENIX ATC '16) — industry-standard content-defined chunking
+- *"Edelta: A Word-Enlarging Based Fast Delta Compression Approach"* (FAST '20) — flash-speed delta compression
+- *"SiLo: A Similarity-Locality based Near-Exact Deduplication Scheme"* (USENIX ATC '11) — locality-aware similarity detection
+- VAST patents US10860548B2, US10656844B2, US11281387B2 — useful for understanding the problem space (read the claims section to understand what to avoid)
 
 ## Compression
 
