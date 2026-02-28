@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # client-node-user-data.sh — Cloud-init for ClaudeFS client spot nodes (c7a.xlarge)
+# Base AMI: Ubuntu 25.10 Questing (kernel 6.17+)
 # Used for FUSE clients, NFS/SMB clients, and Jepsen controller
 
 set -euo pipefail

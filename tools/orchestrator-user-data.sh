@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # orchestrator-user-data.sh — Cloud-init for ClaudeFS orchestrator node
-# Installs: Rust 1.93, Node.js 22, Claude Code, GitHub CLI, cargo tools
+# Base AMI: Ubuntu 25.10 Questing (kernel 6.17+)
+# Installs: Rust 1.93, Node.js 22, Claude Code, OpenCode, GitHub CLI, cargo tools
 # Retrieves secrets, clones repo, configures Claude Code for Bedrock
 
 set -euo pipefail
