@@ -66,6 +66,20 @@ pub enum StorageError {
         /// The required alignment.
         alignment: u64,
     },
+
+    /// Superblock is corrupted or invalid.
+    #[error("Corrupted superblock: {reason}")]
+    CorruptedSuperblock {
+        /// Description of the corruption.
+        reason: String,
+    },
+
+    /// Serialization/deserialization error.
+    #[error("Serialization error: {reason}")]
+    SerializationError {
+        /// Description of the error.
+        reason: String,
+    },
 }
 
 #[cfg(test)]
