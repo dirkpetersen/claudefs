@@ -10,8 +10,14 @@ description = "ClaudeFS subsystem: RDMA via libfabric, TCP via io_uring, custom 
 tokio.workspace = true
 thiserror.workspace = true
 serde.workspace = true
+bincode.workspace = true
+bytes = "1.7"
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros"] }
+proptest = "1.4"
 
 [lib]
 name = "claudefs_transport"
