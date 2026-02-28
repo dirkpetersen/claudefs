@@ -53,6 +53,6 @@ Single FUSE v3 client binary (`claudefs`) with pluggable network transport:
 - **Hardware reference:** Solidigm FDP/QLC, AMD EPYC, NVIDIA/Broadcom/Intel NICs, Supermicro chassis — see [docs/hardware.md](docs/hardware.md)
 - **POSIX validation:** pjdfstest, xfstests, fsx, LTP, Connectathon, Jepsen, FIO, CrashMonkey — see [docs/posix.md](docs/posix.md)
 
-## Reference Systems
+## Competitive Landscape
 
-Design draws from: JuiceFS, CephFS, Weka IO, BeeGFS, DAOS.
+See [docs/market.md](docs/market.md) for detailed analysis. Key competitors: VAST Data, Weka, DAOS, BeeGFS, CephFS, JuiceFS, Lustre, GPFS. ClaudeFS targets: Weka-class performance, VAST-class economics, open-source freedom, operational simplicity.
