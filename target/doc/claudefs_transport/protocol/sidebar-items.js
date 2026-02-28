@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["FRAME_HEADER_SIZE","MAGIC","PROTOCOL_VERSION"],"enum":["Opcode"],"struct":["Frame","FrameFlags","FrameHeader"]};
