@@ -16,6 +16,8 @@ pub mod kvstore;
 pub mod locking;
 /// Multi-Raft group manager
 pub mod multiraft;
+/// Speculative path resolution with caching
+pub mod pathres;
 /// Cross-site replication
 pub mod replication;
 /// High-level metadata service API
@@ -29,6 +31,7 @@ pub mod xattr;
 
 pub use locking::{LockManager, LockType};
 pub use multiraft::MultiRaftManager;
+pub use pathres::{PathCacheEntry, PathResolver};
 pub use service::MetadataService;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use xattr::XattrStore;
