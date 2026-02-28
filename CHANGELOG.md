@@ -27,6 +27,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - All builder agents (A1, A2, A3, A4) can begin implementation immediately
   - Infrastructure provisioned, tooling validated, documentation complete
 
+##### A3: Data Reduction (COMPLETE ✅)
+- Full `claudefs-reduce` crate Phase 1: standalone pure-Rust data reduction library
+- FastCDC variable-length chunking (32KB min, 64KB avg, 512KB max) via `fastcdc` crate
+- BLAKE3 content fingerprinting for exact-match CAS deduplication
+- MinHash Super-Features (4 FNV-1a region hashes) for similarity detection
+- LZ4 inline compression (hot write path) with compressibility heuristic check
+- Zstd dictionary compression for background similarity-based delta compression
+- AES-256-GCM authenticated encryption with per-chunk HKDF-SHA256 key derivation
+- ChaCha20-Poly1305 fallback for hardware without AES-NI acceleration
+- In-memory CAS index with reference counting for Phase 1
+- Full write pipeline: chunk → dedupe → compress → encrypt → ReducedChunk
+- Full read pipeline: decrypt → decompress → reassemble original data
+- 25 unit + property-based tests all passing (proptest roundtrip invariants)
+- Zero clippy warnings; no unsafe code (pure safe Rust per A3 spec)
+- Pipeline order per docs/reduction.md: dedupe → compress → encrypt (non-negotiable)
+
 ##### A1: Storage Engine (IN PROGRESS 🔨)
 - Block types (BlockId, BlockRef, BlockSize) implemented
 - Error types (StorageError enum with 10 variants) implemented
