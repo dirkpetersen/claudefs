@@ -129,6 +129,10 @@ cp /home/cfs/claudefs/tools/cfs-cost-monitor.sh /opt/cfs-cost-monitor.sh
 chmod +x /opt/cfs-cost-monitor.sh
 echo "*/15 * * * * root /opt/cfs-cost-monitor.sh" > /etc/cron.d/cfs-cost-monitor
 
+# --- Create agent log directory ---
+mkdir -p /var/log/cfs-agents
+chown cfs:cfs /var/log/cfs-agents
+
 # --- Install agent launcher ---
 cp /home/cfs/claudefs/tools/cfs-agent-launcher.sh /opt/cfs-agent-launcher.sh
 chmod +x /opt/cfs-agent-launcher.sh
