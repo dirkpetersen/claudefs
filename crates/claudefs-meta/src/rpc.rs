@@ -5,7 +5,6 @@
 //! layer's metadata opcodes (0x0100-0x0112).
 
 use serde::{Deserialize, Serialize};
-use std::io::Read;
 
 use crate::types::*;
 
@@ -291,12 +290,12 @@ impl RpcDispatcher {
     }
 
     /// Returns the opcode for a request type.
-    pub fn request_to_opcode(request: &MetadataRequest) -> u16 {
+    pub fn request_to_opcode(&self, request: &MetadataRequest) -> u16 {
         request_to_opcode(request)
     }
 
     /// Returns whether the request is read-only.
-    pub fn is_read_only(request: &MetadataRequest) -> bool {
+    pub fn is_read_only(&self, request: &MetadataRequest) -> bool {
         is_read_only(request)
     }
 }
@@ -317,8 +316,8 @@ mod tests {
             parent: InodeId::new(100),
             name: "test.txt".to_string(),
         };
-        let serialized = serde_json::to_string(&request).unwrap();
-        let deserialized: MetadataRequest = serde_json::from_str(&serialized).unwrap();
+        let serialized = bincode::serialize(&request).unwrap();
+        let deserialized: MetadataRequest = bincode::deserialize(&serialized).unwrap();
         match deserialized {
             MetadataRequest::Lookup { parent, name } => {
                 assert_eq!(parent, InodeId::new(100));
@@ -333,8 +332,8 @@ mod tests {
         let response = MetadataResponse::AttrResult {
             attr: InodeAttr::new_file(InodeId::new(200), 1000, 1000, 0o644, 1),
         };
-        let serialized = serde_json::to_string(&response).unwrap();
-        let deserialized: MetadataResponse = serde_json::from_str(&serialized).unwrap();
+        let serialized = bincode::serialize(&response).unwrap();
+        let deserialized: MetadataResponse = bincode::deserialize(&serialized).unwrap();
         assert!(matches!(deserialized, MetadataResponse::AttrResult { .. }));
     }
 
