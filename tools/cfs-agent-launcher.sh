@@ -139,7 +139,7 @@ PROMPT_EOF
   echo "$prompt" > "$prompt_file"
 
   tmux new-session -d -s "$session_name" \
-    "cd $REPO_DIR && CLAUDE_CODE_USE_BEDROCK=1 AWS_REGION=us-west-2 ANTHROPIC_MODEL=$model FIREWORKS_API_KEY=$FIREWORKS_API_KEY PATH=$HOME/.opencode/bin:$HOME/.cargo/bin:\$PATH claude --print --dangerously-skip-permissions --model $model -p \"\$(cat $prompt_file)\" 2>&1 | tee $log_file"
+    "cd $REPO_DIR && CLAUDE_CODE_USE_BEDROCK=1 AWS_REGION=us-west-2 ANTHROPIC_MODEL=$model FIREWORKS_API_KEY=$FIREWORKS_API_KEY PATH=$HOME/.opencode/bin:$HOME/.cargo/bin:\$PATH claude --dangerously-skip-permissions --model $model -p \"\$(cat $prompt_file)\" 2>&1 | tee $log_file"
 
   echo "[$agent_id] Started. Logs: $log_file"
 }
