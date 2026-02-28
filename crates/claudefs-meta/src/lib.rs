@@ -34,6 +34,8 @@ pub mod metrics;
 pub mod multiraft;
 /// Speculative path resolution with caching
 pub mod pathres;
+/// QoS (Quality of Service) and traffic shaping for metadata operations
+pub mod qos;
 /// Per-user/group quota management
 pub mod quota;
 /// Raft-integrated metadata service (Phase 2)
@@ -44,12 +46,16 @@ pub mod readindex;
 pub mod replication;
 /// Async metadata RPC protocol types for transport integration
 pub mod rpc;
+/// Online node scaling and shard rebalancing
+pub mod scaling;
 /// High-level metadata service API
 pub mod service;
 /// Shard routing for distributed metadata
 pub mod shard;
 /// Raft log snapshot and compaction
 pub mod snapshot;
+/// Distributed tracing context for metadata operations
+pub mod tracecontext;
 /// Distributed transaction coordinator (two-phase commit)
 pub mod transaction;
 /// Core types for the metadata service
@@ -72,13 +78,16 @@ pub use locking::{LockManager, LockType};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use multiraft::MultiRaftManager;
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
+pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
 pub use raftservice::{RaftMetadataService, RaftServiceConfig};
 pub use readindex::{PendingRead, ReadIndexManager, ReadStatus};
 pub use rpc::{MetadataRequest, MetadataResponse, RpcDispatcher};
+pub use scaling::{MigrationStatus, MigrationTask, ScalingManager, ShardPlacement};
 pub use service::MetadataService;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use snapshot::{RaftSnapshot, SnapshotManager};
+pub use tracecontext::{SpanId, SpanRecord, SpanStatus, TraceCollector, TraceContext, TraceId};
 pub use transaction::{Transaction, TransactionId, TransactionManager, TransactionState};
 pub use watch::{Watch, WatchEvent, WatchManager};
 pub use worm::{RetentionPolicy, WormAuditEvent, WormEntry, WormManager, WormState};
