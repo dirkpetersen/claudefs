@@ -80,11 +80,21 @@ cd /home/cfs/claudefs && cargo build && cargo test
 
 The orchestrator user-data script retrieves this at boot and exports `FIREWORKS_API_KEY` for all agent sessions.
 
+## Autonomous Supervision
+
+Three layers keep agents running unattended. Agents should never need manual intervention.
+
+- **Watchdog** (`/opt/cfs-watchdog.sh`, tmux session `cfs-watchdog`): checks every 2 min if each agent's tmux session is alive and has active claude/opencode/cargo processes. Relaunches dead or idle agents. Pushes unpushed commits.
+- **Supervisor** (`/opt/cfs-supervisor.sh`, cron every 15 min): runs Claude Sonnet to inspect full system diagnostics, fix `cargo check` errors via OpenCode, commit forgotten files, restart dead watchdog/agents.
+- **Cost monitor** (`/opt/cfs-cost-monitor.sh`, cron every 15 min): kills spot instances if daily AWS spend exceeds $100.
+
+Logs: `/var/log/cfs-agents/watchdog.log`, `/var/log/cfs-agents/supervisor.log`
+
 ---
 
 ## Project Overview
 
-**ClaudeFS** is a distributed, scale-out POSIX file system. The project is in early planning/requirements phase — no source code or build system exists yet.
+**ClaudeFS** is a distributed, scale-out POSIX file system implemented in Rust with 8 crates in a Cargo workspace.
 
 License: MIT. Author: Dirk Petersen.
 
