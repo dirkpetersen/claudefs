@@ -96,7 +96,7 @@ cat > /home/cfs/.config/claude-code/settings.json << 'CCEOF'
 {
   "provider": "bedrock",
   "bedrockRegion": "us-west-2",
-  "bedrockModelId": "global.anthropic.claude-sonnet-4-6-v1",
+  "bedrockModelId": "global.anthropic.claude-sonnet-4-6",
   "permissions": {
     "allow": [
       "Bash(*)",
@@ -116,7 +116,7 @@ cat >> /home/cfs/.bashrc << ENVEOF
 # ClaudeFS development environment
 export AWS_REGION=us-west-2
 export AWS_DEFAULT_REGION=us-west-2
-export ANTHROPIC_MODEL=global.anthropic.claude-sonnet-4-6-v1
+export ANTHROPIC_MODEL=global.anthropic.claude-sonnet-4-6
 export CLAUDE_CODE_USE_BEDROCK=1
 export DISABLE_PROMPT_CACHING=0
 export FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
