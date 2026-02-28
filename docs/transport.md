@@ -80,6 +80,17 @@ For modern Linux clients (NFSv4.1+) that don't want to install the FUSE client:
 - No custom kernel module or FUSE daemon required — just a standard NFS mount
 - This is the best option for "works everywhere, good performance, zero install"
 
+### SMB3 Gateway (Windows Clients)
+
+For Windows clients and environments requiring SMB access:
+
+- **Samba VFS plugin** — a thin C module (~2,000–5,000 lines) translating Samba's VFS operations to ClaudeFS's internal RPC
+- Samba handles all SMB3.1.1 protocol complexity, Kerberos/NTLM authentication, encryption, signing
+- SMB3+ only (`min protocol = SMB3`) — no legacy SMB1/SMB2
+- Runs as a gateway process on dedicated nodes or co-located on ClaudeFS servers
+- License: Samba is GPLv3, VFS plugin is GPLv3 (required for Samba modules), distributed as a separate package — no MIT license contamination
+- This is the proven approach used by VAST, Weka, CephFS (`vfs_ceph`), and GlusterFS (`vfs_glusterfs`)
+
 ### FUSE Client (Primary)
 
 For clients that install ClaudeFS:

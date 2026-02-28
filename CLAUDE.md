@@ -58,10 +58,10 @@ Single FUSE v3 client binary (`claudefs`) with pluggable network transport:
 
 ## Development: Parallel Agent Plan
 
-8 agents, 3 phases — see [docs/agents.md](docs/agents.md):
-- **Phase 1 (foundation):** A1-Storage Engine + A2-Metadata + A4-Transport + A3-Reduction (4 parallel)
-- **Phase 2 (integration):** A5-FUSE Client + A3-integration + A6-Replication + A7-NFS Gateway (4 parallel)
-- **Phase 3 (production):** A8-Management + hardening + POSIX test suites across all
+11 agents, 3 phases, up to 11 parallel — see [docs/agents.md](docs/agents.md):
+- **Builders (A1–A8):** Storage, Metadata, Reduction, Transport, FUSE, Replication, Gateways (NFS+Samba VFS+S3), Management
+- **Cross-cutting (A9–A11):** Test & Validation (POSIX suites, Jepsen, CrashMonkey), Security Audit (unsafe review, fuzzing, crypto audit), Infrastructure & CI (AWS spot cluster, deployment)
+- **Test cluster:** 1 orchestrator + 9 preemptible nodes (5 storage, 2 clients, 1 conduit, 1 Jepsen)
 
 ## Competitive Landscape
 
