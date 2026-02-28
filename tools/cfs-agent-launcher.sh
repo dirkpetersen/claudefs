@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+# Source environment (FIREWORKS_API_KEY, cargo, opencode PATH)
+# bashrc isn't loaded in non-interactive shells
+[[ -f "$HOME/.bashrc" ]] && source "$HOME/.bashrc" 2>/dev/null || true
+[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env" 2>/dev/null || true
+
 REPO_DIR="/home/cfs/claudefs"
 PHASE="${1:-1}"
 LOG_DIR="/var/log/cfs-agents"
