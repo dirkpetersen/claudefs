@@ -10,6 +10,8 @@ pub mod conflict;
 pub mod consensus;
 /// Directory operations
 pub mod directory;
+/// Open file handle management
+pub mod filehandle;
 /// Inode operations
 pub mod inode;
 /// Metadata journal for replication
@@ -20,6 +22,8 @@ pub mod kvstore;
 pub mod lease;
 /// Distributed lock manager
 pub mod locking;
+/// Metadata service metrics collector
+pub mod metrics;
 /// Multi-Raft group manager
 pub mod multiraft;
 /// Speculative path resolution with caching
@@ -49,8 +53,10 @@ pub mod xattr;
 
 pub use access::{AccessMode, UserContext};
 pub use conflict::{ConflictDetector, ConflictEvent, ConflictWinner};
+pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
 pub use lease::{LeaseManager, LeaseType};
 pub use locking::{LockManager, LockType};
+pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use multiraft::MultiRaftManager;
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
