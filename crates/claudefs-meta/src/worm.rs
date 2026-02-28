@@ -188,7 +188,7 @@ impl WormManager {
         let policy = entry
             .retention_policy
             .clone()
-            .ok_or_else(|| MetaError::PermissionDenied)?;
+            .ok_or(MetaError::PermissionDenied)?;
 
         let locked_at = Timestamp::now();
         let locked_until = Timestamp {
@@ -219,9 +219,8 @@ impl WormManager {
     /// Ok(()) if successful, Err(MetaError) if still protected
     pub fn unlock_file(&self, ino: InodeId, actor_uid: u32) -> Result<(), MetaError> {
         let mut entries = self.entries.write().expect("lock poisoned");
-        let entry = entries
-            .get_mut(&ino)
-            .ok_or_else(|| MetaError::InodeNotFound(ino))?;
+        let not_found = MetaError::InodeNotFound(ino);
+        let entry = entries.get_mut(&ino).ok_or(not_found)?;
 
         match &entry.state {
             WormState::Unlocked => {
@@ -291,9 +290,8 @@ impl WormManager {
         actor_uid: u32,
     ) -> Result<(), MetaError> {
         let mut entries = self.entries.write().expect("lock poisoned");
-        let entry = entries
-            .get_mut(&ino)
-            .ok_or_else(|| MetaError::InodeNotFound(ino))?;
+        let not_found = MetaError::InodeNotFound(ino);
+        let entry = entries.get_mut(&ino).ok_or(not_found)?;
 
         if let WormState::LegalHold {
             hold_id: current_hold_id,
