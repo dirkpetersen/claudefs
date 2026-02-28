@@ -6,7 +6,6 @@
 //! and exported via the metrics/management layer.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
 
@@ -117,10 +116,10 @@ impl TraceCollector {
         }
     }
 
-    pub fn start_span(&self, name: String, ctx: TraceContext) -> SpanRecord {
+    pub fn start_span(&self, name: String, ctx: &TraceContext) -> SpanRecord {
         SpanRecord {
             name,
-            trace_ctx: ctx,
+            trace_ctx: ctx.clone(),
             start_time: Timestamp::now(),
             end_time: None,
             attributes: Vec::new(),
@@ -216,7 +215,7 @@ mod tests {
     fn test_start_end_span_timing() {
         let collector = TraceCollector::new(100);
         let trace = collector.new_trace();
-        let mut span = collector.start_span("test_span".to_string(), trace);
+        let mut span = collector.start_span("test_span".to_string(), &trace);
 
         std::thread::sleep(std::time::Duration::from_millis(10));
 
@@ -230,7 +229,7 @@ mod tests {
     fn test_record_span_stores() {
         let collector = TraceCollector::new(100);
         let trace = collector.new_trace();
-        let span = collector.start_span("test_span".to_string(), trace);
+        let span = collector.start_span("test_span".to_string(), &trace);
 
         collector.record_span(span);
 
@@ -243,7 +242,7 @@ mod tests {
         let trace = collector.new_trace();
 
         for i in 0..5 {
-            let span = collector.start_span(format!("span_{}", i), trace);
+            let span = collector.start_span(format!("span_{}", i), &trace);
             collector.record_span(span);
         }
 
@@ -254,7 +253,7 @@ mod tests {
     fn test_drain_spans_clears() {
         let collector = TraceCollector::new(100);
         let trace = collector.new_trace();
-        let span = collector.start_span("test_span".to_string(), trace);
+        let span = collector.start_span("test_span".to_string(), &trace);
         collector.record_span(span);
 
         let drained = collector.drain_spans();
@@ -268,14 +267,15 @@ mod tests {
         let collector = TraceCollector::new(100);
         let trace1 = collector.new_trace();
         let trace2 = collector.new_trace();
+        let trace1_id = trace1.trace_id;
 
-        let span1 = collector.start_span("span1".to_string(), trace1);
-        let span2 = collector.start_span("span2".to_string(), trace2);
+        let span1 = collector.start_span("span1".to_string(), &trace1);
+        let span2 = collector.start_span("span2".to_string(), &trace2);
 
         collector.record_span(span1);
         collector.record_span(span2);
 
-        let spans = collector.spans_for_trace(trace1.trace_id);
+        let spans = collector.spans_for_trace(trace1_id);
         assert_eq!(spans.len(), 1);
     }
 
@@ -283,7 +283,7 @@ mod tests {
     fn test_add_attribute() {
         let collector = TraceCollector::new(100);
         let trace = collector.new_trace();
-        let mut span = collector.start_span("test".to_string(), trace);
+        let mut span = collector.start_span("test".to_string(), &trace);
 
         TraceCollector::add_attribute(&mut span, "key1".to_string(), "value1".to_string());
         TraceCollector::add_attribute(&mut span, "key2".to_string(), "value2".to_string());
@@ -299,7 +299,7 @@ mod tests {
     fn test_set_error() {
         let collector = TraceCollector::new(100);
         let trace = collector.new_trace();
-        let mut span = collector.start_span("test".to_string(), trace);
+        let mut span = collector.start_span("test".to_string(), &trace);
 
         TraceCollector::set_error(&mut span, "something went wrong".to_string());
 
@@ -310,7 +310,7 @@ mod tests {
     fn test_set_error_replaces_previous() {
         let collector = TraceCollector::new(100);
         let trace = collector.new_trace();
-        let mut span = collector.start_span("test".to_string(), trace);
+        let mut span = collector.start_span("test".to_string(), &trace);
 
         TraceCollector::set_error(&mut span, "error 1".to_string());
         TraceCollector::set_error(&mut span, "error 2".to_string());

@@ -10,15 +10,21 @@ use std::sync::RwLock;
 
 use crate::types::*;
 
+/// QoS priority class for tenant traffic scheduling.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum QosClass {
+    /// Interactive traffic — highest priority, latency-sensitive.
     Interactive,
+    /// Batch workloads — medium priority, throughput-oriented.
     Batch,
+    /// Background tasks — low priority, preemptible.
     Background,
+    /// System traffic — critical, always allowed.
     System,
 }
 
 impl QosClass {
+    /// Returns the string representation of the QoS class.
     pub fn as_str(&self) -> &'static str {
         match self {
             QosClass::Interactive => "interactive",
@@ -29,12 +35,18 @@ impl QosClass {
     }
 }
 
+/// QoS policy for a tenant.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QosPolicy {
+    /// QoS class for this tenant.
     pub class: QosClass,
+    /// Maximum I/O operations per second.
     pub max_iops: u64,
+    /// Maximum bandwidth in bytes per second.
     pub max_bandwidth_bytes_sec: u64,
+    /// Maximum metadata operations per second.
     pub max_metadata_ops_sec: u64,
+    /// Weight for priority scheduling.
     pub priority_weight: u32,
 }
 
@@ -80,12 +92,14 @@ impl QosTokenBucket {
     }
 }
 
+/// Manages QoS policies and rate limiting for tenants.
 pub struct QosManager {
     policies: RwLock<HashMap<String, QosPolicy>>,
     token_buckets: RwLock<HashMap<String, QosTokenBucket>>,
 }
 
 impl QosManager {
+    /// Creates a new QoS manager with no policies configured.
     pub fn new() -> Self {
         Self {
             policies: RwLock::new(HashMap::new()),
@@ -93,6 +107,7 @@ impl QosManager {
         }
     }
 
+    /// Sets or updates the QoS policy for a tenant.
     pub fn set_policy(&self, tenant_id: String, policy: QosPolicy) {
         let mut policies = self.policies.write().unwrap();
         policies.insert(tenant_id.clone(), policy.clone());
@@ -104,6 +119,7 @@ impl QosManager {
         buckets.insert(tenant_id, QosTokenBucket::new(max_tokens, refill_rate));
     }
 
+    /// Removes the QoS policy for a tenant. Returns true if a policy existed.
     pub fn remove_policy(&self, tenant_id: &str) -> bool {
         let mut policies = self.policies.write().unwrap();
         let policy_removed = policies.remove(tenant_id).is_some();
@@ -117,11 +133,13 @@ impl QosManager {
         policy_removed
     }
 
+    /// Gets the QoS policy for a tenant, if one exists.
     pub fn get_policy(&self, tenant_id: &str) -> Option<QosPolicy> {
         let policies = self.policies.read().unwrap();
         policies.get(tenant_id).cloned()
     }
 
+    /// Checks if the tenant can proceed under rate limits. Consumes a token if available.
     pub fn check_rate_limit(&self, tenant_id: &str) -> bool {
         let policies = self.policies.read().unwrap();
         if !policies.contains_key(tenant_id) {
@@ -137,6 +155,7 @@ impl QosManager {
         }
     }
 
+    /// Checks if the tenant can perform an operation of the given size within bandwidth limits.
     pub fn check_bandwidth(&self, tenant_id: &str, bytes: u64) -> bool {
         let policies = self.policies.read().unwrap();
         if let Some(policy) = policies.get(tenant_id) {
@@ -150,6 +169,7 @@ impl QosManager {
         true
     }
 
+    /// Gets the QoS class for a tenant. Returns System if no policy is set.
     pub fn get_class(&self, tenant_id: &str) -> QosClass {
         let policies = self.policies.read().unwrap();
         policies
@@ -158,6 +178,7 @@ impl QosManager {
             .unwrap_or(QosClass::System)
     }
 
+    /// Returns all tenants sorted by priority (Interactive > Batch > Background > System).
     pub fn tenants_by_priority(&self) -> Vec<(String, QosClass)> {
         let policies = self.policies.read().unwrap();
         let mut tenants: Vec<(String, QosClass)> = policies
@@ -172,11 +193,13 @@ impl QosManager {
         tenants
     }
 
+    /// Returns the number of configured QoS policies.
     pub fn policy_count(&self) -> usize {
         let policies = self.policies.read().unwrap();
         policies.len()
     }
 
+    /// Resets all token buckets, allowing all tenants to burst again.
     pub fn reset_buckets(&self) {
         let mut buckets = self.token_buckets.write().unwrap();
         for bucket in buckets.values_mut() {
