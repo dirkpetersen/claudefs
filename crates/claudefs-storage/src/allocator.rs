@@ -199,58 +199,50 @@ impl AllocatorInner {
             block_ref.size, offset, self.device_idx
         );
 
-        self.merge_buddies(size_idx, offset);
+        self.try_merge(size_idx, offset);
 
         Ok(())
     }
 
-    fn merge_buddies(&mut self, size_idx: usize, offset: u64) {
+    fn try_merge(&mut self, size_idx: usize, offset: u64) {
         if size_idx >= 3 {
             return;
         }
 
-        let size_blocks = match size_idx {
-            0 => 1,
-            1 => 16,
-            2 => 256,
+        let (child_step, children_count, parent_align) = match size_idx {
+            0 => (1u64, 16u64, 16u64),
+            1 => (16u64, 16u64, 256u64),
+            2 => (256u64, 64u64, 16384u64),
             _ => return,
         };
 
-        let buddy_offset = offset ^ size_blocks;
+        let parent_base = (offset / parent_align) * parent_align;
 
-        if buddy_offset >= self.total_blocks_4k {
+        if parent_base + parent_align > self.total_blocks_4k {
             return;
         }
 
-        if self.free_lists[size_idx].contains(&offset)
-            && self.free_lists[size_idx].contains(&buddy_offset)
-        {
-            self.free_lists[size_idx].remove(&offset);
-            self.free_lists[size_idx].remove(&buddy_offset);
-
-            let parent_offset = offset & !size_blocks;
-
-            let parent_size = match size_idx {
-                0 => BlockSize::B64K,
-                1 => BlockSize::B1M,
-                2 => BlockSize::B64M,
-                _ => return,
-            };
-            let parent_idx = size_idx + 1;
-
-            self.free_lists[parent_idx].insert(parent_offset);
-
-            debug!(
-                "Merged two {} blocks at offsets {} and {} into {} at offset {}",
-                BlockSize::B4K,
-                offset,
-                buddy_offset,
-                parent_size,
-                parent_offset
-            );
-
-            self.merge_buddies(parent_idx, parent_offset);
+        for i in 0..children_count {
+            let child_offset = parent_base + i * child_step;
+            if !self.free_lists[size_idx].contains(&child_offset) {
+                return;
+            }
         }
+
+        for i in 0..children_count {
+            let child_offset = parent_base + i * child_step;
+            self.free_lists[size_idx].remove(&child_offset);
+        }
+
+        let parent_idx = size_idx + 1;
+        self.free_lists[parent_idx].insert(parent_base);
+
+        debug!(
+            "Merged {} blocks starting at {} into parent at offset {}",
+            children_count, parent_base, parent_base
+        );
+
+        self.try_merge(parent_idx, parent_base);
     }
 
     fn stats(&self) -> AllocatorStats {
@@ -293,7 +285,6 @@ impl AllocatorInner {
 
 impl BuddyAllocator {
     /// Create a new buddy allocator with the given configuration.
-    /// Initially all space is carved into the largest possible aligned blocks.
     pub fn new(config: AllocatorConfig) -> StorageResult<Self> {
         let inner = AllocatorInner::new(config)?;
         Ok(Self {
@@ -302,14 +293,12 @@ impl BuddyAllocator {
     }
 
     /// Allocate a block of the given size class.
-    /// Returns the allocated BlockRef or OutOfSpace if no blocks available.
     pub fn allocate(&self, size: BlockSize) -> StorageResult<BlockRef> {
         let mut inner = self.inner.lock().unwrap();
         inner.allocate(size)
     }
 
     /// Free a previously allocated block.
-    /// Merges with buddy blocks if both halves are free.
     pub fn free(&self, block_ref: BlockRef) -> StorageResult<()> {
         let mut inner = self.inner.lock().unwrap();
         inner.free(block_ref)
@@ -443,36 +432,6 @@ mod tests {
     }
 
     #[test]
-    fn test_buddy_merge() {
-        let config = AllocatorConfig {
-            device_idx: 0,
-            total_blocks_4k: 512,
-        };
-        let alloc = BuddyAllocator::new(config).unwrap();
-
-        let block1 = alloc.allocate(BlockSize::B1M).unwrap();
-        let block2 = alloc.allocate(BlockSize::B1M).unwrap();
-
-        let offset1 = block1.id.offset;
-        let offset2 = block2.id.offset;
-
-        assert_eq!((offset1 ^ offset2), 256);
-
-        alloc.free(block1).unwrap();
-        alloc.free(block2).unwrap();
-
-        let stats = alloc.stats();
-        let b64m_count = stats
-            .free_count_per_size
-            .iter()
-            .find(|(s, _)| *s == BlockSize::B64M)
-            .map(|(_, c)| *c)
-            .unwrap_or(0);
-
-        assert_eq!(b64m_count, 1, "Two B1M buddies should merge into one B64M");
-    }
-
-    #[test]
     fn test_split_on_demand() {
         let config = AllocatorConfig {
             device_idx: 0,
@@ -521,12 +480,11 @@ mod tests {
 
     #[test]
     fn test_capacity_calculations() {
+        let total_blocks = 16384u64;
         let config = AllocatorConfig {
             device_idx: 0,
-            total_blocks_4k: 16384,
+            total_blocks_4k: total_blocks,
         };
-        // Save total_blocks before moving config into BuddyAllocator::new()
-        let total_blocks = config.total_blocks_4k;
         let alloc = BuddyAllocator::new(config).unwrap();
 
         assert_eq!(alloc.total_capacity_bytes(), 16384 * 4096);
@@ -534,9 +492,67 @@ mod tests {
 
         alloc.allocate(BlockSize::B64M).unwrap();
 
-        // BlockSize::B64M = 16384 blocks of 4KB, so after allocation free should be 0
         let blocks_allocated = 16384u64;
         let expected_free = (total_blocks - blocks_allocated) * 4096;
         assert_eq!(alloc.free_capacity_bytes(), expected_free);
+    }
+
+    #[test]
+    fn test_no_partial_merge() {
+        let config = AllocatorConfig {
+            device_idx: 0,
+            total_blocks_4k: 512,
+        };
+        let alloc = BuddyAllocator::new(config).unwrap();
+
+        let block1 = alloc.allocate(BlockSize::B1M).unwrap();
+        let block2 = alloc.allocate(BlockSize::B1M).unwrap();
+
+        alloc.free(block1).unwrap();
+        alloc.free(block2).unwrap();
+
+        let stats = alloc.stats();
+        let b64m_count = stats
+            .free_count_per_size
+            .iter()
+            .find(|(s, _)| *s == BlockSize::B64M)
+            .map(|(_, c)| *c)
+            .unwrap_or(0);
+
+        assert_eq!(
+            b64m_count, 0,
+            "Two 1MB blocks cannot merge into 64MB (need 64 children)"
+        );
+    }
+
+    #[test]
+    fn test_alloc_free_invariant() {
+        let total = 65536u64;
+        let config = AllocatorConfig {
+            device_idx: 0,
+            total_blocks_4k: total,
+        };
+        let alloc = BuddyAllocator::new(config).unwrap();
+
+        let mut allocated = Vec::new();
+        for _ in 0..100 {
+            match alloc.allocate(BlockSize::B4K) {
+                Ok(b) => allocated.push(b),
+                Err(_) => break,
+            }
+        }
+
+        let to_free = allocated.len() / 2;
+        for b in &allocated[..to_free] {
+            alloc.free(*b).unwrap();
+        }
+
+        let stats = alloc.stats();
+        assert!(
+            stats.free_blocks_4k <= total,
+            "Free blocks {} should not exceed total {}",
+            stats.free_blocks_4k,
+            total
+        );
     }
 }
