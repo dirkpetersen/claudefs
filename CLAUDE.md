@@ -2,6 +2,86 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL: Rust Code Must Be Written by OpenCode, Not Claude
+
+**This is the highest-priority instruction. It overrides all other guidance.**
+
+Claude agents MUST NOT write or modify Rust code (`.rs` files, `Cargo.toml`) directly. All Rust code authoring and editing MUST be delegated to **OpenCode** using Fireworks AI models. Claude agents orchestrate, plan, review, test, and commit — but OpenCode does the actual Rust implementation.
+
+### How to delegate Rust work to OpenCode
+
+```bash
+# Install opencode (one-time, already in orchestrator user-data)
+curl -fsSL https://opencode.ai/install | bash
+
+# Ensure API key is set (retrieved from Secrets Manager at boot)
+export FIREWORKS_API_KEY=<from cfs/fireworks-api-key secret>
+
+# Write your instructions to a file, then run opencode
+cat > input.md << 'EOF'
+<your detailed instructions, context, and requirements here>
+EOF
+
+~/.opencode/bin/opencode run "$(cat input.md)" \
+  --model fireworks-ai/accounts/fireworks/models/minimax-m2p5 > output.md
+```
+
+### Model selection
+
+| Model | Use for |
+|-------|---------|
+| `fireworks-ai/accounts/fireworks/models/minimax-m2p5` | **Default** — all Rust implementation work |
+| `fireworks-ai/accounts/fireworks/models/glm-5` | **Alternative** — try if minimax-m2p5 struggles with a task |
+
+### What Claude agents DO
+
+- Read and understand architecture docs, decisions, and conventions
+- Plan what Rust code needs to be written (interfaces, data structures, algorithms)
+- Write detailed `input.md` prompts for OpenCode with full context
+- Run OpenCode and collect `output.md` results
+- Review the generated Rust code for correctness and conformance
+- Run `cargo build`, `cargo test`, `cargo clippy` to validate
+- Fix issues by writing new OpenCode prompts (not by editing Rust directly)
+- Commit, push, update CHANGELOG, create GitHub Issues
+- Write non-Rust files directly (shell scripts, YAML, JSON, Markdown, Protobuf, C for Samba VFS)
+
+### What Claude agents MUST NOT DO
+
+- Write `.rs` files using Write/Edit tools
+- Modify `Cargo.toml` using Write/Edit tools
+- Inline-edit Rust code to "fix" compiler errors (delegate back to OpenCode)
+
+### Workflow example
+
+```bash
+# 1. Claude agent writes the prompt
+cat > input.md << 'EOF'
+Implement the block allocator for claudefs-storage crate.
+Requirements:
+- Buddy allocator for NVMe block allocation
+- Thread-safe with lock-free fast path
+- Supports 4KB, 64KB, 1MB, 64MB block sizes
+- See docs/decisions.md D1 for erasure coding context
+EOF
+
+# 2. Run opencode with default model
+~/.opencode/bin/opencode run "$(cat input.md)" \
+  --model fireworks-ai/accounts/fireworks/models/minimax-m2p5 > output.md
+
+# 3. Review output.md, extract code, place in crate directory
+
+# 4. Build and test
+cd /home/cfs/claudefs && cargo build && cargo test
+
+# 5. If errors, write a new prompt with the error context and re-run opencode
+```
+
+### Secret: `cfs/fireworks-api-key` in AWS Secrets Manager (us-west-2)
+
+The orchestrator user-data script retrieves this at boot and exports `FIREWORKS_API_KEY` for all agent sessions.
+
+---
+
 ## Project Overview
 
 **ClaudeFS** is a distributed, scale-out POSIX file system. The project is in early planning/requirements phase — no source code or build system exists yet.

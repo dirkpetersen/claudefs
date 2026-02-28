@@ -102,7 +102,15 @@ Your task: Read CLAUDE.md, docs/decisions.md, and docs/agents.md to understand
 the full architecture. Then implement your assigned subsystem following the
 conventions and decisions documented there.
 
-Key rules:
+CRITICAL RULE — READ CLAUDE.md FIRST:
+Claude MUST NOT write or modify Rust code (.rs files, Cargo.toml) directly.
+ALL Rust code authoring MUST be delegated to OpenCode via Fireworks AI.
+Use: ~/.opencode/bin/opencode run "\$(cat input.md)" --model fireworks-ai/accounts/fireworks/models/minimax-m2p5 > output.md
+Alternative model: fireworks-ai/accounts/fireworks/models/glm-5
+FIREWORKS_API_KEY is already exported in the environment.
+See CLAUDE.md for the full workflow.
+
+Other rules:
 1. Prefix every commit with [$agent_id] — e.g. "[$agent_id] Implement block allocator"
 2. Commit early, commit often. Push after every commit.
 3. Follow shared conventions: thiserror, serde+bincode, tokio+io_uring, tracing crate.
