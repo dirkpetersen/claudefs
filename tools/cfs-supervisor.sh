@@ -31,10 +31,25 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [supervisor] === Starting supervisor check 
 
 cd "$REPO_DIR" || exit 1
 
-# Gather diagnostics for Claude
-DIAG=$(cat <<DIAGEOF
-=== TMUX SESSIONS ===
-$(tmux ls 2>&1 || echo "no tmux server")
+# Gather diagnostics
+gather_rust_stats() {
+  for d in crates/*/src; do
+    crate=$(basename "$(dirname "$d")")
+    count=$(find "$d" -name '*.rs' 2>/dev/null | wc -l)
+    lines=$(cat "$d"/*.rs 2>/dev/null | wc -l)
+    echo "  $crate: $count files, $lines lines"
+  done
+}
+
+last_commit_age() {
+  local now ts
+  now=$(date +%s)
+  ts=$(git log -1 --format=%ct 2>/dev/null || echo "$now")
+  echo "$(( now - ts )) seconds ago"
+}
+
+DIAG="=== TMUX SESSIONS ===
+$(tmux ls 2>&1 || echo 'no tmux server')
 
 === AGENT PROCESSES ===
 $(ps aux | grep -E '(claude|opencode|cargo|rustc)' | grep -v grep | head -30)
@@ -43,27 +58,25 @@ $(ps aux | grep -E '(claude|opencode|cargo|rustc)' | grep -v grep | head -30)
 $(git log --oneline -5 2>/dev/null)
 
 === LAST COMMIT AGE ===
-$(echo "$(( ($(date +%s) - $(git log -1 --format=%ct 2>/dev/null || echo $(date +%s))) )) seconds ago")
+$(last_commit_age)
 
 === UNPUSHED COMMITS ===
-$(git log origin/main..HEAD --oneline 2>/dev/null || echo "none")
+$(git log origin/main..HEAD --oneline 2>/dev/null || echo 'none')
 
 === GIT STATUS (dirty files) ===
 $(git diff --stat 2>/dev/null | tail -10)
 
 === CARGO BUILD CHECK ===
-$(cd "$REPO_DIR" && cargo check 2>&1 | tail -15)
+$(cargo check 2>&1 | tail -15)
 
 === WATCHDOG LOG (last 10 lines) ===
-$(tail -10 /var/log/cfs-agents/watchdog.log 2>/dev/null || echo "no watchdog log")
+$(tail -10 /var/log/cfs-agents/watchdog.log 2>/dev/null || echo 'no watchdog log')
 
 === AGENT LOG SIZES ===
 $(wc -c /var/log/cfs-agents/*.log 2>/dev/null)
 
 === RUST CODE STATS ===
-$(for d in crates/*/src; do crate=\$(basename \$(dirname \$d)); count=\$(find \$d -name '*.rs' 2>/dev/null | wc -l); lines=\$(cat \$d/*.rs 2>/dev/null | wc -l); echo "  \$crate: \$count files, \$lines lines"; done)
-DIAGEOF
-)
+$(gather_rust_stats)"
 
 # Run Claude to analyze and take action
 PROMPT=$(cat <<PROMPTEOF
