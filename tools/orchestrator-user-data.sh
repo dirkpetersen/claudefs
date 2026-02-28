@@ -133,8 +133,9 @@ echo "*/15 * * * * root /opt/cfs-cost-monitor.sh" > /etc/cron.d/cfs-cost-monitor
 cp /home/cfs/claudefs/tools/cfs-agent-launcher.sh /opt/cfs-agent-launcher.sh
 chmod +x /opt/cfs-agent-launcher.sh
 
-# --- Tag self ---
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+# --- Tag self (IMDSv2) ---
+IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
 aws ec2 create-tags --resources "$INSTANCE_ID" --tags \
   Key=Name,Value=cfs-orchestrator \
   Key=project,Value=claudefs \

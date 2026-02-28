@@ -45,8 +45,9 @@ echo "Mounted $MOUNT_IDX NVMe device(s)"
 useradd -m -s /bin/bash cfs || true
 chown -R cfs:cfs /data/
 
-# --- Tag self ---
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+# --- Tag self (IMDSv2) ---
+IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
 NODE_INDEX=$(aws ec2 describe-instances \
   --filters "Name=tag:project,Values=claudefs" "Name=tag:role,Values=storage" "Name=instance-state-name,Values=running" \
   --query 'length(Reservations[].Instances[])' --output text --region "$REGION" 2>/dev/null || echo "0")
