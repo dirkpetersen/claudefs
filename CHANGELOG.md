@@ -65,18 +65,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Zero clippy warnings; no unsafe code (pure safe Rust per A3 spec)
 - Pipeline order per docs/reduction.md: dedupe → compress → encrypt (non-negotiable)
 
-##### A1: Storage Engine (PHASE 1 COMPLETE ✅)
+##### A1: Storage Engine (PHASE 1 COMPLETE ✅ — 141 tests)
 - Core types: BlockId, BlockRef, BlockSize, PlacementHint with serde/Display impls
-- StorageError: 8 error variants covering I/O, allocation, alignment, checksum
+- StorageError: 10 error variants covering I/O, allocation, alignment, checksum, corruption, serialization
 - Buddy block allocator: 4KB/64KB/1MB/64MB size classes, split/merge, thread-safe
 - NVMe device manager: NvmeDeviceInfo, DeviceConfig, DeviceRole, DevicePool
-- FDP hint tagging: PlacementHint enum (Metadata/HotData/WarmData/ColdData/Snapshot/Journal)
 - IoEngine trait: async block read/write/flush/discard with Send futures
 - MockIoEngine: in-memory HashMap implementation for testing
 - StorageEngine<E>: unified API combining device pool + allocator + I/O engine
 - ZNS zone management: ZoneManager with state transitions, append, GC candidates
 - Write journal: crash-consistent coalescing per D3/D8, replication state tracking
-- 73 unit tests passing, 0 clippy warnings, 0 unsafe code in allocator/engine
+- **Checksum module**: Pure-Rust CRC32C (Castagnoli) + xxHash64, BlockHeader with magic/version
+- **Segment packer**: 2MB packed segments per D1 for EC 4+2 striping, auto-seal on overflow
+- **Capacity tracker**: Watermark eviction (D5/D6) — 80% high, 60% low, 95% critical
+  - Age-weighted scoring (age_secs × size_bytes), S3-confirmation check, tier overrides
+- **FDP hint manager**: Maps PlacementHints to NVMe Reclaim Unit Handles, per-RUH stats
+- **Superblock**: Device identity (UUIDs), layout (bitmap + data offsets), CRC32C integrity, crash recovery
+- 141 unit tests passing, 0 clippy warnings (with -D warnings), 0 unsafe code in allocator/engine
 - Ready for integration with A2 (metadata), A3 (reduction), A4 (transport)
 
 ##### A2: Metadata Service (PHASE 1 COMPLETE ✅)
