@@ -173,6 +173,51 @@ make help
 - **Dependencies:** Add to `[workspace.dependencies]` in `Cargo.toml` so all crates share versions.
 - **Testing:** Property-based tests for data transforms, integration tests for cross-crate functionality.
 
+## Autonomous Cloud Development
+
+ClaudeFS is built by AI agents running on AWS. A single command launches the entire development environment:
+
+```bash
+export CFS_KEY_NAME=cfs-key            # your EC2 key pair name
+./tools/cfs-dev up                      # provisions orchestrator, starts agents
+```
+
+### How It Works
+
+1. **`cfs-dev up`** provisions a `c7a.2xlarge` orchestrator on EC2 (Ubuntu 25.10, kernel 6.17)
+2. Cloud-init installs Rust, Node.js 22, Claude Code, OpenCode, GitHub CLI
+3. **5 Claude Code agents** launch in parallel tmux sessions (Phase 1: A1-A4 + A11)
+4. Each agent reads the architecture docs, plans work, and delegates Rust code to **OpenCode** (Fireworks AI)
+5. Agents commit and push to GitHub continuously — progress is visible in the git log
+6. Three supervision layers keep everything running unattended
+
+### Three-Layer Supervision
+
+| Layer | Frequency | What It Does |
+|-------|-----------|-------------|
+| **Watchdog** (`cfs-watchdog.sh`) | 2 min | Restarts dead agent sessions, pushes unpushed commits |
+| **Supervisor** (`cfs-supervisor.sh`) | 15 min | Claude Sonnet inspects full system state, fixes build errors, commits forgotten files |
+| **Cost monitor** (`cfs-cost-monitor.sh`) | 15 min | Kills spot instances if daily spend exceeds $100 |
+
+### Monitoring
+
+```bash
+git pull && git log --oneline -20                    # see agent commits
+./tools/cfs-dev status                               # orchestrator + node status
+./tools/cfs-dev logs --agent A1                      # stream specific agent
+./tools/cfs-dev logs --agent supervisor              # Claude supervisor reports
+./tools/cfs-dev cost                                 # AWS spend today
+./tools/cfs-dev ssh                                  # shell on orchestrator
+```
+
+### Budget
+
+- **$100/day** hard limit (EC2 ~$26 + Bedrock ~$55-70)
+- AWS Budgets alerts at 80% and 100%
+- Cost monitor auto-terminates spot instances at limit
+
+See [docs/agents.md](docs/agents.md) for full details on agents, phasing, model selection, and AWS infrastructure.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

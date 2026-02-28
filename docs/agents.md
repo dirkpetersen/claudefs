@@ -289,30 +289,87 @@ Spun up for testing, torn down when idle. A11 automates the lifecycle.
 - SNS topic `cfs-budget-alerts` — notification endpoint
 - Cost monitor cron: `tools/cfs-cost-monitor.sh` runs every 15 minutes on orchestrator, auto-terminates spot instances at budget limit
 
+### Three-Layer Autonomous Supervision
+
+The orchestrator runs three layers of supervision so agents operate unattended:
+
+| Layer | Script | Frequency | What It Does |
+|-------|--------|-----------|-------------|
+| **Watchdog** | `tools/cfs-watchdog.sh` | Every 2 min | Bash loop: checks tmux sessions alive, detects idle agents (no claude/opencode/cargo), auto-relaunches dead sessions, pushes unpushed commits, reports status every 10 min |
+| **Supervisor** | `tools/cfs-supervisor.sh` | Every 15 min (cron) | Runs Claude Sonnet: gathers full diagnostics (tmux, processes, git log, cargo check, code stats), fixes build errors via OpenCode, commits forgotten files, restarts dead agents/watchdog, pushes to GitHub |
+| **Cost monitor** | `tools/cfs-cost-monitor.sh` | Every 15 min (cron) | Bash: checks daily AWS spend via Cost Explorer, terminates all spot instances if $100/day exceeded, publishes SNS alert |
+
+**How they interact:**
+- The **watchdog** handles fast recovery — if an agent's tmux session crashes or finishes, it relaunches within 2 minutes.
+- The **supervisor** handles intelligent recovery — if `cargo check` fails, it uses Claude to diagnose the error and generate a fix via OpenCode. It also catches files that agents generated but forgot to commit.
+- The **cost monitor** is the safety net — hard kill of all spot instances if budget is exceeded.
+
+**Watchdog details:** Runs as a persistent `cfs-watchdog` tmux session. For each agent, it checks: (1) does the tmux session exist? (2) is a claude, opencode, or cargo process running inside it? If not, it kills and relaunches the session. It also runs `git push` every cycle to ensure commits reach GitHub.
+
+**Supervisor details:** Runs via cron as the `cfs` user. Uses a lockfile (`/tmp/cfs-supervisor.lock`) to prevent overlapping runs. Gathers: tmux session list, running processes, last 5 commits, commit age, unpushed commits, dirty files, `cargo check` output, watchdog log, agent log sizes, and per-crate Rust code stats. Feeds all of this to Claude Sonnet with instructions to fix what's broken. Has a 5-minute timeout per run.
+
+### Rust Code Delegation: OpenCode via Fireworks AI
+
+**Claude agents MUST NOT write Rust code directly.** All `.rs` and `Cargo.toml` authoring is delegated to OpenCode using Fireworks AI models. This is the highest-priority instruction in CLAUDE.md.
+
+**Workflow:**
+1. Claude agent plans what code is needed (reads docs, designs interfaces)
+2. Writes a detailed prompt to `input.md` (or `a1-input.md`, `a2-input.md`, etc.)
+3. Runs: `~/.opencode/bin/opencode run "$(cat input.md)" --model fireworks-ai/accounts/fireworks/models/minimax-m2p5 > output.md`
+4. Extracts Rust code from `output.md` and places it in the crate directory
+5. Runs `cargo build && cargo test && cargo clippy` to validate
+6. If errors, writes a new prompt with error context and re-runs OpenCode
+7. Commits and pushes when tests pass
+
+**Models:**
+| Model | Use |
+|-------|-----|
+| `fireworks-ai/accounts/fireworks/models/minimax-m2p5` | Default — all Rust implementation |
+| `fireworks-ai/accounts/fireworks/models/glm-5` | Alternative — try if minimax struggles |
+
+**Secret:** `cfs/fireworks-api-key` in AWS Secrets Manager, retrieved at boot, exported as `FIREWORKS_API_KEY`.
+
 ### Bootstrap Infrastructure (tools/)
 
 | Script | Purpose |
 |--------|---------|
 | `tools/cfs-dev` | Main CLI: `up`, `status`, `logs`, `down`, `destroy`, `cost`, `ssh` |
-| `tools/orchestrator-user-data.sh` | Cloud-init: Rust 1.93, Node.js 22, Claude Code, GitHub CLI |
+| `tools/orchestrator-user-data.sh` | Cloud-init: Rust, Node.js 22, Claude Code, OpenCode, GitHub CLI |
 | `tools/storage-node-user-data.sh` | Cloud-init: NVMe setup, kernel tuning for storage |
 | `tools/client-node-user-data.sh` | Cloud-init: FUSE/NFS/SMB client tools, POSIX test deps |
-| `tools/cfs-agent-launcher.sh` | Launches agents as tmux sessions with per-agent model selection |
-| `tools/cfs-cost-monitor.sh` | Budget enforcement cron job |
+| `tools/cfs-agent-launcher.sh` | Launches agents as tmux sessions with per-agent model/env setup |
+| `tools/cfs-watchdog.sh` | Fast supervision loop (2-min cycle, restarts dead agents) |
+| `tools/cfs-supervisor.sh` | Claude-powered supervision cron (15-min, fixes build errors) |
+| `tools/cfs-cost-monitor.sh` | Budget enforcement cron (15-min, kills spot at $100) |
 | `tools/iam-policies/*.json` | IAM policies for orchestrator and spot nodes |
+
+### Developer CLI: `cfs-dev`
+
+```bash
+cfs-dev up [--phase N] [--key KEY]   # Provision orchestrator, start agents + watchdog
+cfs-dev status                       # Show orchestrator, nodes, agent sessions
+cfs-dev logs [--agent A1|watchdog|supervisor]  # Stream agent or supervisor logs
+cfs-dev ssh [target] [--key KEY]     # SSH to orchestrator or named node
+cfs-dev cost                         # Today's spend, monthly total, budget status
+cfs-dev down                         # Tear down spot cluster (keep orchestrator)
+cfs-dev destroy                      # Tear down everything (requires confirmation)
+```
+
+Set `CFS_KEY_NAME=cfs-key` in your shell to avoid passing `--key` every time. The CLI auto-detects `.pem` key files in `~/.ssh/`.
 
 ### AWS Resources (Pre-provisioned)
 
 | Resource | Name | Notes |
 |----------|------|-------|
-| Secrets | `cfs/github-token`, `cfs/ssh-private-key` | In Secrets Manager (us-west-2) |
-| IAM role | `cfs-orchestrator-role` | Bedrock, EC2, Secrets, CloudWatch, Budgets |
+| Secrets | `cfs/github-token`, `cfs/ssh-private-key`, `cfs/fireworks-api-key` | Secrets Manager (us-west-2) |
+| IAM role | `cfs-orchestrator-role` | Bedrock (us + global), EC2, Secrets, CloudWatch, Budgets |
 | IAM role | `cfs-spot-node-role` | Secrets, CloudWatch logs, EC2 describe |
 | Instance profile | `cfs-orchestrator-profile` | Attached to orchestrator |
 | Instance profile | `cfs-spot-node-profile` | Attached to spot nodes |
 | Security group | `cfs-cluster-sg` | All traffic within group + SSH from dev IP |
-| Budget | `cfs-daily-100` | $100/day with 80%/100% alerts |
+| Budget | `cfs-daily-100` | $100/day with 80%/100% alerts via SNS |
 | SNS topic | `cfs-budget-alerts` | Budget alert notifications |
+| AMI | Ubuntu 25.10 Questing | Kernel 6.17+ (FUSE passthrough, atomic writes, io_uring) |
 
 ### Scaling for Performance Benchmarks
 
