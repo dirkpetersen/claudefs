@@ -14,6 +14,7 @@ pub mod engine;
 pub mod error;
 pub mod flush;
 pub mod io_uring_bridge;
+pub mod segment;
 pub mod zns;
 
 pub use block::{BlockId, BlockRef, BlockSize, PlacementHint};
@@ -23,3 +24,4 @@ pub use allocator::{BuddyAllocator, AllocatorConfig, AllocatorStats};
 pub use engine::{StorageEngine, StorageEngineConfig, StorageEngineStats};
 pub use error::{StorageError, StorageResult};
 pub use io_uring_bridge::{IoEngine, MockIoEngine, IoStats, IoRequestId, IoOpType};
+pub use segment::{SegmentPacker, SegmentPackerConfig, PackedSegment, SegmentHeader, SegmentEntry, SegmentPackerStats, SEGMENT_SIZE};
