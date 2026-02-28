@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["analytics","api","cli","config","metrics"]};

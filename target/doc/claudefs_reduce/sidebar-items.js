@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["compression","dedupe","encryption","fingerprint","pipeline"]};

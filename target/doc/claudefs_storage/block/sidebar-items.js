@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BlockSize","PlacementHint"],"struct":["BlockId","BlockRef"]};

@@ -1,2 +1,0 @@
-window.ALL_CRATES = ["cfs_fuse","cfs_gateway","cfs_meta","cfs_mgmt","cfs_repl","claudefs_fuse","claudefs_gateway","claudefs_meta","claudefs_mgmt","claudefs_reduce","claudefs_repl","claudefs_storage","claudefs_transport"];
-//{"start":21,"fragment_lengths":[10,14,11,11,11,16,19,16,16,18,16,19,21]}
