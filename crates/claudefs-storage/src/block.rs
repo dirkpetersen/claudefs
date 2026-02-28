@@ -1,5 +1,6 @@
 //! Core block types for the storage subsystem.
 
+use core::fmt;
 use serde::{Deserialize, Serialize};
 
 /// Unique identifier for a block on a specific device.
@@ -21,6 +22,12 @@ impl BlockId {
     /// Returns the byte offset for this block given its size class.
     pub fn byte_offset(&self, size: BlockSize) -> u64 {
         self.offset * size.as_bytes()
+    }
+}
+
+impl fmt::Display for BlockId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "BlockId({}, {})", self.device_idx, self.offset)
     }
 }
 
@@ -73,6 +80,17 @@ impl BlockSize {
     }
 }
 
+impl fmt::Display for BlockSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BlockSize::B4K => write!(f, "4KB"),
+            BlockSize::B64K => write!(f, "64KB"),
+            BlockSize::B1M => write!(f, "1MB"),
+            BlockSize::B64M => write!(f, "64MB"),
+        }
+    }
+}
+
 /// Reference to a block with its size class, for the allocator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BlockRef {
@@ -99,4 +117,96 @@ pub enum PlacementHint {
     Snapshot = 4,
     /// Journal: write-ahead log / write journal entries
     Journal = 5,
+}
+
+impl fmt::Display for PlacementHint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PlacementHint::Metadata => write!(f, "Metadata"),
+            PlacementHint::HotData => write!(f, "HotData"),
+            PlacementHint::WarmData => write!(f, "WarmData"),
+            PlacementHint::ColdData => write!(f, "ColdData"),
+            PlacementHint::Snapshot => write!(f, "Snapshot"),
+            PlacementHint::Journal => write!(f, "Journal"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_id_creation() {
+        let id = BlockId::new(0, 42);
+        assert_eq!(id.device_idx, 0);
+        assert_eq!(id.offset, 42);
+    }
+
+    #[test]
+    fn test_block_id_byte_offset() {
+        let id = BlockId::new(1, 100);
+        assert_eq!(id.byte_offset(BlockSize::B4K), 100 * 4096);
+        assert_eq!(id.byte_offset(BlockSize::B64K), 100 * 65536);
+        assert_eq!(id.byte_offset(BlockSize::B1M), 100 * 1_048_576);
+        assert_eq!(id.byte_offset(BlockSize::B64M), 100 * 67_108_864);
+    }
+
+    #[test]
+    fn test_block_size_as_bytes() {
+        assert_eq!(BlockSize::B4K.as_bytes(), 4096);
+        assert_eq!(BlockSize::B64K.as_bytes(), 65536);
+        assert_eq!(BlockSize::B1M.as_bytes(), 1_048_576);
+        assert_eq!(BlockSize::B64M.as_bytes(), 67_108_864);
+    }
+
+    #[test]
+    fn test_block_size_from_bytes() {
+        assert_eq!(BlockSize::from_bytes(4096), Some(BlockSize::B4K));
+        assert_eq!(BlockSize::from_bytes(65536), Some(BlockSize::B64K));
+        assert_eq!(BlockSize::from_bytes(1_048_576), Some(BlockSize::B1M));
+        assert_eq!(BlockSize::from_bytes(67_108_864), Some(BlockSize::B64M));
+        assert_eq!(BlockSize::from_bytes(1234), None);
+        assert_eq!(BlockSize::from_bytes(0), None);
+    }
+
+    #[test]
+    fn test_block_size_all() {
+        let all = BlockSize::all();
+        assert_eq!(all.len(), 4);
+        assert_eq!(all[0], BlockSize::B4K);
+        assert_eq!(all[1], BlockSize::B64K);
+        assert_eq!(all[2], BlockSize::B1M);
+        assert_eq!(all[3], BlockSize::B64M);
+    }
+
+    #[test]
+    fn test_block_ref() {
+        let id = BlockId::new(2, 50);
+        let block_ref = BlockRef {
+            id,
+            size: BlockSize::B1M,
+        };
+        assert_eq!(block_ref.id.device_idx, 2);
+        assert_eq!(block_ref.id.offset, 50);
+        assert_eq!(block_ref.size, BlockSize::B1M);
+    }
+
+    #[test]
+    fn test_display_impls() {
+        let id = BlockId::new(1, 100);
+        assert_eq!(format!("{}", id), "BlockId(1, 100)");
+
+        assert_eq!(format!("{}", BlockSize::B4K), "4KB");
+        assert_eq!(format!("{}", BlockSize::B64K), "64KB");
+        assert_eq!(format!("{}", BlockSize::B1M), "1MB");
+        assert_eq!(format!("{}", BlockSize::B64M), "64MB");
+
+        assert_eq!(format!("{}", PlacementHint::Metadata), "Metadata");
+        assert_eq!(format!("{}", PlacementHint::HotData), "HotData");
+        assert_eq!(format!("{}", PlacementHint::WarmData), "WarmData");
+        assert_eq!(format!("{}", PlacementHint::ColdData), "ColdData");
+        assert_eq!(format!("{}", PlacementHint::Snapshot), "Snapshot");
+        assert_eq!(format!("{}", PlacementHint::Journal), "Journal");
+    }
 }
