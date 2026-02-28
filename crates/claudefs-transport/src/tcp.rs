@@ -10,7 +10,9 @@ use crate::protocol::{Frame, FrameHeader, FRAME_HEADER_SIZE, MAX_PAYLOAD_SIZE};
 /// TCP transport configuration
 #[derive(Debug, Clone)]
 pub struct TcpTransportConfig {
+    /// Connection timeout in milliseconds.
     pub connect_timeout_ms: u64,
+    /// Whether to enable TCP_NODELAY (disable Nagle's algorithm).
     pub nodelay: bool,
 }
 
@@ -30,10 +32,12 @@ pub struct TcpTransport {
 }
 
 impl TcpTransport {
+    /// Creates a new TCP transport with the given configuration.
     pub fn new(config: TcpTransportConfig) -> Self {
         Self { config }
     }
 
+    /// Establishes a TCP connection to the specified address.
     pub async fn connect(&self, addr: &str) -> Result<TcpConnection> {
         let timeout = std::time::Duration::from_millis(self.config.connect_timeout_ms);
         let stream = tokio::time::timeout(timeout, tokio::net::TcpStream::connect(addr))
@@ -50,12 +54,14 @@ impl TcpTransport {
         TcpConnection::from_stream(stream)
     }
 
+    /// Binds to the specified address and returns a listener for incoming connections.
     pub async fn listen(&self, addr: &str) -> Result<tokio::net::TcpListener> {
         tokio::net::TcpListener::bind(addr)
             .await
             .map_err(TransportError::IoError)
     }
 
+    /// Accepts an incoming TCP connection from the listener.
     pub async fn accept(&self, listener: &tokio::net::TcpListener) -> Result<TcpConnection> {
         let (stream, _) = listener.accept().await.map_err(TransportError::IoError)?;
         if self.config.nodelay {
@@ -92,6 +98,7 @@ impl TcpConnection {
         })
     }
 
+    /// Sends a frame over the TCP connection.
     pub async fn send_frame(&self, frame: &Frame) -> Result<()> {
         let encoded = frame.encode();
         let mut write = self.write.lock().await;
@@ -100,6 +107,7 @@ impl TcpConnection {
         Ok(())
     }
 
+    /// Receives a frame from the TCP connection.
     pub async fn recv_frame(&self) -> Result<Frame> {
         let mut read = self.read.lock().await;
         let mut header_buf = [0u8; FRAME_HEADER_SIZE];
@@ -124,10 +132,12 @@ impl TcpConnection {
         Ok(frame)
     }
 
+    /// Returns the remote peer address of this TCP connection as a string.
     pub fn peer_addr(&self) -> &str {
         &self.peer_addr
     }
 
+    /// Returns the local address of this TCP connection as a string.
     pub fn local_addr(&self) -> &str {
         &self.local_addr
     }
