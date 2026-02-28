@@ -168,6 +168,44 @@ Supermicro's Petascale line provides the physical density for NVMe-heavy ClaudeF
 | NIC | 1x Intel E810 100GbE or RoCE-capable NIC |
 | Chassis | Any 1U with M.2/U.2 slots |
 
+## Why No GPU in Storage Nodes
+
+A common question: should each storage node include an NVIDIA RTX 6000 or Blackwell GPU to accelerate deduplication, compression, and encryption? The answer is no — the math doesn't support it.
+
+### The CPU Already Saturates NVMe
+
+A 96-core AMD EPYC 9654 with AVX-512 provides aggregate throughput that far exceeds what the storage bus can feed:
+
+| Operation | Per-Core Throughput | 96-Core Aggregate | NVMe Ceiling (16 drives) |
+|-----------|-------------------|-------------------|--------------------------|
+| BLAKE3 hashing | ~8 GB/s | ~768 GB/s | ~100-200 GB/s |
+| LZ4 compression | ~4 GB/s | ~384 GB/s | ~100-200 GB/s |
+| AES-256-GCM encryption | ~10 GB/s | ~960 GB/s | ~100-200 GB/s |
+| FastCDC chunking | ~2-4 GB/s | ~192-384 GB/s | ~100-200 GB/s |
+| Zstd compression | ~1 GB/s | ~96 GB/s | ~100-200 GB/s |
+
+Even Zstd — the slowest operation — provides 96 GB/s aggregate, close to or above the NVMe throughput ceiling. For every other operation, the CPU has 3-8x more throughput than the storage can deliver. A GPU solving a non-existent bottleneck adds cost without benefit.
+
+NVIDIA Blackwell's 800 GB/s hardware decompression engine is impressive, but it decompresses faster than the drives can feed data — the bottleneck is NVMe, not the CPU.
+
+### The Cost of Per-Node GPUs
+
+| Cost Factor | Impact |
+|------------|--------|
+| Hardware | $5,000-$8,000 per node (RTX 6000 Ada / RTX Pro 6000 Blackwell) |
+| Power | 300-600W TDP per GPU — significant cooling and electricity cost |
+| PCIe lanes | x16 lanes consumed that could serve another NVMe drive or 400GbE NIC |
+| Complexity | CUDA dependency in codebase, more `unsafe` Rust, less mature ecosystem |
+| 20-node cluster | $100,000-$160,000 in GPUs accelerating operations that aren't bottlenecked |
+
+### What About GPUDirect Storage?
+
+GPUDirect Storage (GDS) is valuable — but it's a **client-side** optimization, not a storage server feature. GDS allows AI/ML compute nodes to DMA training data directly from the network into GPU VRAM, bypassing client CPU memory. This works with ClaudeFS's RDMA transport: the *client's* GPU registers VRAM as an RDMA-accessible memory region, and the storage server sends data via standard RDMA writes. No GPU is needed on the storage server.
+
+### Decision
+
+ClaudeFS storage nodes do not include GPUs. The RDMA transport is GPUDirect Storage compatible for client-side GPU clusters (AI/ML training). If a future workload demonstrates a genuine CPU bottleneck in the data reduction pipeline, GPU acceleration can be added behind a trait-based abstraction with a `--features gpu` build flag — but the current hardware math shows no such bottleneck exists.
+
 ## Related Research
 
 See [docs/literature.md](literature.md) for the full paper catalog. Key references for hardware:
