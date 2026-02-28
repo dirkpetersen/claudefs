@@ -15,6 +15,7 @@ tokio.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 serde.workspace = true
+bincode.workspace = true
 prost.workspace = true
 tonic.workspace = true
 tracing.workspace = true
