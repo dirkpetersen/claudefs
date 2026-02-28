@@ -28,7 +28,15 @@ License: MIT. Author: Dirk Petersen.
 - **FUSE bindings:** `fuser` crate (FUSE v3)
 - **Async runtime:** Tokio with io_uring backend
 - **Key kernel features:** FUSE passthrough (6.9+), io_uring, kTLS, ID-mapped mounts — see [docs/kernel.md](docs/kernel.md)
+- **Research foundations:** InfiniFS, Orion, Assise, MadFS, DAOS, LineFS, FLEX — see [docs/literature.md](docs/literature.md)
+
+## Key Design Principles (from literature)
+
+- **User-space first:** `LD_PRELOAD` to intercept POSIX calls at libc level, FUSE as fallback
+- **RDMA one-sided verbs** via `libfabric` — bypass remote CPUs, no sockets
+- **Hash-based distributed metadata** — consistent hashing, speculative path resolution (InfiniFS)
+- **Relaxed POSIX where possible** — mount flags for bounded staleness to achieve line-rate NVMe throughput
 
 ## Reference Systems
 
-Design draws from: JuiceFS, CephFS, Weka IO, BeeGFS.
+Design draws from: JuiceFS, CephFS, Weka IO, BeeGFS, DAOS.
