@@ -50,6 +50,7 @@ Both clients share the same cluster, metadata protocol, storage backend, and rep
 - **Async runtime:** Tokio with io_uring backend
 - **Key kernel features:** FUSE passthrough (6.8+), io_uring + NVMe passthrough, atomic writes (6.11+), kTLS, ID-mapped mounts — see [docs/kernel.md](docs/kernel.md)
 - **Research foundations:** InfiniFS, Orion, Assise, MadFS, DAOS, LineFS, FLEX — see [docs/literature.md](docs/literature.md)
+- **Transport layer:** Custom RPC over io_uring (core), pNFS layouts (modern clients), NFS gateway (legacy) — see [docs/transport.md](docs/transport.md)
 - **POSIX validation:** pjdfstest, xfstests, fsx, LTP, Connectathon, Jepsen, FIO, CrashMonkey — see [docs/posix.md](docs/posix.md)
 
 ## Reference Systems
