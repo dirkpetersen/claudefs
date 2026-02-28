@@ -14,8 +14,12 @@ pub mod journal;
 pub mod kvstore;
 /// Cross-site replication
 pub mod replication;
+/// High-level metadata service API
+pub mod service;
 /// Core types for the metadata service
 pub mod types;
+
+pub use service::MetadataService;
 
 /// Re-export key types for external users
 pub use types::{
