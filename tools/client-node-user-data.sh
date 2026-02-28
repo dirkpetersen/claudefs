@@ -33,8 +33,9 @@ useradd -m -s /bin/bash cfs || true
 mkdir -p /mnt/cfs-fuse /mnt/cfs-nfs /mnt/cfs-smb
 chown cfs:cfs /mnt/cfs-fuse /mnt/cfs-nfs /mnt/cfs-smb
 
-# --- Tag self ---
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+# --- Tag self (IMDSv2) ---
+IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
 # Determine role from instance tag (set by orchestrator at launch)
 ROLE=$(aws ec2 describe-tags \
   --filters "Name=resource-id,Values=$INSTANCE_ID" "Name=key,Values=role" \
