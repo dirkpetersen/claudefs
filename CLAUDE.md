@@ -13,8 +13,10 @@ License: MIT. Author: Dirk Petersen.
 - **Distributed flash layer** spanning multiple nodes, hosting both data and metadata
 - **S3-compatible object store backend** for tiered storage — only uses GET, PUT, DELETE operations with 64MB blob chunks, written asynchronously to tolerate high-latency or unreliable stores
 - **Distributed metadata servers** with asynchronous cross-site replication; eventually-consistent with last-write-wins conflict resolution and administrator alerting on write conflicts
-- **Mounting**: FUSE v3 user-space mount preferred; kernel NFS v4.2+ as alternative
+- **Two client modes** developed independently (see below)
 - **Cross-site replication** designed from day one — two metadata servers syncing asynchronously
+- **No single points of failure** — erasure coding, cross-site replication, end-to-end checksums
+- **Zero external dependencies** — no ZooKeeper/etcd/external DB; single binary per client
 
 ## Target Platform
 
@@ -22,20 +24,31 @@ License: MIT. Author: Dirk Petersen.
 - Ubuntu 24.04, Ubuntu 26.04, Red Hat 10
 - Standard Linux deployment model (similar to Weka IO)
 
+## Dual-Client Architecture
+
+Both clients share the same cluster, metadata protocol, storage backend, and replication. They are developed as independent workstreams.
+
+### Performance Client (`claudefs-rdma`)
+- `LD_PRELOAD` libc interception — bypasses kernel entirely
+- RDMA one-sided verbs via `libfabric` — zero-copy, no remote CPU
+- Per-core NVMe queue alignment, speculative metadata resolution
+- Relaxed POSIX mount flags for line-rate throughput
+- Requires RDMA NICs (InfiniBand, RoCE)
+
+### Universal Client (`claudefs-fuse`)
+- FUSE v3 with passthrough mode (kernel 6.9+)
+- io_uring async I/O, standard TCP/IP networking
+- Full POSIX by default, optional relaxation flags
+- NFS v4.2+ kernel export as additional fallback
+- Runs on any Linux 6.x system
+
 ## Implementation
 
 - **Language:** Rust
-- **FUSE bindings:** `fuser` crate (FUSE v3)
+- **Key crates:** `fuser` (FUSE v3), `io-uring`, `libfabric` bindings, `aws-sdk-rust` (S3)
 - **Async runtime:** Tokio with io_uring backend
 - **Key kernel features:** FUSE passthrough (6.9+), io_uring, kTLS, ID-mapped mounts — see [docs/kernel.md](docs/kernel.md)
 - **Research foundations:** InfiniFS, Orion, Assise, MadFS, DAOS, LineFS, FLEX — see [docs/literature.md](docs/literature.md)
-
-## Key Design Principles (from literature)
-
-- **User-space first:** `LD_PRELOAD` to intercept POSIX calls at libc level, FUSE as fallback
-- **RDMA one-sided verbs** via `libfabric` — bypass remote CPUs, no sockets
-- **Hash-based distributed metadata** — consistent hashing, speculative path resolution (InfiniFS)
-- **Relaxed POSIX where possible** — mount flags for bounded staleness to achieve line-rate NVMe throughput
 
 ## Reference Systems
 
