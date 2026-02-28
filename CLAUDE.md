@@ -20,8 +20,9 @@ License: MIT. Author: Dirk Petersen.
 
 ## Target Platform
 
-- Linux kernel 6+ only
-- Ubuntu 24.04, Ubuntu 26.04, Red Hat 10
+- **Server nodes:** kernel 6.20+ (Ubuntu 26.04, April 2026) — atomic writes, dynamic io_uring, EEVDF scheduler
+- **Clients:** kernel 5.14+ (RHEL 9, Ubuntu 22.04+) — FUSE passthrough requires 6.8+; performance client has minimal kernel dependency via LD_PRELOAD
+- Supported distros: Ubuntu 24.04, Ubuntu 26.04, RHEL 9, RHEL 10
 - Standard Linux deployment model (similar to Weka IO)
 
 ## Dual-Client Architecture
@@ -40,7 +41,7 @@ Both clients share the same cluster, metadata protocol, storage backend, and rep
 - io_uring async I/O, standard TCP/IP networking
 - Full POSIX by default, optional relaxation flags
 - NFS v4.2+ kernel export as additional fallback
-- Runs on any Linux 6.x system
+- Runs on kernel 5.14+ (RHEL 9+); passthrough on 6.8+
 
 ## Implementation
 

@@ -54,7 +54,7 @@ Goal: **Works everywhere, easy to deploy, full POSIX compatibility.**
 - Standard TCP/IP networking — no special hardware required
 - Full POSIX semantics by default, with optional relaxation flags for performance
 - NFS v4.2+ kernel export as additional fallback for clients that cannot run the FUSE daemon
-- Target: any Linux 6.x system — workstations, VMs, cloud instances, containers
+- Target: Linux 5.14+ (RHEL 9+); passthrough mode active on 6.8+ — workstations, VMs, cloud instances, containers
 
 #### Shared Between Both Clients
 - Same distributed metadata protocol and consistent hashing scheme
@@ -82,8 +82,9 @@ Goal: **Works everywhere, easy to deploy, full POSIX compatibility.**
 
 ## Target Platform
 
-- Linux kernel 6.0+ (6.8+ recommended for FUSE passthrough)
-- Ubuntu 24.04, Ubuntu 26.04, Red Hat 10
+- **Server nodes:** Linux kernel 6.20+ (ships with Ubuntu 26.04, April 2026)
+- **Clients:** Linux kernel 5.14+ (RHEL 9, Ubuntu 22.04+); FUSE passthrough requires 6.8+
+- Ubuntu 24.04, Ubuntu 26.04, RHEL 9, RHEL 10
 - Standard Linux server hardware with NVMe/SSD storage
 
 ## License

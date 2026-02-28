@@ -1,6 +1,18 @@
 # Linux Kernel Features Relevant to ClaudeFS
 
-ClaudeFS targets Linux kernel 6.x exclusively. The traditional POSIX I/O path (VFS -> Page Cache -> Block Layer -> NVMe Driver) is too slow for modern NVMe and RDMA. Kernel developers have introduced groundbreaking features to bypass these bottlenecks, support disaggregated storage, and enable high-performance user-space file systems.
+The traditional POSIX I/O path (VFS -> Page Cache -> Block Layer -> NVMe Driver) is too slow for modern NVMe and RDMA. Kernel developers have introduced groundbreaking features to bypass these bottlenecks, support disaggregated storage, and enable high-performance user-space file systems.
+
+## Kernel Version Requirements
+
+ClaudeFS has different kernel requirements for servers and clients:
+
+| Role | Minimum Kernel | Rationale | Ships With |
+|------|---------------|-----------|------------|
+| **Server nodes** | 6.20+ | Atomic writes stabilized, io_uring dynamic resize, EEVDF scheduler, Rust VFS, MGLRU refinements | Ubuntu 26.04 (Apr 2026) |
+| **Universal client (claudefs-fuse)** | 5.14+ | FUSE v3 basic support; passthrough mode requires 6.8+ | RHEL 9, Ubuntu 22.04+ |
+| **Performance client (claudefs-rdma)** | 5.14+ | User-space `LD_PRELOAD` + `libfabric` — minimal kernel dependency | RHEL 9, Ubuntu 22.04+ |
+
+The performance client bypasses the kernel almost entirely (`LD_PRELOAD` + RDMA + io_uring NVMe passthrough), so it runs on older kernels. The universal client degrades gracefully: on pre-6.8 kernels, FUSE operates without passthrough (slower but functional). Servers require 6.20+ to take full advantage of atomic writes, dynamic io_uring, and scheduler improvements.
 
 ## 1. The Async I/O Revolution: io_uring & NVMe Passthrough
 
@@ -97,6 +109,31 @@ Uses multiple network links simultaneously for a single TCP connection. Applicab
 - **Redundant network paths** between storage nodes for fault tolerance
 - **Bandwidth aggregation** across multiple NICs without application-level changes
 - **Transparent failover** when a network link goes down
+
+## 11. The 6.12–6.20 Era: Server-Side Performance
+
+The jump from kernel 6.11 to 6.20 represents a significant era for server-side performance. Key themes: stabilization of atomic writes, massive expansion of Rust infrastructure, and lock-contention reductions in major file systems.
+
+### Storage & File System Enhancements
+
+- **Atomic write stabilization (6.11–6.13)** — XFS and Ext4 mainlined atomic write support, guaranteeing block-level write atomicity. For ClaudeFS metadata servers, this eliminates double-buffer writes and simplifies crash-consistent journaling. This is why 6.20 is the server minimum.
+- **XFS large block support** — XFS now supports block sizes larger than the system page size (e.g., 16KB blocks on a 4KB page system), reducing metadata overhead for large-scale storage arrays. Relevant to how ClaudeFS structures its local flash allocator.
+- **io_uring dynamic resizing (6.13)** — `IORING_REGISTER_RING_RESIZE` allows servers to scale I/O submission queues on the fly without restarting. Critical for maintaining performance under variable load — ClaudeFS servers should resize rings as client connections scale up/down.
+
+### Scheduler & Memory Management
+
+- **EEVDF scheduler (6.12–6.13)** — The Earliest Eligible Virtual Deadline First scheduler replaced CFS, with "Lazy Preemption" reducing unnecessary context switching in CPU-bound server tasks. Benefits ClaudeFS metadata servers handling high-concurrency POSIX operations.
+- **Multi-Gen LRU refinements (6.15+)** — Page reclamation under heavy memory pressure is now much smarter, preventing thrashing during peak traffic. Directly benefits ClaudeFS servers caching hot metadata and flash-tier data in memory.
+
+### Networking
+
+- **Adaptive polling (6.13)** — Automatically switches between interrupts and polling, boosting throughput up to 45% in benchmarks. Benefits the universal client's TCP path and server-to-server communication.
+- **Per-namespace RTNL locks (6.13)** — Moves the RTNL lock to per-namespace, drastically reducing contention in container-heavy (Kubernetes) environments. Important for ClaudeFS deployments in containerized HPC clusters.
+- **Device Memory TCP (6.12)** — Zero-copy data transfer directly to/from hardware buffers, bypassing the CPU. Complements io_uring zero-copy for the universal client's TCP data path.
+
+### Rust in the Kernel
+
+- **Rust VFS abstractions (6.13+)** — The Virtual File System layer began receiving Rust abstractions, aimed at reducing memory-safety bugs that cause I/O path hangs. Validates ClaudeFS's choice of Rust for the user-space implementation and opens the door for potential kernel-side components in Rust if ever needed.
 
 ## Tech Stack Summary
 
