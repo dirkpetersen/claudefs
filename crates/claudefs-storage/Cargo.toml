@@ -1,0 +1,18 @@
+[package]
+name = "claudefs-storage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ClaudeFS subsystem: Local NVMe I/O via io_uring, FDP/ZNS placement, block allocator"
+
+[dependencies]
+tokio.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lib]
+name = "claudefs_storage"
+path = "src/lib.rs"

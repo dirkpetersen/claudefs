@@ -1,0 +1,25 @@
+[package]
+name = "claudefs-repl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ClaudeFS subsystem: Cross-site journal replication, cloud conduit (gRPC/mTLS)"
+
+[[bin]]
+name = "cfs-repl"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+prost.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lib]
+name = "claudefs_repl"
+path = "src/lib.rs"
