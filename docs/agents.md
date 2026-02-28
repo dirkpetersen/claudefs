@@ -2,6 +2,108 @@
 
 ClaudeFS is designed to be implemented by multiple AI coding agents working in parallel. Each agent owns a well-defined subsystem with clear interfaces to other subsystems. This document defines the agent breakdown, dependencies, phasing, and infrastructure.
 
+## Developer Experience: One Command to Launch
+
+The entire development lifecycle is triggered by a single command from the developer's local machine:
+
+```bash
+cfs-dev up
+```
+
+This command:
+
+1. **Provisions or reuses the orchestrator node** — checks if a persistent AWS instance is already running (tagged `cfs-orchestrator`). If yes, reconnects. If no, provisions a `c7a.2xlarge` (or configured instance type) with the ClaudeFS repo cloned and Rust toolchain installed.
+2. **Starts Claude Code on the orchestrator** — Claude Code launches with the full CLAUDE.md context, spawning up to 11 agents in parallel based on the current phase.
+3. **Agents provision test infrastructure** — A11 (Infrastructure) brings up the spot instance cluster as needed (storage nodes, clients, conduit, Jepsen controller). Nodes that already exist are reused.
+4. **Agents build, test, and iterate** — each builder agent works on its crate, pushes code, triggers CI. Cross-cutting agents validate, audit, and maintain infrastructure.
+5. **Progress is pushed to GitHub continuously** — see Changelog Protocol below.
+
+```
+Developer laptop                    AWS
+┌──────────┐    cfs-dev up     ┌─────────────────────────────┐
+│           │ ───────────────► │  Orchestrator (persistent)  │
+│  Browser  │                  │  ┌─────────────────────┐    │
+│  watches  │ ◄─── git push ── │  │ Claude Code          │    │
+│  GitHub   │                  │  │ ├── A1: Storage       │    │
+│  commits  │                  │  │ ├── A2: Metadata      │    │
+│           │                  │  │ ├── A3: Reduction     │    │
+└──────────┘                  │  │ ├── A4: Transport     │    │
+                               │  │ ├── A5: FUSE         │    │
+                               │  │ ├── ...              │    │
+                               │  │ └── A11: Infra ──────┼──► Spot Cluster
+                               │  └─────────────────────┘    │  (5 storage,
+                               └─────────────────────────────┘   2 clients,
+                                                                  1 conduit,
+                                                                  1 Jepsen)
+```
+
+### cfs-dev Commands
+
+```bash
+cfs-dev up                    # Provision/reuse orchestrator, start agents
+cfs-dev up --phase 2          # Start at a specific phase
+cfs-dev status                # Show orchestrator status, running agents, cluster nodes
+cfs-dev logs                  # Stream agent activity logs
+cfs-dev logs --agent A2       # Stream specific agent's logs
+cfs-dev down                  # Tear down spot cluster (keep orchestrator)
+cfs-dev destroy               # Tear down everything including orchestrator
+cfs-dev cost                  # Show current AWS spend
+```
+
+`cfs-dev` is a small shell script or Python CLI that wraps `aws ec2` / `ssh` / `gh` commands. It lives in the repo at `tools/cfs-dev`.
+
+### Changelog Protocol: Keeping the Developer in the Loop
+
+All agents push to `https://github.com/dirkpetersen/claudefs` frequently so the developer can follow progress by watching the GitHub commit history. This is the primary communication channel between the AI agents and the developer.
+
+**Rules for all agents:**
+
+1. **Commit early, commit often** — every meaningful unit of work gets a commit. Don't accumulate hours of work in uncommitted state.
+2. **Push after every commit** — the developer watches the GitHub repo. Unpushed commits are invisible.
+3. **Descriptive commit messages** — the commit message is the changelog entry. Format:
+   ```
+   [A2] Implement Raft leader election for metadata shards
+
+   - Raft group per virtual shard (256 default per D4)
+   - Leader election with randomized timeout (150-300ms)
+   - Log replication to 2 followers with majority ack
+   - Passes single-node unit tests, multi-node pending A11 cluster
+
+   Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+   ```
+4. **Agent prefix** — every commit is prefixed with the agent tag: `[A1]`, `[A2]`, ..., `[A11]`. This lets the developer filter by agent in the git log.
+5. **CHANGELOG.md** — a running file at the repo root, updated by each agent when it completes a milestone:
+   ```markdown
+   ## 2026-03-15
+
+   ### A1: Storage Engine
+   - io_uring NVMe passthrough working on kernel 6.20
+   - FDP hint tagging implemented for Solidigm drives
+   - Block allocator passes basic alloc/free tests
+
+   ### A2: Metadata Service
+   - Raft leader election working across 3 nodes
+   - Inode create/lookup/delete operations passing pjdfstest subset
+
+   ### A9: Test & Validation
+   - pjdfstest integrated into CI, 847/1200 tests passing
+   - fsx running overnight soak test on single node
+   ```
+6. **GitHub Issues for blockers** — if an agent is blocked on another agent's work, it creates a GitHub Issue tagged with both agents. The developer sees these in the issue tracker.
+7. **GitHub Releases for phase milestones** — at the end of each phase, A11 creates a GitHub Release with a summary of what's working, what's not, and what's next.
+
+### What the Developer Sees
+
+By watching the GitHub repo (email notifications, GitHub mobile, or just refreshing the commit page), the developer gets:
+
+- **Real-time progress** — commits arrive every 15-60 minutes from active agents
+- **Per-agent filtering** — `git log --grep='\[A2\]'` shows all metadata service progress
+- **Daily summary** — CHANGELOG.md updated by each agent at the end of its work session
+- **Blockers and decisions** — GitHub Issues for anything that needs human input
+- **Phase milestones** — GitHub Releases for major checkpoints
+
+The developer never needs to SSH into the orchestrator or read logs — GitHub is the single pane of glass.
+
 ## Agent Roster: 11 Agents
 
 ### Builder Agents (A1–A8): Write Code
@@ -161,7 +263,7 @@ Spun up for testing, torn down when idle. A11 automates the lifecycle.
 ### Cost Management
 
 - All 9 test nodes are **spot/preemptible instances** — 60-90% cheaper than on-demand
-- A11 provisions the cluster on demand: `claudefs-infra up` before a test run, `claudefs-infra down` after
+- A11 provisions the cluster on demand: `cfs-dev up` before a test run, `cfs-dev down` after
 - Estimated cost: ~$5-10/hour when the full cluster is running, $0 when idle (only the orchestrator runs)
 - CI runs nightly on the full cluster; developers trigger on-demand runs for specific test suites
 - Instance types can be downgraded for basic functional testing, upgraded for performance benchmarks
