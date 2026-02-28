@@ -1,0 +1,36 @@
+# Rust build artifacts
+/target/
+**/*.rlib
+**/*.rmeta
+**/*.so
+**/*.dylib
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+
+# Temporary files from development/testing
+input.md
+output.md
+opencode_input.md
+opencode_output.md
+*.tmp
+*.log
+
+# AWS/Infrastructure
+.terraform/
+terraform.tfstate*
+*.pem
+*.key
+
+# Test artifacts
+test-cluster-*.log
