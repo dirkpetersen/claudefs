@@ -27,7 +27,9 @@ License: MIT. Author: Dirk Petersen.
 
 ## Client Architecture
 
-Single FUSE v3 client binary (`claudefs`) with pluggable network transport:
+Single binary (`cfs`) with subcommands for all roles — see [docs/decisions.md](docs/decisions.md) for all architecture decisions (D1–D10).
+
+Single FUSE v3 client (`cfs mount`) with pluggable network transport:
 
 - FUSE v3 with passthrough mode (6.8+) — metadata through daemon, data I/O at native NVMe speed
 - io_uring for all async I/O (disk + network)
