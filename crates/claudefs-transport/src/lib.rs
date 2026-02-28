@@ -11,10 +11,14 @@
 
 pub mod connection;
 pub mod error;
+pub mod message;
 pub mod protocol;
 pub mod rdma;
 pub mod rpc;
 pub mod tcp;
+pub mod transport;
 
 pub use error::{TransportError, Result};
+pub use message::{serialize_message, deserialize_message};
 pub use protocol::{Frame, FrameHeader, Opcode, FrameFlags};
+pub use transport::{Transport, Connection, Listener};
