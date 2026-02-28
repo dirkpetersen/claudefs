@@ -18,6 +18,8 @@ pub mod locking;
 pub mod replication;
 /// High-level metadata service API
 pub mod service;
+/// Shard routing for distributed metadata
+pub mod shard;
 /// Core types for the metadata service
 pub mod types;
 /// Extended attribute operations
@@ -25,6 +27,7 @@ pub mod xattr;
 
 pub use locking::{LockManager, LockType};
 pub use service::MetadataService;
+pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use xattr::XattrStore;
 
 /// Re-export key types for external users

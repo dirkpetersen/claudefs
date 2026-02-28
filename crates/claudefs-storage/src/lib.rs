@@ -8,6 +8,7 @@
 
 pub mod allocator;
 pub mod block;
+pub mod checksum;
 pub mod device;
 pub mod engine;
 pub mod error;
@@ -16,6 +17,7 @@ pub mod io_uring_bridge;
 pub mod zns;
 
 pub use block::{BlockId, BlockRef, BlockSize, PlacementHint};
+pub use checksum::{Checksum, ChecksumAlgorithm, BlockHeader};
 pub use device::{DeviceConfig, DevicePool, DeviceRole, ManagedDevice, NvmeDeviceInfo, DeviceHealth};
 pub use allocator::{BuddyAllocator, AllocatorConfig, AllocatorStats};
 pub use engine::{StorageEngine, StorageEngineConfig, StorageEngineStats};
