@@ -4,6 +4,6 @@
 
 pub mod nfs;
 pub mod pnfs;
+pub mod protocol;
 pub mod s3;
 pub mod smb;
-pub mod protocol;
