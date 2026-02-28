@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Phase 2: Integration
+
+#### 2026-03-01
+
+##### A2: Metadata Service — Phase 2 Integration Modules (321 tests ✅)
+
+**6 new modules for cross-crate integration:**
+- ✅ **fingerprint.rs**: CAS fingerprint index for A3 dedup integration — BLAKE3 hash lookup,
+  ref counting, dedup byte tracking, garbage collection (14 tests)
+- ✅ **uidmap.rs**: UID/GID mapping for A6 cross-site replication — per-site UID translation,
+  root passthrough, GID passthrough per docs/metadata.md (12 tests)
+- ✅ **membership.rs**: SWIM cluster membership tracking per D2 — node state machine
+  (Alive→Suspect→Dead), membership events for shard rebalancing, heartbeat tracking (17 tests)
+- ✅ **rpc.rs**: MetadataRpc request/response types for A4/A5 transport — 18 opcodes
+  (0x0100-0x0111), read-only classification, bincode serialization (10 tests)
+- ✅ **worm.rs**: WORM compliance module — retention policies, file locking, legal holds,
+  audit trail, immutability checks (21 tests)
+- ✅ **cdc.rs**: Change Data Capture event streaming — ring buffer with cursor-based consumption,
+  multiple independent consumers, seek/peek/consume operations (17 tests)
+
+**Totals:**
+- 321 tests passing (up from 233), 31 modules, 0 clippy warnings
+- Ready for integration with A5 (FUSE), A6 (Replication), A7 (Gateways), A8 (Mgmt)
+
+**Commits:**
+- 2b40e24: Complete Phase 2 integration modules: 6 new modules, 321 tests
+
 ### Phase 1: Foundation
 
 #### 2026-03-01 (Session 4 - Latest)
