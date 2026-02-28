@@ -12,14 +12,20 @@ pub mod inode;
 pub mod journal;
 /// Embedded key-value store
 pub mod kvstore;
+/// Distributed lock manager
+pub mod locking;
 /// Cross-site replication
 pub mod replication;
 /// High-level metadata service API
 pub mod service;
 /// Core types for the metadata service
 pub mod types;
+/// Extended attribute operations
+pub mod xattr;
 
+pub use locking::{LockManager, LockType};
 pub use service::MetadataService;
+pub use xattr::XattrStore;
 
 /// Re-export key types for external users
 pub use types::{
