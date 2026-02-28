@@ -108,8 +108,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - RPC client: request/response multiplexing with AtomicU64 IDs, oneshot response routing
 - RPC server: accept loop with per-connection task spawning, dyn-compatible RpcHandler trait
 - Fire-and-forget (ONE_WAY) message support
+- Transport trait abstraction: async Transport, Connection, Listener traits with TCP impl
+- RPC message types: serializable request/response structs for all 24 opcodes using bincode
+- RpcMessage enum for typed message dispatch across all operation categories
+- BufferPool: thread-safe reusable buffer pool (4KB/64KB/1MB/64MB), PooledBuffer auto-return
 - RDMA transport stubs (RdmaConfig, RdmaTransport.is_available())
-- 17 unit tests passing: protocol codec (14), TCP send/recv, pool stats, RPC roundtrip
+- 40 tests passing: protocol (14 + 4 proptest), message serialization (6), TCP (1),
+  connection pool (1), RPC roundtrip (1), transport trait (5), buffer pool (6), doc-tests (0)
+- Zero clippy warnings, property-based tests via proptest for frame/header/CRC32/flags
 - Ready for integration with A5 (FUSE), A6 (Replication), A7 (Gateways)
 
 ### What's Next
