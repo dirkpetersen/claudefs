@@ -360,8 +360,6 @@ impl DefragEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::allocator::AllocatorConfig;
-    use crate::block::BlockId;
 
     fn create_test_stats() -> AllocatorStats {
         // Simulate a fragmented allocator: lots of small free blocks but few large ones
@@ -450,7 +448,6 @@ mod tests {
 
         // Should generate relocations for fragmented allocator
         assert!(plan.relocation_count > 0 || !report.needs_defrag);
-        assert!(plan.estimated_io_ops >= 0);
     }
 
     #[test]

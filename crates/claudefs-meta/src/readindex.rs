@@ -165,6 +165,7 @@ impl ReadIndexManager {
 mod tests {
     use super::*;
 
+    #[allow(dead_code)]
     fn create_test_attr(uid: u32, gid: u32, mode: u32) -> InodeAttr {
         InodeAttr {
             ino: InodeId::new(1),
