@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["connection","protocol","rdma","rpc","tcp"]};
+window.SIDEBAR_ITEMS = {"mod":["connection","error","protocol","rdma","rpc","tcp"]};
