@@ -2,6 +2,8 @@
 
 //! ClaudeFS metadata subsystem: Distributed metadata, Raft consensus, inode/directory operations
 
+/// Conflict detection and resolution for cross-site replication
+pub mod conflict;
 /// Raft consensus implementation
 pub mod consensus;
 /// Directory operations
@@ -39,10 +41,11 @@ pub mod types;
 /// Extended attribute operations
 pub mod xattr;
 
+pub use conflict::{ConflictDetector, ConflictEvent, ConflictWinner};
 pub use lease::{LeaseManager, LeaseType};
 pub use locking::{LockManager, LockType};
 pub use multiraft::MultiRaftManager;
-pub use pathres::{PathCacheEntry, PathResolver};
+pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
 pub use raftservice::{RaftMetadataService, RaftServiceConfig};
 pub use service::MetadataService;

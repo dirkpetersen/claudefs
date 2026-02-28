@@ -89,7 +89,12 @@ impl RaftMetadataService {
             router.clone(),
         ));
         let leases = LeaseManager::new(config.lease_duration_secs);
-        let path_resolver = PathResolver::new(config.num_shards, config.path_cache_max_entries);
+        let path_resolver = PathResolver::new(
+            config.num_shards,
+            config.path_cache_max_entries,
+            30,
+            100_000,
+        );
 
         Self {
             local: MetadataService::new(service_config),
