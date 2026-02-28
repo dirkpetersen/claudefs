@@ -245,9 +245,7 @@ impl Opcode {
 
 impl From<u16> for Opcode {
     fn from(value: u16) -> Self {
-        Opcode::from_u16(value).unwrap_or_else(|| {
-            panic!("Unknown opcode: 0x{:04X}", value)
-        })
+        Opcode::from_u16(value).unwrap_or_else(|| panic!("Unknown opcode: 0x{:04X}", value))
     }
 }
 
@@ -299,23 +297,23 @@ impl FrameHeader {
     /// Encode header to 24-byte array in big-endian format.
     pub fn encode(&self) -> [u8; FRAME_HEADER_SIZE] {
         let mut bytes = [0u8; FRAME_HEADER_SIZE];
-        
+
         // magic: u32 (big-endian)
         bytes[0] = ((self.magic >> 24) & 0xFF) as u8;
         bytes[1] = ((self.magic >> 16) & 0xFF) as u8;
         bytes[2] = ((self.magic >> 8) & 0xFF) as u8;
         bytes[3] = (self.magic & 0xFF) as u8;
-        
+
         // version: u8
         bytes[4] = self.version;
-        
+
         // flags: u8
         bytes[5] = self.flags.bits();
-        
+
         // opcode: u16 (big-endian)
         bytes[6] = ((self.opcode >> 8) & 0xFF) as u8;
         bytes[7] = (self.opcode & 0xFF) as u8;
-        
+
         // request_id: u64 (big-endian)
         bytes[8] = ((self.request_id >> 56) & 0xFF) as u8;
         bytes[9] = ((self.request_id >> 48) & 0xFF) as u8;
@@ -325,19 +323,19 @@ impl FrameHeader {
         bytes[13] = ((self.request_id >> 16) & 0xFF) as u8;
         bytes[14] = ((self.request_id >> 8) & 0xFF) as u8;
         bytes[15] = (self.request_id & 0xFF) as u8;
-        
+
         // payload_length: u32 (big-endian)
         bytes[16] = ((self.payload_length >> 24) & 0xFF) as u8;
         bytes[17] = ((self.payload_length >> 16) & 0xFF) as u8;
         bytes[18] = ((self.payload_length >> 8) & 0xFF) as u8;
         bytes[19] = (self.payload_length & 0xFF) as u8;
-        
+
         // checksum: u32 (big-endian)
         bytes[20] = ((self.checksum >> 24) & 0xFF) as u8;
         bytes[21] = ((self.checksum >> 16) & 0xFF) as u8;
         bytes[22] = ((self.checksum >> 8) & 0xFF) as u8;
         bytes[23] = (self.checksum & 0xFF) as u8;
-        
+
         bytes
     }
 
@@ -372,8 +370,7 @@ impl FrameHeader {
         let flags = FrameFlags::new(bytes[5]);
         let opcode = u16::from_be_bytes([bytes[6], bytes[7]]);
         let request_id = u64::from_be_bytes([
-            bytes[8], bytes[9], bytes[10], bytes[11],
-            bytes[12], bytes[13], bytes[14], bytes[15],
+            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
         ]);
         let payload_length = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
         let checksum = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
@@ -504,7 +501,7 @@ impl Frame {
         let header = FrameHeader::decode(bytes)?;
         let payload_start = FRAME_HEADER_SIZE;
         let payload_end = payload_start + header.payload_length as usize;
-        
+
         if bytes.len() < payload_end {
             return Err(TransportError::InvalidFrame {
                 reason: format!(
@@ -528,17 +525,11 @@ mod tests {
 
     #[test]
     fn test_frame_header_encode_decode() {
-        let header = FrameHeader::new(
-            FrameFlags::RESPONSE,
-            0x0101,
-            12345,
-            100,
-            0xDEADBEEF,
-        );
-        
+        let header = FrameHeader::new(FrameFlags::RESPONSE, 0x0101, 12345, 100, 0xDEADBEEF);
+
         let encoded = header.encode();
         assert_eq!(encoded.len(), FRAME_HEADER_SIZE);
-        
+
         let decoded = FrameHeader::decode(&encoded).unwrap();
         assert_eq!(decoded.magic, MAGIC);
         assert_eq!(decoded.version, PROTOCOL_VERSION);
@@ -558,10 +549,10 @@ mod tests {
             1024,
             0xABCD1234,
         );
-        
+
         let encoded = original.encode();
         let decoded = FrameHeader::decode(&encoded).unwrap();
-        
+
         assert_eq!(original.magic, decoded.magic);
         assert_eq!(original.version, decoded.version);
         assert_eq!(original.flags.bits(), decoded.flags.bits());
@@ -575,12 +566,12 @@ mod tests {
     fn test_frame_new_and_validate() {
         let payload = b"Hello, ClaudeFS!".to_vec();
         let frame = Frame::new(Opcode::Read, 42, payload.clone());
-        
+
         assert_eq!(frame.header.opcode, Opcode::Read as u16);
         assert_eq!(frame.header.request_id, 42);
         assert_eq!(frame.header.payload_length as usize, payload.len());
         assert!(!frame.is_response());
-        
+
         frame.validate().expect("Frame should be valid");
     }
 
@@ -589,21 +580,24 @@ mod tests {
         let payload = b"test".to_vec();
         let request_frame = Frame::new(Opcode::Lookup, 1, payload.clone());
         assert!(!request_frame.is_response());
-        
+
         let response_frame = request_frame.make_response(b"response".to_vec());
         assert!(response_frame.is_response());
         assert_eq!(response_frame.header.opcode, request_frame.header.opcode);
-        assert_eq!(response_frame.header.request_id, request_frame.header.request_id);
+        assert_eq!(
+            response_frame.header.request_id,
+            request_frame.header.request_id
+        );
     }
 
     #[test]
     fn test_frame_encode_decode_roundtrip() {
         let original_payload = b"This is a test payload for ClaudeFS transport layer!".to_vec();
         let original = Frame::new(Opcode::Write, 999, original_payload.clone());
-        
+
         let encoded = original.encode();
         let decoded = Frame::decode(&encoded).unwrap();
-        
+
         assert_eq!(decoded.header.opcode, original.header.opcode);
         assert_eq!(decoded.header.request_id, original.header.request_id);
         assert_eq!(decoded.payload, original.payload);
@@ -613,12 +607,15 @@ mod tests {
     fn test_frame_with_flags() {
         let payload = b"test".to_vec();
         let frame = Frame::new(Opcode::Heartbeat, 1, payload);
-        
+
         // Add response flag manually for testing
         let mut header = frame.header;
         header.flags = FrameFlags::RESPONSE;
-        
-        let modified_frame = Frame { header, payload: frame.payload };
+
+        let modified_frame = Frame {
+            header,
+            payload: frame.payload,
+        };
         assert!(modified_frame.is_response());
     }
 
@@ -637,7 +634,7 @@ mod tests {
         assert_eq!(Opcode::Read.into_u16(), 0x0201);
         assert_eq!(Opcode::Heartbeat.into_u16(), 0x0301);
         assert_eq!(Opcode::JournalSync.into_u16(), 0x0401);
-        
+
         assert_eq!(Opcode::from(0x0101), Opcode::Lookup);
         assert_eq!(Opcode::from(0x0202), Opcode::Write);
         assert_eq!(Opcode::from(0x0301), Opcode::Heartbeat);
@@ -647,56 +644,41 @@ mod tests {
     fn test_frame_flags() {
         let empty = FrameFlags::default();
         assert!(!empty.contains(FrameFlags::COMPRESSED));
-        
+
         let compressed = FrameFlags::COMPRESSED;
         assert!(compressed.contains(FrameFlags::COMPRESSED));
         assert!(!compressed.contains(FrameFlags::ENCRYPTED));
-        
+
         let combined = FrameFlags::COMPRESSED | FrameFlags::ENCRYPTED;
         assert!(combined.contains(FrameFlags::COMPRESSED));
         assert!(combined.contains(FrameFlags::ENCRYPTED));
-        
+
         let with_flag = empty.with(FrameFlags::ONE_WAY);
         assert!(with_flag.contains(FrameFlags::ONE_WAY));
-        
+
         let without_flag = with_flag.without(FrameFlags::ONE_WAY);
         assert!(!without_flag.contains(FrameFlags::ONE_WAY));
     }
 
     #[test]
     fn test_invalid_magic() {
-        let mut header = FrameHeader::new(
-            FrameFlags::default(),
-            0x0101,
-            1,
-            0,
-            0,
-        );
+        let mut header = FrameHeader::new(FrameFlags::default(), 0x0101, 1, 0, 0);
         header.magic = 0x12345678; // Invalid magic
-        
+
         let encoded = header.encode();
         let result = FrameHeader::decode(&encoded);
-        
-        assert!(matches!(
-            result,
-            Err(TransportError::InvalidMagic { .. })
-        ));
+
+        assert!(matches!(result, Err(TransportError::InvalidMagic { .. })));
     }
 
     #[test]
     fn test_invalid_version() {
-        let mut header = FrameHeader::new(
-            FrameFlags::default(),
-            0x0101,
-            1,
-            0,
-            0,
-        );
+        let mut header = FrameHeader::new(FrameFlags::default(), 0x0101, 1, 0, 0);
         header.version = 99; // Invalid version
-        
+
         let encoded = header.encode();
         let result = FrameHeader::decode(&encoded);
-        
+
         assert!(matches!(
             result,
             Err(TransportError::VersionMismatch { .. })
@@ -708,7 +690,7 @@ mod tests {
         let payload = b"test data".to_vec();
         let mut frame = Frame::new(Opcode::Read, 1, payload);
         frame.header.checksum = 0x12345678; // Wrong checksum
-        
+
         let result = frame.validate();
         assert!(matches!(
             result,
@@ -720,7 +702,7 @@ mod tests {
     fn test_payload_too_large() {
         let payload = vec![0u8; (MAX_PAYLOAD_SIZE + 1) as usize];
         let frame = Frame::new(Opcode::Read, 1, payload);
-        
+
         let result = frame.validate();
         assert!(matches!(
             result,
@@ -734,5 +716,96 @@ mod tests {
         assert_eq!(MAGIC, 0xCF5F0001);
         assert_eq!(PROTOCOL_VERSION, 1);
         assert_eq!(MAX_PAYLOAD_SIZE, 64 * 1024 * 1024);
+    }
+}
+
+#[cfg(test)]
+mod proptest_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Any valid frame can be encoded and decoded back identically.
+        #[test]
+        fn frame_roundtrip(
+            opcode_val in prop::sample::select(vec![
+                0x0101u16, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107, 0x0108,
+                0x0109, 0x010A, 0x010B, 0x010C, 0x010D,
+                0x0201, 0x0202, 0x0203, 0x0204, 0x0205, 0x0206,
+                0x0301, 0x0302, 0x0303, 0x0304, 0x0305,
+                0x0401, 0x0402, 0x0403,
+            ]),
+            request_id in any::<u64>(),
+            payload in proptest::collection::vec(any::<u8>(), 0..1024),
+        ) {
+            let opcode = Opcode::from_u16(opcode_val).unwrap();
+            let frame = Frame::new(opcode, request_id, payload.clone());
+            let encoded = frame.encode();
+            let decoded = Frame::decode(&encoded).unwrap();
+            prop_assert_eq!(decoded.header.opcode, frame.header.opcode);
+            prop_assert_eq!(decoded.header.request_id, frame.header.request_id);
+            prop_assert_eq!(&decoded.payload, &frame.payload);
+        }
+
+        /// Frame header roundtrip for arbitrary flag combinations.
+        #[test]
+        fn frame_header_roundtrip(
+            flags_raw in any::<u8>(),
+            opcode in 0x0101u16..=0x0403,
+            request_id in any::<u64>(),
+            payload_length in 0u32..MAX_PAYLOAD_SIZE,
+            checksum in any::<u32>(),
+        ) {
+            let header = FrameHeader::new(
+                FrameFlags::new(flags_raw),
+                opcode,
+                request_id,
+                payload_length,
+                checksum,
+            );
+            let encoded = header.encode();
+            let decoded = FrameHeader::decode(&encoded).unwrap();
+            prop_assert_eq!(decoded.flags.bits(), flags_raw);
+            prop_assert_eq!(decoded.opcode, opcode);
+            prop_assert_eq!(decoded.request_id, request_id);
+            prop_assert_eq!(decoded.payload_length, payload_length);
+            prop_assert_eq!(decoded.checksum, checksum);
+        }
+
+        /// CRC32 is deterministic: same input always gives same output.
+        #[test]
+        fn crc32_deterministic(data in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let c1 = crc32(&data);
+            let c2 = crc32(&data);
+            prop_assert_eq!(c1, c2);
+        }
+
+        /// CRC32 changes when data changes (collision resistance).
+        #[test]
+        fn crc32_changes_on_mutation(
+            data in proptest::collection::vec(any::<u8>(), 1..256),
+            bit_index in 0usize..8,
+        ) {
+            let mut mutated = data.clone();
+            mutated[0] ^= 1 << bit_index;
+            if data != mutated {
+                let c1 = crc32(&data);
+                let c2 = crc32(&mutated);
+                prop_assert_ne!(c1, c2);
+            }
+        }
+
+        /// FrameFlags set/clear operations are idempotent.
+        #[test]
+        fn frame_flags_set_clear_idempotent(raw in any::<u8>()) {
+            let flags = FrameFlags::new(raw);
+            let with_compressed = flags.with(FrameFlags::COMPRESSED);
+            let double_set = with_compressed.with(FrameFlags::COMPRESSED);
+            prop_assert_eq!(with_compressed.bits(), double_set.bits());
+
+            let without_compressed = flags.without(FrameFlags::COMPRESSED);
+            let double_clear = without_compressed.without(FrameFlags::COMPRESSED);
+            prop_assert_eq!(without_compressed.bits(), double_clear.bits());
+        }
     }
 }
