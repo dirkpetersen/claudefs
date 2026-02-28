@@ -34,7 +34,7 @@ ClaudeFS is a distributed file system designed for research and HPC environments
 
 ### Client Architecture
 
-A single FUSE v3 client binary (`claudefs`) with pluggable network transport:
+A single binary (`cfs`) with pluggable network transport:
 
 - **FUSE v3 with passthrough mode** (kernel 6.8+) — the FUSE daemon handles metadata; data I/O goes directly to local NVMe at native kernel speed
 - **io_uring** for all async I/O — disk, network sends, network receives batched through the same submission ring
