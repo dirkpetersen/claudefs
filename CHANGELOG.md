@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Phase 6 Security Hardening COMPLETE
+
+#### 2026-03-01 (A8 — Phase 6: Security Hardening — Addressing A10 Audit Findings)
+
+##### A8: Management — 515 tests, 23 modules (security.rs added)
+
+**Phase 6: Security Hardening (19 new tests, 1 new module)**
+
+Addressed A10 security audit findings for the admin API:
+
+1. **F-10 (HIGH) — Timing attack fixed:** `constant_time_eq()` in new `security.rs` module uses
+   XOR-fold over bytes, immune to timing side-channel attacks. Replaced `provided_token == token`.
+2. **F-11 (HIGH) — Silent auth bypass warned:** `tracing::warn!` on startup when `admin_token` is
+   not configured: "[SECURITY WARNING] admin API is running without authentication".
+3. **F-12/15 (MEDIUM) — RBAC wired to drain endpoint:** `AuthenticatedUser { is_admin }` extension
+   injected by auth middleware; `node_drain_handler` checks `is_admin` before executing.
+4. **F-13 (MEDIUM) — Rate limiting implemented:** `AuthRateLimiter` in `security.rs` tracks per-IP
+   auth failures; ≥5 failures in 60s triggers 60-second lockout with 429 Too Many Requests.
+5. **F-29 (LOW) — Security headers added:** `security_headers_middleware` applies
+   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`,
+   `Strict-Transport-Security: max-age=31536000; includeSubDomains`, `Cache-Control: no-store`.
+6. **F-14 mitigation — `/ready` endpoint:** Unauthenticated load-balancer probe endpoint returns
+   `{"status": "ok"}` without version info; `/health` remains authenticated with version.
+
+**New module `security.rs`:** `constant_time_eq`, `AuthRateLimiter`, `security_headers_middleware`
+
+**Tests:** 496 → 515 (+15 security.rs tests, +4 api.rs security integration tests)
+
+**MILESTONE: 515 A8 tests, 23 modules, A10 findings F-10/11/12/13/15/29 resolved**
+
+---
+
 ### A9: Test & Validation — Phase 7 Production Readiness COMPLETE
 
 #### 2026-03-01 (A9 — Phase 7: Production Readiness Test Suite)
