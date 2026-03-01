@@ -12,6 +12,7 @@ pub mod block;
 pub mod block_cache;
 pub mod capacity;
 pub mod checksum;
+pub mod compaction;
 pub mod defrag;
 pub mod device;
 pub mod encryption;
@@ -32,6 +33,7 @@ pub mod snapshot;
 pub mod superblock;
 pub mod scrub;
 pub mod write_journal;
+pub mod wear_leveling;
 pub mod zns;
 
 #[cfg(feature = "uring")]
@@ -44,6 +46,7 @@ pub use block::{BlockId, BlockRef, BlockSize, PlacementHint};
 pub use block_cache::{BlockCache, BlockCacheConfig, CacheEntry, CacheStats};
 pub use capacity::{CapacityTracker, CapacityLevel, CapacityTrackerStats, SegmentTracker, TierOverride, WatermarkConfig};
 pub use checksum::{Checksum, ChecksumAlgorithm, BlockHeader};
+pub use compaction::{CompactionConfig, CompactionEngine, CompactionState, CompactionStats, CompactionTask, GcCandidate, SegmentId, SegmentInfo};
 pub use defrag::{DefragConfig, DefragEngine, DefragPlan, DefragStats, FragmentationReport, SizeClassFragmentation, BlockRelocation};
 pub use device::{DeviceConfig, DevicePool, DeviceRole, ManagedDevice, NvmeDeviceInfo, DeviceHealth};
 pub use encryption::{
@@ -81,6 +84,10 @@ pub use snapshot::{
 pub use superblock::{Superblock, DeviceRoleCode, SUPERBLOCK_MAGIC, SUPERBLOCK_VERSION};
 pub use write_journal::{
     JournalConfig, JournalEntry, JournalOp, JournalStats, SyncMode, WriteJournal,
+};
+pub use wear_leveling::{
+    PlacementAdvice, WearAlert, WearAlertType, WearConfig, WearLevel, WearLevelingEngine,
+    WearStats, WritePattern, ZoneWear,
 };
 pub use quota::{
     QuotaLimit, QuotaUsage, QuotaStatus, TenantQuota, QuotaManager, QuotaStats,

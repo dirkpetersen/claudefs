@@ -6,6 +6,7 @@ pub mod auth_ratelimit;
 pub mod backpressure;
 pub mod batch_auth;
 pub mod checkpoint;
+pub mod conflict_resolver;
 pub mod compression;
 pub mod conduit;
 pub mod engine;

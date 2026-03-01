@@ -80,6 +80,7 @@ pub struct RenameRequest {
     pub flags: u32,
 }
 
+#[derive(Debug, Clone)]
 pub struct DirEntry {
     pub ino: u64,
     pub offset: i64,

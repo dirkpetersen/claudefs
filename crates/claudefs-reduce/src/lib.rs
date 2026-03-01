@@ -13,6 +13,7 @@ pub mod error;
 pub mod fingerprint;
 pub mod gc;
 pub mod key_manager;
+pub mod key_rotation_scheduler;
 pub mod meta_bridge;
 pub mod pipeline;
 pub mod recompressor;
