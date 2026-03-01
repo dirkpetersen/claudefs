@@ -122,9 +122,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-### A5: FUSE Client — Phase 2 Complete
+### A5: FUSE Client — Phase 4 Complete
 
-#### 2026-03-01 (A5 — FUSE Client: Phase 1+2 Foundation)
+#### 2026-03-01 (A5 — FUSE Client: Phase 4 Complete)
+
+##### A5: FUSE Client — Phase 4 (185 tests, 14 modules, 5317 lines)
+
+**Phase 4: Transport Integration + Session Management (18 new tests, 2 modules):**
+1. `transport.rs` — FuseTransport trait, StubTransport, RemoteRef/LookupResult/TransportConfig (10 tests)
+2. `session.rs` — SessionHandle RAII with oneshot shutdown, SessionConfig, SessionStats (8 tests)
+3. Updated `main.rs`: --allow-other, --ro, --direct-io CLI flags, mountpoint validation
+
+**Phase 3: Extended Operations (53 new tests, 3 modules):**
+1. `xattr.rs` — XattrStore with POSIX validation (12 tests) + filesystem setxattr/getxattr/listxattr/removexattr
+2. `symlink.rs` — SymlinkStore, validate_symlink_target, is_circular_symlink (8 tests)
+3. `datacache.rs` — LRU DataCache with byte-limit eviction, generation-based invalidation (11 tests)
+4. filesystem.rs extended: readlink, mknod, symlink, link, fsync
+
+**Phase 1+2: Foundation (114 tests, 9 modules):**
 
 ##### A5: FUSE Client — Phase 1+2 (114 tests, 9 modules, 3477 lines)
 

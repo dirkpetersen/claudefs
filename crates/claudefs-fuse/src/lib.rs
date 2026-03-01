@@ -16,7 +16,9 @@ pub mod mount;
 pub mod operations;
 pub mod passthrough;
 pub mod server;
+pub mod session;
 pub mod symlink;
+pub mod transport;
 pub mod xattr;
 
 pub use error::{FuseError, Result};
