@@ -106,6 +106,34 @@ impl RaftMetadataService {
         }
     }
 
+    /// Attempts to propose an operation through Raft. Returns Ok(true) if proposed
+    /// through Raft, Ok(false) if no Raft group exists (local-only fallback),
+    /// or Err if proposal failed (e.g., NotLeader).
+    fn propose_or_local(&self, ino: InodeId, op: MetaOp) -> Result<bool, MetaError> {
+        match self.raft.propose(ino, op) {
+            Ok(_messages) => {
+                tracing::debug!(ino = %ino, "proposed operation through Raft");
+                Ok(true)
+            }
+            Err(MetaError::RaftError(ref msg)) if msg.contains("not managed") => {
+                // No Raft group for this shard — single-node/test mode
+                Ok(false)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Returns true if this node is the Raft leader for the shard owning the given inode.
+    /// Returns true if no Raft group is initialized (single-node fallback mode).
+    pub fn is_leader_for(&self, ino: InodeId) -> bool {
+        let shard = self.raft.shard_for_inode(ino);
+        // If no group initialized, treat as single-node mode (local is leader)
+        if !self.raft.managed_shards().contains(&shard) {
+            return true;
+        }
+        self.raft.is_leader(shard)
+    }
+
     // ---- Mutation operations (go through Raft) ----
 
     /// Create a file. Routes through Raft.
@@ -118,6 +146,16 @@ impl RaftMetadataService {
         gid: u32,
         mode: u32,
     ) -> Result<InodeAttr, MetaError> {
+        let op = MetaOp::CreateEntry {
+            parent,
+            name: name.to_string(),
+            entry: DirEntry {
+                name: name.to_string(),
+                ino: InodeId::new(0),
+                file_type: FileType::RegularFile,
+            },
+        };
+        self.propose_or_local(parent, op)?;
         let attr = self.local.create_file(parent, name, uid, gid, mode)?;
         self.leases.revoke(parent);
         self.path_resolver.invalidate_parent(parent);
@@ -133,6 +171,16 @@ impl RaftMetadataService {
         gid: u32,
         mode: u32,
     ) -> Result<InodeAttr, MetaError> {
+        let op = MetaOp::CreateEntry {
+            parent,
+            name: name.to_string(),
+            entry: DirEntry {
+                name: name.to_string(),
+                ino: InodeId::new(0),
+                file_type: FileType::Directory,
+            },
+        };
+        self.propose_or_local(parent, op)?;
         let attr = self.local.mkdir(parent, name, uid, gid, mode)?;
         self.leases.revoke(parent);
         self.path_resolver.invalidate_parent(parent);
@@ -141,6 +189,11 @@ impl RaftMetadataService {
 
     /// Unlink a file.
     pub fn unlink(&self, parent: InodeId, name: &str) -> Result<(), MetaError> {
+        let op = MetaOp::DeleteEntry {
+            parent,
+            name: name.to_string(),
+        };
+        self.propose_or_local(parent, op)?;
         let attr = self.local.lookup(parent, name)?;
         self.local.unlink(parent, name)?;
         self.leases.revoke(parent);
@@ -152,6 +205,11 @@ impl RaftMetadataService {
 
     /// Remove a directory.
     pub fn rmdir(&self, parent: InodeId, name: &str) -> Result<(), MetaError> {
+        let op = MetaOp::DeleteEntry {
+            parent,
+            name: name.to_string(),
+        };
+        self.propose_or_local(parent, op)?;
         let attr = self.local.lookup(parent, name)?;
         self.local.rmdir(parent, name)?;
         self.leases.revoke(parent);
@@ -169,6 +227,13 @@ impl RaftMetadataService {
         dst_parent: InodeId,
         dst_name: &str,
     ) -> Result<(), MetaError> {
+        let op = MetaOp::Rename {
+            src_parent,
+            src_name: src_name.to_string(),
+            dst_parent,
+            dst_name: dst_name.to_string(),
+        };
+        self.propose_or_local(src_parent, op)?;
         self.local
             .rename(src_parent, src_name, dst_parent, dst_name)?;
         self.leases.revoke(src_parent);
@@ -184,6 +249,11 @@ impl RaftMetadataService {
 
     /// Set attributes.
     pub fn setattr(&self, ino: InodeId, attr: InodeAttr) -> Result<(), MetaError> {
+        let op = MetaOp::SetAttr {
+            ino,
+            attr: attr.clone(),
+        };
+        self.propose_or_local(ino, op)?;
         self.local.setattr(ino, attr.clone())?;
         self.leases.revoke(ino);
         Ok(())
@@ -198,6 +268,16 @@ impl RaftMetadataService {
         uid: u32,
         gid: u32,
     ) -> Result<InodeAttr, MetaError> {
+        let op = MetaOp::CreateEntry {
+            parent,
+            name: name.to_string(),
+            entry: DirEntry {
+                name: name.to_string(),
+                ino: InodeId::new(0),
+                file_type: FileType::Symlink,
+            },
+        };
+        self.propose_or_local(parent, op)?;
         let attr = self.local.symlink(parent, name, target, uid, gid)?;
         self.leases.revoke(parent);
         self.path_resolver.invalidate_parent(parent);
@@ -206,6 +286,16 @@ impl RaftMetadataService {
 
     /// Create hard link.
     pub fn link(&self, parent: InodeId, name: &str, ino: InodeId) -> Result<InodeAttr, MetaError> {
+        let op = MetaOp::CreateEntry {
+            parent,
+            name: name.to_string(),
+            entry: DirEntry {
+                name: name.to_string(),
+                ino,
+                file_type: FileType::RegularFile,
+            },
+        };
+        self.propose_or_local(parent, op)?;
         let attr = self.local.link(parent, name, ino)?;
         self.leases.revoke(parent);
         self.path_resolver.invalidate_parent(parent);
@@ -403,5 +493,63 @@ mod tests {
         new_attr.mode = 0o755;
         svc.setattr(attr.ino, new_attr).unwrap();
         assert!(!svc.has_valid_lease(attr.ino, NodeId::new(10)));
+    }
+
+    #[test]
+    fn test_is_leader_for_no_raft_group() {
+        let svc = make_service();
+        // No Raft groups initialized — should return true (single-node fallback)
+        assert!(svc.is_leader_for(InodeId::ROOT_INODE));
+    }
+
+    #[test]
+    fn test_is_leader_for_with_raft_group() {
+        let svc = make_service();
+        let shard = svc.raft.shard_for_inode(InodeId::ROOT_INODE);
+        svc.raft
+            .init_group(shard, vec![NodeId::new(2), NodeId::new(3)])
+            .unwrap();
+        // Node is follower initially — should return false
+        assert!(!svc.is_leader_for(InodeId::ROOT_INODE));
+
+        // Become leader
+        svc.raft.start_election(shard).unwrap();
+        let vote_resp = RaftMessage::RequestVoteResponse {
+            term: Term::new(1),
+            vote_granted: true,
+        };
+        svc.raft
+            .handle_vote_response(shard, NodeId::new(2), &vote_resp)
+            .unwrap();
+        assert!(svc.is_leader_for(InodeId::ROOT_INODE));
+    }
+
+    #[test]
+    fn test_create_file_proposes_to_raft() {
+        let svc = make_service();
+        let shard = svc.raft.shard_for_inode(InodeId::ROOT_INODE);
+        svc.raft
+            .init_group(shard, vec![NodeId::new(2), NodeId::new(3)])
+            .unwrap();
+
+        // Make leader
+        svc.raft.start_election(shard).unwrap();
+        let vote_resp = RaftMessage::RequestVoteResponse {
+            term: Term::new(1),
+            vote_granted: true,
+        };
+        svc.raft
+            .handle_vote_response(shard, NodeId::new(2), &vote_resp)
+            .unwrap();
+
+        // Create file should succeed via Raft path
+        let attr = svc
+            .create_file(InodeId::ROOT_INODE, "file.txt", 1000, 1000, 0o644)
+            .unwrap();
+        assert_eq!(attr.file_type, FileType::RegularFile);
+
+        // Verify file was created
+        let found = svc.lookup(InodeId::ROOT_INODE, "file.txt").unwrap();
+        assert_eq!(found.ino, attr.ino);
     }
 }
