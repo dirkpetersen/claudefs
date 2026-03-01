@@ -5,7 +5,7 @@
 //! block allocation per device, and health monitoring.
 
 use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::AsRawFd;
 
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -169,7 +169,7 @@ pub struct ManagedDevice {
     /// Block allocator for this device
     pub allocator: BuddyAllocator,
     /// File descriptor for the device (for I/O operations)
-    fd: Option<RawFd>,
+    fd: Option<std::fs::File>,
 }
 
 impl ManagedDevice {
@@ -191,7 +191,7 @@ impl ManagedDevice {
         {
             Ok(file) => {
                 info!("Opened device {} for I/O", config.path);
-                Some(file.as_raw_fd())
+                Some(file)
             }
             Err(e) => {
                 warn!(
@@ -266,8 +266,8 @@ impl ManagedDevice {
     }
 
     /// Returns the raw file descriptor for io_uring operations, if the device is open.
-    pub fn raw_fd(&self) -> Option<RawFd> {
-        self.fd
+    pub fn raw_fd(&self) -> Option<i32> {
+        self.fd.as_ref().map(|f| f.as_raw_fd())
     }
 
     /// Returns the device path.
@@ -283,11 +283,8 @@ impl ManagedDevice {
 
 impl Drop for ManagedDevice {
     fn drop(&mut self) {
-        if let Some(fd) = self.fd {
-            debug!("Closing device fd {}", fd);
-            unsafe {
-                libc::close(fd);
-            }
+        if self.fd.is_some() {
+            debug!("Closing device {}", self.config.path);
         }
     }
 }
@@ -643,5 +640,48 @@ mod tests {
         assert_eq!(info.sector_size, 4096);
         assert_eq!(info.max_transfer_size, 1024 * 1024);
         assert_eq!(info.num_io_queues, 64);
+    }
+
+    #[test]
+    fn test_managed_device_no_double_close() {
+        let config = DeviceConfig::new(
+            "/dev/mock".to_string(),
+            0,
+            DeviceRole::Data,
+            false,
+            32,
+            false,
+        );
+        let device = ManagedDevice::new_mock(config, 1000).unwrap();
+        assert!(device.raw_fd().is_none());
+    }
+
+    #[test]
+    fn test_managed_device_real_open_close() {
+        let config = DeviceConfig::new(
+            "/dev/null".to_string(),
+            0,
+            DeviceRole::Data,
+            false,
+            32,
+            false,
+        );
+        let info = NvmeDeviceInfo::new(
+            "/dev/null".to_string(),
+            "NULL".to_string(),
+            "Null Device".to_string(),
+            "1.0".to_string(),
+            0,
+            1,
+            false,
+            false,
+            512,
+            1024 * 1024,
+            1,
+        );
+        let device = ManagedDevice::new(config, info).unwrap();
+        assert!(device.raw_fd().is_some());
+        let fd = device.raw_fd().unwrap();
+        assert!(fd >= 0);
     }
 }
