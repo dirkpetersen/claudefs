@@ -63,7 +63,19 @@ pub use tracing_otel::{TracingManager, SpanBuilder, SpanContext, TracePropagator
 pub use webhook::WebhookRegistry;
 
 pub mod audit_trail;
+pub mod config_sync;
+pub mod diagnostics;
+pub mod maintenance;
 pub mod rebalance;
 
 pub use audit_trail::{AuditTrail, AuditEvent, AuditEventKind, AuditFilter};
+pub use config_sync::{ConfigStore, ConfigEntry, ConfigVersion, SyncStatus, ConfigSyncError};
+pub use diagnostics::{
+    CheckBuilder, DiagnosticCheck, DiagnosticLevel, DiagnosticReport, DiagnosticsError,
+    DiagnosticsRunner,
+};
 pub use rebalance::{RebalanceScheduler, RebalanceJob, RebalanceJobId, JobState};
+
+pub use maintenance::{
+    MaintenanceError, MaintenanceMode, MaintenanceWindow, UpgradeCoordinator, UpgradePhase,
+};
