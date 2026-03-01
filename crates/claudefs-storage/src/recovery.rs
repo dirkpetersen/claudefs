@@ -119,7 +119,7 @@ impl AllocatorBitmap {
     pub fn from_bytes(data: &[u8], total_blocks: u64) -> StorageResult<Self> {
         let bytes_needed = (total_blocks.div_ceil(8)) as usize;
         let mut bits = data.to_vec();
-        
+
         if bits.len() < bytes_needed {
             bits.resize(bytes_needed, 0);
             warn!(
@@ -136,10 +136,7 @@ impl AllocatorBitmap {
             );
         }
 
-        Ok(Self {
-            bits,
-            total_blocks,
-        })
+        Ok(Self { bits, total_blocks })
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -173,7 +170,7 @@ impl AllocatorBitmap {
             return false;
         }
         let byte_idx = (offset_4k / 8) as usize;
-        let bit_idx = (offset_4k % 8) as usize;
+        let bit_idx = 7 - ((offset_4k % 8) as usize);
         (self.bits[byte_idx] & (1 << bit_idx)) != 0
     }
 
@@ -192,7 +189,7 @@ impl AllocatorBitmap {
 
         for pos in 0..self.total_blocks {
             let allocated = self.is_allocated(pos);
-            
+
             if allocated {
                 if start.is_none() {
                     start = Some(pos);
@@ -227,7 +224,7 @@ impl JournalCheckpoint {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         let mut checkpoint = Self {
             magic: JOURNAL_CHECKPOINT_MAGIC,
             last_committed_sequence: last_committed,
@@ -235,7 +232,7 @@ impl JournalCheckpoint {
             checkpoint_timestamp_secs: timestamp_secs,
             checksum: 0,
         };
-        
+
         checkpoint.update_checksum();
         checkpoint
     }
@@ -286,7 +283,7 @@ impl JournalCheckpoint {
     }
 
     pub fn compute_checksum(&self) -> u32 {
-        let mut clone = Self {
+        let clone = Self {
             magic: self.magic,
             last_committed_sequence: self.last_committed_sequence,
             last_flushed_sequence: self.last_flushed_sequence,
@@ -371,14 +368,18 @@ impl RecoveryManager {
         Ok(superblock)
     }
 
-    pub fn load_bitmap(&mut self, data: &[u8], total_blocks: u64) -> StorageResult<AllocatorBitmap> {
+    pub fn load_bitmap(
+        &mut self,
+        data: &[u8],
+        total_blocks: u64,
+    ) -> StorageResult<AllocatorBitmap> {
         self.state.phase = RecoveryPhase::BitmapLoaded;
 
         let bitmap = AllocatorBitmap::from_bytes(data, total_blocks)?;
-        
+
         let allocated = bitmap.allocated_count();
         let free = bitmap.free_count();
-        
+
         debug!(
             total_blocks = total_blocks,
             allocated = allocated,
@@ -400,7 +401,7 @@ impl RecoveryManager {
                 Ok(entry) => {
                     let entry_size = bincode::serialized_size(&entry).unwrap_or(0) as usize;
                     offset += entry_size;
-                    
+
                     if entries.len() >= self.config.max_journal_replay_entries {
                         warn!(
                             max_entries = self.config.max_journal_replay_entries,
@@ -408,7 +409,7 @@ impl RecoveryManager {
                         );
                         break;
                     }
-                    
+
                     entries.push(entry);
                 }
                 Err(e) => {
@@ -416,14 +417,14 @@ impl RecoveryManager {
                         debug!("no valid journal entries found at offset {}", offset);
                         break;
                     }
-                    
+
                     if !self.config.allow_partial_recovery || !entries.is_empty() {
                         warn!(
                             offset = offset,
                             error = %e,
                             "failed to deserialize journal entry"
                         );
-                        
+
                         if !self.config.allow_partial_recovery {
                             return Err(StorageError::SerializationError {
                                 reason: format!("failed to scan journal entries: {}", e),
@@ -436,24 +437,21 @@ impl RecoveryManager {
         }
 
         self.state.journal_entries_found = entries.len();
-        
-        info!(
-            entries_found = entries.len(),
-            "journal entries scanned"
-        );
+
+        info!(entries_found = entries.len(), "journal entries scanned");
 
         Ok(entries)
     }
 
     pub fn entries_needing_replay(
-        &self,
+        &mut self,
         entries: &[JournalEntry],
         checkpoint: &JournalCheckpoint,
     ) -> Vec<JournalEntry> {
         self.state.phase = RecoveryPhase::JournalReplayed;
 
         let last_sequence = checkpoint.last_committed_sequence;
-        
+
         let to_replay: Vec<JournalEntry> = entries
             .iter()
             .filter(|e| e.sequence > last_sequence)
@@ -461,7 +459,7 @@ impl RecoveryManager {
             .collect();
 
         self.state.journal_entries_replayed = to_replay.len();
-        
+
         info!(
             last_checkpoint_sequence = last_sequence,
             entries_to_replay = to_replay.len(),
@@ -472,11 +470,11 @@ impl RecoveryManager {
     }
 
     pub fn report(&self) -> RecoveryReport {
-        let duration_ms = std::time::SystemTime::now()
+        let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_millis() as u64
-            .saturating_sub(self.start_time_ms);
+            .as_millis();
+        let duration_ms = (now_ms as u64).saturating_sub(self.start_time_ms);
 
         RecoveryReport {
             phase: self.state.phase,
@@ -571,7 +569,7 @@ mod tests {
     fn test_allocator_bitmap_set_allocated() {
         let mut bitmap = AllocatorBitmap::new(100);
         bitmap.set_allocated(10, 5);
-        
+
         assert!(bitmap.is_allocated(10));
         assert!(bitmap.is_allocated(11));
         assert!(bitmap.is_allocated(14));
@@ -584,7 +582,7 @@ mod tests {
         let mut bitmap = AllocatorBitmap::new(100);
         bitmap.set_allocated(10, 5);
         bitmap.set_free(12, 2);
-        
+
         assert!(bitmap.is_allocated(10));
         assert!(bitmap.is_allocated(11));
         assert!(!bitmap.is_allocated(12));
@@ -595,10 +593,10 @@ mod tests {
     #[test]
     fn test_allocator_bitmap_out_of_bounds() {
         let mut bitmap = AllocatorBitmap::new(100);
-        
+
         bitmap.set_allocated(99, 10);
         assert!(!bitmap.is_allocated(99));
-        
+
         bitmap.set_allocated(50, 100);
         assert!(!bitmap.is_allocated(150));
     }
@@ -607,7 +605,7 @@ mod tests {
     fn test_allocator_bitmap_from_bytes_exact() {
         let data = vec![0xFF, 0x0F, 0xF0, 0x00];
         let bitmap = AllocatorBitmap::from_bytes(&data, 32).unwrap();
-        
+
         for i in 0..8 {
             assert!(bitmap.is_allocated(i));
         }
@@ -632,9 +630,9 @@ mod tests {
     fn test_allocator_bitmap_from_bytes_short() {
         let data = vec![0xAA, 0x55];
         let bitmap = AllocatorBitmap::from_bytes(&data, 100).unwrap();
-        
+
         assert_eq!(bitmap.bits.len(), 13);
-        
+
         assert!(bitmap.is_allocated(1));
         assert!(bitmap.is_allocated(3));
         assert!(bitmap.is_allocated(5));
@@ -647,7 +645,7 @@ mod tests {
     fn test_allocator_bitmap_from_bytes_long() {
         let data = vec![0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
         let bitmap = AllocatorBitmap::from_bytes(&data, 16).unwrap();
-        
+
         assert_eq!(bitmap.bits.len(), 2);
     }
 
@@ -657,10 +655,10 @@ mod tests {
         bitmap.set_allocated(0, 8);
         bitmap.set_allocated(16, 8);
         bitmap.set_allocated(32, 8);
-        
+
         let bytes = bitmap.to_bytes();
         assert_eq!(bytes.len(), 8);
-        
+
         assert_eq!(bytes[0], 0xFF);
         assert_eq!(bytes[1], 0xFF);
     }
@@ -668,12 +666,12 @@ mod tests {
     #[test]
     fn test_allocator_bitmap_allocated_count() {
         let mut bitmap = AllocatorBitmap::new(64);
-        
+
         assert_eq!(bitmap.allocated_count(), 0);
-        
+
         bitmap.set_allocated(0, 8);
         assert_eq!(bitmap.allocated_count(), 8);
-        
+
         bitmap.set_allocated(16, 16);
         assert_eq!(bitmap.allocated_count(), 24);
     }
@@ -681,12 +679,12 @@ mod tests {
     #[test]
     fn test_allocator_bitmap_free_count() {
         let bitmap = AllocatorBitmap::new(64);
-        
+
         assert_eq!(bitmap.free_count(), 64);
-        
+
         let mut bitmap = AllocatorBitmap::new(64);
         bitmap.set_allocated(0, 32);
-        
+
         assert_eq!(bitmap.free_count(), 32);
     }
 
@@ -697,9 +695,9 @@ mod tests {
         bitmap.set_allocated(10, 2);
         bitmap.set_allocated(50, 10);
         bitmap.set_allocated(80, 5);
-        
+
         let ranges = bitmap.allocated_ranges();
-        
+
         assert_eq!(ranges.len(), 4);
         assert_eq!(ranges[0], (5, 8));
         assert_eq!(ranges[1], (10, 12));
@@ -711,9 +709,9 @@ mod tests {
     fn test_allocator_bitmap_allocated_ranges_single() {
         let mut bitmap = AllocatorBitmap::new(100);
         bitmap.set_allocated(0, 100);
-        
+
         let ranges = bitmap.allocated_ranges();
-        
+
         assert_eq!(ranges.len(), 1);
         assert_eq!(ranges[0], (0, 100));
     }
@@ -721,16 +719,16 @@ mod tests {
     #[test]
     fn test_allocator_bitmap_allocated_ranges_empty() {
         let bitmap = AllocatorBitmap::new(100);
-        
+
         let ranges = bitmap.allocated_ranges();
-        
+
         assert!(ranges.is_empty());
     }
 
     #[test]
     fn test_journal_checkpoint_new() {
         let checkpoint = JournalCheckpoint::new(100, 200);
-        
+
         assert_eq!(checkpoint.magic, JOURNAL_CHECKPOINT_MAGIC);
         assert_eq!(checkpoint.last_committed_sequence, 100);
         assert_eq!(checkpoint.last_flushed_sequence, 200);
@@ -748,7 +746,7 @@ mod tests {
     fn test_journal_checkpoint_validate_invalid_magic() {
         let mut checkpoint = JournalCheckpoint::new(100, 200);
         checkpoint.magic = 0xDEADBEEF;
-        
+
         let result = checkpoint.validate();
         assert!(result.is_err());
     }
@@ -757,7 +755,7 @@ mod tests {
     fn test_journal_checkpoint_validate_invalid_checksum() {
         let mut checkpoint = JournalCheckpoint::new(100, 200);
         checkpoint.checksum = 0xDEADBEEF;
-        
+
         let result = checkpoint.validate();
         assert!(result.is_err());
     }
@@ -765,13 +763,19 @@ mod tests {
     #[test]
     fn test_journal_checkpoint_serialize_roundtrip() {
         let checkpoint = JournalCheckpoint::new(500, 600);
-        
+
         let bytes = checkpoint.to_bytes().unwrap();
         let recovered = JournalCheckpoint::from_bytes(&bytes).unwrap();
-        
+
         assert_eq!(checkpoint.magic, recovered.magic);
-        assert_eq!(checkpoint.last_committed_sequence, recovered.last_committed_sequence);
-        assert_eq!(checkpoint.last_flushed_sequence, recovered.last_flushed_sequence);
+        assert_eq!(
+            checkpoint.last_committed_sequence,
+            recovered.last_committed_sequence
+        );
+        assert_eq!(
+            checkpoint.last_flushed_sequence,
+            recovered.last_flushed_sequence
+        );
         assert_eq!(checkpoint.checksum, recovered.checksum);
     }
 
@@ -779,9 +783,9 @@ mod tests {
     fn test_journal_checkpoint_compute_checksum() {
         let checkpoint = JournalCheckpoint::new(100, 200);
         let checksum = checkpoint.compute_checksum();
-        
+
         assert_ne!(checksum, 0);
-        
+
         let checkpoint2 = JournalCheckpoint::new(100, 200);
         assert_eq!(checksum, checkpoint2.compute_checksum());
     }
@@ -790,10 +794,10 @@ mod tests {
     fn test_journal_checkpoint_update_checksum() {
         let mut checkpoint = JournalCheckpoint::new(100, 200);
         let old_checksum = checkpoint.checksum;
-        
+
         checkpoint.last_committed_sequence = 300;
         checkpoint.update_checksum();
-        
+
         assert_ne!(checkpoint.checksum, old_checksum);
     }
 
@@ -806,9 +810,9 @@ mod tests {
             verify_checksums: true,
             allow_partial_recovery: false,
         };
-        
+
         let manager = RecoveryManager::new(config);
-        
+
         assert_eq!(manager.state().phase, RecoveryPhase::NotStarted);
     }
 
@@ -821,9 +825,9 @@ mod tests {
             verify_checksums: false,
             allow_partial_recovery: true,
         };
-        
+
         let mut manager = RecoveryManager::new(config);
-        
+
         let device_uuid = create_test_uuid();
         let mut superblock = Superblock::new(
             device_uuid,
@@ -834,10 +838,10 @@ mod tests {
             "test".to_string(),
         );
         superblock.update_checksum();
-        
+
         let sb_bytes = superblock.to_bytes().unwrap();
         let loaded = manager.validate_superblock(&sb_bytes).unwrap();
-        
+
         assert_eq!(loaded.device_idx, 0);
         assert_eq!(manager.state().devices_discovered, 1);
         assert_eq!(manager.state().devices_valid, 1);
@@ -851,16 +855,16 @@ mod tests {
             u[0] = !u[0];
             u
         };
-        
+
         let config = RecoveryConfig {
             cluster_uuid: uuid,
             max_journal_replay_entries: 50000,
             verify_checksums: true,
             allow_partial_recovery: false,
         };
-        
+
         let mut manager = RecoveryManager::new(config);
-        
+
         let device_uuid = create_test_uuid();
         let mut superblock = Superblock::new(
             device_uuid,
@@ -871,10 +875,10 @@ mod tests {
             "test".to_string(),
         );
         superblock.update_checksum();
-        
+
         let sb_bytes = superblock.to_bytes().unwrap();
         let result = manager.validate_superblock(&sb_bytes);
-        
+
         assert!(result.is_err());
     }
 
@@ -882,10 +886,10 @@ mod tests {
     fn test_recovery_manager_load_bitmap() {
         let config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
-        
+
         let data = vec![0xFF, 0x0F, 0xF0, 0x00, 0x00];
         let bitmap = manager.load_bitmap(&data, 100).unwrap();
-        
+
         assert_eq!(bitmap.allocated_count(), 12);
     }
 
@@ -893,7 +897,7 @@ mod tests {
     fn test_recovery_manager_scan_journal_entries() {
         let config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
-        
+
         let entry1 = JournalEntry::new(
             1,
             BlockRef {
@@ -912,13 +916,13 @@ mod tests {
             vec![1u8; 4096],
             PlacementHint::Metadata,
         );
-        
+
         let mut data = Vec::new();
         data.extend_from_slice(&bincode::serialize(&entry1).unwrap());
         data.extend_from_slice(&bincode::serialize(&entry2).unwrap());
-        
+
         let entries = manager.scan_journal_entries(&data).unwrap();
-        
+
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].sequence, 1);
         assert_eq!(entries[1].sequence, 2);
@@ -928,7 +932,7 @@ mod tests {
     fn test_recovery_manager_entries_needing_replay() {
         let config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
-        
+
         let entries = vec![
             JournalEntry::new(
                 1,
@@ -958,11 +962,11 @@ mod tests {
                 PlacementHint::HotData,
             ),
         ];
-        
+
         let checkpoint = JournalCheckpoint::new(3, 3);
-        
+
         let to_replay = manager.entries_needing_replay(&entries, &checkpoint);
-        
+
         assert_eq!(to_replay.len(), 2);
         assert_eq!(to_replay[0].sequence, 5);
         assert_eq!(to_replay[1].sequence, 10);
@@ -972,9 +976,9 @@ mod tests {
     fn test_recovery_manager_report() {
         let config = RecoveryConfig::default();
         let manager = RecoveryManager::new(config);
-        
+
         let report = manager.report();
-        
+
         assert_eq!(report.phase, RecoveryPhase::NotStarted);
         assert_eq!(report.duration_ms, 0);
     }
@@ -983,9 +987,9 @@ mod tests {
     fn test_recovery_manager_mark_complete() {
         let mut config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
-        
+
         manager.mark_complete();
-        
+
         assert_eq!(manager.state().phase, RecoveryPhase::Complete);
     }
 
@@ -993,9 +997,9 @@ mod tests {
     fn test_recovery_manager_mark_failed() {
         let mut config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
-        
+
         manager.mark_failed("test error".to_string());
-        
+
         assert_eq!(manager.state().phase, RecoveryPhase::Failed);
         assert_eq!(manager.state().errors.len(), 1);
         assert_eq!(manager.state().errors[0], "test error");
@@ -1005,10 +1009,10 @@ mod tests {
     fn test_recovery_manager_add_error() {
         let mut config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
-        
+
         manager.add_error("error 1".to_string());
         manager.add_error("error 2".to_string());
-        
+
         assert_eq!(manager.state().errors.len(), 2);
     }
 
@@ -1023,7 +1027,7 @@ mod tests {
             RecoveryPhase::Complete,
             RecoveryPhase::Failed,
         ];
-        
+
         for phase in phases {
             let _ = format!("{:?}", phase);
         }
@@ -1033,12 +1037,12 @@ mod tests {
     fn test_crc32c_const_fn() {
         let data = b"hello world";
         let hash = crc32c(data);
-        
+
         assert_ne!(hash, 0);
-        
+
         let hash2 = crc32c(b"hello world");
         assert_eq!(hash, hash2);
-        
+
         let hash3 = crc32c(b"different");
         assert_ne!(hash, hash3);
     }
@@ -1046,7 +1050,7 @@ mod tests {
     #[test]
     fn test_journal_checkpoint_magic_constant() {
         assert_eq!(JOURNAL_CHECKPOINT_MAGIC, 0x434A4350);
-        
+
         let checkpoint = JournalCheckpoint::new(1, 2);
         assert_eq!(checkpoint.magic, JOURNAL_CHECKPOINT_MAGIC);
     }
@@ -1059,9 +1063,9 @@ mod tests {
             verify_checksums: false,
             allow_partial_recovery: true,
         };
-        
+
         let mut manager = RecoveryManager::new(config);
-        
+
         let entries: Vec<JournalEntry> = (1..=10)
             .map(|seq| {
                 JournalEntry::new(
@@ -1075,14 +1079,14 @@ mod tests {
                 )
             })
             .collect();
-        
+
         let mut data = Vec::new();
         for entry in &entries {
             data.extend_from_slice(&bincode::serialize(entry).unwrap());
         }
-        
+
         let scanned = manager.scan_journal_entries(&data).unwrap();
-        
+
         assert_eq!(scanned.len(), 3);
     }
 }

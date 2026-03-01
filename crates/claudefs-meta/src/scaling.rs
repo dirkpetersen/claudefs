@@ -48,7 +48,10 @@ pub enum MigrationStatus {
     /// Migration completed successfully.
     Completed,
     /// Migration failed with an error.
-    Failed { reason: String },
+    Failed {
+        /// Reason for the failure.
+        reason: String,
+    },
 }
 
 /// Manages shard placement and coordinates rebalancing when nodes join or leave.
