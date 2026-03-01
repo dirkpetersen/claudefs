@@ -14,6 +14,7 @@ pub mod capacity;
 pub mod checksum;
 pub mod defrag;
 pub mod device;
+pub mod encryption;
 pub mod engine;
 pub mod error;
 pub mod fdp;
@@ -21,11 +22,13 @@ pub mod flush;
 pub mod io_uring_bridge;
 pub mod io_scheduler;
 pub mod metrics;
+pub mod quota;
 pub mod recovery;
 pub mod hot_swap;
 pub mod segment;
 pub mod s3_tier;
 pub mod smart;
+pub mod snapshot;
 pub mod superblock;
 pub mod scrub;
 pub mod write_journal;
@@ -43,6 +46,10 @@ pub use capacity::{CapacityTracker, CapacityLevel, CapacityTrackerStats, Segment
 pub use checksum::{Checksum, ChecksumAlgorithm, BlockHeader};
 pub use defrag::{DefragConfig, DefragEngine, DefragPlan, DefragStats, FragmentationReport, SizeClassFragmentation, BlockRelocation};
 pub use device::{DeviceConfig, DevicePool, DeviceRole, ManagedDevice, NvmeDeviceInfo, DeviceHealth};
+pub use encryption::{
+    EncryptedBlock, EncryptionAlgorithm, EncryptionConfig, EncryptionEngine, EncryptionKey,
+    EncryptionStats,
+};
 pub use fdp::{FdpConfig, FdpHandle, FdpHintManager, FdpStats};
 pub use allocator::{BuddyAllocator, AllocatorConfig, AllocatorStats};
 pub use engine::{StorageEngine, StorageEngineConfig, StorageEngineStats};
@@ -68,9 +75,15 @@ pub use smart::{
     AlertSeverity, HealthStatus, NvmeSmartLog, SmartAlert, SmartAttribute,
     SmartMonitor, SmartMonitorConfig,
 };
+pub use snapshot::{
+    CowMapping, SnapshotId, SnapshotInfo, SnapshotManager, SnapshotState, SnapshotStats,
+};
 pub use superblock::{Superblock, DeviceRoleCode, SUPERBLOCK_MAGIC, SUPERBLOCK_VERSION};
 pub use write_journal::{
     JournalConfig, JournalEntry, JournalOp, JournalStats, SyncMode, WriteJournal,
+};
+pub use quota::{
+    QuotaLimit, QuotaUsage, QuotaStatus, TenantQuota, QuotaManager, QuotaStats,
 };
 
 #[cfg(feature = "uring")]

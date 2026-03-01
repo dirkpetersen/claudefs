@@ -80,6 +80,22 @@ pub enum StorageError {
         /// Description of the error.
         reason: String,
     },
+
+    /// The requested snapshot does not exist.
+    #[error("Snapshot not found: {snapshot_id}")]
+    SnapshotNotFound {
+        /// The snapshot ID that was not found.
+        snapshot_id: u64,
+    },
+
+    /// Snapshot is in an invalid state for the requested operation.
+    #[error("Invalid snapshot state: {snapshot_id} is {state}")]
+    InvalidSnapshotState {
+        /// The snapshot ID.
+        snapshot_id: u64,
+        /// The current state of the snapshot.
+        state: &'static str,
+    },
 }
 
 #[cfg(test)]
