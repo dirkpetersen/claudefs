@@ -14,6 +14,8 @@ pub mod conflict;
 pub mod consensus;
 /// Directory operations
 pub mod directory;
+/// Directory sharding for hot directories
+pub mod dirshard;
 /// Open file handle management
 pub mod filehandle;
 /// CAS fingerprint index for deduplication
@@ -75,6 +77,7 @@ pub use access::{AccessMode, UserContext};
 pub use btree_store::PersistentKvStore;
 pub use cdc::{CdcCursor, CdcEvent, CdcStream};
 pub use conflict::{ConflictDetector, ConflictEvent, ConflictWinner};
+pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
 pub use lease::{LeaseManager, LeaseType};
 pub use locking::{LockManager, LockType};
