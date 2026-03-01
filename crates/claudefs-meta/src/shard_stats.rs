@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::*;
 
 /// Statistics for a single shard.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShardStats {
     /// Shard identifier.
     pub shard_id: ShardId,
@@ -39,7 +39,15 @@ impl ShardStats {
     pub fn new(shard_id: ShardId) -> Self {
         Self {
             shard_id,
-            ..Default::default()
+            inode_count: 0,
+            read_ops: 0,
+            write_ops: 0,
+            total_read_latency_us: 0,
+            total_write_latency_us: 0,
+            peak_read_latency_us: 0,
+            peak_write_latency_us: 0,
+            lease_grants: 0,
+            lock_contentions: 0,
         }
     }
 
@@ -68,12 +76,20 @@ impl ShardStats {
 
     /// Returns average read latency in microseconds.
     pub fn avg_read_latency_us(&self) -> u64 {
-        if self.read_ops == 0 { 0 } else { self.total_read_latency_us / self.read_ops }
+        if self.read_ops == 0 {
+            0
+        } else {
+            self.total_read_latency_us / self.read_ops
+        }
     }
 
     /// Returns average write latency in microseconds.
     pub fn avg_write_latency_us(&self) -> u64 {
-        if self.write_ops == 0 { 0 } else { self.total_write_latency_us / self.write_ops }
+        if self.write_ops == 0 {
+            0
+        } else {
+            self.total_write_latency_us / self.write_ops
+        }
     }
 
     /// Total operations (read + write).
@@ -84,7 +100,11 @@ impl ShardStats {
     /// Returns the write ratio (0.0-1.0).
     pub fn write_ratio(&self) -> f64 {
         let total = self.total_ops();
-        if total == 0 { 0.0 } else { self.write_ops as f64 / total as f64 }
+        if total == 0 {
+            0.0
+        } else {
+            self.write_ops as f64 / total as f64
+        }
     }
 }
 
@@ -105,7 +125,9 @@ impl ClusterShardStats {
 
     /// Gets or creates stats for a shard.
     pub fn shard(&mut self, shard_id: ShardId) -> &mut ShardStats {
-        self.shards.entry(shard_id).or_insert_with(|| ShardStats::new(shard_id))
+        self.shards
+            .entry(shard_id)
+            .or_insert_with(|| ShardStats::new(shard_id))
     }
 
     /// Returns stats for a specific shard.
@@ -138,21 +160,28 @@ impl ClusterShardStats {
         self.shards.values().min_by_key(|s| s.total_ops())
     }
 
-    /// Returns the imbalance ratio (hottest/coldest ops). 
+    /// Returns the imbalance ratio (hottest/coldest ops).
     /// Value of 1.0 = perfectly balanced. Higher = more skewed.
     pub fn imbalance_ratio(&self) -> f64 {
         let hot = self.hottest_shard().map(|s| s.total_ops()).unwrap_or(0);
         let cold = self.coldest_shard().map(|s| s.total_ops()).unwrap_or(0);
-        if cold == 0 { 
-            if hot == 0 { 1.0 } else { f64::MAX }
-        } else { 
-            hot as f64 / cold as f64 
+        if cold == 0 {
+            if hot == 0 {
+                1.0
+            } else {
+                f64::MAX
+            }
+        } else {
+            hot as f64 / cold as f64
         }
     }
 
     /// Returns shards that exceed an operation threshold.
     pub fn hot_shards(&self, ops_threshold: u64) -> Vec<&ShardStats> {
-        self.shards.values().filter(|s| s.total_ops() > ops_threshold).collect()
+        self.shards
+            .values()
+            .filter(|s| s.total_ops() > ops_threshold)
+            .collect()
     }
 
     /// Resets all stats (e.g., for periodic collection).
@@ -205,8 +234,8 @@ mod tests {
     fn test_total_ops() {
         let mut stats = ShardStats::new(ShardId::new(1));
         stats.record_read(100);
-        stats.record_write(_eq!(stats.total100);
-        assert_ops(), 2);
+        stats.record_write(100);
+        assert_eq!(stats.total_ops(), 2);
     }
 
     #[test]
