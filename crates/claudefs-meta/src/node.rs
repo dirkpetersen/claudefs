@@ -202,6 +202,11 @@ impl MetadataNode {
         self.config.node_id
     }
 
+    /// Returns the site ID for this node.
+    pub fn site_id(&self) -> u64 {
+        self.config.site_id
+    }
+
     /// Returns the number of shards.
     pub fn num_shards(&self) -> u16 {
         self.config.num_shards
