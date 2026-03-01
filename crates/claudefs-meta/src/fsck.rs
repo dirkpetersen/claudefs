@@ -368,10 +368,10 @@ impl MetadataChecker {
 
     fn check_dangling_entries(&self, report: &mut FsckReport) {
         for (parent, entries) in &self.dir_entries {
-            if report.errors >= self.config.max_errors as u64 {
-                return;
-            }
             for (name, child) in entries {
+                if report.errors >= self.config.max_errors as u64 {
+                    return;
+                }
                 if !self.inodes.contains_key(child) {
                     report.errors += 1;
                     let repaired = self.config.repair;
@@ -636,7 +636,7 @@ mod tests {
         config.max_errors = 2;
         config.check_orphans = false;
         config.check_links = false;
-        config.check_dangling = false;
+        config.check_dangling = true;
         config.check_duplicates = false;
         config.check_connectivity = false;
         let mut checker = MetadataChecker::new(config);
