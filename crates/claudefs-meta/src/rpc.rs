@@ -4,8 +4,11 @@
 //! use to invoke metadata operations remotely. Maps to the transport
 //! layer's metadata opcodes (0x0100-0x0112).
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
+use crate::node::MetadataNode;
 use crate::types::*;
 
 /// Metadata operation request types for RPC transport.
@@ -269,23 +272,192 @@ pub enum MetadataResponse {
 
 /// RPC dispatcher for metadata requests.
 ///
-/// Currently returns error stubs for all requests; full implementation
-/// would delegate to the metadata service.
-pub struct RpcDispatcher;
+/// Delegates all requests to a MetadataNode for actual processing.
+pub struct RpcDispatcher {
+    node: Arc<MetadataNode>,
+}
 
 impl RpcDispatcher {
-    /// Creates a new RPC dispatcher.
-    pub fn new() -> Self {
-        Self
+    /// Creates a new RPC dispatcher backed by the given MetadataNode.
+    pub fn new(node: Arc<MetadataNode>) -> Self {
+        Self { node }
     }
 
-    /// Dispatches a metadata request.
-    ///
-    /// Currently returns an error stub indicating the method is not implemented.
-    pub fn dispatch(&self, _request: MetadataRequest) -> MetadataResponse {
-        tracing::debug!("RPC dispatch called - returning stub error");
-        MetadataResponse::Error {
-            message: "RPC dispatch not implemented".to_string(),
+    /// Creates a stub RPC dispatcher with an in-memory MetadataNode.
+    /// Useful for testing.
+    pub fn new_stub() -> Self {
+        use crate::node::MetadataNodeConfig;
+        let config = MetadataNodeConfig::default();
+        let node = Arc::new(MetadataNode::new(config).expect("stub node creation"));
+        Self { node }
+    }
+
+    /// Dispatches a metadata request to the MetadataNode.
+    pub fn dispatch(&self, request: MetadataRequest) -> MetadataResponse {
+        match request {
+            MetadataRequest::Lookup { parent, name } => match self.node.lookup(parent, &name) {
+                Ok(entry) => match self.node.getattr(entry.ino) {
+                    Ok(attr) => MetadataResponse::LookupResult {
+                        ino: entry.ino,
+                        attr,
+                    },
+                    Err(e) => MetadataResponse::Error {
+                        message: e.to_string(),
+                    },
+                },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::GetAttr { ino } => match self.node.getattr(ino) {
+                Ok(attr) => MetadataResponse::AttrResult { attr },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::SetAttr { ino, attr } => match self.node.setattr(ino, attr) {
+                Ok(()) => MetadataResponse::Ok,
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::CreateFile { parent, name, attr } => {
+                match self
+                    .node
+                    .create_file(parent, &name, attr.uid, attr.gid, attr.mode)
+                {
+                    Ok(created) => MetadataResponse::EntryCreated {
+                        ino: created.ino,
+                        attr: created,
+                    },
+                    Err(e) => MetadataResponse::Error {
+                        message: e.to_string(),
+                    },
+                }
+            }
+            MetadataRequest::Mkdir { parent, name, attr } => {
+                match self
+                    .node
+                    .mkdir(parent, &name, attr.uid, attr.gid, attr.mode)
+                {
+                    Ok(created) => MetadataResponse::DirCreated {
+                        ino: created.ino,
+                        attr: created,
+                    },
+                    Err(e) => MetadataResponse::Error {
+                        message: e.to_string(),
+                    },
+                }
+            }
+            MetadataRequest::Unlink { parent, name } => match self.node.unlink(parent, &name) {
+                Ok(()) => MetadataResponse::Ok,
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Rmdir { parent, name } => match self.node.rmdir(parent, &name) {
+                Ok(()) => MetadataResponse::Ok,
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Rename {
+                src_parent,
+                src_name,
+                dst_parent,
+                dst_name,
+            } => {
+                match self
+                    .node
+                    .rename(src_parent, &src_name, dst_parent, &dst_name)
+                {
+                    Ok(()) => MetadataResponse::Ok,
+                    Err(e) => MetadataResponse::Error {
+                        message: e.to_string(),
+                    },
+                }
+            }
+            MetadataRequest::Symlink {
+                parent,
+                name,
+                target,
+            } => match self.node.symlink(parent, &name, &target, 0, 0) {
+                Ok(created) => MetadataResponse::EntryCreated {
+                    ino: created.ino,
+                    attr: created,
+                },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Readlink { ino } => match self.node.readlink(ino) {
+                Ok(target) => MetadataResponse::SymlinkTarget { target },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Link {
+                parent,
+                name,
+                target_ino,
+            } => match self.node.link(parent, &name, target_ino) {
+                Ok(attr) => MetadataResponse::EntryCreated {
+                    ino: attr.ino,
+                    attr,
+                },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Readdir { dir, .. } => match self.node.readdir(dir) {
+                Ok(entries) => MetadataResponse::DirEntries {
+                    entries,
+                    has_more: false,
+                },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Open { ino, flags } => match self.node.open(ino, 0, flags) {
+                Ok(handle) => MetadataResponse::FileOpened { handle },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Close { handle } => match self.node.close(handle) {
+                Ok(()) => MetadataResponse::Ok,
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::GetXattr { ino, name } => match self.node.get_xattr(ino, &name) {
+                Ok(value) => MetadataResponse::XattrValue { value },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::SetXattr { ino, name, value } => {
+                match self.node.set_xattr(ino, &name, &value) {
+                    Ok(()) => MetadataResponse::Ok,
+                    Err(e) => MetadataResponse::Error {
+                        message: e.to_string(),
+                    },
+                }
+            }
+            MetadataRequest::ListXattrs { ino } => match self.node.list_xattrs(ino) {
+                Ok(names) => MetadataResponse::XattrList { names },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::RemoveXattr { ino, name } => {
+                match self.node.remove_xattr(ino, &name) {
+                    Ok(()) => MetadataResponse::Ok,
+                    Err(e) => MetadataResponse::Error {
+                        message: e.to_string(),
+                    },
+                }
+            }
         }
     }
 
@@ -302,7 +474,7 @@ impl RpcDispatcher {
 
 impl Default for RpcDispatcher {
     fn default() -> Self {
-        Self::new()
+        Self::new_stub()
     }
 }
 
@@ -414,18 +586,183 @@ mod tests {
     }
 
     #[test]
-    fn test_dispatcher_returns_error_stub() {
-        let dispatcher = RpcDispatcher::new();
-        let request = MetadataRequest::GetAttr {
-            ino: InodeId::new(1),
+    fn test_dispatcher_lookup() {
+        let dispatcher = RpcDispatcher::new_stub();
+        let create_req = MetadataRequest::CreateFile {
+            parent: InodeId::ROOT_INODE,
+            name: "test.txt".to_string(),
+            attr: InodeAttr::new_file(InodeId::new(0), 1000, 1000, 0o644, 1),
         };
-        let response = dispatcher.dispatch(request);
-        assert!(matches!(response, MetadataResponse::Error { .. }));
+        let create_resp = dispatcher.dispatch(create_req);
+        let created_ino = match create_resp {
+            MetadataResponse::EntryCreated { ino, .. } => ino,
+            other => panic!("expected EntryCreated, got {:?}", other),
+        };
+
+        let lookup_req = MetadataRequest::Lookup {
+            parent: InodeId::ROOT_INODE,
+            name: "test.txt".to_string(),
+        };
+        let resp = dispatcher.dispatch(lookup_req);
+        match resp {
+            MetadataResponse::LookupResult { ino, attr } => {
+                assert_eq!(ino, created_ino);
+                assert_eq!(attr.uid, 1000);
+            }
+            other => panic!("expected LookupResult, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dispatcher_create_file() {
+        let dispatcher = RpcDispatcher::new_stub();
+        let req = MetadataRequest::CreateFile {
+            parent: InodeId::ROOT_INODE,
+            name: "hello.txt".to_string(),
+            attr: InodeAttr::new_file(InodeId::new(0), 500, 500, 0o644, 1),
+        };
+        let resp = dispatcher.dispatch(req);
+        match resp {
+            MetadataResponse::EntryCreated { attr, .. } => {
+                assert_eq!(attr.uid, 500);
+                assert_eq!(attr.mode, 0o644);
+            }
+            other => panic!("expected EntryCreated, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dispatcher_mkdir() {
+        let dispatcher = RpcDispatcher::new_stub();
+        let req = MetadataRequest::Mkdir {
+            parent: InodeId::ROOT_INODE,
+            name: "subdir".to_string(),
+            attr: InodeAttr::new_directory(InodeId::new(0), 1000, 1000, 0o755, 1),
+        };
+        let resp = dispatcher.dispatch(req);
+        match resp {
+            MetadataResponse::DirCreated { attr, .. } => {
+                assert_eq!(attr.file_type, FileType::Directory);
+            }
+            other => panic!("expected DirCreated, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dispatcher_readdir() {
+        let dispatcher = RpcDispatcher::new_stub();
+        dispatcher.dispatch(MetadataRequest::CreateFile {
+            parent: InodeId::ROOT_INODE,
+            name: "a.txt".to_string(),
+            attr: InodeAttr::new_file(InodeId::new(0), 0, 0, 0o644, 1),
+        });
+        dispatcher.dispatch(MetadataRequest::CreateFile {
+            parent: InodeId::ROOT_INODE,
+            name: "b.txt".to_string(),
+            attr: InodeAttr::new_file(InodeId::new(0), 0, 0, 0o644, 1),
+        });
+
+        let req = MetadataRequest::Readdir {
+            dir: InodeId::ROOT_INODE,
+            offset: 0,
+            count: 100,
+        };
+        let resp = dispatcher.dispatch(req);
+        match resp {
+            MetadataResponse::DirEntries { entries, .. } => {
+                assert!(entries.len() >= 2);
+            }
+            other => panic!("expected DirEntries, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dispatcher_xattr() {
+        let dispatcher = RpcDispatcher::new_stub();
+        let create_resp = dispatcher.dispatch(MetadataRequest::CreateFile {
+            parent: InodeId::ROOT_INODE,
+            name: "test.txt".to_string(),
+            attr: InodeAttr::new_file(InodeId::new(0), 0, 0, 0o644, 1),
+        });
+        let ino = match create_resp {
+            MetadataResponse::EntryCreated { ino, .. } => ino,
+            other => panic!("expected EntryCreated, got {:?}", other),
+        };
+
+        let set_resp = dispatcher.dispatch(MetadataRequest::SetXattr {
+            ino,
+            name: "user.key".to_string(),
+            value: b"value".to_vec(),
+        });
+        assert!(matches!(set_resp, MetadataResponse::Ok));
+
+        let get_resp = dispatcher.dispatch(MetadataRequest::GetXattr {
+            ino,
+            name: "user.key".to_string(),
+        });
+        match get_resp {
+            MetadataResponse::XattrValue { value } => {
+                assert_eq!(value, b"value");
+            }
+            other => panic!("expected XattrValue, got {:?}", other),
+        }
+
+        let list_resp = dispatcher.dispatch(MetadataRequest::ListXattrs { ino });
+        match list_resp {
+            MetadataResponse::XattrList { names } => {
+                assert!(names.contains(&"user.key".to_string()));
+            }
+            other => panic!("expected XattrList, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dispatcher_unlink() {
+        let dispatcher = RpcDispatcher::new_stub();
+        dispatcher.dispatch(MetadataRequest::CreateFile {
+            parent: InodeId::ROOT_INODE,
+            name: "delete_me.txt".to_string(),
+            attr: InodeAttr::new_file(InodeId::new(0), 0, 0, 0o644, 1),
+        });
+
+        let resp = dispatcher.dispatch(MetadataRequest::Unlink {
+            parent: InodeId::ROOT_INODE,
+            name: "delete_me.txt".to_string(),
+        });
+        assert!(matches!(resp, MetadataResponse::Ok));
+
+        let lookup_resp = dispatcher.dispatch(MetadataRequest::Lookup {
+            parent: InodeId::ROOT_INODE,
+            name: "delete_me.txt".to_string(),
+        });
+        assert!(matches!(lookup_resp, MetadataResponse::Error { .. }));
+    }
+
+    #[test]
+    fn test_dispatcher_symlink_readlink() {
+        let dispatcher = RpcDispatcher::new_stub();
+        let create_resp = dispatcher.dispatch(MetadataRequest::Symlink {
+            parent: InodeId::ROOT_INODE,
+            name: "mylink".to_string(),
+            target: "/etc/hosts".to_string(),
+        });
+        let ino = match create_resp {
+            MetadataResponse::EntryCreated { ino, .. } => ino,
+            other => panic!("expected EntryCreated, got {:?}", other),
+        };
+
+        let readlink_resp = dispatcher.dispatch(MetadataRequest::Readlink { ino });
+        match readlink_resp {
+            MetadataResponse::SymlinkTarget { target } => {
+                assert_eq!(target, "/etc/hosts");
+            }
+            other => panic!("expected SymlinkTarget, got {:?}", other),
+        }
     }
 
     #[test]
     fn test_dispatcher_request_to_opcode() {
-        let dispatcher = RpcDispatcher::new();
+        let dispatcher = RpcDispatcher::new_stub();
         let request = MetadataRequest::Mkdir {
             parent: InodeId::new(1),
             name: "test".to_string(),
@@ -436,7 +773,7 @@ mod tests {
 
     #[test]
     fn test_dispatcher_is_read_only() {
-        let dispatcher = RpcDispatcher::new();
+        let dispatcher = RpcDispatcher::new_stub();
         let request = MetadataRequest::Readdir {
             dir: InodeId::new(1),
             offset: 0,

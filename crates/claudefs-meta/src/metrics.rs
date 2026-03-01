@@ -31,6 +31,16 @@ pub enum MetricOp {
     Link,
     /// Readlink operation (symlink target read).
     Readlink,
+    /// GetXattr operation (extended attribute retrieval).
+    GetXattr,
+    /// SetXattr operation (extended attribute modification).
+    SetXattr,
+    /// ListXattrs operation (extended attribute listing).
+    ListXattrs,
+    /// RemoveXattr operation (extended attribute removal).
+    RemoveXattr,
+    /// Statfs operation (filesystem statistics).
+    Statfs,
     /// Readdir operation.
     Readdir,
     /// Open operation.
@@ -56,6 +66,11 @@ impl MetricOp {
             MetricOp::Symlink => "symlink",
             MetricOp::Link => "link",
             MetricOp::Readlink => "readlink",
+            MetricOp::GetXattr => "get_xattr",
+            MetricOp::SetXattr => "set_xattr",
+            MetricOp::ListXattrs => "list_xattrs",
+            MetricOp::RemoveXattr => "remove_xattr",
+            MetricOp::Statfs => "statfs",
             MetricOp::Readdir => "readdir",
             MetricOp::Open => "open",
             MetricOp::Close => "close",
