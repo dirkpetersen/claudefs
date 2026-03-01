@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 7 Production Readiness COMPLETE
+
+#### 2026-03-01 (A9 — Phase 7: Production Readiness Test Suite)
+
+##### A9: Test & Validation — Phase 7 (1054 total tests, 34 modules)
+
+**Phase 7 (220 new tests, 5 new modules) — production readiness test coverage:**
+
+1. `security_integration.rs` (42 tests): A6 Phase 7 security hardening validation
+   - TLS policy (TlsMode Required/TestOnly/Disabled, TlsValidator, TlsPolicyBuilder)
+   - Site registry (SiteRecord, SiteRegistry, fingerprint verification, update_last_seen)
+   - Recv rate limiter (RateLimitConfig, RecvRateLimiter, RateLimitDecision, stats)
+   - Journal GC (GcPolicy variants, JournalGcState ack tracking, JournalGcScheduler run_gc)
+   - Combined TLS + site registry integration scenarios
+
+2. `quota_integration.rs` (40 tests): Cross-crate quota enforcement validation
+   - A5 QuotaEnforcer (check_write, check_create, TTL cache, user/group quotas)
+   - A5 QuotaUsage (bytes_status Ok/SoftExceeded/HardExceeded, unlimited())
+   - A8 QuotaRegistry (set_limit, check_quota, over_quota_subjects, near_quota_subjects)
+   - Cross-layer validation — same subject enforced at both A5 and A8 layers
+
+3. `mgmt_integration.rs` (46 tests): A8 management API component validation
+   - RBAC (admin/operator/viewer/tenant_admin roles, Permission::implies, RbacRegistry)
+   - SLA tracking (compute_percentiles, SlaTarget, PercentileResult, SlaViolation)
+   - Alerting (AlertManager, Comparison::evaluate, Alert lifecycle, default_alert_rules)
+
+4. `acl_integration.rs` (47 tests): POSIX ACL enforcement and fallocate mode tests
+   - AclPerms from_bits/to_bits round-trips, all/none/read_only constructors
+   - PosixAcl check_access for owner/group/other with mask enforcement
+   - FallocateOp from_flags, is_space_saving, modifies_size, affected_range
+   - FallocateStats, XATTR_POSIX_ACL_* constants
+
+5. `perf_regression.rs` (45 tests): Performance regression framework tests
+   - FioConfig, FioRwMode variants, FioResult calculations
+   - parse_fio_json, detect_fio_binary detection logic
+   - ReportBuilder, TestCaseResult, TestStatus, AggregateReport
+
+**MILESTONE: 1054 tests, 34 modules, 0 failures, production readiness phase complete**
+
+---
+
 ### A5: FUSE Client — Phase 5 Production Security & Enterprise Features COMPLETE
 
 #### 2026-03-01 (A5 — FUSE Client: Phase 5 Production Security & Enterprise Features)

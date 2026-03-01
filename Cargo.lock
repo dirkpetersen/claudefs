@@ -653,6 +653,7 @@ dependencies = [
  "claudefs-fuse",
  "claudefs-gateway",
  "claudefs-meta",
+ "claudefs-mgmt",
  "claudefs-reduce",
  "claudefs-repl",
  "claudefs-storage",
