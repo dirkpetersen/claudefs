@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Phase 3: Production Readiness
+
+#### 2026-03-01 (A4 — Phase 3 Transport: Production Modules)
+
+##### A4: Transport — Phase 3 Progress (258 transport tests, 29 modules)
+
+**A4 Phase 3 Transport Modules (5 new modules, 85 new tests):**
+1. `pool.rs` — Health-aware connection pool with load balancing (16 tests)
+2. `version.rs` — Protocol version negotiation for rolling upgrades (16 tests)
+3. `drain.rs` — Graceful connection draining for node removal (21 tests)
+4. `batch.rs` — Request batching/coalescing for efficient RPC (21 tests)
+5. `server.rs` — RPC server with middleware pipeline (11 tests)
+
+**Workspace: 1099 tests passing**
+
+**Also fixed:** claudefs-storage Cargo.toml duplicate section, regenerated Cargo.lock
+
+---
+
 ### Phase 1 Continued: Transport & Infrastructure
 
 #### 2026-03-01 (A4 — Phase 2 Transport Layer Complete)
