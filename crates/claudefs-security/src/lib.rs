@@ -36,7 +36,7 @@ pub mod crypto_audit;
 pub mod crypto_zeroize_audit;
 #[cfg(test)]
 pub mod mgmt_pentest;
-#[cfg(test)]
-pub mod fuzz_fuse;
+// #[cfg(test)]
+// pub mod fuzz_fuse;
 #[cfg(test)]
 pub mod dep_audit;

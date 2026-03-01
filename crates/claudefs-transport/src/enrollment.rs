@@ -157,7 +157,9 @@ pub struct ClusterCA {
     ca_key_pem: String,
     ca_fingerprint: String,
     cert_validity_days: u32,
+    #[allow(dead_code)]
     not_before: SystemTime,
+    #[allow(dead_code)]
     not_after: SystemTime,
 }
 

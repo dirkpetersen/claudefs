@@ -215,7 +215,7 @@ impl SplicePipeline {
         } else {
             self.config.splice_chunk_size
         };
-        let num_chunks = (length + chunk_size - 1) / chunk_size;
+        let num_chunks = length.div_ceil(chunk_size);
 
         let mut operations = Vec::with_capacity(num_chunks * 2);
 
@@ -294,8 +294,12 @@ impl SplicePipeline {
             };
         }
 
-        let chunk_size = self.config.splice_chunk_size;
-        let num_chunks = (length + chunk_size - 1) / chunk_size;
+        let chunk_size = if self.config.splice_chunk_size == 0 {
+            length
+        } else {
+            self.config.splice_chunk_size
+        };
+        let num_chunks = length.div_ceil(chunk_size);
 
         let mut operations = Vec::with_capacity(num_chunks * 2);
 

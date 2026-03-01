@@ -1,17 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum AuthLevel {
     None,
     TlsOnly,
+    #[default]
     MutualTls,
     MutualTlsStrict,
-}
-
-impl Default for AuthLevel {
-    fn default() -> Self {
-        Self::MutualTls
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

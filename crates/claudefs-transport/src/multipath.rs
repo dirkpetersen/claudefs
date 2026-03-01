@@ -10,6 +10,12 @@ use tracing::debug;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PathId(u64);
 
+impl Default for PathId {
+    fn default() -> Self {
+        PathId(0)
+    }
+}
+
 impl PathId {
     pub fn new(id: u64) -> Self {
         PathId(id)
@@ -29,12 +35,6 @@ impl From<u64> for PathId {
 impl From<PathId> for u64 {
     fn from(id: PathId) -> Self {
         id.0
-    }
-}
-
-impl Default for PathId {
-    fn default() -> Self {
-        PathId(0)
     }
 }
 
