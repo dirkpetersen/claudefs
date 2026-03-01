@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 5 Production Security & Enterprise Features COMPLETE
+
+#### 2026-03-01 (A5 — FUSE Client: Phase 5 Production Security & Enterprise Features)
+
+##### A5: FUSE — 641 tests, 37 modules, 5 new enterprise feature modules
+
+**Phase 5 (115 new tests, 5 new modules) — client auth, tiering hints, WORM, delegations, I/O priority:**
+
+1. `client_auth.rs` — mTLS client authentication lifecycle (20 tests):
+   - `AuthState` enum: Unenrolled / Enrolling / Enrolled / Renewing / Revoked
+   - `CertRecord` with fingerprint, subject, PEM fields, expiry tracking
+   - `ClientAuthManager`: begin_enrollment/complete_enrollment/begin_renewal/complete_renewal/revoke
+   - CRL management: add_to_crl/is_revoked/compact_crl
+   - Implements D7 (mTLS with auto-provisioned certs from cluster CA)
+
+2. `tiering_hints.rs` — Per-file tiering policy xattr support (20 tests):
+   - `TieringPolicy`: Auto / Flash / S3 / Custom{evict_after_secs, min_copies}
+   - `TieringPriority(u8)` with MIN/MAX/DEFAULT constants
+   - `TieringHint` with evict_score() implementing D5 scoring: `last_access_age × size`
+   - `TieringHintCache` with parent-based policy inheritance and eviction_candidates()
+   - Implements D5 (claudefs.tier xattr support for tiering policy)
+
+3. `worm.rs` — WORM/immutability for compliance (25 tests):
+   - `ImmutabilityMode`: None / AppendOnly / Immutable / WormRetention{retention_expires_at_secs} / LegalHold{hold_id}
+   - Per-mode enforcement: is_write_blocked/is_delete_blocked/is_rename_blocked/is_truncate_blocked
+   - `WormRegistry`: set_mode/check_write/check_delete/check_rename/check_truncate
+   - Legal hold management: place_legal_hold/lift_legal_hold covering multiple inodes
+   - expired_retention() for GC of expired WORM records
+
+4. `deleg.rs` — Open file delegation management (20 tests):
+   - `DelegType`: Read / Write, `DelegState`: Active / Recalled / Returned / Revoked
+   - `Delegation` with lease tracking: is_expired/time_remaining_secs/recall/returned/revoke
+   - `DelegationManager`: grant/return_deleg/recall_for_ino/revoke_expired
+   - Conflict detection: write blocks read+write, read blocks write, multiple reads allowed
+   - can_grant_read/can_grant_write predicates
+
+5. `io_priority.rs` — I/O priority classification for QoS (30 tests):
+   - `WorkloadClass`: Interactive (p3) / Foreground (p2) / Background (p1) / Idle (p0)
+   - `IoPriorityClassifier`: PID/UID overrides with classify/classify_by_op heuristics
+   - `IoClassStats`: per-class ops/bytes/latency tracking with avg_latency_us
+   - `IoPriorityStats`: aggregated stats with class_share() percentage
+   - `PriorityBudget`: windowed token budget with try_consume/reset_window
+
+**MILESTONE: 641 tests, 37 modules, all passing, zero functional clippy errors**
+
+---
+
 ### A6: Replication — Phase 7 Security Hardening COMPLETE
 
 #### 2026-03-01 (A6 — Replication: Phase 7 Security Hardening & Lifecycle)
