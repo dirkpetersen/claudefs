@@ -4,6 +4,7 @@ use crate::auth::AuthCred;
 use crate::mount::{ExportEntry, MountHandler};
 use crate::nfs::{Nfs3Handler, VfsBackend};
 use crate::protocol::FileHandle3;
+#[allow(unused_imports)]
 use crate::rpc::{
     OpaqueAuth, RpcCall, RpcReply, ACCEPT_PROC_UNAVAIL, ACCEPT_SUCCESS, AUTH_NONE, MNT3_DUMP,
     MNT3_EXPORT, MNT3_MNT, MNT3_NULL, MNT3_UMNT, MNT3_UMNTALL, MOUNT_PROGRAM, MOUNT_VERSION,
@@ -41,6 +42,7 @@ impl NfsServerConfig {
 pub struct RpcDispatcher<B: VfsBackend> {
     nfs_handler: Nfs3Handler<B>,
     mount_handler: MountHandler,
+    #[allow(dead_code)]
     config: NfsServerConfig,
 }
 
@@ -64,8 +66,8 @@ impl<B: VfsBackend> RpcDispatcher<B> {
     }
 
     fn dispatch_nfs(&self, call: &RpcCall, auth: &AuthCred) -> Vec<u8> {
-        let uid = auth.uid();
-        let gid = auth.gid();
+        let _uid = auth.uid();
+        let _gid = auth.gid();
 
         match call.proc {
             NFS3_NULL => RpcReply::encode_success(call.xid, &[]),

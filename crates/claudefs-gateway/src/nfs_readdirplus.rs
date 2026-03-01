@@ -1,6 +1,5 @@
 //! READDIRPLUS XDR encoding for NFSv3
 
-use crate::error::{GatewayError, Result};
 use crate::protocol::{Entryplus3, Fattr3, FileHandle3, FsInfoResult, FsStatResult};
 use crate::xdr::XdrEncoder;
 

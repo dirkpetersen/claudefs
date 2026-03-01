@@ -3,27 +3,45 @@
 use crate::error::{GatewayError, Result};
 use crate::xdr::{XdrDecoder, XdrEncoder};
 
+/// NFS program number (100003)
 pub const NFS_PROGRAM: u32 = 100003;
+/// NFS version 3
 pub const NFS_VERSION: u32 = 3;
+/// MOUNT program number (100005)
 pub const MOUNT_PROGRAM: u32 = 100005;
+/// MOUNT version 3
 pub const MOUNT_VERSION: u32 = 3;
+/// PORTMAP/RPCBIND program number (100000)
 pub const PORTMAP_PROGRAM: u32 = 100000;
+/// PORTMAP/RPCBIND version 2
 pub const PORTMAP_VERSION: u32 = 2;
 
+/// RPC message type: CALL
 pub const RPC_CALL: u32 = 0;
+/// RPC message type: REPLY
 pub const RPC_REPLY: u32 = 1;
 
+/// RPC authentication flavor: none
 pub const AUTH_NONE: u32 = 0;
+/// RPC authentication flavor: sys (AUTH_UNIX)
 pub const AUTH_SYS: u32 = 1;
+/// RPC authentication flavor: GSSAPI
 pub const AUTH_GSS: u32 = 6;
 
+/// RPC accept status: success
 pub const ACCEPT_SUCCESS: u32 = 0;
+/// RPC accept status: program not available
 pub const ACCEPT_PROG_UNAVAIL: u32 = 1;
+/// RPC accept status: program version mismatch
 pub const ACCEPT_PROG_MISMATCH: u32 = 2;
+/// RPC accept status: procedure not available
 pub const ACCEPT_PROC_UNAVAIL: u32 = 3;
+/// RPC accept status: garbage arguments
 pub const ACCEPT_GARBAGE_ARGS: u32 = 4;
 
+/// RPC reject status: RPC version mismatch
 pub const REJECT_RPC_MISMATCH: u32 = 0;
+/// RPC reject status: authentication error
 pub const REJECT_AUTH_ERROR: u32 = 1;
 
 pub const NFS3_NULL: u32 = 0;

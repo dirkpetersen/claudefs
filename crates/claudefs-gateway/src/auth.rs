@@ -4,6 +4,7 @@ use crate::error::{GatewayError, Result};
 use crate::rpc::{OpaqueAuth, AUTH_NONE, AUTH_SYS};
 use crate::xdr::{XdrDecoder, XdrEncoder};
 
+/// Maximum number of supplementary GIDs in AUTH_SYS
 pub const AUTH_SYS_MAX_GIDS: usize = 16;
 
 const NOBODY_UID: u32 = 65534;

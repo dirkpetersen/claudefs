@@ -324,7 +324,7 @@ pub fn handle_s3_request(req: &HttpRequest, handler: &S3Handler) -> HttpResponse
                 let xml = s3_xml::list_objects_xml(&result);
                 HttpResponse::ok().with_xml_body(xml)
             }
-            Err(e) => HttpResponse::not_found(&bucket),
+            Err(_e) => HttpResponse::not_found(&bucket),
         },
         S3Operation::GetObject { bucket, key } => match handler.get_object(&bucket, &key) {
             Ok((meta, data)) => HttpResponse::ok()

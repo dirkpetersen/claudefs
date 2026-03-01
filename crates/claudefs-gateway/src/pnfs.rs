@@ -54,6 +54,7 @@ pub struct LayoutGetResult {
 
 pub struct PnfsLayoutServer {
     data_servers: RwLock<Vec<DataServerLocation>>,
+    #[allow(dead_code)]
     fsid: u64,
 }
 
