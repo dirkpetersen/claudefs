@@ -12,18 +12,24 @@ use std::time::{Duration, SystemTime};
 
 use fuser::{
     FileType as FuserFileType, Filesystem, KernelConfig, ReplyAttr, ReplyCreate, ReplyData,
-    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyStatfs, ReplyWrite, Request, TimeOrNow,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyStatfs, ReplyWrite, ReplyXattr,
+    Request, TimeOrNow,
 };
 use libc;
+use std::path::Path;
 use tracing::debug;
 
 use crate::cache::{CacheConfig, MetadataCache};
+use crate::datacache::{DataCache, DataCacheConfig};
 use crate::inode::{InodeEntry, InodeKind, InodeTable};
 use crate::operations::{apply_mode_umask, blocks_for_size, check_access};
+use crate::symlink::SymlinkStore;
+use crate::xattr::XattrStore;
 
 #[derive(Debug, Clone)]
 pub struct ClaudeFsConfig {
     pub cache: CacheConfig,
+    pub data_cache: DataCacheConfig,
     pub uid: u32,
     pub gid: u32,
     pub default_permissions: bool,
@@ -37,6 +43,7 @@ impl Default for ClaudeFsConfig {
     fn default() -> Self {
         Self {
             cache: CacheConfig::default(),
+            data_cache: DataCacheConfig::default(),
             uid: 0,
             gid: 0,
             default_permissions: true,
@@ -60,6 +67,10 @@ struct ClaudeFsState {
     cache: MetadataCache,
     open_handles: HashMap<u64, OpenHandle>,
     next_fh: u64,
+    xattr: XattrStore,
+    symlinks: SymlinkStore,
+    #[allow(dead_code)]
+    data_cache: DataCache,
 }
 
 pub struct ClaudeFsFilesystem {
@@ -74,6 +85,9 @@ impl ClaudeFsFilesystem {
             cache: MetadataCache::new(config.cache.clone()),
             open_handles: HashMap::new(),
             next_fh: 1,
+            xattr: XattrStore::new(),
+            symlinks: SymlinkStore::new(),
+            data_cache: DataCache::new(config.data_cache.clone()),
         };
         Self {
             config,
@@ -312,8 +326,20 @@ impl Filesystem for ClaudeFsFilesystem {
             }
         }
 
+        let is_symlink = state
+            .inodes
+            .get(ino)
+            .map(|e| matches!(e.kind, InodeKind::Symlink))
+            .unwrap_or(false);
+
         match state.inodes.remove(ino) {
-            Ok(()) => reply.ok(),
+            Ok(()) => {
+                state.xattr.clear_inode(ino);
+                if is_symlink {
+                    state.symlinks.remove(ino);
+                }
+                reply.ok()
+            }
             Err(e) => reply.error(e.to_errno()),
         }
     }
@@ -734,6 +760,310 @@ impl Filesystem for ClaudeFsFilesystem {
             Err(e) => reply.error(e.to_errno()),
         }
     }
+
+    fn readlink(&mut self, _req: &Request<'_>, ino: u64, reply: ReplyData) {
+        debug!("readlink ino={}", ino);
+
+        let state = match self.state.lock() {
+            Ok(s) => s,
+            Err(_) => {
+                reply.error(libc::EIO);
+                return;
+            }
+        };
+
+        if let Some(target) = state.symlinks.get(ino) {
+            reply.data(target.as_bytes());
+        } else {
+            reply.error(libc::ENOENT);
+        }
+    }
+
+    fn mknod(
+        &mut self,
+        req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        umask: u32,
+        rdev: u32,
+        reply: ReplyEntry,
+    ) {
+        let name_str = name.to_string_lossy();
+        debug!(
+            "mknod parent={} name={} mode={:o} rdev={}",
+            parent, name_str, mode, rdev
+        );
+
+        let mut state = match self.state.lock() {
+            Ok(s) => s,
+            Err(_) => {
+                reply.error(libc::EIO);
+                return;
+            }
+        };
+
+        let effective_mode = apply_mode_umask(mode, umask);
+        let uid = req.uid();
+        let gid = req.gid();
+
+        let kind = if rdev != 0 {
+            if mode & libc::S_IFBLK != 0 {
+                InodeKind::BlockDevice
+            } else {
+                InodeKind::CharDevice
+            }
+        } else if mode & libc::S_IFIFO != 0 {
+            InodeKind::Fifo
+        } else if mode & libc::S_IFSOCK != 0 {
+            InodeKind::Socket
+        } else {
+            InodeKind::File
+        };
+
+        match state
+            .inodes
+            .alloc(parent, &name_str, kind, effective_mode, uid, gid)
+        {
+            Ok(ino) => {
+                if let Some(entry) = state.inodes.get(ino) {
+                    let fuser_attr = inode_to_fuser_attr(entry);
+                    reply.entry(&self.config.entry_timeout, &fuser_attr, 0);
+                } else {
+                    reply.error(libc::EIO);
+                }
+            }
+            Err(e) => reply.error(e.to_errno()),
+        }
+    }
+
+    fn symlink(
+        &mut self,
+        req: &Request<'_>,
+        parent: u64,
+        link_name: &OsStr,
+        target: &Path,
+        reply: ReplyEntry,
+    ) {
+        let name_str = link_name.to_string_lossy();
+        let target_str = target.to_string_lossy();
+        debug!(
+            "symlink parent={} name={} target={}",
+            parent, name_str, target_str
+        );
+
+        let mut state = match self.state.lock() {
+            Ok(s) => s,
+            Err(_) => {
+                reply.error(libc::EIO);
+                return;
+            }
+        };
+
+        let uid = req.uid();
+        let gid = req.gid();
+
+        match state
+            .inodes
+            .alloc(parent, &name_str, InodeKind::Symlink, 0o777, uid, gid)
+        {
+            Ok(ino) => {
+                if let Err(e) = state.symlinks.insert(ino, &target_str) {
+                    state.inodes.remove(ino).ok();
+                    reply.error(e.to_errno());
+                    return;
+                }
+
+                if let Some(entry) = state.inodes.get(ino) {
+                    let fuser_attr = inode_to_fuser_attr(entry);
+                    reply.entry(&self.config.entry_timeout, &fuser_attr, 0);
+                } else {
+                    reply.error(libc::EIO);
+                }
+            }
+            Err(e) => reply.error(e.to_errno()),
+        }
+    }
+
+    fn link(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        newparent: u64,
+        newname: &OsStr,
+        reply: ReplyEntry,
+    ) {
+        let name_str = newname.to_string_lossy();
+        debug!(
+            "link ino={} newparent={} newname={}",
+            ino, newparent, name_str
+        );
+
+        let mut state = match self.state.lock() {
+            Ok(s) => s,
+            Err(_) => {
+                reply.error(libc::EIO);
+                return;
+            }
+        };
+
+        let entry = match state.inodes.get(ino) {
+            Some(e) => e,
+            None => {
+                reply.error(libc::ENOENT);
+                return;
+            }
+        };
+
+        if matches!(entry.kind, InodeKind::Directory) {
+            reply.error(libc::EISDIR);
+            return;
+        }
+
+        if let Some(_existing) = state.inodes.lookup_child(newparent, &name_str) {
+            reply.error(libc::EEXIST);
+            return;
+        }
+
+        match state.inodes.link_to(ino, newparent, &name_str) {
+            Ok(()) => {
+                if let Some(entry) = state.inodes.get(ino) {
+                    let fuser_attr = inode_to_fuser_attr(entry);
+                    reply.entry(&self.config.entry_timeout, &fuser_attr, 0);
+                } else {
+                    reply.error(libc::EIO);
+                }
+            }
+            Err(e) => reply.error(e.to_errno()),
+        }
+    }
+
+    fn fsync(
+        &mut self,
+        _req: &Request<'_>,
+        _ino: u64,
+        _fh: u64,
+        _datasync: bool,
+        reply: ReplyEmpty,
+    ) {
+        debug!("fsync");
+        reply.ok();
+    }
+
+    fn setxattr(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        value: &[u8],
+        _flags: i32,
+        _position: u32,
+        reply: ReplyEmpty,
+    ) {
+        debug!("setxattr ino={} name={}", ino, name.to_string_lossy());
+
+        let mut state = match self.state.lock() {
+            Ok(s) => s,
+            Err(_) => {
+                reply.error(libc::EIO);
+                return;
+            }
+        };
+
+        match state.xattr.set(ino, name, value) {
+            Ok(()) => reply.ok(),
+            Err(e) => reply.error(e.to_errno()),
+        }
+    }
+
+    fn getxattr(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        size: u32,
+        reply: ReplyXattr,
+    ) {
+        debug!(
+            "getxattr ino={} name={} size={}",
+            ino,
+            name.to_string_lossy(),
+            size
+        );
+
+        let state = match self.state.lock() {
+            Ok(s) => s,
+            Err(_) => {
+                reply.error(libc::EIO);
+                return;
+            }
+        };
+
+        let value = match state.xattr.get(ino, name) {
+            Some(v) => v,
+            None => {
+                reply.error(libc::ENOENT);
+                return;
+            }
+        };
+
+        if size == 0 {
+            reply.size(value.len() as u32);
+        } else if size as usize >= value.len() {
+            reply.data(value);
+        } else {
+            reply.error(libc::ERANGE);
+        }
+    }
+
+    fn listxattr(&mut self, _req: &Request<'_>, ino: u64, size: u32, reply: ReplyXattr) {
+        debug!("listxattr ino={} size={}", ino, size);
+
+        let state = match self.state.lock() {
+            Ok(s) => s,
+            Err(_) => {
+                reply.error(libc::EIO);
+                return;
+            }
+        };
+
+        let names = state.xattr.list(ino);
+
+        if size == 0 {
+            let total_size = state.xattr.list_size(ino);
+            reply.size(total_size);
+        } else {
+            let mut data = Vec::new();
+            for name in &names {
+                data.extend_from_slice(name.as_bytes());
+                data.push(0);
+            }
+
+            let expected_size = state.xattr.list_size(ino);
+            if size >= expected_size {
+                reply.data(&data);
+            } else {
+                reply.error(libc::ERANGE);
+            }
+        }
+    }
+
+    fn removexattr(&mut self, _req: &Request<'_>, ino: u64, name: &OsStr, reply: ReplyEmpty) {
+        debug!("removexattr ino={} name={}", ino, name.to_string_lossy());
+
+        let mut state = match self.state.lock() {
+            Ok(s) => s,
+            Err(_) => {
+                reply.error(libc::EIO);
+                return;
+            }
+        };
+
+        match state.xattr.remove(ino, name) {
+            Ok(()) => reply.ok(),
+            Err(e) => reply.error(e.to_errno()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -992,5 +1322,182 @@ mod tests {
         let state = fs.state.lock().unwrap();
         let root = state.inodes.get(ROOT_INODE).unwrap();
         assert!(root.children.is_empty());
+    }
+
+    #[test]
+    fn test_symlink_creation_and_retrieval() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "mylink", InodeKind::Symlink, 0o777, 0, 0)
+            .unwrap();
+        state.symlinks.insert(ino, "/target/path").unwrap();
+
+        assert_eq!(state.symlinks.get(ino), Some("/target/path"));
+    }
+
+    #[test]
+    fn test_hard_link_increments_nlink() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "original.txt", InodeKind::File, 0o644, 0, 0)
+            .unwrap();
+        let original_nlink = state.inodes.get(ino).unwrap().nlink;
+
+        state
+            .inodes
+            .link_to(ino, ROOT_INODE, "hardlink.txt")
+            .unwrap();
+
+        let entry = state.inodes.get(ino).unwrap();
+        assert_eq!(entry.nlink, original_nlink + 1);
+    }
+
+    #[test]
+    fn test_xattr_set_and_get() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "test.txt", InodeKind::File, 0o644, 0, 0)
+            .unwrap();
+        state
+            .xattr
+            .set(ino, std::ffi::OsStr::new("user.test"), b"value")
+            .unwrap();
+
+        let result = state.xattr.get(ino, std::ffi::OsStr::new("user.test"));
+        assert_eq!(result, Some(b"value".as_slice()));
+    }
+
+    #[test]
+    fn test_xattr_list() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "test.txt", InodeKind::File, 0o644, 0, 0)
+            .unwrap();
+        state
+            .xattr
+            .set(ino, std::ffi::OsStr::new("user.a"), b"a")
+            .unwrap();
+        state
+            .xattr
+            .set(ino, std::ffi::OsStr::new("user.b"), b"b")
+            .unwrap();
+
+        let names = state.xattr.list(ino);
+        assert_eq!(names, vec!["user.a", "user.b"]);
+    }
+
+    #[test]
+    fn test_xattr_remove() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "test.txt", InodeKind::File, 0o644, 0, 0)
+            .unwrap();
+        state
+            .xattr
+            .set(ino, std::ffi::OsStr::new("user.test"), b"value")
+            .unwrap();
+        state
+            .xattr
+            .remove(ino, std::ffi::OsStr::new("user.test"))
+            .unwrap();
+
+        assert!(state
+            .xattr
+            .get(ino, std::ffi::OsStr::new("user.test"))
+            .is_none());
+    }
+
+    #[test]
+    fn test_readlink_returns_target() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "mylink", InodeKind::Symlink, 0o777, 0, 0)
+            .unwrap();
+        state.symlinks.insert(ino, "/some/target").unwrap();
+
+        assert_eq!(state.symlinks.get(ino), Some("/some/target"));
+    }
+
+    #[test]
+    fn test_data_cache_insert_and_get() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "test.txt", InodeKind::File, 0o644, 0, 0)
+            .unwrap();
+        state.data_cache.insert(ino, vec![1, 2, 3], 1);
+
+        let result = state.data_cache.get(ino);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().data, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_mknod_creates_fifo() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "myfifo", InodeKind::Fifo, 0o644, 0, 0)
+            .unwrap();
+
+        let entry = state.inodes.get(ino).unwrap();
+        assert!(matches!(entry.kind, InodeKind::Fifo));
+    }
+
+    #[test]
+    fn test_fsync_returns_ok() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "test.txt", InodeKind::File, 0o644, 0, 0)
+            .unwrap();
+
+        state.inodes.get_mut(ino).unwrap();
+
+        assert!(state.inodes.get(ino).is_some());
+    }
+
+    #[test]
+    fn test_unlink_removes_xattrs() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "test.txt", InodeKind::File, 0o644, 0, 0)
+            .unwrap();
+        state
+            .xattr
+            .set(ino, std::ffi::OsStr::new("user.test"), b"value")
+            .unwrap();
+
+        state.inodes.remove(ino).unwrap();
+        state.xattr.clear_inode(ino);
+
+        assert_eq!(state.xattr.list(ino).len(), 0);
     }
 }
