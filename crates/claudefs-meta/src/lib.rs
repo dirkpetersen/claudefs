@@ -36,6 +36,8 @@ pub mod membership;
 pub mod metrics;
 /// Multi-Raft group manager
 pub mod multiraft;
+/// Unified metadata server node
+pub mod node;
 /// Speculative path resolution with caching
 pub mod pathres;
 /// QoS (Quality of Service) and traffic shaping for metadata operations
@@ -81,18 +83,23 @@ pub use cdc::{CdcCursor, CdcEvent, CdcStream};
 pub use conflict::{ConflictDetector, ConflictEvent, ConflictWinner};
 pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
+pub use fingerprint::FingerprintIndex;
+pub use kvstore::{KvStore, MemoryKvStore};
 pub use lease::{LeaseManager, LeaseType};
 pub use locking::{LockManager, LockType};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use multiraft::MultiRaftManager;
+pub use node::{MetadataNode, MetadataNodeConfig};
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
 pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
+pub use raft_log::RaftLogStore;
 pub use raftservice::{RaftMetadataService, RaftServiceConfig};
 pub use readindex::{PendingRead, ReadIndexManager, ReadStatus};
 pub use rpc::{MetadataRequest, MetadataResponse, RpcDispatcher};
 pub use scaling::{MigrationStatus, MigrationTask, ScalingManager, ShardPlacement};
 pub use service::MetadataService;
+pub use service::MetadataServiceConfig;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use snapshot::{RaftSnapshot, SnapshotManager};
 pub use tracecontext::{SpanId, SpanRecord, SpanStatus, TraceCollector, TraceContext, TraceId};
