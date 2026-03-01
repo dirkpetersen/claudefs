@@ -8,6 +8,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 3: Production Readiness
 
+#### 2026-03-01 (A11 Session 4 - Connection Health Monitoring)
+
+##### A11: Infrastructure & CI — Connection Health Monitoring Module (904 tests ✅)
+
+**New Transport Layer Features:**
+
+1. ✅ **Connection Health Monitoring Module** (`crates/claudefs-transport/src/health.rs`, 566 lines):
+   - **HealthStatus enum**: Healthy, Degraded, Unhealthy, Unknown states for connection lifecycle
+   - **ConnectionHealth struct**: Thread-safe atomic counters for async operations
+   - **Latency tracking**: min/max/average calculations for performance monitoring
+   - **Failure tracking**: consecutive failures/successes with configurable thresholds
+   - **Packet loss calculation**: ratio-based degradation detection
+   - **Configuration**: HealthConfig for customizable thresholds and timeouts
+   - **17 unit tests**: complete coverage of health transitions and metrics
+   - **Property-based tests**: proptest for random latency and failure injection
+   - **Async compatibility**: Arc-wrapped for tokio::spawn shared state
+
+**Test Suite Status:**
+- ✅ Total: **904 tests passing** (up from 903, 1 new test suite)
+  - +1 health module tests (concurrent updates via Arc)
+- ✅ 0 clippy warnings, clean build
+
+**Next Integration Points:**
+- Connection pooling (use health status to route around degraded connections)
+- QoS scheduler feedback (prioritize healthy connections)
+- RPC retry logic (exponential backoff for degraded/unhealthy)
+- Prometheus metrics export (health status counters and histograms)
+
+---
+
 #### 2026-03-01 (A11 Session 3 - Operational Procedures & Performance Tuning)
 
 ##### A11: Infrastructure & CI — Comprehensive Operational Excellence Framework (903 tests ✅)
