@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Phase 3 Complete (MILESTONE)
+
+#### 2026-03-01 (A8 — Management: Phases 1–3 Complete)
+
+##### A8: Management — 238 tests, 13 modules, 5,227 lines
+
+**Phase 1: Foundation (51 tests, 6 modules):**
+1. `config.rs` — `MgmtConfig` with serde JSON/TOML loading, cluster node addresses, Prometheus scrape config, DuckDB/Parquet paths, TLS cert options (5 tests)
+2. `metrics.rs` — Prometheus-compatible exporter using atomics (counters/gauges/histograms), `ClusterMetrics` with I/O, capacity, node health, replication, dedupe, S3 tiering metrics, `render_prometheus()` text wire format (12 tests)
+3. `api.rs` — Axum HTTP admin API: `/health`, `/metrics`, `/api/v1/cluster/status`, `/api/v1/nodes`, `/api/v1/nodes/{id}/drain`, `/api/v1/replication/status`, `/api/v1/capacity`; bearer token auth middleware (15 tests)
+4. `analytics.rs` — DuckDB analytics engine with `MetadataRecord` schema (Parquet columns from docs/management.md), stub impl with correct API shapes: `top_users`, `top_dirs`, `find_files`, `stale_files`, `reduction_report` (12 tests)
+5. `cli.rs` — Clap CLI: `status`, `node list/drain/show`, `query`, `top-users`, `top-dirs`, `find`, `stale`, `reduction-report`, `replication-status`, `serve` subcommands (8 tests)
+
+**Phase 2: Observability & Indexing (93 new tests, 5 new modules):**
+1. `indexer.rs` — Metadata journal tailer: `JournalOp` enum (Create/Delete/Rename/Write/Chmod/SetReplicated), `NamespaceAccumulator` state machine, JSON Lines writer (DuckDB `read_json_auto` compatible), Hive-style partitioned paths, `MetadataIndexer` async orchestrator with periodic flush loop (25 tests)
+2. `scraper.rs` — Prometheus text format parser, `NodeScraper` HTTP client, `ScraperPool` for concurrent multi-node metric collection (15 tests)
+3. `alerting.rs` — `AlertRule` evaluation (GreaterThan/LessThan/Equal), `Alert` lifecycle (Ok/Firing/Resolved), `AlertManager` with 4 default rules (NodeOffline, HighReplicationLag, HighCapacityUsage, HighWriteLatency), GC for resolved alerts (23 tests)
+4. `quota.rs` — `QuotaLimit`/`QuotaUsage` types, `QuotaRegistry` with per-user/group/directory/tenant limits, `bytes_available`, `is_exceeded`, near-quota tracking (20 tests)
+5. `grafana.rs` — Grafana dashboard JSON generation for ClusterOverview (IOPS, bandwidth, capacity, node health, replication lag, dedupe) and TopUsers (10 tests)
+
+**Phase 3: Advanced Operations (94 new tests, 4 new modules):**
+1. `drain.rs` — Node drain orchestration: `DrainPhase` state machine (Pending/Calculating/Migrating/Reconstructing/AwaitingConnections/Complete), `DrainProgress` with percent-complete and migration-rate-bps, `DrainManager` async registry with concurrent-drain prevention (20 tests)
+2. `tiering.rs` — S3/flash tiering policy (D5/D6): `TieringMode` (Cache/Tiered), `TierTarget` (Flash/S3/Auto), `FlashUtilization` with 80%/60%/95% watermarks, `EvictionCandidate` scoring (`last_access_days × size_bytes`), `TieringManager` with effective-policy parent-path lookup and safety filter (20 tests)
+3. `snapshot.rs` — Snapshot lifecycle (Creating/Available/Archiving/Archived/Restoring/Deleting), `SnapshotCatalog` with retention-based expiry, dedup ratio, `RestoreJob` progress tracking, sorted list by creation time (22 tests)
+4. `health.rs` — `NodeHealth` with capacity/drive health, `HealthAggregator` for cluster-wide aggregation, `ClusterHealth` with worst-status computation, stale node detection, human-readable summary (22 tests)
+
+**MILESTONE: 238 A8 tests passing (zero clippy errors), 13 modules**
+
+---
+
 ### A9: Test & Validation — Phase 1 Complete
 
 #### 2026-03-01 (A9 — Test & Validation: Phase 1 Foundation)
