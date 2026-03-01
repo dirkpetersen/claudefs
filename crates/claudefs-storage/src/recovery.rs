@@ -170,7 +170,7 @@ impl AllocatorBitmap {
             return false;
         }
         let byte_idx = (offset_4k / 8) as usize;
-        let bit_idx = 7 - ((offset_4k % 8) as usize);
+        let bit_idx = (offset_4k % 8) as usize;
         (self.bits[byte_idx] & (1 << bit_idx)) != 0
     }
 
@@ -595,7 +595,7 @@ mod tests {
         let mut bitmap = AllocatorBitmap::new(100);
 
         bitmap.set_allocated(99, 10);
-        assert!(!bitmap.is_allocated(99));
+        assert!(bitmap.is_allocated(99));
 
         bitmap.set_allocated(50, 100);
         assert!(!bitmap.is_allocated(150));
@@ -606,23 +606,51 @@ mod tests {
         let data = vec![0xFF, 0x0F, 0xF0, 0x00];
         let bitmap = AllocatorBitmap::from_bytes(&data, 32).unwrap();
 
+        // byte 0 = 0xFF: all bits set
         for i in 0..8 {
-            assert!(bitmap.is_allocated(i));
+            assert!(
+                bitmap.is_allocated(i),
+                "block {} should be allocated (byte 0xFF)",
+                i
+            );
         }
+        // byte 1 = 0x0F = 00001111: lower nibble set (blocks 8-11)
         for i in 8..12 {
-            assert!(!bitmap.is_allocated(i));
+            assert!(
+                bitmap.is_allocated(i),
+                "block {} should be allocated (byte 0x0F lower)",
+                i
+            );
         }
         for i in 12..16 {
-            assert!(bitmap.is_allocated(i));
+            assert!(
+                !bitmap.is_allocated(i),
+                "block {} should NOT be allocated (byte 0x0F upper)",
+                i
+            );
         }
-        for i in 16..24 {
-            assert!(!bitmap.is_allocated(i));
+        // byte 2 = 0xF0 = 11110000: upper nibble set (blocks 20-23)
+        for i in 16..20 {
+            assert!(
+                !bitmap.is_allocated(i),
+                "block {} should NOT be allocated (byte 0xF0 lower)",
+                i
+            );
         }
-        for i in 24..28 {
-            assert!(bitmap.is_allocated(i));
+        for i in 20..24 {
+            assert!(
+                bitmap.is_allocated(i),
+                "block {} should be allocated (byte 0xF0 upper)",
+                i
+            );
         }
-        for i in 28..32 {
-            assert!(!bitmap.is_allocated(i));
+        // byte 3 = 0x00: all zero
+        for i in 24..32 {
+            assert!(
+                !bitmap.is_allocated(i),
+                "block {} should NOT be allocated (byte 0x00)",
+                i
+            );
         }
     }
 
@@ -659,8 +687,11 @@ mod tests {
         let bytes = bitmap.to_bytes();
         assert_eq!(bytes.len(), 8);
 
-        assert_eq!(bytes[0], 0xFF);
-        assert_eq!(bytes[1], 0xFF);
+        assert_eq!(bytes[0], 0xFF); // blocks 0-7
+        assert_eq!(bytes[1], 0x00); // blocks 8-15
+        assert_eq!(bytes[2], 0xFF); // blocks 16-23
+        assert_eq!(bytes[3], 0x00); // blocks 24-31
+        assert_eq!(bytes[4], 0xFF); // blocks 32-39
     }
 
     #[test]
@@ -890,7 +921,7 @@ mod tests {
         let data = vec![0xFF, 0x0F, 0xF0, 0x00, 0x00];
         let bitmap = manager.load_bitmap(&data, 100).unwrap();
 
-        assert_eq!(bitmap.allocated_count(), 12);
+        assert_eq!(bitmap.allocated_count(), 16);
     }
 
     #[test]
