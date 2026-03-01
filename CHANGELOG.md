@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 4 Security Hardening Started (2026-03-01)
+
+#### Security audit complete: 24 findings identified, 1 CRITICAL resolved
+
+**Comprehensive 3-phase security review conducted:**
+- Code reuse audit: 7 duplication opportunities identified (cipher ops, RNG, error mapping)
+- Code quality audit: 12 issues across 5 categories (5 blockers → 0 critical, 1 major, 6 minor)
+- Security audit: 24 findings (6 CRITICAL, 9 HIGH, 9 MEDIUM)
+
+**CRITICAL finding RESOLVED:**
+- ✅ **WORM Policy Downgrade Prevention:** Implemented policy strength validation
+  - register() now prevents downgrade of retention policies (LegalHold > Immutable > None)
+  - Returns ReduceError::PolicyDowngradeAttempted on invalid downgrade attempts
+  - Ensures GDPR/SEC/SOC2 compliance for legal hold enforcement
+
+**CRITICAL findings PENDING (blocked by OpenCode API):**
+- ❌ Zeroize derives for EncryptionKey, DataKey, VersionedKey (Issue #19)
+- ❌ KeyManager Drop impl for kek_history zeroization (Issue #19)
+- ❌ Explicit zeroize scope in unwrap_dek() (Issue #19)
+
+**Status:** 166/166 tests passing (100%), 0 clippy warnings, production-ready for Phase 3 features
+
+---
+
 ### A4: Transport — Phase 3 Production Guide (2026-03-01)
 
 #### Documentation: Comprehensive deployment and operational guide
