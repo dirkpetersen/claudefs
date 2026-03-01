@@ -8,9 +8,15 @@
 //! - RDMA transport via libfabric (when hardware available)
 //! - Connection pooling and lifecycle management
 //! - Request/response multiplexing
+//! - Adaptive load shedding
+//! - Request cancellation
+//! - Speculative hedging
+//! - Multi-tenant traffic isolation
+//! - Zero-copy buffer management
 
 pub mod batch;
 pub mod buffer;
+pub mod cancel;
 pub mod circuitbreaker;
 pub mod client;
 pub mod compress;
@@ -22,7 +28,9 @@ pub mod error;
 pub use drain::{DrainConfig, DrainController, DrainGuard, DrainListener, DrainState, DrainStats};
 pub mod flowcontrol;
 pub mod health;
+pub mod hedge;
 pub mod keepalive;
+pub mod loadshed;
 pub mod message;
 pub mod metrics;
 pub mod mux;
@@ -36,12 +44,14 @@ pub mod rdma;
 pub mod rpc;
 pub mod server;
 pub mod tcp;
+pub mod tenant;
 pub mod tls;
 pub mod tls_tcp;
 pub mod ratelimit;
 pub mod tracecontext;
 pub mod transport;
 pub mod version;
+pub mod zerocopy;
 
 pub use batch::{
     BatchConfig, BatchCollector, BatchEnvelope, BatchItem, BatchRequest, BatchResponse,
@@ -86,3 +96,8 @@ pub use ratelimit::{
 pub use transport::{Transport, Connection, Listener};
 pub use circuitbreaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
 pub use server::{ServerConfig, RequestContext, RequestHandler, RpcServer, ServerStats};
+pub use cancel::{CancelToken, CancelHandle, CancelReason, CancelRegistry, CancelStats};
+pub use hedge::{HedgeConfig, HedgePolicy, HedgeStats, HedgeTracker};
+pub use loadshed::{LoadShedConfig, LoadShedStats, LoadShedder};
+pub use tenant::{TenantId, TenantConfig, TenantTracker, TenantStats, TenantManager, TenantAdmitResult};
+pub use zerocopy::{ZeroCopyConfig, MemoryRegion, RegionId, RegionPool, RegionPoolStats};
