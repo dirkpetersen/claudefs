@@ -342,13 +342,13 @@ impl Drop for QosPermit {
             let size = self.size_bytes;
             let wait = wait_ms;
             // Spawn a task to release the permit (fire and forget)
-            let _ = tokio::spawn(async move {
+            drop(tokio::spawn(async move {
                 let mut scheduler = scheduler.write().await;
                 if let Some(stats) = scheduler.stats.get_mut(&class) {
                     stats.total_bytes += size;
                     stats.total_wait_ms += wait;
                 }
-            });
+            }));
         }
     }
 }
@@ -397,7 +397,7 @@ impl QosScheduler {
             WorkloadClass::Replication,
             WorkloadClass::Management,
         ] {
-            if !token_buckets.contains_key(&class) {
+            token_buckets.entry(class).or_insert_with(|| {
                 let default_cfg = QosConfig::new(
                     class.default_max_bandwidth(),
                     class.default_max_requests_per_sec(),
@@ -405,14 +405,9 @@ impl QosScheduler {
                     class.default_burst_size(),
                     class.default_priority(),
                 );
-                token_buckets.insert(
-                    class,
-                    TokenBucket::new(u64::MAX, default_cfg.burst_size),
-                );
-            }
-            if !stats.contains_key(&class) {
-                stats.insert(class, ClassStats::default());
-            }
+                TokenBucket::new(u64::MAX, default_cfg.burst_size)
+            });
+            stats.entry(class).or_insert_with(ClassStats::default);
         }
 
         let inner = QosSchedulerInner {
@@ -637,7 +632,7 @@ mod tests {
         let stats = scheduler.stats().await;
         let interactive = stats.get(&WorkloadClass::Interactive);
         let batch = stats.get(&WorkloadClass::Batch);
-        let replication = stats.get(&WorkloadClass::Replication);
+        let _replication = stats.get(&WorkloadClass::Replication);
 
         assert_eq!(interactive.admitted, 2);
         assert_eq!(interactive.total_bytes, 3072);
