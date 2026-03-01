@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 2 Complete
+
+#### 2026-03-01 (A6 — Replication: Phase 2 Conduit and Sync)
+
+##### A6: Replication — Phase 1+2 (111 tests, 6 modules)
+
+**Phase 1: Foundation (50 tests, 4 modules):**
+1. `error.rs` — ReplError with thiserror (Journal, WalCorrupted, SiteUnknown, ConflictDetected, NetworkError, Serialization, Io, VersionMismatch, Shutdown)
+2. `journal.rs` — JournalEntry with CRC32 integrity, 11 OpKinds, JournalTailer with async iteration, shard filtering, position seeking (15 tests)
+3. `wal.rs` — ReplicationWal tracking per-(site,shard) replication cursors with history compaction (18 tests)
+4. `topology.rs` — SiteId/NodeId types, ReplicationRole (Primary/Replica/Bidirectional), SiteInfo, ReplicationTopology with active-site filtering (16 tests)
+
+**Phase 2: Conduit and Sync (61 tests, 2 modules):**
+5. `conduit.rs` — In-process cloud conduit simulating gRPC/mTLS channel: ConduitTlsConfig, ConduitConfig with exponential backoff, EntryBatch, lock-free AtomicU64 stats, ConduitState, new_pair() for test setup, send_batch()/recv_batch() with shutdown semantics (21 tests)
+6. `sync.rs` — LWW conflict detection (ConflictDetector), batch compaction (BatchCompactor deduplicates Write/SetXattr/SetAttr per inode), ReplicationSync coordinator with apply_batch()/lag()/wal_snapshot() (36 tests via 2 nested test modules)
+
+**MILESTONE: 111 replication tests passing, zero clippy warnings**
+
+---
+
 ### A10: Security Audit — Phase 2 Initial Audit
 
 #### 2026-03-01 (A10 — Security Audit: Phase 2 Initial)
