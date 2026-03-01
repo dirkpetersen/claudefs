@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 6 Advanced Reliability, Observability & Multipath COMPLETE
+
+#### 2026-03-01 (A5 — FUSE Client: Phase 6 Advanced Reliability, Observability & Multipath)
+
+##### A5: FUSE — 717 tests, 42 modules, 5 new advanced modules
+
+**Phase 6 (76 new tests, 5 new modules) — OTel tracing, ID mapping, BSD locks, multipath, crash recovery:**
+
+1. `otel_trace.rs` — OpenTelemetry-compatible span collection (11 tests):
+   - `SpanStatus` enum: Ok / Error(String) / Unset, `SpanKind` enum: Internal / Client / Server / Producer / Consumer
+   - `OtelSpan` with trace_id, span_id, parent_span_id, operation, service, timing, attributes
+   - `OtelSpanBuilder` with `with_parent(TraceContext)`, `with_kind`, `with_attribute`, deterministic span_id generation
+   - `OtelExportBuffer`: fixed-capacity ring buffer (max 10,000 spans), push/drain interface
+   - `OtelSampler`: deterministic sampling at configurable rate (0.0–1.0) based on trace_id bits
+   - Integrates with existing `tracing_client.rs` (TraceId/SpanId/TraceContext)
+
+2. `idmap.rs` — UID/GID identity mapping for user namespace support (16 tests):
+   - `IdMapMode`: Identity / Squash{nobody_uid, nobody_gid} / RangeShift{host_base, local_base, count} / Table
+   - `IdMapper` with `map_uid/map_gid` for all modes and `reverse_map_uid/reverse_map_gid` for Table mode
+   - Root preservation: `map_uid(0)` returns 0 in Identity and RangeShift (root not remapped unless in Table)
+   - Max 65,536 entries per table with duplicate detection
+   - `IdMapStats` tracking lookup hit rates
+
+3. `flock.rs` — BSD flock(2) advisory lock support (15 tests):
+   - `FlockType`: Shared / Exclusive / Unlock, `FlockHandle` with fd+ino+pid ownership model
+   - `FlockRegistry`: whole-file locks per fd, upgrade/downgrade semantics
+   - Conflict rules: Shared+Shared OK, Exclusive+any conflict, upgrade Shared→Exclusive requires no other holders
+   - `release_all_for_pid()` for process-exit cleanup
+   - Complements existing `locking.rs` (POSIX fcntl byte-range locks)
+
+4. `multipath.rs` — Multi-path I/O routing with load balancing and failover (16 tests):
+   - `PathId(u64)`, `PathState`: Active / Degraded / Failed / Reconnecting
+   - `PathMetrics`: EMA latency (`new = (7*old + sample)/8`), error count, score for path selection
+   - `MultipathRouter` with `LoadBalancePolicy`: RoundRobin / LeastLatency / Primary
+   - Auto-degradation after 3 errors, auto-failure after 10 errors
+   - `select_path()` skips Failed paths; `all_paths_failed()` for total outage detection
+   - Max 16 paths per router
+
+5. `crash_recovery.rs` — Client-side crash recovery and state reconstruction (18 tests):
+   - `RecoveryState`: Idle → Scanning → Replaying{replayed, total} → Complete{recovered, orphaned} / Failed
+   - `RecoveryJournal`: collects OpenFileRecord and PendingWrite entries during scan phase
+   - `CrashRecovery` state machine: begin_scan / record_open_file / begin_replay / advance_replay / complete / fail / reset
+   - `OpenFileRecord`: writable/append-only detection via flags bitmask
+   - `PendingWrite`: stale write detection by age
+   - `RecoveryConfig`: configurable max files (10K), max recovery time (30s), stale write age (300s)
+
+**MILESTONE: 717 A5 tests, 42 modules**
+
+---
+
 ### A8: Management — Phase 6 Security Hardening COMPLETE
 
 #### 2026-03-01 (A8 — Phase 6: Security Hardening — Addressing A10 Audit Findings)
