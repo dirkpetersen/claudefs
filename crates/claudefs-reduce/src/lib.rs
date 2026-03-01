@@ -13,9 +13,13 @@ pub mod error;
 pub mod fingerprint;
 pub mod gc;
 pub mod key_manager;
+pub mod meta_bridge;
 pub mod pipeline;
+pub mod recompressor;
 pub mod segment;
 pub mod similarity;
+pub mod snapshot;
+pub mod write_path;
 
 pub use compression::CompressionAlgorithm;
 pub use dedupe::{CasIndex, Chunk, Chunker, ChunkerConfig};
@@ -28,3 +32,7 @@ pub use pipeline::{PipelineConfig, ReducedChunk, ReductionPipeline, ReductionSta
 pub use background::{BackgroundConfig, BackgroundHandle, BackgroundProcessor, BackgroundStats, BackgroundTask};
 pub use segment::{Segment, SegmentEntry, SegmentPacker, SegmentPackerConfig};
 pub use similarity::{DeltaCompressor, SimilarityIndex};
+pub use meta_bridge::{BlockLocation, FingerprintStore, LocalFingerprintStore, NullFingerprintStore};
+pub use recompressor::{RecompressedChunk, RecompressionStats, RecompressorConfig, Recompressor};
+pub use snapshot::{Snapshot, SnapshotConfig, SnapshotInfo, SnapshotManager};
+pub use write_path::{IntegratedWritePath, WritePathConfig, WritePathResult, WritePathStats};
