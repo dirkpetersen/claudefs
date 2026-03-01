@@ -160,7 +160,7 @@ impl Default for FlowController {
 ///
 /// Automatically releases capacity when dropped.
 pub struct FlowPermit {
-    controller: Arc<FlowController>,
+    inner: Arc<FlowControllerInner>,
     bytes: u64,
 }
 
@@ -173,7 +173,10 @@ impl FlowPermit {
 
 impl Drop for FlowPermit {
     fn drop(&mut self) {
-        self.controller.release(self.bytes);
+        self.inner.inflight_requests.fetch_sub(1, Ordering::AcqRel);
+        self.inner
+            .inflight_bytes
+            .fetch_sub(self.bytes, Ordering::AcqRel);
     }
 }
 
@@ -193,7 +196,7 @@ impl WindowController {
         Self {
             window_size,
             window_start: AtomicU64::new(0),
-            window_end: AtomicU64::new(0),
+            window_end: AtomicU64::new(window_size as u64),
             sent: AtomicU64::new(0),
         }
     }
@@ -203,38 +206,31 @@ impl WindowController {
     /// Returns `true` if the sequence is within the window, `false` otherwise.
     pub fn advance(&self, sequence: u64) -> bool {
         let start = self.window_start.load(Ordering::Acquire);
-        let end = self.window_end.load(Ordering::Acquire);
+        let end = start.saturating_add(self.window_size as u64);
 
-        if sequence > end {
+        // Check if sequence is within the window [start, end)
+        if sequence < start || sequence >= end {
             return false;
         }
 
-        // Try to extend the window if there's room
-        if sequence >= start && sequence < start + self.window_size as u64 {
-            let current_sent = self.sent.load(Ordering::Acquire);
-            let new_sent = current_sent + 1;
-
-            // Check if we can send more
-            if new_sent - start < self.window_size as u64 {
-                // Try to update sent count
-                let _ = self.sent.compare_exchange(
-                    current_sent,
-                    new_sent,
-                    Ordering::AcqRel,
-                    Ordering::Acquire,
-                );
-                return true;
-            }
+        // Check if we have room in the window
+        let current_sent = self.sent.load(Ordering::Acquire);
+        if current_sent.saturating_sub(start) >= self.window_size as u64 {
+            return false; // Window is full
         }
 
-        false
+        // Try to increment sent count
+        let new_sent = current_sent + 1;
+        self.sent
+            .compare_exchange(current_sent, new_sent, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
     }
 
     /// Returns whether the window can accept new sends.
     pub fn can_send(&self) -> bool {
         let start = self.window_start.load(Ordering::Acquire);
         let sent = self.sent.load(Ordering::Acquire);
-        sent - start < self.window_size as u64
+        sent.saturating_sub(start) < self.window_size as u64
     }
 
     /// Acknowledges a sequence number, sliding the window forward.
@@ -250,17 +246,9 @@ impl WindowController {
                 Ordering::Acquire,
             ) {
                 Ok(_) => {
-                    // Successfully advanced, update window_end as well
-                    let end = self.window_end.load(Ordering::Acquire);
-                    if start + 1 + self.window_size as u64 > end {
-                        let _ = self.window_end.compare_exchange(
-                            end,
-                            start + 1 + self.window_size as u64,
-                            Ordering::AcqRel,
-                            Ordering::Acquire,
-                        );
-                    }
-                    break;
+                    // Successfully advanced to start + 1
+                    // Continue loop to advance further if needed
+                    start += 1;
                 }
                 Err(new_start) => start = new_start,
             }
@@ -286,7 +274,7 @@ impl WindowController {
     pub fn in_flight(&self) -> u32 {
         let start = self.window_start.load(Ordering::Acquire);
         let sent = self.sent.load(Ordering::Acquire);
-        (sent - start) as u32
+        sent.saturating_sub(start) as u32
     }
 }
 
@@ -516,32 +504,40 @@ mod tests {
         config.low_watermark_pct = 30;
         let controller = FlowController::new(config);
 
-        // At 0-30%: Open
+        let mut permits = Vec::new();
+
+        // At 0-59%: Open
         for _ in 0..30 {
-            controller.try_acquire(1).unwrap();
+            permits.push(controller.try_acquire(1).unwrap());
         }
         assert_eq!(controller.state(), FlowControlState::Open);
 
-        // At 30-60%: Open (above low but below high)
-        for _ in 0..30 {
-            controller.try_acquire(1).unwrap();
+        for _ in 0..29 {
+            permits.push(controller.try_acquire(1).unwrap());
         }
         assert_eq!(controller.state(), FlowControlState::Open);
 
         // At 60%+: Throttled
         for _ in 0..1 {
-            controller.try_acquire(1).unwrap();
+            permits.push(controller.try_acquire(1).unwrap());
         }
         assert_eq!(controller.state(), FlowControlState::Throttled);
 
-        // Release to 30% - still Throttled (doesn't go back to Open until below low)
-        for _ in 0..31 {
-            controller.release(1);
+        // Release to 59% - back to Open (below high watermark)
+        for _ in 0..1 {
+            let p = permits.remove(0);
+            drop(p);
+        }
+        assert_eq!(controller.state(), FlowControlState::Open);
+
+        // Acquire back to 60%+ - Throttled again
+        for _ in 0..1 {
+            permits.push(controller.try_acquire(1).unwrap());
         }
         assert_eq!(controller.state(), FlowControlState::Throttled);
 
-        // Release to below 30% - back to Open
-        controller.release(1);
+        // Release all - Open
+        permits.clear();
         assert_eq!(controller.state(), FlowControlState::Open);
     }
 
