@@ -16,6 +16,7 @@ pub mod indexer;
 pub mod metrics;
 pub mod quota;
 pub mod scraper;
+pub mod security;
 
 pub use alerting::AlertManager;
 pub use analytics::AnalyticsEngine;

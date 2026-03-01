@@ -7,13 +7,18 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower::ServiceExt;
+
+#[derive(Debug, Clone)]
+pub struct AuthenticatedUser {
+    pub is_admin: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeInfo {
@@ -111,6 +116,7 @@ pub struct AdminApi {
     metrics: Arc<ClusterMetrics>,
     config: Arc<MgmtConfig>,
     node_registry: Arc<RwLock<NodeRegistry>>,
+    rate_limiter: Arc<crate::security::AuthRateLimiter>,
 }
 
 impl AdminApi {
@@ -119,11 +125,12 @@ impl AdminApi {
             metrics,
             config,
             node_registry: Arc::new(RwLock::new(NodeRegistry::new())),
+            rate_limiter: Arc::new(crate::security::AuthRateLimiter::new()),
         }
     }
 
     pub fn router(self: Arc<Self>) -> Router {
-        Router::new()
+        let protected = Router::new()
             .route("/health", get(health_handler))
             .route("/metrics", get(metrics_handler))
             .route("/api/v1/cluster/status", get(cluster_status_handler))
@@ -134,6 +141,15 @@ impl AdminApi {
             .layer(axum::middleware::from_fn_with_state(
                 self.clone(),
                 auth_middleware,
+            ));
+
+        let public = Router::new().route("/ready", get(ready_handler));
+
+        Router::new()
+            .merge(protected)
+            .merge(public)
+            .layer(axum::middleware::from_fn(
+                crate::security::security_headers_middleware,
             ))
             .with_state(self)
     }
@@ -154,6 +170,12 @@ async fn health_handler() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "ok",
         "version": "0.1.0"
+    }))
+}
+
+async fn ready_handler() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "status": "ok"
     }))
 }
 
@@ -196,8 +218,12 @@ async fn nodes_list_handler(State(state): State<Arc<AdminApi>>) -> Json<Vec<Node
 
 async fn node_drain_handler(
     State(state): State<Arc<AdminApi>>,
+    Extension(user): Extension<AuthenticatedUser>,
     Path(node_id): Path<String>,
-) -> Json<DrainResponse> {
+) -> impl axum::response::IntoResponse {
+    if !user.is_admin {
+        return (StatusCode::FORBIDDEN, Json(serde_json::json!({"error": "requires admin role"}))).into_response();
+    }
     let mut registry = state.node_registry.write().await;
 
     if registry.get_node(&node_id).is_some() {
@@ -206,13 +232,13 @@ async fn node_drain_handler(
             node_id,
             status: "draining".to_string(),
             message: "Node drain initiated".to_string(),
-        })
+        }).into_response()
     } else {
         Json(DrainResponse {
             node_id,
             status: "error".to_string(),
             message: "Node not found".to_string(),
-        })
+        }).into_response()
     }
 }
 
@@ -255,10 +281,23 @@ async fn capacity_handler(State(state): State<Arc<AdminApi>>) -> Json<CapacitySu
 
 async fn auth_middleware(
     State(state): State<Arc<AdminApi>>,
-    request: Request<Body>,
+    mut request: Request<Body>,
     next: Next,
 ) -> Response {
+    let ip = request
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    if state.rate_limiter.is_rate_limited(&ip) {
+        return (StatusCode::TOO_MANY_REQUESTS, "Too Many Requests").into_response();
+    }
+
     if state.config.admin_token.is_none() {
+        tracing::warn!("[SECURITY WARNING] admin API is running without authentication — set admin_token in config");
+        request.extensions_mut().insert(AuthenticatedUser { is_admin: true });
         return next.run(request).await;
     }
 
@@ -269,10 +308,12 @@ async fn auth_middleware(
             let auth_str = auth_header.to_str().unwrap_or("");
             if auth_str.starts_with("Bearer ") {
                 let provided_token = &auth_str[7..];
-                if provided_token == token {
+                if crate::security::constant_time_eq(provided_token, token) {
+                    request.extensions_mut().insert(AuthenticatedUser { is_admin: true });
                     return next.run(request).await;
                 }
             }
+            state.rate_limiter.record_failure(&ip);
             (
                 StatusCode::UNAUTHORIZED,
                 [(
@@ -283,15 +324,18 @@ async fn auth_middleware(
             )
                 .into_response()
         }
-        None => (
-            StatusCode::UNAUTHORIZED,
-            [(
-                header::WWW_AUTHENTICATE,
-                r#"Bearer realm="claudefs-mgmt""#,
-            )],
-            "Unauthorized",
-        )
-            .into_response(),
+        None => {
+            state.rate_limiter.record_failure(&ip);
+            (
+                StatusCode::UNAUTHORIZED,
+                [(
+                    header::WWW_AUTHENTICATE,
+                    r#"Bearer realm="claudefs-mgmt""#,
+                )],
+                "Unauthorized",
+            )
+                .into_response()
+        }
     }
 }
 
@@ -532,5 +576,97 @@ mod tests {
 
         assert!(output.contains("# TYPE claudefs_nodes_total gauge"));
         assert!(output.contains("claudefs_nodes_total 5"));
+    }
+
+    #[tokio::test]
+    async fn test_ready_endpoint_accessible_without_auth() {
+        let mut config = MgmtConfig::default();
+        config.admin_token = Some("secret-token".to_string());
+
+        let config = Arc::new(config);
+        let metrics = Arc::new(ClusterMetrics::new());
+        let api = Arc::new(AdminApi::new(metrics, config));
+        let router = api.router();
+
+        let request = Request::builder()
+            .uri("/ready")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "ok");
+        assert!(json.get("version").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_constant_time_comparison_used() {
+        let mut config = MgmtConfig::default();
+        config.admin_token = Some("secret-token".to_string());
+
+        let config = Arc::new(config);
+        let metrics = Arc::new(ClusterMetrics::new());
+        let api = Arc::new(AdminApi::new(metrics, config));
+        let router = api.router();
+
+        let request = Request::builder()
+            .uri("/api/v1/nodes")
+            .header("Authorization", "Bearer secret-token")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_security_headers_on_health_response() {
+        let config = Arc::new(MgmtConfig::default());
+        let metrics = Arc::new(ClusterMetrics::new());
+        let api = Arc::new(AdminApi::new(metrics, config));
+        let router = api.router();
+
+        let request = Request::builder().uri("/health").body(Body::empty()).unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            response.headers().contains_key("x-content-type-options"),
+            "x-content-type-options header should be present"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_blocks_after_five_failures() {
+        let mut config = MgmtConfig::default();
+        config.admin_token = Some("secret-token".to_string());
+
+        let config = Arc::new(config);
+        let metrics = Arc::new(ClusterMetrics::new());
+        let api = Arc::new(AdminApi::new(metrics, config));
+        let router = api.router();
+
+        for i in 0..5 {
+            let request = Request::builder()
+                .uri("/api/v1/nodes")
+                .header("Authorization", "Bearer wrong-token")
+                .header("x-forwarded-for", "10.0.0.1")
+                .body(Body::empty())
+                .unwrap();
+            let response = router.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "Request {} should fail", i + 1);
+        }
+
+        let request = Request::builder()
+            .uri("/api/v1/nodes")
+            .header("Authorization", "Bearer wrong-token")
+            .header("x-forwarded-for", "10.0.0.1")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS, "6th request should be rate limited");
     }
 }
