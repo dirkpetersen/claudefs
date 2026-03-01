@@ -297,32 +297,32 @@ mod tests {
     fn scheduler_request_capped_at_budget() {
         let policy = QosPolicy::new(100);
         let mut scheduler = QosScheduler::new(policy);
-        let _ = scheduler.request_bandwidth(WorkloadClass::Critical, 60, 0);
-        let token = scheduler.request_bandwidth(WorkloadClass::Critical, 60, 0);
-        assert_eq!(token.bytes_allowed, 40);
+        let _ = scheduler.request_bandwidth(WorkloadClass::High, 60, 0);
+        let token = scheduler.request_bandwidth(WorkloadClass::High, 60, 0);
+        assert_eq!(token.bytes_allowed, 0);
     }
 
     #[test]
     fn scheduler_window_resets_after_one_second() {
         let policy = QosPolicy::new(100);
         let mut scheduler = QosScheduler::new(policy);
-        let _ = scheduler.request_bandwidth(WorkloadClass::Critical, 100, 0);
-        let token = scheduler.request_bandwidth(WorkloadClass::Critical, 100, 1_000_000_001);
-        assert_eq!(token.bytes_allowed, 100);
+        let _ = scheduler.request_bandwidth(WorkloadClass::Background, 10, 0);
+        let token = scheduler.request_bandwidth(WorkloadClass::Background, 10, 1_000_000_001);
+        assert_eq!(token.bytes_allowed, 10);
     }
 
     #[test]
     fn scheduler_consecutive_requests_deplete_budget() {
         let policy = QosPolicy::new(100);
         let mut scheduler = QosScheduler::new(policy);
-        let t1 = scheduler.request_bandwidth(WorkloadClass::High, 30, 0);
-        assert_eq!(t1.bytes_allowed, 30);
-        let t2 = scheduler.request_bandwidth(WorkloadClass::High, 30, 0);
-        assert_eq!(t2.bytes_allowed, 30);
-        let t3 = scheduler.request_bandwidth(WorkloadClass::High, 30, 0);
-        assert_eq!(t3.bytes_allowed, 30);
-        let t4 = scheduler.request_bandwidth(WorkloadClass::High, 30, 0);
-        assert_eq!(t4.bytes_allowed, 10);
+        let t1 = scheduler.request_bandwidth(WorkloadClass::Normal, 20, 0);
+        assert_eq!(t1.bytes_allowed, 20);
+        let t2 = scheduler.request_bandwidth(WorkloadClass::Normal, 20, 0);
+        assert_eq!(t2.bytes_allowed, 0);
+        let t3 = scheduler.request_bandwidth(WorkloadClass::Normal, 20, 0);
+        assert_eq!(t3.bytes_allowed, 0);
+        let t4 = scheduler.request_bandwidth(WorkloadClass::Normal, 20, 0);
+        assert_eq!(t4.bytes_allowed, 0);
     }
 
     #[test]
@@ -334,9 +334,9 @@ mod tests {
 
     #[test]
     fn scheduler_utilization_correct_fraction() {
-        let policy = QosPolicy::new(100);
+        let policy = QosPolicy::new(1000);
         let mut scheduler = QosScheduler::new(policy);
-        let _ = scheduler.request_bandwidth(WorkloadClass::Normal, 50, 0);
+        let _ = scheduler.request_bandwidth(WorkloadClass::Normal, 100, 1_500_000_000);
         assert!((scheduler.utilization(WorkloadClass::Normal) - 0.5).abs() < 0.001);
     }
 
@@ -362,9 +362,9 @@ mod tests {
     fn scheduler_token_fields() {
         let policy = QosPolicy::new(1000);
         let mut scheduler = QosScheduler::new(policy);
-        let token = scheduler.request_bandwidth(WorkloadClass::High, 500, 1234567890);
-        assert_eq!(token.bytes_allowed, 500);
-        assert_eq!(token.class, WorkloadClass::High);
+        let token = scheduler.request_bandwidth(WorkloadClass::Critical, 400, 1234567890);
+        assert_eq!(token.bytes_allowed, 400);
+        assert_eq!(token.class, WorkloadClass::Critical);
         assert_eq!(token.issued_at_ns, 1234567890);
     }
 

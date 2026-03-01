@@ -90,23 +90,24 @@ impl KeyRotationScheduler {
     }
 
     pub fn rewrap_next(&mut self, km: &mut KeyManager) -> Result<Option<u64>, ReduceError> {
-        let target_version = match &self.status {
-            RotationStatus::Scheduled { target_version } => {
-                let total = self.entries.values().filter(|e| e.needs_rotation).count();
-                self.status = RotationStatus::InProgress {
-                    target_version: *target_version,
-                    rewrapped: 0,
-                    total,
-                };
-                *target_version
-            }
-            RotationStatus::InProgress { target_version, .. } => *target_version,
+        let (target_version, should_transition_to_in_progress) = match &self.status {
+            RotationStatus::Scheduled { target_version } => (*target_version, true),
+            RotationStatus::InProgress { target_version, .. } => (*target_version, false),
             _ => {
                 return Err(ReduceError::EncryptionFailed(
                     "no rotation scheduled".to_string(),
                 ));
             }
         };
+
+        if should_transition_to_in_progress {
+            let total = self.entries.values().filter(|e| e.needs_rotation).count();
+            self.status = RotationStatus::InProgress {
+                target_version,
+                rewrapped: 0,
+                total,
+            };
+        }
 
         for (chunk_id, entry) in self.entries.iter_mut() {
             if entry.needs_rotation {
@@ -137,11 +138,13 @@ impl KeyRotationScheduler {
 
         if let RotationStatus::InProgress {
             rewrapped, total, ..
-        } = &mut self.status
+        } = &self.status
         {
+            let rewrapped = *rewrapped;
+            let total = *total;
             self.status = RotationStatus::Complete {
                 version: target_version,
-                rewrapped: *rewrapped,
+                rewrapped,
             };
         }
 

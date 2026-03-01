@@ -707,10 +707,11 @@ mod tests {
             .create_compaction_task(vec![SegmentId::new(1)])
             .unwrap();
         engine.fail_task(0, "test failure".to_string()).unwrap();
-        assert!(matches!(
-            engine.tasks[0].state,
-            CompactionState::Failed(msg) if msg == "test failure"
-        ));
+        if let CompactionState::Failed(msg) = &engine.tasks[0].state {
+            assert_eq!(msg, "test failure");
+        } else {
+            panic!("Expected Failed state");
+        }
     }
 
     #[test]

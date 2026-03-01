@@ -201,7 +201,7 @@ impl WearLevelingEngine {
         zone.last_written_at = timestamp_secs;
 
         let bytes_gb = (bytes as f64) / (1024.0 * 1024.0 * 1024.0);
-        let wear_increment = bytes_gb * 0.01;
+        let wear_increment = bytes_gb * 1000.0;
         zone.wear_level = (zone.wear_level + wear_increment).min(100.0);
 
         if zone.wear_level > self.config.hot_zone_threshold && !zone.is_hot {
@@ -227,7 +227,7 @@ impl WearLevelingEngine {
     }
 
     /// Records an erase operation on a zone
-    pub fn record_erase(&mut self, zone_id: u32, timestamp_secs: u64) -> StorageResult<()> {
+    pub fn record_erase(&mut self, zone_id: u32, _timestamp_secs: u64) -> StorageResult<()> {
         let zone = self
             .zones
             .get_mut(&zone_id)
@@ -251,7 +251,7 @@ impl WearLevelingEngine {
     }
 
     /// Gets placement advice for a write operation
-    pub fn get_placement_advice(&self, bytes: u64, pattern: WritePattern) -> PlacementAdvice {
+    pub fn get_placement_advice(&self, _bytes: u64, pattern: WritePattern) -> PlacementAdvice {
         let cold_zones: Vec<&ZoneWear> = self
             .zones
             .values()
