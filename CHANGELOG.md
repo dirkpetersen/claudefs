@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A1: Storage Engine — Phase 2 Integration COMPLETE
+
+#### 2026-03-01 (A1 — Phase 2: Write Journal, Atomic Writes, I/O Scheduling, Caching, Metrics, Health)
+
+**Phase 2 (155 new tests, 6 new modules) — production integration features:**
+
+1. `write_journal.rs` (23 tests): D3 synchronous write-ahead journal
+   - JournalEntry with sequence numbers, checksums, timestamps
+   - JournalOp variants: Write, Truncate, Delete, Mkdir, Fsync
+   - SyncMode: Sync, BatchSync, AsyncSync for write durability control
+   - Commit/truncate lifecycle for segment packing integration
+   - Journal full detection and space reclamation
+
+2. `atomic_write.rs` (32 tests): Kernel 6.11+ NVMe atomic write support (D10)
+   - AtomicWriteCapability: device probing and size/alignment checks
+   - AtomicWriteBatch: validated batches with fence support
+   - AtomicWriteEngine: submission engine with fallback to non-atomic path
+   - Alignment and size limit enforcement
+
+3. `io_scheduler.rs` (22 tests): Priority-based I/O scheduler with QoS
+   - IoPriority: Critical > High > Normal > Low
+   - Per-priority queues with starvation prevention (aging promotion)
+   - Configurable queue depth, inflight limits, critical reservation
+   - Drain and complete tracking for full I/O lifecycle
+
+4. `block_cache.rs` (27 tests): LRU block cache for hot data
+   - CacheEntry with dirty tracking, pinning, access counting
+   - LRU eviction that skips pinned blocks
+   - Memory limit and entry count enforcement
+   - Hit rate calculation and comprehensive stats
+
+5. `metrics.rs` (24 tests): Prometheus-compatible storage metrics
+   - Counter, Gauge, Histogram metric types
+   - I/O ops, bytes, latency ring buffer, allocation tracking
+   - Cache hit/miss and journal stats
+   - Export to Metric structs for A8 management integration
+   - P99 latency calculation from ring buffer
+
+6. `smart.rs` (27 tests): NVMe SMART health monitoring
+   - NvmeSmartLog with full NVMe health attributes
+   - HealthStatus: Healthy, Warning, Critical, Failed with reasons
+   - SmartMonitor: multi-device monitoring with configurable thresholds
+   - Temperature, spare capacity, endurance, media error detection
+   - Alert system with severity levels
+
+**Total:** 394 tests (378 unit + 16 proptest), 25 modules, all passing.
+
+---
+
 ### A7: Protocol Gateways — Phase 3 Security Hardening COMPLETE
 
 #### 2026-03-01 (A7 — Phase 3: Production Readiness Security Fixes)
