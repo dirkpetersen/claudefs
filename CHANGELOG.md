@@ -10,7 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### 2026-03-01
 
-##### A3: Data Reduction — Phase 2 Modules Complete (54 tests ✅)
+##### A3: Data Reduction — Phase 2 Complete (60 tests ✅)
+
+**5 new modules (Phase 2 + Priority 2 feature):**
+- ✅ **background.rs**: Async background pipeline — `BackgroundProcessor` (Tokio task consuming
+  mpsc work channel), `BackgroundTask` enum (ProcessChunk/RunGc/Shutdown), `BackgroundHandle`
+  with send()/stats()/is_running(), `BackgroundStats` via watch channel, similarity inserts
+  and GC scheduling using `tokio::sync::Mutex<CasIndex>` (6 async tests)
 
 **3 new Phase 2 modules + key rotation (Priority 2 feature):**
 - ✅ **similarity.rs**: Tier 2 background dedup — `SimilarityIndex` using MinHash Super-Features
