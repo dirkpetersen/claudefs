@@ -593,6 +593,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "bytes",
+ "lz4_flex",
  "prost",
  "rand 0.8.5",
  "serde",
@@ -601,6 +602,7 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-subscriber",
+ "zstd",
 ]
 
 [[package]]

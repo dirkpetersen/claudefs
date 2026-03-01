@@ -64,4 +64,8 @@ pub enum ReplError {
     /// Replication engine was shut down.
     #[error("replication engine shut down")]
     Shutdown,
+
+    /// Compression/decompression error.
+    #[error("compression error: {0}")]
+    Compression(String),
 }
