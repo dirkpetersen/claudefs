@@ -3,7 +3,7 @@
 //! This module provides consistent hashing and shard-based routing for distributing
 //! filesystem operations across a cluster of storage nodes.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
