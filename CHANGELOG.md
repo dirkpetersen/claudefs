@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Phase 7 Production Readiness COMPLETE
+
+#### 2026-03-01 (A8 — Phase 7: Audit Trail, Performance Reporting, Rebalancing, Topology)
+
+**Phase 7 (64 new tests, 4 new modules) — production readiness & operational tooling:**
+
+1. `audit_trail.rs` (20 tests): Immutable ring-buffer audit trail for compliance
+   - AuditEventKind: 14 admin/security event types (Login, TokenCreate, QuotaChange, etc.)
+   - AuditFilter: flexible querying by user, kind, time range, success
+   - Ring-buffer with 10,000 event capacity (oldest evicted when full)
+   - Sequential event IDs for forensic tracing
+
+2. `perf_report.rs` (26 tests): Latency histogram and SLA violation detection
+   - LatencyHistogram: sorted samples with floor-based percentile (p50/p99/p100)
+   - PerformanceTracker: per-OpKind histograms (Read/Write/Stat/Open/Fsync etc.)
+   - SLA threshold monitoring with violation structs (measured vs target)
+   - Convenience methods p99_us/p50_us for fast operator access
+
+3. `rebalance.rs` (22 tests): Thread-safe data rebalancing job scheduler
+   - RebalanceScheduler: Mutex<HashMap> for concurrent job state management
+   - JobState: Pending/Running/Paused/Complete/Failed state machine
+   - Auto-start on submit when under max_concurrent limit
+   - Lifecycle: start_job, pause_job, resume_job, update_progress, complete_job, fail_job
+   - Progress tracking (bytes_moved/bytes_total) with progress_fraction()
+
+4. `topology.rs`: Cluster topology map
+   - NodeInfo with NodeRole (Storage, Meta, Client, Gateway) and NodeStatus
+   - TopologyMap for cluster-wide node discovery and membership
+
+**Total A8: 640 tests, 27 modules (up from 576 tests after Phase 6)**
+
+---
+
 ### A1: Storage Engine — Phase 2 Integration COMPLETE
 
 #### 2026-03-01 (A1 — Phase 2: Write Journal, Atomic Writes, I/O Scheduling, Caching, Metrics, Health)
