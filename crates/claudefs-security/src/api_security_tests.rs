@@ -86,10 +86,12 @@ mod tests {
         }
     }
 
+    /// FINDING-13 FIXED: Rate limiting now enforced on auth failures.
     #[tokio::test]
-    async fn finding_13_no_rate_limiting_on_auth_failures() {
+    async fn finding_13_rate_limiting_on_auth_failures() {
         let router = make_api(Some("correct-token"));
 
+        let mut got_rate_limited = false;
         for i in 0..50u32 {
             let wrong_token = format!("wrong-token-{}", i);
             let request = Request::builder()
@@ -98,13 +100,21 @@ mod tests {
                 .body(Body::empty())
                 .unwrap();
             let response = router.clone().oneshot(request).await.unwrap();
-            assert_eq!(
-                response.status(),
-                StatusCode::UNAUTHORIZED,
-                "FINDING-13: Request {} still gets clean 401 — no lockout/rate-limit",
-                i
+            let status = response.status();
+            assert!(
+                status == StatusCode::UNAUTHORIZED || status == StatusCode::TOO_MANY_REQUESTS,
+                "FINDING-13: Request {} returned unexpected status {}",
+                i,
+                status
             );
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                got_rate_limited = true;
+            }
         }
+        assert!(
+            got_rate_limited,
+            "FINDING-13 FIXED: Rate limiting should kick in after repeated auth failures"
+        );
     }
 
     #[tokio::test]

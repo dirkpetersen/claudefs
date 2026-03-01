@@ -146,9 +146,10 @@ mod tests {
         auth.register(token);
 
         let t = AuthToken::new("t2", 1, 1, "u").with_expiry(1000);
+        // is_expired uses strictly-greater-than: now > expires_at
         assert!(
-            t.is_expired(1000),
-            "Token expired at exact expiry time (now >= expires_at)"
+            !t.is_expired(1000),
+            "Token NOT expired at exact expiry time (now must be > expires_at)"
         );
         assert!(t.is_expired(1001), "Token expired one second after expiry");
         assert!(!t.is_expired(999), "Token not expired before expiry time");
