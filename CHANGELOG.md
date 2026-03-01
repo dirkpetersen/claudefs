@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### 2026-03-01 (A11 Session 4 - Infrastructure Maintenance & Build Restoration)
 
-##### A11: Infrastructure & CI — Build Conflict Resolution & Health Monitoring (920 tests ✅)
+##### A11: Infrastructure & CI — Build Conflict Resolution & Health Monitoring (936 tests ✅)
 
 **New Transport Layer Features:**
 
@@ -35,11 +35,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
    - Verified all workspace members compile correctly
 
 2. ✅ **Test Suite Status:**
-   - ✅ Total: **920 tests passing** (up from 903)
+   - ✅ Total: **936 tests passing** (up from 903)
      - +17 new health module tests (health.rs)
-     - +16 additional tests from builder cleanup
+     - +16 additional routing tests (routing.rs)
    - ✅ 0 compilation errors, clean build
    - ✅ All workspace members compiling without errors
+   - ✅ Fixed missing HashSet import in routing tests
 
 **Next Integration Points for A4 Transport:**
 - Connection pooling (use health status to route around degraded connections)
