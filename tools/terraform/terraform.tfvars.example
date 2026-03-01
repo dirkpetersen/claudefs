@@ -1,0 +1,47 @@
+# ClaudeFS Terraform Variables Example
+# Copy to terraform.tfvars and customize for your deployment
+
+aws_region              = "us-west-2"
+environment             = "dev"
+project_tag             = "claudefs"
+
+# Network configuration
+vpc_id                  = ""  # Leave empty to use default VPC
+subnet_id               = ""  # Leave empty to use default subnet
+cluster_cidr            = "10.0.0.0/8"
+ssh_cidr_blocks         = ["0.0.0.0/0"]  # Restrict to your IP for security
+
+# SSH access
+ssh_key_name            = "cfs-key"  # EC2 key pair name
+
+# Instance types
+orchestrator_instance_type = "c7a.2xlarge"
+storage_instance_type      = "i4i.2xlarge"
+fuse_client_instance_type  = "c7a.xlarge"
+nfs_client_instance_type   = "c7a.xlarge"
+conduit_instance_type      = "t3.medium"
+jepsen_instance_type       = "c7a.xlarge"
+
+# Scaling configuration
+storage_site_a_count    = 3  # Raft quorum
+storage_site_b_count    = 2  # Replication site
+
+# Spot instance configuration
+use_spot_instances      = true
+spot_max_price          = ""  # Empty string = on-demand price, or specify a price like "0.50"
+
+# AWS Budget
+daily_budget_limit      = 100  # USD per day
+budget_alert_threshold  = 80   # Percent
+
+# IAM roles (must exist beforehand)
+orchestrator_iam_profile = "cfs-orchestrator-profile"
+spot_iam_profile         = "cfs-spot-node-profile"
+
+# Common tags
+common_tags = {
+  Owner       = "claudefs-team"
+  ManagedBy   = "terraform"
+  CreatedDate = "2026-03-01"
+  Environment = "dev"
+}
