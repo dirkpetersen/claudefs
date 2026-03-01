@@ -10,6 +10,16 @@ pub const AUTH_SYS_MAX_GIDS: usize = 16;
 const NOBODY_UID: u32 = 65534;
 const NOBODY_GID: u32 = 65534;
 
+const AUTH_SYS_MAX_MACHINENAME_LEN: usize = 255;
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum SquashPolicy {
+    #[default]
+    RootSquash,
+    AllSquash,
+    None,
+}
+
 #[derive(Debug, Clone)]
 pub struct AuthSysCred {
     pub stamp: u32,
@@ -34,6 +44,15 @@ impl AuthSysCred {
 
         let stamp = dec.decode_u32()?;
         let machinename = dec.decode_string()?;
+        if machinename.len() > AUTH_SYS_MAX_MACHINENAME_LEN {
+            return Err(GatewayError::ProtocolError {
+                reason: format!(
+                    "machinename too long: {} > {}",
+                    machinename.len(),
+                    AUTH_SYS_MAX_MACHINENAME_LEN
+                ),
+            });
+        }
         let uid = dec.decode_u32()?;
         let gid = dec.decode_u32()?;
 
@@ -135,6 +154,36 @@ impl AuthCred {
         match self {
             AuthCred::Sys(cred) => cred.is_root(),
             _ => false,
+        }
+    }
+
+    pub fn effective_uid(&self, policy: SquashPolicy) -> u32 {
+        let raw = self.uid();
+        match policy {
+            SquashPolicy::None => raw,
+            SquashPolicy::RootSquash => {
+                if raw == 0 {
+                    NOBODY_UID
+                } else {
+                    raw
+                }
+            }
+            SquashPolicy::AllSquash => NOBODY_UID,
+        }
+    }
+
+    pub fn effective_gid(&self, policy: SquashPolicy) -> u32 {
+        let raw = self.gid();
+        match policy {
+            SquashPolicy::None => raw,
+            SquashPolicy::RootSquash => {
+                if raw == 0 {
+                    NOBODY_GID
+                } else {
+                    raw
+                }
+            }
+            SquashPolicy::AllSquash => NOBODY_GID,
         }
     }
 }
@@ -373,5 +422,112 @@ mod tests {
         };
         let cred_sys = AuthCred::from_opaque_auth(&opaque);
         assert!(cred_sys.is_root());
+    }
+
+    #[test]
+    fn test_squash_policy_default_is_root_squash() {
+        assert_eq!(SquashPolicy::default(), SquashPolicy::RootSquash);
+    }
+
+    #[test]
+    fn test_effective_uid_root_squash_squashes_root() {
+        let cred = AuthSysCred {
+            stamp: 1,
+            machinename: "host".to_string(),
+            uid: 0,
+            gid: 0,
+            gids: vec![],
+        };
+        let opaque = OpaqueAuth {
+            flavor: AUTH_SYS,
+            body: cred.encode_xdr(),
+        };
+        let auth = AuthCred::from_opaque_auth(&opaque);
+        assert_eq!(auth.effective_uid(SquashPolicy::RootSquash), NOBODY_UID);
+        assert_eq!(auth.effective_gid(SquashPolicy::RootSquash), NOBODY_GID);
+    }
+
+    #[test]
+    fn test_effective_uid_root_squash_passes_nonroot() {
+        let cred = AuthSysCred {
+            stamp: 1,
+            machinename: "host".to_string(),
+            uid: 1000,
+            gid: 1000,
+            gids: vec![],
+        };
+        let opaque = OpaqueAuth {
+            flavor: AUTH_SYS,
+            body: cred.encode_xdr(),
+        };
+        let auth = AuthCred::from_opaque_auth(&opaque);
+        assert_eq!(auth.effective_uid(SquashPolicy::RootSquash), 1000);
+        assert_eq!(auth.effective_gid(SquashPolicy::RootSquash), 1000);
+    }
+
+    #[test]
+    fn test_effective_uid_all_squash() {
+        let cred = AuthSysCred {
+            stamp: 1,
+            machinename: "host".to_string(),
+            uid: 1000,
+            gid: 1000,
+            gids: vec![],
+        };
+        let opaque = OpaqueAuth {
+            flavor: AUTH_SYS,
+            body: cred.encode_xdr(),
+        };
+        let auth = AuthCred::from_opaque_auth(&opaque);
+        assert_eq!(auth.effective_uid(SquashPolicy::AllSquash), NOBODY_UID);
+        assert_eq!(auth.effective_gid(SquashPolicy::AllSquash), NOBODY_GID);
+    }
+
+    #[test]
+    fn test_effective_uid_none_policy_passes_root() {
+        let cred = AuthSysCred {
+            stamp: 1,
+            machinename: "host".to_string(),
+            uid: 0,
+            gid: 0,
+            gids: vec![],
+        };
+        let opaque = OpaqueAuth {
+            flavor: AUTH_SYS,
+            body: cred.encode_xdr(),
+        };
+        let auth = AuthCred::from_opaque_auth(&opaque);
+        assert_eq!(auth.effective_uid(SquashPolicy::None), 0);
+        assert_eq!(auth.effective_gid(SquashPolicy::None), 0);
+    }
+
+    #[test]
+    fn test_machinename_length_limit() {
+        let long_name = "a".repeat(256);
+        let cred = AuthSysCred {
+            stamp: 1,
+            machinename: long_name.clone(),
+            uid: 1000,
+            gid: 1000,
+            gids: vec![],
+        };
+        let encoded = cred.encode_xdr();
+        let result = AuthSysCred::decode_xdr(&encoded);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_machinename_max_length_ok() {
+        let max_name = "a".repeat(255);
+        let cred = AuthSysCred {
+            stamp: 1,
+            machinename: max_name,
+            uid: 1000,
+            gid: 1000,
+            gids: vec![],
+        };
+        let encoded = cred.encode_xdr();
+        let result = AuthSysCred::decode_xdr(&encoded);
+        assert!(result.is_ok());
     }
 }
