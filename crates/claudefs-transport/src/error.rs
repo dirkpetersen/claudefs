@@ -113,6 +113,10 @@ pub enum TransportError {
     /// I/O error from the standard library.
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+
+    /// Buffer/pool exhausted - queue is full.
+    #[error("Buffer exhausted: queue full")]
+    BufferExhausted,
 }
 
 /// Result type alias for transport operations.

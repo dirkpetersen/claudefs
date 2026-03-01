@@ -239,6 +239,7 @@ pub fn is_retryable(error: &TransportError) -> bool {
         TransportError::TlsError { .. } => false,
         TransportError::SerializationError(_) => false,
         TransportError::ServerDraining { .. } => false,
+        TransportError::BufferExhausted => false,
     }
 }
 
