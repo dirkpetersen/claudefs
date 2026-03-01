@@ -203,7 +203,7 @@ impl Fattr3 {
 
     pub fn default_file(inode: u64, size: u64, fsid: u64) -> Self {
         let now = Nfstime3::now();
-        let used = ((size + 4095) / 4096) * 4096;
+        let used = size.div_ceil(4096) * 4096;
         Self {
             ftype: Ftype3::Reg,
             mode: 0o644,

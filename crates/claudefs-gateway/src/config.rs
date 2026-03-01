@@ -102,7 +102,7 @@ pub struct S3Config {
 }
 
 impl S3Config {
-    pub fn default() -> Self {
+    pub fn new() -> Self {
         Self {
             bind: BindAddr::s3_default(),
             region: "us-east-1".to_string(),
@@ -115,7 +115,7 @@ impl S3Config {
 
 impl Default for S3Config {
     fn default() -> Self {
-        Self::default()
+        Self::new()
     }
 }
 
@@ -166,7 +166,7 @@ impl GatewayConfig {
     pub fn default_with_export(path: &str) -> Self {
         Self {
             nfs: NfsConfig::default_with_export(path),
-            s3: S3Config::default(),
+            s3: S3Config::new(),
             enable_nfs: true,
             enable_s3: true,
             enable_smb: false,

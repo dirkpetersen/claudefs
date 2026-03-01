@@ -333,8 +333,7 @@ impl<B: VfsBackend> RpcDispatcher<B> {
         match RpcCall::decode(rpc_data) {
             Ok(call) => {
                 let reply = self.dispatch(&call);
-                let marked = crate::rpc::TcpRecordMark::encode(&reply);
-                marked
+                crate::rpc::TcpRecordMark::encode(&reply)
             }
             Err(_) => vec![],
         }

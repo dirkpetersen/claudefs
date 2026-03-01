@@ -284,6 +284,12 @@ impl MultipartManager {
     }
 }
 
+impl Default for MultipartManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

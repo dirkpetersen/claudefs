@@ -24,7 +24,7 @@ pub enum S3Action {
 }
 
 impl S3Action {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "s3:GetObject" => Some(S3Action::GetObject),
             "s3:PutObject" => Some(S3Action::PutObject),
@@ -207,11 +207,9 @@ impl BucketPolicy {
         let mut has_deny = false;
 
         for stmt in &self.statements {
-            if stmt.applies(uid, action, bucket, key) {
-                if stmt.effect == PolicyEffect::Deny {
-                    has_deny = true;
-                    break;
-                }
+            if stmt.applies(uid, action, bucket, key) && stmt.effect == PolicyEffect::Deny {
+                has_deny = true;
+                break;
             }
         }
 
@@ -220,10 +218,8 @@ impl BucketPolicy {
         }
 
         for stmt in &self.statements {
-            if stmt.applies(uid, action, bucket, key) {
-                if stmt.effect == PolicyEffect::Allow {
-                    return true;
-                }
+            if stmt.applies(uid, action, bucket, key) && stmt.effect == PolicyEffect::Allow {
+                return true;
             }
         }
 
@@ -366,24 +362,15 @@ mod tests {
 
     #[test]
     fn test_s3action_from_str() {
-        assert_eq!(
-            S3Action::from_str("s3:GetObject"),
-            Some(S3Action::GetObject)
-        );
-        assert_eq!(
-            S3Action::from_str("s3:PutObject"),
-            Some(S3Action::PutObject)
-        );
-        assert_eq!(
-            S3Action::from_str("s3:ListBucket"),
-            Some(S3Action::ListBucket)
-        );
-        assert_eq!(S3Action::from_str("s3:*"), Some(S3Action::All));
+        assert_eq!(S3Action::parse("s3:GetObject"), Some(S3Action::GetObject));
+        assert_eq!(S3Action::parse("s3:PutObject"), Some(S3Action::PutObject));
+        assert_eq!(S3Action::parse("s3:ListBucket"), Some(S3Action::ListBucket));
+        assert_eq!(S3Action::parse("s3:*"), Some(S3Action::All));
     }
 
     #[test]
     fn test_s3action_from_str_invalid() {
-        assert_eq!(S3Action::from_str("s3:Invalid"), None);
+        assert_eq!(S3Action::parse("s3:Invalid"), None);
     }
 
     #[test]

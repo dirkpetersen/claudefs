@@ -158,10 +158,7 @@ impl QuotaManager {
                 .get(&subject)
                 .map(|u| u.bytes_used.saturating_add(bytes))
                 .unwrap_or(bytes);
-            guard
-                .entry(subject)
-                .or_insert_with(QuotaUsage::default)
-                .bytes_used = new_val;
+            guard.entry(subject).or_default().bytes_used = new_val;
         }
         violation
     }
@@ -173,19 +170,14 @@ impl QuotaManager {
             .get(&subject)
             .map(|u| u.bytes_used.saturating_sub(bytes))
             .unwrap_or(0);
-        guard
-            .entry(subject)
-            .or_insert_with(QuotaUsage::default)
-            .bytes_used = new_val;
+        guard.entry(subject).or_default().bytes_used = new_val;
     }
 
     /// Record inode creation
     pub fn record_create(&self, subject: QuotaSubject) -> QuotaViolation {
         let limits = self.get_limits(subject);
         let mut usage_guard = self.usage.lock().unwrap();
-        let usage = usage_guard
-            .entry(subject)
-            .or_insert_with(QuotaUsage::default);
+        let usage = usage_guard.entry(subject).or_default();
 
         if let Some(limits) = limits {
             if limits.inodes_hard > 0 && usage.inodes_used >= limits.inodes_hard {
@@ -207,10 +199,7 @@ impl QuotaManager {
             .get(&subject)
             .map(|u| u.inodes_used.saturating_sub(1))
             .unwrap_or(0);
-        guard
-            .entry(subject)
-            .or_insert_with(QuotaUsage::default)
-            .inodes_used = new_val;
+        guard.entry(subject).or_default().inodes_used = new_val;
     }
 
     /// Check if a write would exceed limits (without recording)
@@ -246,6 +235,12 @@ impl QuotaManager {
     /// Remove limits for a subject
     pub fn remove_limits(&self, subject: QuotaSubject) -> bool {
         self.limits.lock().unwrap().remove(&subject).is_some()
+    }
+}
+
+impl Default for QuotaManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

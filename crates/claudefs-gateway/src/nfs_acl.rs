@@ -285,6 +285,12 @@ impl PosixAcl {
     }
 }
 
+impl Default for PosixAcl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// NFSv4 ACE type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Nfs4AceType {

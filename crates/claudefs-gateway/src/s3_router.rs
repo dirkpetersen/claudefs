@@ -141,7 +141,7 @@ pub fn route_s3_request(req: &HttpRequest) -> Result<S3Operation> {
         }
         "POST" => {
             if let Some(uploads) = req.query_param("uploads") {
-                if uploads == "" || uploads == "true" {
+                if uploads.is_empty() || uploads == "true" {
                     return Ok(S3Operation::CreateMultipartUpload { bucket, key });
                 }
             }

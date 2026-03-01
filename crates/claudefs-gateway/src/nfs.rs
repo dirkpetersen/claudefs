@@ -93,7 +93,7 @@ impl InodeEntry {
 
     fn to_fattr(&self, inode: u64, fsid: u64) -> Fattr3 {
         let used = if self.ftype == Ftype3::Reg {
-            ((self.size + 4095) / 4096) * 4096
+            self.size.div_ceil(4096) * 4096
         } else {
             4096
         };

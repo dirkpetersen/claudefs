@@ -58,7 +58,7 @@ impl WriteTracker {
         };
 
         let mut pending = self.pending.lock().unwrap();
-        let entry = pending.entry(fh_key).or_insert_with(Vec::new);
+        let entry = pending.entry(fh_key).or_default();
         entry.push(write);
         self.total_pending.fetch_add(1, Ordering::Relaxed);
     }
@@ -78,7 +78,7 @@ impl WriteTracker {
 
     pub fn commit_all(&self) -> u64 {
         let mut pending = self.pending.lock().unwrap();
-        let count: usize = pending.values().map(|v| v.len()).sum();
+        let _count: usize = pending.values().map(|v| v.len()).sum();
         pending.clear();
         self.total_pending.store(0, Ordering::Relaxed);
         self.write_verf
