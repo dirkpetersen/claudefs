@@ -15,6 +15,7 @@ pub mod cost_tracker;
 pub mod grafana;
 pub mod indexer;
 pub mod metrics;
+pub mod ops_metrics;
 pub mod perf_report;
 pub mod quota;
 pub mod scraper;
@@ -85,3 +86,6 @@ pub use maintenance::{
 
 pub use cluster_bootstrap::{BootstrapConfig, BootstrapError, BootstrapManager, BootstrapState, NodeSpec};
 pub use compliance::{ComplianceError, ComplianceRegistry, RetentionPolicy, RetentionRecord, RetentionStatus};
+
+pub mod live_config;
+pub use live_config::{LiveConfigStore, LiveConfigEntry, LiveConfigError, ReloadStatus, ConfigWatcher, validate_json, parse_entry};

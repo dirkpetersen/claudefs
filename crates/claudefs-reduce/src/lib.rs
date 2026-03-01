@@ -22,6 +22,7 @@ pub mod segment;
 pub mod similarity;
 pub mod snapshot;
 pub mod write_path;
+pub mod worm_reducer;
 
 pub use compression::CompressionAlgorithm;
 pub use dedupe::{CasIndex, Chunk, Chunker, ChunkerConfig};

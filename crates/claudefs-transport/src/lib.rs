@@ -35,6 +35,7 @@ pub mod connection;
 pub mod deadline;
 pub mod discovery;
 pub mod drain;
+pub mod enrollment;
 pub mod error;
 pub use drain::{DrainConfig, DrainController, DrainGuard, DrainListener, DrainState, DrainStats};
 pub mod flowcontrol;
@@ -144,4 +145,8 @@ pub use request_dedup::{DedupConfig, DedupEntry, DedupResult, DedupStats, DedupT
 pub use splice::{
     SpliceConfig, SpliceError, SpliceFlags, SpliceOperation, SplicePipeline, SplicePlan,
     SpliceStats, TransferEndpoint,
+};
+pub use enrollment::{
+    CertificateBundle, ClusterCA, EnrollmentConfig, EnrollmentError, EnrollmentService,
+    EnrollmentStats, EnrollmentToken, RevocationEntry, RevocationReason,
 };
