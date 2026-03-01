@@ -9,19 +9,24 @@
 pub mod attr;
 pub mod cache;
 pub mod datacache;
+pub mod dirnotify;
 pub mod error;
 pub mod filesystem;
 pub mod inode;
 pub mod locking;
 pub mod mmap;
 pub mod mount;
+pub mod openfile;
 pub mod operations;
 pub mod passthrough;
 pub mod perf;
+pub mod prefetch;
+pub mod reconnect;
 pub mod server;
 pub mod session;
 pub mod symlink;
 pub mod transport;
+pub mod writebuf;
 pub mod xattr;
 
 pub use error::{FuseError, Result};
