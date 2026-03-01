@@ -88,7 +88,7 @@ impl NicCapabilities {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChannelSelectionPolicy {
     RoundRobin,
     WeightedBySpeed,
