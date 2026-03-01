@@ -491,8 +491,8 @@ mod tests {
     #[test]
     fn test_health_score_healthy() {
         let agg = OpsMetricsAggregator::new(10);
-        agg.record(make_snapshot("node1", 20.0, 30.0, 40.0, 0.0, 100));
-        agg.record(make_snapshot("node2", 25.0, 35.0, 45.0, 0.0, 200));
+        agg.record(make_snapshot("node1", 5.0, 10.0, 20.0, 0.0, 100));
+        agg.record(make_snapshot("node2", 5.0, 10.0, 20.0, 0.0, 200));
         let score = agg.health_score().unwrap();
         assert!(score.score >= 90);
         assert_eq!(score.summary, "Healthy");

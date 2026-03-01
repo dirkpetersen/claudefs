@@ -89,3 +89,4 @@ pub use compliance::{ComplianceError, ComplianceRegistry, RetentionPolicy, Reten
 
 pub mod live_config;
 pub use live_config::{LiveConfigStore, LiveConfigEntry, LiveConfigError, ReloadStatus, ConfigWatcher, validate_json, parse_entry};
+pub use ops_metrics::{OpsMetricsAggregator, NodeMetricsSnapshot, ClusterOpsMetrics, ClusterHealthScore, MetricTrend, TrendDirection, OpsMetricsError};
