@@ -20,6 +20,7 @@ pub mod health;
 pub mod message;
 pub mod metrics;
 pub mod mux;
+pub mod pool;
 pub mod protocol;
 pub mod qos;
 pub mod retry;
