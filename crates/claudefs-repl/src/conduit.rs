@@ -5,6 +5,7 @@
 
 use crate::error::ReplError;
 use crate::journal::JournalEntry;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
@@ -76,7 +77,7 @@ impl ConduitConfig {
 }
 
 /// A batch of journal entries sent over the conduit.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EntryBatch {
     /// Sending site's ID.
     pub source_site_id: u64,
