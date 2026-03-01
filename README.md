@@ -2,6 +2,10 @@
 
 A distributed, scale-out POSIX file system with a high-performance flash layer and S3-compatible object store backend.
 
+[![CI](https://github.com/dirkpetersen/claudefs/actions/workflows/ci.yml/badge.svg)](https://github.com/dirkpetersen/claudefs/actions/workflows/ci.yml)
+[![Nightly](https://github.com/dirkpetersen/claudefs/actions/workflows/nightly.yml/badge.svg)](https://github.com/dirkpetersen/claudefs/actions/workflows/nightly.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Overview
 
 ClaudeFS is a distributed file system designed for research and HPC environments. It combines a low-latency flash tier spanning multiple nodes with asynchronous tiering to S3-compatible object storage. The system is implemented in Rust as a single FUSE v3 client with pluggable network transport — RDMA for maximum throughput on HPC hardware, TCP/IP for universal compatibility. Legacy clients access the cluster via pNFS or NFS gateway without installing anything.
