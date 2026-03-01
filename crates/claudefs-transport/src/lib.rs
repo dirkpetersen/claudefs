@@ -10,6 +10,7 @@
 //! - Request/response multiplexing
 
 pub mod buffer;
+pub mod circuitbreaker;
 pub mod connection;
 pub mod deadline;
 pub mod error;
@@ -57,3 +58,4 @@ pub use ratelimit::{
     CompositeRateLimiter, RateLimitConfig, RateLimitResult, RateLimiter,
 };
 pub use transport::{Transport, Connection, Listener};
+pub use circuitbreaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
