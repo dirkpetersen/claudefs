@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 2 MILESTONE COMPLETE
+
+#### 2026-03-01 (A10 — Phase 2: Authentication Audit + Unsafe Review + API Pentest)
+
+##### A10: Security — 148 tests, 11 modules, 30 findings
+
+**Phase 1 (68 tests):** audit.rs (Finding types), fuzz_protocol.rs (19 frame fuzzing tests), fuzz_message.rs (11 deserialization tests), crypto_tests.rs (26 crypto property tests), transport_tests.rs (12 transport validation tests)
+
+**Phase 2 (80 new tests, 4 new modules):**
+1. `conduit_auth_tests.rs` — A6 conduit auth (15 tests): TLS optional (F-05), sender spoofing (F-06), no batch integrity (F-07), key material exposure (F-08), no rate limiting (F-09)
+2. `api_security_tests.rs` — A8 admin API (17 tests): timing attack (F-10), auth bypass (F-11), RBAC not wired (F-12), no rate limit (F-13), version leak (F-14), drain no RBAC (F-15)
+3. `gateway_auth_tests.rs` — A7 gateway auth (21 tests): predictable tokens (F-16), AUTH_SYS trust (F-17), plaintext tokens (F-18), mutex poison (F-19), no root squash (F-20)
+4. `unsafe_review_tests.rs` — Deep unsafe review (18 tests): use-after-close (F-21), uninitialized memory (F-22), manual Send/Sync (F-23), RawFd (F-24), CAS race (F-25), SAFETY comments (F-26)
+5. `api_pentest_tests.rs` — API pentest (16 tests): path traversal (F-27), body size (F-28), security headers (F-29), CORS (F-30)
+
+**Audit reports:**
+- `docs/security/auth-audit.md` — 16 findings (6 HIGH, 7 MEDIUM, 3 LOW)
+- `docs/security/unsafe-deep-review.md` — 10 findings (1 CRITICAL, 2 HIGH, 4 MEDIUM, 3 LOW)
+- Cumulative: 30 findings (1 CRITICAL, 8 HIGH, 11 MEDIUM, 6 LOW), 28 open, 2 accepted
+
+**MILESTONE: 148 security tests, 11 modules, 30 findings documented**
+
+---
+
 ### A9: Test & Validation — Phase 3 MILESTONE COMPLETE
 
 #### 2026-03-01 (A9 — Test & Validation: Phases 2+3 Complete)

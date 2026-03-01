@@ -14,6 +14,8 @@ pub mod audit;
 #[cfg(test)]
 pub mod api_security_tests;
 #[cfg(test)]
+pub mod api_pentest_tests;
+#[cfg(test)]
 pub mod conduit_auth_tests;
 #[cfg(test)]
 pub mod crypto_tests;
@@ -23,3 +25,5 @@ pub mod fuzz_protocol;
 pub mod gateway_auth_tests;
 #[cfg(test)]
 pub mod transport_tests;
+#[cfg(test)]
+pub mod unsafe_review_tests;

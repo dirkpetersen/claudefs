@@ -7,6 +7,7 @@ authors.workspace = true
 description = "ClaudeFS security audit: fuzzing harnesses, crypto property tests, unsafe review"
 
 [dependencies]
+claudefs-storage = { path = "../claudefs-storage", features = ["uring"] }
 claudefs-transport = { path = "../claudefs-transport" }
 claudefs-reduce = { path = "../claudefs-reduce" }
 claudefs-repl = { path = "../claudefs-repl" }
