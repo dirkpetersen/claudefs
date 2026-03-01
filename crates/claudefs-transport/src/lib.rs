@@ -33,6 +33,7 @@ pub mod tls_tcp;
 pub mod ratelimit;
 pub mod tracecontext;
 pub mod transport;
+pub mod version;
 
 pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
 pub use client::{TransportClient, TransportClientConfig};
