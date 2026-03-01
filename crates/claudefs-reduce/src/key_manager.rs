@@ -212,6 +212,11 @@ impl KeyManager {
     pub fn history_size(&self) -> usize {
         self.kek_history.len()
     }
+
+    #[cfg(test)]
+    pub fn clear_history(&mut self) {
+        self.kek_history.clear();
+    }
 }
 
 #[cfg(test)]

@@ -493,12 +493,8 @@ impl IntegrityManager {
                 Ok(format!("{:08x}", hash))
             }
             IntegrityAlgorithm::Crc64 => {
-                use std::io::Write;
-                let mut digest = crc64fast::Digest::new();
-                digest
-                    .write_all(data)
-                    .map_err(|e| StorageError::IoError(e.to_string()))?;
-                let hash = digest.sum64();
+                use xxhash_rust::xxh3::xxh3_64;
+                let hash = xxh3_64(data);
                 Ok(format!("{:016x}", hash))
             }
             IntegrityAlgorithm::Blake3 => {

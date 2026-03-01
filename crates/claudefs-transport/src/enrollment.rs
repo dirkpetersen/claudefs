@@ -349,7 +349,12 @@ impl EnrollmentService {
             });
         }
 
-        let token_bytes = vec![0u8; self.config.token_length];
+        let mut token_bytes = vec![0u8; self.config.token_length];
+        getrandom::getrandom(&mut token_bytes).map_err(|e| {
+            EnrollmentError::CaGenerationFailed {
+                reason: format!("Failed to generate random token: {}", e),
+            }
+        })?;
         let token_value = token_to_hex(&token_bytes);
 
         let enrollment_token = EnrollmentToken {

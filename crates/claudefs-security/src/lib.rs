@@ -29,6 +29,8 @@ pub mod transport_tests;
 #[cfg(test)]
 pub mod unsafe_review_tests;
 #[cfg(test)]
+pub mod unsafe_audit;
+#[cfg(test)]
 pub mod crypto_audit;
 #[cfg(test)]
 pub mod mgmt_pentest;
