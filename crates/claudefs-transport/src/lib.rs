@@ -26,6 +26,7 @@ pub mod rpc;
 pub mod tcp;
 pub mod tls;
 pub mod tls_tcp;
+pub mod ratelimit;
 pub mod tracecontext;
 pub mod transport;
 
@@ -50,4 +51,7 @@ pub use metrics::{MetricsSnapshot, TransportMetrics};
 pub use retry::{RetryConfig, RetryExecutor, RetryOutcome, RetryPolicy, is_retryable};
 pub use routing::{ConsistentHashRing, NodeId, NodeInfo, RoutingTable, ShardId, ShardRouter};
 pub use mux::{Multiplexer, MuxConfig, StreamHandle, StreamState};
+pub use ratelimit::{
+    CompositeRateLimiter, RateLimitConfig, RateLimitResult, RateLimiter,
+};
 pub use transport::{Transport, Connection, Listener};
