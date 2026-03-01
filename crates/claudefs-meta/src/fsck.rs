@@ -1,6 +1,7 @@
 //! Metadata integrity checker (fsck) for ClaudeFS distributed filesystem.
 
 use crate::types::InodeId;
+#[cfg(test)]
 use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -188,7 +189,7 @@ pub fn suggest_repair(issue: &FsckIssue, repair: bool) -> Vec<FsckRepairAction> 
             parent,
             name,
             inode1: _,
-            inode2,
+            inode2: _,
         } => vec![FsckRepairAction::RemoveEntry {
             parent: *parent,
             name: name.clone(),
@@ -197,6 +198,7 @@ pub fn suggest_repair(issue: &FsckIssue, repair: bool) -> Vec<FsckRepairAction> 
     }
 }
 
+#[cfg(test)]
 struct MetadataChecker {
     config: FsckConfig,
     inodes: HashMap<InodeId, (u32, bool)>,
@@ -204,6 +206,7 @@ struct MetadataChecker {
     root: Option<InodeId>,
 }
 
+#[cfg(test)]
 impl MetadataChecker {
     fn new(config: FsckConfig) -> Self {
         Self {
@@ -221,7 +224,7 @@ impl MetadataChecker {
     fn add_dir_entry(&mut self, parent: InodeId, name: String, child: InodeId) {
         self.dir_entries
             .entry(parent)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push((name, child));
     }
 
@@ -295,7 +298,7 @@ impl MetadataChecker {
     fn check_link_counts(&self, report: &mut FsckReport) {
         let mut parent_refs: HashMap<InodeId, u32> = HashMap::new();
 
-        for (parent, entries) in &self.dir_entries {
+        for (_parent, entries) in &self.dir_entries {
             for (_, child) in entries {
                 *parent_refs.entry(*child).or_insert(0) += 1;
             }
@@ -305,12 +308,6 @@ impl MetadataChecker {
             if report.errors >= self.config.max_errors as u64 {
                 return;
             }
-
-            let actual_counts = self
-                .dir_entries
-                .get(inode)
-                .map(|entries| entries.len() as u32)
-                .unwrap_or(0);
 
             let actual = if is_dir {
                 if *inode == InodeId::ROOT_INODE {
