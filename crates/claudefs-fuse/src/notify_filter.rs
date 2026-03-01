@@ -59,12 +59,23 @@ impl NotifyFilterStats {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct NotifyFilter {
     pub filter_type: FilterType,
     pub action: FilterAction,
     pub pattern: Option<String>,
     pub enabled: bool,
+}
+
+impl Default for NotifyFilter {
+    fn default() -> Self {
+        Self {
+            filter_type: FilterType::Inode,
+            action: FilterAction::Notify,
+            pattern: None,
+            enabled: true,
+        }
+    }
 }
 
 impl NotifyFilter {
