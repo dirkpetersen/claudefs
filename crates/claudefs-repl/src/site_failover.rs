@@ -13,11 +13,22 @@ pub enum FailoverState {
     /// Both sites are operational.
     Normal,
     /// One site has failed or has high replication lag.
-    Degraded { failed_site: SiteId },
+    Degraded {
+        /// The ID of the failed or degraded site.
+        failed_site: SiteId,
+    },
     /// Failover has occurred, primary is now the specified site.
-    Failover { primary: SiteId, standby: SiteId },
+    Failover {
+        /// The new primary site after failover.
+        primary: SiteId,
+        /// The standby site.
+        standby: SiteId,
+    },
     /// A failed site is being recovered.
-    Recovery { recovering_site: SiteId },
+    Recovery {
+        /// The ID of the site being recovered.
+        recovering_site: SiteId,
+    },
     /// Both sites are down or unreachable (split brain).
     SplitBrain,
 }
@@ -27,20 +38,35 @@ pub enum FailoverState {
 pub enum FailoverEvent {
     /// A site has gone down.
     SiteDown {
+        /// The ID of the site that went down.
         site_id: SiteId,
+        /// Timestamp when the failure was detected.
         detected_at_ns: u64,
     },
     /// A site has come back up.
     SiteUp {
+        /// The ID of the site that came back up.
         site_id: SiteId,
+        /// Timestamp when the recovery was detected.
         detected_at_ns: u64,
     },
     /// Replication lag exceeded threshold.
-    ReplicationLagHigh { site_id: SiteId, lag_ns: u64 },
+    ReplicationLagHigh {
+        /// The ID of the site with high lag.
+        site_id: SiteId,
+        /// The lag in nanoseconds.
+        lag_ns: u64,
+    },
     /// Manual failover was triggered.
-    ManualFailover { target_primary: SiteId },
+    ManualFailover {
+        /// The target site to promote as primary.
+        target_primary: SiteId,
+    },
     /// Recovery of a site has completed.
-    RecoveryComplete { site_id: SiteId },
+    RecoveryComplete {
+        /// The ID of the recovered site.
+        site_id: SiteId,
+    },
 }
 
 /// Statistics about failover operations.
