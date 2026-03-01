@@ -11,17 +11,22 @@ use std::sync::RwLock;
 
 use crate::types::*;
 
+/// A 128-bit trace identifier for distributed tracing.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TraceId {
+    /// High 64 bits of the trace ID.
     pub high: u64,
+    /// Low 64 bits of the trace ID.
     pub low: u64,
 }
 
 impl TraceId {
+    /// Creates a trace ID from high and low 64-bit values.
     pub fn new(high: u64, low: u64) -> Self {
         Self { high, low }
     }
 
+    /// Generates a random trace ID.
     pub fn random() -> Self {
         Self {
             high: rand_u64(),
@@ -30,40 +35,58 @@ impl TraceId {
     }
 }
 
+/// A 64-bit span identifier within a trace.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SpanId(pub u64);
 
 impl SpanId {
+    /// Creates a span ID from a raw 64-bit value.
     pub fn new(id: u64) -> Self {
         Self(id)
     }
 
+    /// Returns the raw 64-bit value of this span ID.
     pub fn as_u64(&self) -> u64 {
         self.0
     }
 }
 
+/// Carries trace context through a request chain.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceContext {
+    /// The trace this span belongs to.
     pub trace_id: TraceId,
+    /// The current span within the trace.
     pub span_id: SpanId,
+    /// The parent span ID, if this is a child span.
     pub parent_span_id: Option<SpanId>,
+    /// Whether this trace is being sampled.
     pub sampled: bool,
 }
 
+/// A recorded span with timing and metadata.
 #[derive(Clone, Debug)]
 pub struct SpanRecord {
+    /// Name of the span (e.g., "metadata_lookup").
     pub name: String,
+    /// Trace context for this span.
     pub trace_ctx: TraceContext,
+    /// When the span started.
     pub start_time: Timestamp,
+    /// When the span ended, if finished.
     pub end_time: Option<Timestamp>,
+    /// Key-value attributes attached to the span.
     pub attributes: Vec<(String, String)>,
+    /// Final status of the span.
     pub status: SpanStatus,
 }
 
+/// Status of a traced operation.
 #[derive(Clone, Debug)]
 pub enum SpanStatus {
+    /// Operation completed successfully.
     Ok,
+    /// Operation failed with an error.
     Error { message: String },
 }
 
@@ -140,6 +163,7 @@ impl TraceCollector {
         tracing::debug!("Recorded span, total completed: {}", spans.len());
     }
 
+    /// Drains and returns all completed spans, clearing the buffer.
     pub fn drain_spans(&self) -> Vec<SpanRecord> {
         let mut spans = self.completed_spans.write().unwrap();
         let drained: Vec<SpanRecord> = spans.drain(..).collect();
@@ -147,11 +171,13 @@ impl TraceCollector {
         drained
     }
 
+    /// Returns the number of completed spans currently stored.
     pub fn span_count(&self) -> usize {
         let spans = self.completed_spans.read().unwrap();
         spans.len()
     }
 
+    /// Returns all spans for a specific trace ID.
     pub fn spans_for_trace(&self, trace_id: TraceId) -> Vec<SpanRecord> {
         let spans = self.completed_spans.read().unwrap();
         spans
