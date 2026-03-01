@@ -3,7 +3,7 @@
 //! ClaudeFS FUSE subsystem.
 
 pub mod attr;
-// pub mod buffer_pool;  // TODO: A5 Phase 3 Round 2 — incomplete stub
+pub mod buffer_pool;
 pub mod cache;
 pub mod cache_coherence;
 pub mod capability;
@@ -14,8 +14,8 @@ pub mod deleg;
 pub mod dir_cache;
 pub mod dirnotify;
 pub mod error;
-pub mod fallocate;
 pub mod fadvise;
+pub mod fallocate;
 pub mod filesystem;
 pub mod flock;
 pub mod health;
@@ -27,9 +27,9 @@ pub mod locking;
 pub mod migration;
 pub mod mmap;
 pub mod mount;
-// pub mod mount_opts;  // TODO: A5 Phase 3 Round 2 — incomplete stub
+pub mod mount_opts;
 pub mod multipath;
-// pub mod notify_filter;  // TODO: A5 Phase 3 Round 2 — incomplete stub
+pub mod notify_filter;
 pub mod openfile;
 pub mod operations;
 pub mod otel_trace;

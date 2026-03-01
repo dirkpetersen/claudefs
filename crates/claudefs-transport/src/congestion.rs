@@ -6,30 +6,20 @@
 use serde::{Deserialize, Serialize};
 use tracing::{debug, trace};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CongestionAlgorithm {
+    #[default]
     Aimd,
     Cubic,
     Bbr,
 }
 
-impl Default for CongestionAlgorithm {
-    fn default() -> Self {
-        Self::Aimd
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CongestionState {
+    #[default]
     SlowStart,
     CongestionAvoidance,
     Recovery,
-}
-
-impl Default for CongestionState {
-    fn default() -> Self {
-        Self::SlowStart
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,11 +153,7 @@ impl CongestionWindow {
             self.min_rtt_us = rtt_us;
         }
 
-        let rtt_diff = if rtt_us > self.smoothed_rtt_us {
-            rtt_us - self.smoothed_rtt_us
-        } else {
-            self.smoothed_rtt_us - rtt_us
-        };
+        let rtt_diff = rtt_us.abs_diff(self.smoothed_rtt_us);
         if self.rtt_variance_us == 0 {
             self.rtt_variance_us = rtt_diff;
         } else {

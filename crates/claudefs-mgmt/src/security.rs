@@ -1,16 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+use subtle::ConstantTimeEq;
 
 pub fn constant_time_eq(a: &str, b: &str) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    a.as_bytes()
-        .iter()
-        .zip(b.as_bytes())
-        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
-        == 0
+    ConstantTimeEq::ct_eq(a.as_bytes(), b.as_bytes()).into()
 }
 
 struct RateLimitEntry {
@@ -60,6 +54,11 @@ impl AuthRateLimiter {
             }
         }
         false
+    }
+
+    pub fn get_failure_count(&self, ip: &str) -> u32 {
+        let inner = self.inner.lock().unwrap();
+        inner.get(ip).map(|e| e.failures).unwrap_or(0)
     }
 
     pub fn prune(&self) {

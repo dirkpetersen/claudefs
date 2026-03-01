@@ -2,17 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EnforcementMode {
+    #[default]
     Strict,
     Shaping,
     Monitor,
-}
-
-impl Default for EnforcementMode {
-    fn default() -> Self {
-        Self::Strict
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -38,7 +33,8 @@ impl Default for BandwidthConfig {
 
 #[derive(Debug, Clone)]
 struct TenantBandwidth {
-    pub tenant_id: String,
+    #[allow(dead_code)]
+    tenant_id: String,
     pub limit_bps: u64,
     pub bytes_in_window: u64,
     pub window_start_ms: u64,

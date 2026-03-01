@@ -17,7 +17,7 @@ pub enum CacheMode {
     Strict,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct MountOptions {
     pub source: PathBuf,
     pub target: PathBuf,
