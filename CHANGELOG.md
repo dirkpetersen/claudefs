@@ -10,6 +10,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### 2026-03-01
 
+##### A3: Data Reduction — Phase 2 Modules Complete (54 tests ✅)
+
+**3 new Phase 2 modules + key rotation (Priority 2 feature):**
+- ✅ **similarity.rs**: Tier 2 background dedup — `SimilarityIndex` using MinHash Super-Features
+  inverted index (4 feature buckets per chunk, ≥3/4 similarity threshold), `DeltaCompressor`
+  using Zstd stream encoder/decoder with dictionary for ~4:1 reduction on similar chunks (8 tests)
+- ✅ **segment.rs**: 2MB segment packer for EC integration — `SegmentEntry`, `Segment`,
+  `SegmentPacker` (configurable target_size, default 2MB per D1 4+2 EC), sequential IDs,
+  flush for partial segments, current_size/is_empty queries (7 tests)
+- ✅ **gc.rs**: Mark-and-sweep GC engine — `GcEngine` with mark_reachable/clear_marks/sweep
+  lifecycle, `CasIndex.drain_unreferenced()` for zero-refcount cleanup, `GcStats`,
+  `run_cycle` helper; `CasIndex.iter()` for GC visibility (6 tests)
+- ✅ **key_manager.rs**: Envelope encryption key rotation (Priority 2) — `KeyManager` with
+  `DataKey` DEK generation, `WrappedKey` AES-256-GCM DEK wrapping/unwrapping, versioned KEKs,
+  `rotate_key()` saves old KEK to history, `rewrap_dek()` core rotation primitive,
+  history pruning to `max_key_history`, redacted Debug impls for key material (9 tests)
+
+**CasIndex enhancements (dedupe.rs):**
+- ✅ `drain_unreferenced()` — removes and returns all zero-refcount entries for GC sweeps
+- ✅ `iter()` — iterate all (ChunkHash, refcount) pairs for GC visibility
+- ✅ `release()` — now keeps zero-refcount entries until explicitly drained (GC-safe)
+
+**Totals:**
+- 54 tests passing (up from 25 Phase 1), 10 modules, 0 clippy warnings, 0 unsafe code
+- Full write/read pipeline with correct order: chunk → dedupe → compress → encrypt
+- Background Tier 2 similarity dedup ready for async integration
+- Segment packing: ReducedChunks → 2MB Segments for A1 EC 4+2 pipeline
+- Key rotation: `rewrap_dek()` allows re-wrapping DEKs without re-encrypting data
+
+---
+
 ##### A2: Metadata Service — Phase 2 Integration Modules (321 tests ✅)
 
 **6 new modules for cross-crate integration:**
