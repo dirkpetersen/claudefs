@@ -274,16 +274,14 @@ impl TenantManager {
 
         let Some(usage) = usage else { return false };
 
-        if config.max_inodes != u64::MAX {
-            if usage.inode_count + additional_inodes > config.max_inodes {
-                return false;
-            }
+        if config.max_inodes != u64::MAX
+            && usage.inode_count + additional_inodes > config.max_inodes
+        {
+            return false;
         }
 
-        if config.max_bytes != u64::MAX {
-            if usage.bytes_used + additional_bytes > config.max_bytes {
-                return false;
-            }
+        if config.max_bytes != u64::MAX && usage.bytes_used + additional_bytes > config.max_bytes {
+            return false;
         }
 
         true
@@ -456,7 +454,7 @@ mod tests {
         mgr.create_tenant(config).unwrap();
 
         assert!(mgr.check_tenant_quota(&TenantId::new("tenant1"), 50, 500_000));
-        assert!(mgr.check_tenant_quota(&TenantId::new("tenant1"), 150, 500_000));
+        assert!(!mgr.check_tenant_quota(&TenantId::new("tenant1"), 150, 500_000));
     }
 
     #[test]
@@ -514,7 +512,7 @@ mod tests {
 
         assert!(mgr.is_authorized(&TenantId::new("tenant1"), 1000, 600));
         assert!(mgr.is_authorized(&TenantId::new("tenant1"), 2000, 500));
-        assert!(mgr.is_authorized(&TenantId::new("tenant1"), 2000, 600));
+        assert!(!mgr.is_authorized(&TenantId::new("tenant1"), 2000, 600));
     }
 
     #[test]

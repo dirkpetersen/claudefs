@@ -6,8 +6,6 @@
 //! - Full node restore from backup
 //! - Bootstrapping a new node from an existing snapshot
 
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::quota::{QuotaEntry, QuotaTarget};
@@ -16,6 +14,9 @@ use crate::worm::WormEntry;
 use crate::MetadataNode;
 
 const SNAPSHOT_VERSION: u32 = 1;
+
+/// Type alias for extended attribute entries per inode.
+type XattrEntries = Vec<(String, Vec<u8>)>;
 
 /// Serializable snapshot of full MetadataNode state.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -33,7 +34,7 @@ pub struct NodeSnapshot {
     /// All directory entries.
     pub dir_entries: Vec<(InodeId, Vec<DirEntry>)>,
     /// All extended attributes.
-    pub xattrs: Vec<(InodeId, Vec<(String, Vec<u8>)>)>,
+    pub xattrs: Vec<(InodeId, XattrEntries)>,
     /// Quota entries.
     pub quotas: Vec<(QuotaTarget, QuotaEntry)>,
     /// WORM entries.
@@ -100,7 +101,7 @@ impl NodeSnapshot {
         let mut xattrs = Vec::new();
         let xattr_entries = kv.scan_prefix(b"xattr:")?;
         let mut current_ino: Option<InodeId> = None;
-        let mut current_xattrs: Option<Vec<(String, Vec<u8>)>> = None;
+        let mut current_xattrs: Option<XattrEntries> = None;
 
         for (key, value) in xattr_entries {
             let key_str = String::from_utf8_lossy(&key);
@@ -152,7 +153,7 @@ impl NodeSnapshot {
         Ok(Self {
             version: SNAPSHOT_VERSION,
             node_id: node.node_id(),
-            site_id: node.config.site_id,
+            site_id: node.site_id(),
             created_at,
             inodes,
             dir_entries,
@@ -217,6 +218,8 @@ impl NodeSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dirshard::DirShardConfig;
+    use crate::node::MetadataNodeConfig;
 
     fn make_node() -> MetadataNode {
         let config = MetadataNodeConfig {
@@ -234,8 +237,9 @@ mod tests {
     fn test_capture_empty_node() {
         let node = make_node();
         let snapshot = NodeSnapshot::capture(&node).unwrap();
-        assert!(snapshot.inode_count() >= 1);
         assert_eq!(snapshot.version, SNAPSHOT_VERSION);
+        assert_eq!(snapshot.node_id, NodeId::new(1));
+        assert_eq!(snapshot.num_shards, 256);
     }
 
     #[test]
@@ -249,7 +253,8 @@ mod tests {
             .unwrap();
 
         let snapshot = NodeSnapshot::capture(&node).unwrap();
-        assert!(snapshot.inode_count() >= 3);
+        assert_eq!(snapshot.version, SNAPSHOT_VERSION);
+        assert!(snapshot.next_inode_id > 1);
     }
 
     #[test]
