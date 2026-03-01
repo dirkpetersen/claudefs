@@ -1,115 +1,27 @@
-use crate::operations::DirEntry;
-use lru::LruCache;
-use std::num::NonZeroUsize;
+#![allow(dead_code)]
+
+use crate::inode::{InodeId, InodeKind};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use tracing::debug;
 
 #[derive(Debug, Clone)]
-pub struct DirCacheConfig {
-    pub capacity: usize,
-    pub ttl_secs: u64,
-}
-
-impl Default for DirCacheConfig {
-    fn default() -> Self {
-        DirCacheConfig {
-            capacity: 1_000,
-            ttl_secs: 60,
-        }
-    }
+pub struct DirEntry {
+    pub name: String,
+    pub ino: InodeId,
+    pub kind: InodeKind,
 }
 
 #[derive(Debug, Clone)]
-pub struct DirCacheEntry {
+pub struct ReaddirSnapshot {
     pub entries: Vec<DirEntry>,
     pub inserted_at: Instant,
-    pub mtime: u64,
+    pub ttl: Duration,
 }
 
-impl DirCacheEntry {
-    fn is_expired(&self, ttl_secs: u64) -> bool {
-        self.inserted_at.elapsed() > Duration::from_secs(ttl_secs)
-    }
-}
-
-pub struct DirCache {
-    entries: LruCache<u64, DirCacheEntry>,
-    config: DirCacheConfig,
-    stats: DirCacheStats,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct DirCacheStats {
-    pub hits: u64,
-    pub misses: u64,
-    pub evictions: u64,
-    pub invalidations: u64,
-    pub size: usize,
-}
-
-impl DirCache {
-    pub fn new(config: DirCacheConfig) -> Self {
-        let capacity =
-            NonZeroUsize::new(config.capacity).unwrap_or(NonZeroUsize::new(1_000).unwrap());
-        DirCache {
-            entries: LruCache::new(capacity),
-            config,
-            stats: DirCacheStats::default(),
-        }
-    }
-
-    pub fn get(&mut self, ino: u64) -> Option<Vec<DirEntry>> {
-        if let Some(entry) = self.entries.get(&ino) {
-            if entry.is_expired(self.config.ttl_secs) {
-                self.entries.pop(&ino);
-                self.stats.misses += 1;
-                None
-            } else {
-                self.stats.hits += 1;
-                Some(entry.entries.clone())
-            }
-        } else {
-            self.stats.misses += 1;
-            None
-        }
-    }
-
-    pub fn insert(&mut self, ino: u64, entries: Vec<DirEntry>, mtime: u64) {
-        let prev_len = self.entries.len();
-        self.entries.push(
-            ino,
-            DirCacheEntry {
-                entries,
-                inserted_at: Instant::now(),
-                mtime,
-            },
-        );
-        if self.entries.len() <= prev_len {
-            self.stats.evictions += 1;
-        }
-    }
-
-    pub fn invalidate(&mut self, ino: u64) {
-        if self.entries.pop(&ino).is_some() {
-            self.stats.invalidations += 1;
-        }
-    }
-
-    pub fn invalidate_tree(&mut self, ino: u64) {
-        self.entries.pop(&ino);
-    }
-
-    pub fn stats(&self) -> DirCacheStats {
-        DirCacheStats {
-            hits: self.stats.hits,
-            misses: self.stats.misses,
-            evictions: self.stats.evictions,
-            invalidations: self.stats.invalidations,
-            size: self.entries.len(),
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.entries.clear();
+impl ReaddirSnapshot {
+    pub fn is_expired(&self) -> bool {
+        Instant::now().duration_since(self.inserted_at) > self.ttl
     }
 
     pub fn len(&self) -> usize {
@@ -119,132 +31,461 @@ impl DirCache {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+}
 
-    pub fn get_mtime(&mut self, ino: u64) -> Option<u64> {
-        self.entries.get(&ino).map(|e| e.mtime)
-    }
+#[derive(Debug, Clone)]
+pub struct DirCacheConfig {
+    pub max_dirs: usize,
+    pub ttl: Duration,
+    pub negative_ttl: Duration,
+}
 
-    pub fn is_stale(&mut self, ino: u64, current_mtime: u64) -> bool {
-        if let Some(cached_mtime) = self.get_mtime(ino) {
-            cached_mtime != current_mtime
-        } else {
-            true
+impl Default for DirCacheConfig {
+    fn default() -> Self {
+        Self {
+            max_dirs: 1024,
+            ttl: Duration::from_secs(30),
+            negative_ttl: Duration::from_secs(5),
         }
     }
 }
 
-impl Default for DirCache {
-    fn default() -> Self {
-        Self::new(DirCacheConfig::default())
+#[derive(Debug, Default, Clone)]
+pub struct DirCacheStats {
+    pub hits: u64,
+    pub misses: u64,
+    pub negative_hits: u64,
+    pub invalidations: u64,
+    pub snapshots_cached: usize,
+}
+
+pub struct DirCache {
+    snapshots: HashMap<InodeId, ReaddirSnapshot>,
+    negative: HashMap<(InodeId, String), Instant>,
+    config: DirCacheConfig,
+    stats: DirCacheStats,
+}
+
+impl DirCache {
+    pub fn new(config: DirCacheConfig) -> Self {
+        Self {
+            snapshots: HashMap::new(),
+            negative: HashMap::new(),
+            config,
+            stats: DirCacheStats::default(),
+        }
+    }
+
+    pub fn insert_snapshot(&mut self, dir_ino: InodeId, entries: Vec<DirEntry>) {
+        if self.snapshots.len() >= self.config.max_dirs {
+            self.evict_expired();
+            if self.snapshots.len() >= self.config.max_dirs {
+                if let Some(oldest) = self.snapshots.keys().cloned().collect::<Vec<_>>().pop() {
+                    self.snapshots.remove(&oldest);
+                }
+            }
+        }
+        self.snapshots.insert(
+            dir_ino,
+            ReaddirSnapshot {
+                entries,
+                inserted_at: Instant::now(),
+                ttl: self.config.ttl,
+            },
+        );
+        self.stats.snapshots_cached = self.snapshots.len();
+        debug!(
+            "dir_cache: inserted snapshot for dir {} (cached: {})",
+            dir_ino, self.stats.snapshots_cached
+        );
+    }
+
+    pub fn get_snapshot(&mut self, dir_ino: InodeId) -> Option<ReaddirSnapshot> {
+        if let Some(snap) = self.snapshots.get(&dir_ino).cloned() {
+            if snap.is_expired() {
+                self.snapshots.remove(&dir_ino);
+                self.stats.snapshots_cached = self.snapshots.len();
+                debug!("dir_cache: snapshot for dir {} expired", dir_ino);
+                return None;
+            }
+            self.stats.hits += 1;
+            Some(snap)
+        } else {
+            self.stats.misses += 1;
+            None
+        }
+    }
+
+    pub fn lookup(&mut self, parent: InodeId, name: &str) -> Option<DirEntry> {
+        if self.is_negative(parent, name) {
+            self.stats.negative_hits += 1;
+            debug!("dir_cache: negative lookup hit for {}/{}", parent, name);
+            return None;
+        }
+        if let Some(snap) = self.get_snapshot(parent) {
+            snap.entries.iter().find(|e| e.name == name).cloned()
+        } else {
+            self.stats.misses += 1;
+            None
+        }
+    }
+
+    pub fn insert_negative(&mut self, parent: InodeId, name: &str) {
+        self.negative
+            .insert((parent, name.to_string()), Instant::now());
+    }
+
+    pub fn is_negative(&mut self, parent: InodeId, name: &str) -> bool {
+        if let Some(at) = self.negative.get(&(parent, name.to_string())) {
+            if Instant::now().duration_since(*at) > self.config.negative_ttl {
+                self.negative.remove(&(parent, name.to_string()));
+                false
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn invalidate_dir(&mut self, dir_ino: InodeId) {
+        self.snapshots.remove(&dir_ino);
+        self.stats.invalidations += 1;
+        self.stats.snapshots_cached = self.snapshots.len();
+        debug!("dir_cache: invalidated dir {}", dir_ino);
+    }
+
+    pub fn invalidate_entry(&mut self, parent: InodeId, name: &str) {
+        self.negative.insert(
+            (parent, name.to_string()),
+            Instant::now() - self.config.negative_ttl - Duration::from_secs(1),
+        );
+    }
+
+    pub fn evict_expired(&mut self) -> usize {
+        let before = self.snapshots.len();
+        self.snapshots.retain(|_, snap| !snap.is_expired());
+        self.negative
+            .retain(|_, at| Instant::now().duration_since(*at) <= self.config.negative_ttl);
+        let evicted = before - self.snapshots.len();
+        self.stats.snapshots_cached = self.snapshots.len();
+        if evicted > 0 {
+            debug!("dir_cache: evicted {} expired snapshots", evicted);
+        }
+        evicted
+    }
+
+    pub fn stats(&self) -> &DirCacheStats {
+        &self.stats
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fuser::FileType;
+    use crate::inode::InodeKind;
 
-    fn test_entry(ino: u64, name: &str) -> DirEntry {
+    fn make_entry(name: &str, ino: InodeId, kind: InodeKind) -> DirEntry {
         DirEntry {
-            ino,
-            offset: ino as i64,
-            kind: FileType::RegularFile,
             name: name.to_string(),
+            ino,
+            kind,
         }
     }
 
     #[test]
-    fn test_insert_and_get_within_ttl() {
-        let mut cache = DirCache::new(DirCacheConfig {
-            capacity: 100,
-            ttl_secs: 60,
-        });
-        let entries = vec![test_entry(2, "file1.txt"), test_entry(3, "file2.txt")];
-        cache.insert(1, entries.clone(), 1000);
+    fn test_insert_snapshot_and_get() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        let entries = vec![
+            make_entry("file1.txt", 2, InodeKind::File),
+            make_entry("file2.txt", 3, InodeKind::File),
+        ];
+        cache.insert_snapshot(1, entries);
 
-        let result = cache.get(1);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().len(), 2);
+        let snapshot = cache.get_snapshot(1);
+        assert!(snapshot.is_some());
+        assert_eq!(snapshot.unwrap().len(), 2);
     }
 
     #[test]
-    fn test_get_after_ttl_expiry() {
-        let mut cache = DirCache::new(DirCacheConfig {
-            capacity: 100,
-            ttl_secs: 0,
-        });
-        let entries = vec![test_entry(2, "file1.txt")];
-        cache.insert(1, entries, 1000);
+    fn test_lookup_hit() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        let entries = vec![make_entry("file1.txt", 2, InodeKind::File)];
+        cache.insert_snapshot(1, entries);
 
-        std::thread::sleep(Duration::from_millis(10));
+        let result = cache.lookup(1, "file1.txt");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().ino, 2);
+    }
 
-        let result = cache.get(1);
+    #[test]
+    fn test_lookup_miss() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        let entries = vec![make_entry("file1.txt", 2, InodeKind::File)];
+        cache.insert_snapshot(1, entries);
+
+        let result = cache.lookup(1, "nonexistent");
         assert!(result.is_none());
     }
 
     #[test]
-    fn test_invalidate_removes_entry() {
+    fn test_negative_entry() {
         let mut cache = DirCache::new(DirCacheConfig::default());
-        let entries = vec![test_entry(2, "file1.txt")];
-        cache.insert(1, entries, 1000);
+        cache.insert_negative(1, "deleted.txt");
 
-        cache.invalidate(1);
-
-        assert!(cache.get(1).is_none());
+        assert!(cache.is_negative(1, "deleted.txt"));
     }
 
     #[test]
-    fn test_clear_empties_cache() {
-        let mut cache = DirCache::new(DirCacheConfig::default());
-        cache.insert(1, vec![test_entry(2, "file1.txt")], 1000);
-        cache.insert(2, vec![test_entry(3, "file2.txt")], 1000);
+    fn test_negative_expires() {
+        let mut cache = DirCache::new(DirCacheConfig {
+            max_dirs: 100,
+            ttl: Duration::from_secs(30),
+            negative_ttl: Duration::from_millis(10),
+        });
+        cache.insert_negative(1, "deleted.txt");
 
-        cache.clear();
+        std::thread::sleep(Duration::from_millis(20));
 
-        assert_eq!(cache.len(), 0);
+        assert!(!cache.is_negative(1, "deleted.txt"));
     }
 
     #[test]
-    fn test_stats_track_hits_and_misses() {
+    fn test_invalidate_dir() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_snapshot(1, vec![make_entry("file.txt", 2, InodeKind::File)]);
+
+        cache.invalidate_dir(1);
+
+        assert!(cache.get_snapshot(1).is_none());
+    }
+
+    #[test]
+    fn test_invalidate_entry() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_negative(1, "deleted.txt");
+
+        cache.invalidate_entry(1, "deleted.txt");
+
+        assert!(!cache.is_negative(1, "deleted.txt"));
+    }
+
+    #[test]
+    fn test_evict_expired() {
+        let mut cache = DirCache::new(DirCacheConfig {
+            max_dirs: 100,
+            ttl: Duration::from_millis(10),
+            negative_ttl: Duration::from_secs(5),
+        });
+        cache.insert_snapshot(1, vec![]);
+
+        std::thread::sleep(Duration::from_millis(20));
+
+        let evicted = cache.evict_expired();
+        assert!(evicted > 0);
+        assert!(cache.get_snapshot(1).is_none());
+    }
+
+    #[test]
+    fn test_ttl_expiry() {
+        let mut cache = DirCache::new(DirCacheConfig {
+            max_dirs: 100,
+            ttl: Duration::from_millis(10),
+            negative_ttl: Duration::from_secs(5),
+        });
+        cache.insert_snapshot(1, vec![make_entry("file.txt", 2, InodeKind::File)]);
+
+        std::thread::sleep(Duration::from_millis(20));
+
+        assert!(cache.get_snapshot(1).is_none());
+    }
+
+    #[test]
+    fn test_stats_hits_and_misses() {
         let mut cache = DirCache::new(DirCacheConfig::default());
 
-        cache.get(1);
+        cache.get_snapshot(1);
         assert_eq!(cache.stats().misses, 1);
 
-        cache.insert(2, vec![test_entry(3, "file.txt")], 1000);
-        cache.get(2);
+        cache.insert_snapshot(2, vec![]);
+        cache.get_snapshot(2);
         assert_eq!(cache.stats().hits, 1);
     }
 
     #[test]
-    fn test_capacity_eviction() {
-        let config = DirCacheConfig {
-            capacity: 2,
-            ttl_secs: 60,
-        };
-        let mut cache = DirCache::new(config);
-
-        cache.insert(1, vec![test_entry(10, "a")], 1000);
-        cache.insert(2, vec![test_entry(20, "b")], 1000);
-        cache.insert(3, vec![test_entry(30, "c")], 1000);
-
-        assert!(cache.len() <= 2);
-    }
-
-    #[test]
-    fn test_mtime_tracking() {
+    fn test_stats_negative_hits() {
         let mut cache = DirCache::new(DirCacheConfig::default());
-        cache.insert(1, vec![test_entry(2, "file.txt")], 1000);
+        cache.insert_negative(1, "test");
 
-        assert_eq!(cache.get_mtime(1), Some(1000));
-        assert!(cache.is_stale(1, 1000));
-        assert!(!cache.is_stale(1, 1001));
+        cache.lookup(1, "test");
+
+        assert_eq!(cache.stats().negative_hits, 1);
     }
 
     #[test]
-    fn test_default_config_sensible_values() {
+    fn test_default_config() {
         let config = DirCacheConfig::default();
-        assert_eq!(config.capacity, 1_000);
-        assert_eq!(config.ttl_secs, 60);
+        assert_eq!(config.max_dirs, 1024);
+        assert_eq!(config.ttl, Duration::from_secs(30));
+        assert_eq!(config.negative_ttl, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn test_snapshot_len() {
+        let snapshot = ReaddirSnapshot {
+            entries: vec![
+                make_entry("a", 1, InodeKind::File),
+                make_entry("b", 2, InodeKind::File),
+            ],
+            inserted_at: Instant::now(),
+            ttl: Duration::from_secs(30),
+        };
+        assert_eq!(snapshot.len(), 2);
+    }
+
+    #[test]
+    fn test_snapshot_is_empty() {
+        let snapshot = ReaddirSnapshot {
+            entries: vec![],
+            inserted_at: Instant::now(),
+            ttl: Duration::from_secs(30),
+        };
+        assert!(snapshot.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_dirs() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_snapshot(1, vec![make_entry("a", 10, InodeKind::File)]);
+        cache.insert_snapshot(2, vec![make_entry("b", 20, InodeKind::File)]);
+
+        assert_eq!(cache.get_snapshot(1).unwrap().len(), 1);
+        assert_eq!(cache.get_snapshot(2).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_max_dirs_limit() {
+        let mut cache = DirCache::new(DirCacheConfig {
+            max_dirs: 2,
+            ttl: Duration::from_secs(30),
+            negative_ttl: Duration::from_secs(5),
+        });
+        cache.insert_snapshot(1, vec![]);
+        cache.insert_snapshot(2, vec![]);
+        cache.insert_snapshot(3, vec![]);
+
+        assert!(cache.stats().snapshots_cached <= 2);
+    }
+
+    #[test]
+    fn test_dir_entry_clone() {
+        let entry = make_entry("test", 1, InodeKind::File);
+        let cloned = entry.clone();
+        assert_eq!(cloned.name, "test");
+        assert_eq!(cloned.ino, 1);
+    }
+
+    #[test]
+    fn test_lookup_different_parent() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_snapshot(1, vec![make_entry("file.txt", 2, InodeKind::File)]);
+
+        let result = cache.lookup(2, "file.txt");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_negative_for_different_parent() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_negative(1, "test");
+
+        assert!(!cache.is_negative(2, "test"));
+    }
+
+    #[test]
+    fn test_invalidate_nonexistent_dir() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.invalidate_dir(999);
+
+        assert_eq!(cache.stats().invalidations, 1);
+    }
+
+    #[test]
+    fn test_snapshot_is_not_expired_immediately() {
+        let snapshot = ReaddirSnapshot {
+            entries: vec![],
+            inserted_at: Instant::now(),
+            ttl: Duration::from_secs(30),
+        };
+        assert!(!snapshot.is_expired());
+    }
+
+    #[test]
+    fn test_stats_snapshot_count() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_snapshot(1, vec![]);
+        cache.insert_snapshot(2, vec![]);
+
+        assert_eq!(cache.stats().snapshots_cached, 2);
+    }
+
+    #[test]
+    fn test_clear_negative_on_invalidate_entry() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_negative(1, "test");
+
+        assert!(cache.is_negative(1, "test"));
+
+        cache.invalidate_entry(1, "test");
+
+        assert!(!cache.is_negative(1, "test"));
+    }
+
+    #[test]
+    fn test_kinds_in_entries() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_snapshot(
+            1,
+            vec![
+                make_entry("dir1", 2, InodeKind::Directory),
+                make_entry("file1", 3, InodeKind::File),
+                make_entry("sym1", 4, InodeKind::Symlink),
+            ],
+        );
+
+        let result = cache.lookup(1, "dir1");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().kind, InodeKind::Directory);
+
+        let result = cache.lookup(1, "file1");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().kind, InodeKind::File);
+    }
+
+    #[test]
+    fn test_lookup_returns_correct_entry() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_snapshot(
+            1,
+            vec![
+                make_entry("a", 10, InodeKind::File),
+                make_entry("b", 20, InodeKind::File),
+                make_entry("c", 30, InodeKind::File),
+            ],
+        );
+
+        let result = cache.lookup(1, "b").unwrap();
+        assert_eq!(result.ino, 20);
+    }
+
+    #[test]
+    fn test_consecutive_lookups() {
+        let mut cache = DirCache::new(DirCacheConfig::default());
+        cache.insert_snapshot(1, vec![make_entry("a", 10, InodeKind::File)]);
+
+        let _ = cache.lookup(1, "a");
+        let _ = cache.lookup(1, "a");
+
+        assert_eq!(cache.stats().hits, 2);
     }
 }

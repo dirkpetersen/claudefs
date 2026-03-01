@@ -42,6 +42,7 @@ pub mod pipeline_integration;
 pub mod quota_integration;
 pub mod repl_integration;
 pub mod security_integration;
+pub mod split_brain_tests;
 pub mod storage_resilience;
 pub mod system_invariants;
 pub mod transport_resilience;
