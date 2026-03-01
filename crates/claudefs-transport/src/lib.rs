@@ -9,6 +9,7 @@
 //! - Connection pooling and lifecycle management
 //! - Request/response multiplexing
 
+pub mod batch;
 pub mod buffer;
 pub mod circuitbreaker;
 pub mod client;
@@ -37,6 +38,10 @@ pub mod tracecontext;
 pub mod transport;
 pub mod version;
 
+pub use batch::{
+    BatchConfig, BatchCollector, BatchEnvelope, BatchItem, BatchRequest, BatchResponse,
+    BatchResult, BatchStats, BatchStatsSnapshot,
+};
 pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
 pub use client::{TransportClient, TransportClientConfig};
 pub use deadline::{Deadline, DeadlineContext, encode_deadline, decode_deadline};
