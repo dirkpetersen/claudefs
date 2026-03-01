@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::debug;
 
@@ -85,15 +84,16 @@ impl FingerprintStore for LocalFingerprintStore {
 
     fn insert(&self, hash: [u8; 32], location: BlockLocation) -> bool {
         let mut entries = self.entries.blocking_write();
-        if entries.contains_key(&hash) {
-            if let Some((_, refs)) = entries.get_mut(&hash) {
-                *refs += 1;
+        match entries.entry(hash) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                entry.get_mut().1 += 1;
+                false
             }
-            false
-        } else {
-            entries.insert(hash, (location, 1));
-            debug!(node_id = location.node_id, offset = location.block_offset, "Inserted new fingerprint");
-            true
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert((location, 1));
+                debug!(node_id = location.node_id, offset = location.block_offset, "Inserted new fingerprint");
+                true
+            }
         }
     }
 

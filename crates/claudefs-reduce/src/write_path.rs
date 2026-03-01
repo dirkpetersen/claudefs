@@ -1,9 +1,7 @@
 //! Integrated write path: reduction pipeline + distributed fingerprint + segment packing.
 
-use crate::compression::CompressionAlgorithm;
 use crate::encryption::EncryptionKey;
 use crate::error::ReduceError;
-use crate::fingerprint::ChunkHash;
 use crate::meta_bridge::{BlockLocation, FingerprintStore};
 use crate::pipeline::{PipelineConfig, ReducedChunk, ReductionPipeline, ReductionStats};
 use crate::segment::{Segment, SegmentPacker, SegmentPackerConfig};
@@ -12,21 +10,12 @@ use std::sync::Arc;
 use tracing::debug;
 
 /// Configuration for the integrated write path.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WritePathConfig {
     /// Reduction pipeline configuration
     pub pipeline: PipelineConfig,
     /// Segment packer configuration
     pub segment: SegmentPackerConfig,
-}
-
-impl Default for WritePathConfig {
-    fn default() -> Self {
-        Self {
-            pipeline: PipelineConfig::default(),
-            segment: SegmentPackerConfig::default(),
-        }
-    }
 }
 
 /// Statistics from the integrated write path.
@@ -112,7 +101,7 @@ impl<F: FingerprintStore + Send + Sync> IntegratedWritePath<F> {
     /// 4. Insert new fingerprints to the store
     pub fn process_write(&mut self, data: &[u8]) -> Result<WritePathResult, ReduceError> {
         // (a) Run through reduction pipeline
-        let (mut chunks, pipeline_stats) = self.pipeline.process_write(data)?;
+        let (chunks, pipeline_stats) = self.pipeline.process_write(data)?;
 
         // Update stats
         self.stats.pipeline = pipeline_stats;
