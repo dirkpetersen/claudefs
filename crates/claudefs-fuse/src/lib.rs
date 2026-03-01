@@ -45,6 +45,7 @@ pub mod symlink;
 pub mod tiering_hints;
 pub mod tracing_client;
 pub mod transport;
+pub mod workload_class;
 pub mod worm;
 pub mod writebuf;
 pub mod xattr;

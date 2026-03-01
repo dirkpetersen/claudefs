@@ -6,6 +6,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 3 Production Readiness COMPLETE
+
+#### 2026-03-01 (A5 — FUSE Client: Phase 3 Production Readiness)
+
+##### A5: FUSE — 748 tests, 47 modules, 5 new Phase 3 production-hardening modules
+
+**Phase 3 Production (31 new tests, 5 new modules) — security policy, cache coherence, hot path, fsync barriers, workload classification:**
+
+1. `sec_policy.rs` — FUSE daemon security policy & sandboxing (24 tests):
+   - `CapabilitySet` with Linux capability enumeration and `fuse_minimal()` set
+   - `SeccompMode` enum: Disabled / Log / Enforce; default = Disabled
+   - `SyscallPolicy::fuse_allowlist()` — comprehensive syscall allowlist for FUSE daemon
+   - `SecurityProfile` combining capabilities + syscall policy + mount namespace + no_new_privs
+   - `PolicyEnforcer` with violation recording, rate limiting by `max_violations`
+   - `PolicyViolation` events: UnauthorizedSyscall, CapabilityEscalation, NewPrivilegesAttempt, UnauthorizedMount
+
+2. `cache_coherence.rs` — Multi-client cache coherence with lease-based invalidation (21 tests):
+   - `CacheLease` lifecycle: Active → Expired / Revoked; `renew()` and `revoke()` methods
+   - `VersionVector` with conflict detection and max-merge for distributed consistency
+   - `CoherenceProtocol` enum: CloseToOpen / SessionBased / Strict (default = CloseToOpen, NFS-style)
+   - `CoherenceManager` managing leases per inode with invalidation queue and stale-lease expiry
+   - `CacheInvalidation` with `InvalidationReason`: LeaseExpired, RemoteWrite, ConflictDetected, ExplicitFlush, NodeFailover
+
+3. `hotpath.rs` — Read/write hot path with FUSE passthrough mode routing (29 tests):
+   - `TransferSize` classification: Small (<4KB) / Medium (4KB-128KB) / Large (128KB-1MB) / Huge (>1MB)
+   - `PassthroughMode`: Unavailable / Available{kernel_version} / Active; enabled for kernel >= 6.8
+   - `PatternDetector` tracking sequential/random patterns per inode from access history
+   - `InflightTracker` with capacity-bounded in-flight I/O request management
+   - `HotpathRouter` routing to: Standard / ZeroCopy / Passthrough / Readahead based on size and pattern
+
+4. `fsync_barrier.rs` — Ordered fsync with write barriers for crash consistency (20 tests):
+   - `WriteBarrier` lifecycle: Pending → Flushing → Committed / Failed(reason)
+   - `BarrierKind`: DataOnly / MetadataOnly / DataAndMetadata / JournalCommit
+   - `FsyncJournal` with ordered append, commit-up-to, and inode-based query
+   - `BarrierManager` coordinating barrier creation, flush ordering, and journal persistence
+   - `FsyncMode`: Sync / Async / Ordered{max_delay_ms=100} — default ordered with 100ms max delay
+
+5. `workload_class.rs` — Workload classification for adaptive performance tuning (32 tests):
+   - `WorkloadType` enum with 8 categories: AiTraining / AiInference / WebServing / Database / Backup / Interactive / Streaming / Unknown
+   - `AccessProfile` tracking bytes/ops/sequential vs random with `read_write_ratio()` and `sequential_ratio()`
+   - `WorkloadSignature` computed from profile: classifies by sequential_ratio, avg_io_size_kb, ops_per_second
+   - `WorkloadClassifier` with rules for AiTraining (sequential+256KB+), Database (random+<16KB+low-ops), Backup (write-heavy), Streaming, WebServing
+   - `AdaptiveTuner` per-inode workload tracking with `get_read_ahead_kb()` returning workload-appropriate prefetch sizes (AiTraining: 2048KB, Backup: 4096KB)
+
+**MILESTONE: 748 A5 tests, 47 modules**
+
+---
+
+### A9: Test & Validation — Phase 9 New Module Tests COMPLETE
+
+#### 2026-03-01 (A9 — Phase 9: New Module Tests — 1476 total tests, 43 modules)
+
+**Phase 9 (250 new tests, 4 new modules) — tests for newly-added modules across 4 crates:**
+1. `storage_new_modules_tests.rs` (54): AtomicWriteCapability/Request/Stats, BlockCache, IoPriority ordering, NvmeSmartLog health, JournalConfig/Op/Stats
+2. `transport_new_modules_tests.rs` (56): CongestionWindow state machine, CongestionConfig, PathId/State/Metrics, MultipathRouter, AuthConfig/Stats/RevocationList
+3. `mgmt_topology_audit_tests.rs` (63): NodeInfo utilization, TopologyMap CRUD+filter, AuditFilter/Trail, RebalanceJob/Scheduler
+4. `fuse_coherence_policy_tests.rs` (77): LeaseId/LeaseState/CacheLease, CapabilitySet, SeccompMode, SecurityPolicy
+
+### A9: Test & Validation — Phase 8 Advanced Resilience COMPLETE
+
+#### 2026-03-01 (A9 — Phase 8: Resilience & Cross-Crate — 1226 total tests, 39 modules)
+
+**Phase 8 (172 new tests, 5 modules):** io_priority_qos_tests (38), storage_resilience (29), system_invariants (37), transport_resilience (28), worm_delegation_tests (40)
+
+---
+
 ### A8: Management — Phase 7 Production Readiness COMPLETE
 
 #### 2026-03-01 (A8 — Phase 7: Audit Trail, Performance Reporting, Rebalancing, Topology)
