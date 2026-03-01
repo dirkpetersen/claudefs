@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Phase 3 Production Readiness Additions
+
+#### 2026-03-01 (A8 — Phase 3 Production Readiness: live_config + ops_metrics)
+
+**2 new production-critical modules, 814 total management tests (+45 from 769):**
+
+1. **live_config.rs** (19 tests): Hot-reloadable configuration store
+   - `LiveConfigStore`: thread-safe, version-tracked config with atomic hot-reload
+   - `LiveConfigEntry`: per-key entries with version, timestamp, JSON value, description
+   - `ReloadStatus`: Success/PartialFailure/NoChanges with counts of updated/unchanged keys
+   - `ConfigWatcher`: subscriber pattern — watch specific keys, get notified on change via mpsc channel
+   - `validate_json` / `parse_entry<T>`: JSON validation and typed deserialization helpers
+   - Critical for production: config changes (erasure ratios, tiering thresholds, QoS limits) take effect immediately without file system restarts
+
+2. **ops_metrics.rs** (23 tests): Cluster-wide operational metrics aggregation
+   - `OpsMetricsAggregator`: per-node ring-buffer of `NodeMetricsSnapshot` (cpu/mem/disk/iops/throughput/latency)
+   - `ClusterOpsMetrics`: aggregate view — avg/max CPU, memory, disk; total IOPS, throughput; unhealthy node list
+   - `ClusterHealthScore` (0-100): weighted formula across cpu(20%), mem(15%), disk(20%), error_rate(25%), latency(10%), availability(10%)
+   - Score summary: "Healthy" (≥90), "Warning" (≥70), "Degraded" (≥50), "Critical" (<50)
+   - `MetricTrend` / `TrendDirection`: trend analysis over sliding window (Improving/Stable/Degrading)
+   - Exports to A11 dashboards and feeds A8 alerting thresholds
+
+**Total A8: 814 tests, 36 modules**
+
+---
+
 ### A7: Protocol Gateways — Phase 3 Production Readiness (Additional Modules)
 
 #### 2026-03-01 (A7 — Phase 3 Production Readiness Additions)
