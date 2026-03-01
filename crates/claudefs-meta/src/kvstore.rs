@@ -257,4 +257,73 @@ mod tests {
         store.put(b"key".to_vec(), b"v2".to_vec()).unwrap();
         assert_eq!(store.get(b"key").unwrap(), Some(b"v2".to_vec()));
     }
+
+    #[test]
+    fn test_empty_batch() {
+        let store = MemoryKvStore::new();
+        store.write_batch(vec![]).unwrap();
+    }
+
+    #[test]
+    fn test_batch_put_and_delete_same_key() {
+        let store = MemoryKvStore::new();
+        store.put(b"key".to_vec(), b"v".to_vec()).unwrap();
+        store
+            .write_batch(vec![
+                BatchOp::Put {
+                    key: b"key".to_vec(),
+                    value: b"new".to_vec(),
+                },
+                BatchOp::Delete {
+                    key: b"key".to_vec(),
+                },
+            ])
+            .unwrap();
+        assert_eq!(store.get(b"key").unwrap(), None);
+    }
+
+    #[test]
+    fn test_scan_prefix_empty_result() {
+        let store = MemoryKvStore::new();
+        store.put(b"dir/a".to_vec(), b"1".to_vec()).unwrap();
+        let result = store.scan_prefix(b"nonexistent/").unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_scan_range_no_matches() {
+        let store = MemoryKvStore::new();
+        store.put(b"a".to_vec(), b"1".to_vec()).unwrap();
+        let result = store.scan_range(b"m", b"z").unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_delete_nonexistent_key() {
+        let store = MemoryKvStore::new();
+        store.delete(b"nonexistent").unwrap();
+        assert_eq!(store.get(b"nonexistent").unwrap(), None);
+    }
+
+    #[test]
+    fn test_scan_prefix_exact_boundary() {
+        let store = MemoryKvStore::new();
+        store.put(b"abc".to_vec(), b"1".to_vec()).unwrap();
+        store.put(b"abd".to_vec(), b"2".to_vec()).unwrap();
+        store.put(b"abe".to_vec(), b"3".to_vec()).unwrap();
+        let result = store.scan_prefix(b"ab").unwrap();
+        assert_eq!(result.len(), 3);
+        let result = store.scan_prefix(b"abc").unwrap();
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_large_values() {
+        let store = MemoryKvStore::new();
+        let large_value: Vec<u8> = vec![0xAB; 1024 * 1024];
+        store.put(b"big".to_vec(), large_value.clone()).unwrap();
+        let retrieved = store.get(b"big").unwrap().unwrap();
+        assert_eq!(retrieved.len(), 1024 * 1024);
+        assert_eq!(retrieved, large_value);
+    }
 }
