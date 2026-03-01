@@ -111,8 +111,7 @@ impl RpcServer {
         // Drain check
         if server.config.enable_drain_support && !server.drain.is_accepting() {
             // Return an I/O like error to indicate rejection
-            return Err(TransportError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(TransportError::IoError(std::io::Error::other(
                 "drain in progress",
             )));
         }
@@ -147,11 +146,10 @@ impl RpcServer {
 
         // Always decrement active requests on completion
         server.active_requests.fetch_sub(1, Ordering::SeqCst);
-        if let Err(_) = &result {
+        if result.is_err() {
             server.total_errors.fetch_add(1, Ordering::SeqCst);
             server.metrics.inc_errors_total();
-            return Err(TransportError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(TransportError::IoError(std::io::Error::other(
                 "handler error",
             )));
         }
@@ -181,10 +179,12 @@ impl RpcServer {
     }
 
     // Accessors
+    /// Get the current number of active requests.
     pub fn active_requests(&self) -> usize {
         self.active_requests.load(Ordering::SeqCst)
     }
 
+    /// Get a snapshot of server statistics.
     pub fn stats(&self) -> ServerStats {
         ServerStats {
             active_requests: self.active_requests(),
@@ -194,10 +194,12 @@ impl RpcServer {
         }
     }
 
+    /// Get a reference to the drain controller.
     pub fn drain_controller(&self) -> &DrainController {
         &self.drain
     }
 
+    /// Get a reference to the transport metrics.
     pub fn metrics(&self) -> &TransportMetrics {
         &self.metrics
     }
@@ -205,9 +207,13 @@ impl RpcServer {
 
 /// Snapshot of server statistics.
 pub struct ServerStats {
+    /// Number of currently active requests.
     pub active_requests: usize,
+    /// Total number of successfully processed requests.
     pub total_processed: u64,
+    /// Total number of requests that resulted in errors.
     pub total_errors: u64,
+    /// Current drain state (0 = normal, 1 = draining).
     pub drain_state: u8,
 }
 
