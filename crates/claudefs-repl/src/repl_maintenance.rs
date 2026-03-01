@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[allow(dead_code)]
 enum MaintenanceState {
     Active,
     Paused,
@@ -9,6 +10,7 @@ enum MaintenanceState {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct MaintenanceWindow {
     start_hour: u8,
     end_hour: u8,
@@ -16,6 +18,7 @@ struct MaintenanceWindow {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct MaintenanceStats {
     windows_entered: u64,
     windows_exited: u64,
@@ -23,12 +26,14 @@ struct MaintenanceStats {
     catchup_duration_ms: u64,
 }
 
+#[allow(dead_code)]
 struct MaintenanceCoordinator {
     state: MaintenanceState,
     window: Option<MaintenanceWindow>,
     stats: MaintenanceStats,
 }
 
+#[allow(dead_code)]
 impl MaintenanceCoordinator {
     pub fn new() -> Self {
         Self {

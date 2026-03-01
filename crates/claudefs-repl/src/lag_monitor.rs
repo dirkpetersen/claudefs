@@ -1,10 +1,19 @@
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
+/// Service Level Agreement thresholds for replication lag monitoring.
+///
+/// Defines three severity thresholds:
+/// - `warn_threshold_ms`: Triggers warning status (default: 100ms)
+/// - `critical_threshold_ms`: Triggers critical status (default: 500ms)
+/// - `max_acceptable_ms`: Maximum allowed lag before marking as exceeded (default: 2000ms)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LagSla {
+    /// Threshold in ms to trigger warning status.
     pub warn_threshold_ms: u64,
+    /// Threshold in ms to trigger critical status.
     pub critical_threshold_ms: u64,
+    /// Maximum acceptable lag in ms before marking as exceeded.
     pub max_acceptable_ms: u64,
 }
 
@@ -18,38 +27,97 @@ impl Default for LagSla {
     }
 }
 
+/// Replication lag status indicating health state.
+///
+/// Variants:
+/// - `Ok`: Lag is within acceptable limits (below warn threshold)
+/// - `Warning { lag_ms }`: Lag exceeds warn threshold but below critical
+/// - `Critical { lag_ms }`: Lag exceeds critical threshold but below max acceptable
+/// - `Exceeded { lag_ms }`: Lag exceeds maximum acceptable threshold
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum LagStatus {
+    /// Lag is within acceptable limits.
     Ok,
-    Warning { lag_ms: u64 },
-    Critical { lag_ms: u64 },
-    Exceeded { lag_ms: u64 },
+    /// Lag exceeds warning threshold.
+    Warning {
+        /// Measured lag in milliseconds.
+        lag_ms: u64,
+    },
+    /// Lag exceeds critical threshold.
+    Critical {
+        /// Measured lag in milliseconds.
+        lag_ms: u64,
+    },
+    /// Lag exceeds maximum acceptable threshold.
+    Exceeded {
+        /// Measured lag in milliseconds.
+        lag_ms: u64,
+    },
 }
 
+/// A single lag measurement sample from a site.
+///
+/// Fields:
+/// - `site_id`: Identifier of the remote site
+/// - `lag_ms`: Measured replication lag in milliseconds
+/// - `timestamp`: Unix timestamp in milliseconds when sample was taken
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LagSample {
+    /// Identifier of the remote site.
     pub site_id: String,
+    /// Measured replication lag in milliseconds.
     pub lag_ms: u64,
+    /// Unix timestamp in milliseconds when sample was taken.
     pub timestamp: u64,
 }
 
+/// Aggregate statistics for lag analysis across all samples.
+///
+/// Fields:
+/// - `sample_count`: Total number of samples recorded
+/// - `avg_lag_ms`: Rolling average lag in milliseconds
+/// - `max_lag_ms`: Maximum lag observed in milliseconds
+/// - `warning_count`: Number of samples exceeding warning threshold
+/// - `critical_count`: Number of samples exceeding critical threshold (including exceeded)
 #[derive(Debug, Clone, Default)]
 pub struct LagStats {
+    /// Total number of samples recorded.
     pub sample_count: u64,
+    /// Rolling average lag in milliseconds.
     pub avg_lag_ms: f64,
+    /// Maximum lag observed in milliseconds.
     pub max_lag_ms: u64,
+    /// Number of samples exceeding warning threshold.
     pub warning_count: u64,
+    /// Number of samples exceeding critical threshold.
     pub critical_count: u64,
 }
 
+/// Main monitor for tracking replication lag and enforcing SLA thresholds.
+///
+/// Tracks per-site lag measurements and aggregates statistics to determine
+/// when replication lag violates configured thresholds. The monitor maintains
+/// a rolling sample history and computes aggregate statistics for alerting.
+///
+/// Fields:
+/// - `sla`: Service Level Agreement thresholds for lag monitoring
+/// - `samples`: Collection of recent lag samples per site
+/// - `stats`: Aggregate statistics across all samples
 #[derive(Debug)]
 pub struct LagMonitor {
+    /// Service Level Agreement thresholds.
     sla: LagSla,
+    /// Collection of recent lag samples.
     samples: Vec<LagSample>,
+    /// Aggregate statistics.
     stats: LagStats,
 }
 
 impl LagMonitor {
+    /// Creates a new LagMonitor with the specified SLA thresholds.
+    ///
+    /// Initializes the monitor with empty samples and zero statistics.
+    /// Logs the configured thresholds at info level.
     pub fn new(sla: LagSla) -> Self {
         info!(
             "LagMonitor initialized with SLA: warn={}ms, critical={}ms, max={}ms",
@@ -62,6 +130,14 @@ impl LagMonitor {
         }
     }
 
+    /// Records a lag sample for a site and returns the current lag status.
+    ///
+    /// Updates aggregate statistics including sample count, average lag,
+    /// max lag, and warning/critical counts. Logs at appropriate levels
+    /// when thresholds are exceeded.
+    ///
+    /// Returns the [`LagStatus`] based on the current lag value relative
+    /// to configured thresholds.
     pub fn record_sample(&mut self, site_id: String, lag_ms: u64) -> LagStatus {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -76,7 +152,18 @@ impl LagMonitor {
 
         self.stats.sample_count += 1;
 
-        if lag_ms > self.sla.max_acceptable_ms {
+        self.stats.avg_lag_ms = if self.stats.sample_count == 1 {
+            lag_ms as f64
+        } else {
+            let prev_total = self.stats.avg_lag_ms * (self.stats.sample_count - 1) as f64;
+            (prev_total + lag_ms as f64) / self.stats.sample_count as f64
+        };
+
+        if lag_ms > self.stats.max_lag_ms {
+            self.stats.max_lag_ms = lag_ms;
+        }
+
+        if lag_ms >= self.sla.max_acceptable_ms {
             self.stats.critical_count += 1;
             warn!(
                 "Site {} lag {}ms exceeded max acceptable {}ms",
@@ -103,25 +190,18 @@ impl LagMonitor {
             return LagStatus::Warning { lag_ms };
         }
 
-        self.stats.avg_lag_ms = if self.stats.sample_count == 1 {
-            lag_ms as f64
-        } else {
-            let prev_total = self.stats.avg_lag_ms * (self.stats.sample_count - 1) as f64;
-            (prev_total + lag_ms as f64) / self.stats.sample_count as f64
-        };
-
-        if lag_ms > self.stats.max_lag_ms {
-            self.stats.max_lag_ms = lag_ms;
-        }
-
         LagStatus::Ok
     }
 
+    /// Returns the current lag status for a specific site.
+    ///
+    /// Looks up the most recent sample for the given site_id and determines
+    /// its status based on the configured SLA thresholds. Returns `Ok` if
+    /// no samples exist for the site.
     pub fn status_for(&self, site_id: &str) -> LagStatus {
         self.samples
             .iter()
-            .filter(|s| s.site_id == site_id)
-            .last()
+            .rfind(|s| s.site_id == site_id)
             .map(|s| {
                 let lag_ms = s.lag_ms;
                 if lag_ms > self.sla.max_acceptable_ms {
@@ -137,10 +217,18 @@ impl LagMonitor {
             .unwrap_or(LagStatus::Ok)
     }
 
+    /// Returns a reference to the aggregate statistics.
+    ///
+    /// Provides access to sample_count, avg_lag_ms, max_lag_ms,
+    /// warning_count, and critical_count.
     pub fn stats(&self) -> &LagStats {
         &self.stats
     }
 
+    /// Clears all recorded samples and resets aggregate statistics.
+    ///
+    /// Useful for resetting the monitor after an incident or when
+    /// starting a new monitoring period.
     pub fn clear_samples(&mut self) {
         self.samples.clear();
         self.stats = LagStats::default();

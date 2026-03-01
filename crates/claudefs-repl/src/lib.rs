@@ -42,6 +42,8 @@ pub mod health;
 pub mod journal;
 /// Prometheus metrics export.
 pub mod metrics;
+/// Replication lag monitoring and SLA enforcement.
+pub mod lag_monitor;
 /// Replication pipeline coordination.
 pub mod pipeline;
 /// Replication status reporting.
