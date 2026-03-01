@@ -40,3 +40,5 @@ pub mod mgmt_pentest;
 pub mod fuzz_fuse;
 #[cfg(test)]
 pub mod dep_audit;
+#[cfg(test)]
+pub mod dos_resilience;

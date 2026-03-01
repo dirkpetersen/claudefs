@@ -154,6 +154,7 @@ impl BootstrapCoordinator {
             BootstrapPhase::SnapshotTransfer {
                 bytes_received,
                 bytes_total,
+                primary_site: _,
             } => {
                 if *bytes_total > 0 {
                     5 + (90 * bytes_received / bytes_total) as u8

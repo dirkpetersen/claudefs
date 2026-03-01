@@ -31,3 +31,5 @@ pub mod journal_gc;
 pub mod repl_qos;
 pub mod repl_audit;
 pub mod split_brain;
+pub mod otel_repl;
+pub mod repl_bootstrap;
