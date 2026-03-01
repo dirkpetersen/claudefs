@@ -24,6 +24,8 @@ pub mod filehandle;
 pub mod fingerprint;
 /// Read-only follower query routing for relaxed POSIX mode
 pub mod follower_read;
+/// Metadata node health diagnostics and readiness probes
+pub mod health;
 /// Inode operations
 pub mod inode;
 /// Inode generation numbers for NFS export consistency
@@ -64,6 +66,8 @@ pub mod quota;
 pub mod raft_log;
 /// Raft-integrated metadata service (Phase 2)
 pub mod raftservice;
+/// Per-client metadata operation rate limiting
+pub mod rate_limit;
 /// Linearizable reads via ReadIndex protocol
 pub mod readindex;
 /// Cross-site replication
@@ -106,6 +110,7 @@ pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
 pub use fingerprint::FingerprintIndex;
 pub use follower_read::{FollowerReadConfig, FollowerReadRouter, ReadConsistency, ReadTarget};
+pub use health::{ComponentHealth, HealthChecker, HealthReport, HealthStatus, HealthThresholds};
 pub use inode_gen::{Generation, InodeGenManager, NfsFileHandle};
 pub use journal_tailer::{JournalTailer, ReplicationBatch, TailerConfig, TailerCursor};
 pub use kvstore::{KvStore, MemoryKvStore};
@@ -124,6 +129,7 @@ pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
 pub use raft_log::RaftLogStore;
 pub use raftservice::{RaftMetadataService, RaftServiceConfig};
+pub use rate_limit::{ClientId, RateLimitConfig, RateLimitDecision, RateLimitStats, RateLimiter};
 pub use readindex::{PendingRead, ReadIndexManager, ReadStatus};
 pub use rpc::{MetadataRequest, MetadataResponse, RpcDispatcher};
 pub use scaling::{MigrationStatus, MigrationTask, ScalingManager, ShardPlacement};
