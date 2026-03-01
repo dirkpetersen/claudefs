@@ -41,4 +41,3 @@ terraform.tfstate*
 # Test artifacts
 test-cluster-*.log
 target/
-.github/workflows/
