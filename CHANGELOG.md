@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 5 MILESTONE COMPLETE
+
+#### 2026-03-01 (A5 — FUSE Client: All Phases Complete)
+
+##### A5: FUSE Client — 235 tests, 17 modules, 6496 lines
+
+**Phase 5 (50 new tests, 3 modules + extended filesystem.rs):**
+1. `locking.rs` — POSIX advisory file locking (shared/exclusive/unlock), LockManager with range overlap detection, ranges_overlap() (12 tests)
+2. `mmap.rs` — MmapTracker with MmapRegion registry, writable mapping detection, MmapStats (10 tests)
+3. `perf.rs` — FuseMetrics with atomic OpCounters/ByteCounters, LatencyHistogram (p50/p99/mean), MetricsSnapshot, OpTimer (12 tests)
+4. `filesystem.rs` extended: locks + mmap_tracker + metrics instrumented, metrics_snapshot() public accessor (8 new tests)
+
+**Phase 4 (18 tests):** transport.rs (FuseTransport trait, StubTransport), session.rs (SessionHandle RAII, SessionConfig, SessionStats)
+
+**Phase 3 (53 tests):** xattr.rs (XattrStore), symlink.rs (SymlinkStore), datacache.rs (LRU DataCache + generation invalidation)
+
+**Phase 2 (61 tests):** filesystem.rs (ClaudeFsFilesystem implements fuser::Filesystem with 20 VFS ops), passthrough.rs, server.rs, mount.rs
+
+**Phase 1 (53 tests):** error.rs, inode.rs, attr.rs, cache.rs, operations.rs
+
+**MILESTONE: 235 FUSE tests, 17 modules, 6496 lines, zero clippy errors (non-docs)**
+**WORKSPACE: 1605 tests (FUSE 235 + transport 529 + meta 495 + reduce 223 + storage 90 + others)**
+
+---
+
 ### A8: Management — Phase 5 MILESTONE COMPLETE
 
 #### 2026-03-01 (A8 — Management: Phase 5 Observability & Scaling)
