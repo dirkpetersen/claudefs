@@ -246,20 +246,20 @@ mod tests {
     fn make_attr(ino: u64) -> InodeAttr {
         InodeAttr {
             ino: InodeId::new(ino),
+            file_type: FileType::RegularFile,
+            mode: 0o644,
+            nlink: 1,
+            uid: 1000,
+            gid: 1000,
             size: 1024,
             blocks: 2,
             atime: Timestamp::now(),
             mtime: Timestamp::now(),
             ctime: Timestamp::now(),
             crtime: Timestamp::now(),
-            kind: FileType::RegularFile,
-            perm: 0o644,
-            nlink: 1,
-            uid: 1000,
-            gid: 1000,
-            rdev: 0,
-            blksize: 4096,
-            flags: 0,
+            content_hash: None,
+            repl_state: ReplicationState::Local,
+            vector_clock: VectorClock::new(1, 0),
         }
     }
 
