@@ -216,7 +216,7 @@ impl SnapshotCatalog {
         target_path: String,
         total_bytes: u64,
     ) -> Result<&RestoreJob, SnapshotError> {
-        let snapshot = self
+        let _snapshot = self
             .snapshots
             .get(snapshot_name)
             .ok_or_else(|| SnapshotError::NotFound(snapshot_name.to_string()))?;
