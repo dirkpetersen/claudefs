@@ -82,6 +82,15 @@ pub struct ClusterStatus {
     pub this_node: NodeId,
 }
 
+/// Directory entry with full inode attributes (for FUSE readdirplus).
+#[derive(Clone, Debug)]
+pub struct DirEntryPlus {
+    /// Directory entry info.
+    pub entry: DirEntry,
+    /// Full inode attributes.
+    pub attr: InodeAttr,
+}
+
 /// Unified metadata server node.
 ///
 /// Combines KV store, inode operations, directory operations, Raft consensus,
@@ -846,6 +855,154 @@ impl MetadataNode {
         result
     }
 
+    /// Lists directory entries with full inode attributes (FUSE readdirplus).
+    pub fn readdir_plus(&self, dir: InodeId) -> Result<Vec<DirEntryPlus>, MetaError> {
+        let start = Instant::now();
+        let entries = self.service.readdir(dir)?;
+
+        let mut result = Vec::with_capacity(entries.len());
+        for entry in entries {
+            match self.service.getattr(entry.ino) {
+                Ok(attr) => {
+                    result.push(DirEntryPlus { entry, attr });
+                }
+                Err(_) => {
+                    let attr = InodeAttr::new_file(entry.ino, 0, 0, 0, self.config.site_id);
+                    result.push(DirEntryPlus { entry, attr });
+                }
+            }
+        }
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::ReaddirPlus, duration, true);
+
+        Ok(result)
+    }
+
+    /// Creates a special file (device, FIFO, or socket).
+    pub fn mknod(
+        &self,
+        parent: InodeId,
+        name: &str,
+        file_type: FileType,
+        uid: u32,
+        gid: u32,
+        mode: u32,
+    ) -> Result<InodeAttr, MetaError> {
+        let start = Instant::now();
+
+        self.quota_mgr
+            .check_quota(uid, gid, 0, 1)
+            .inspect_err(|_e| {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Mknod, duration, false);
+            })?;
+
+        let _: Result<(), ()> = match file_type {
+            FileType::BlockDevice | FileType::CharDevice | FileType::Fifo | FileType::Socket => {
+                Ok(())
+            }
+            _ => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Mknod, duration, false);
+                return Err(MetaError::KvError(
+                    "mknod requires a special file type".to_string(),
+                ));
+            }
+        };
+
+        let result = self.service.create_file(parent, name, uid, gid, mode);
+
+        match result {
+            Ok(mut attr) => {
+                attr.file_type = file_type;
+                let _ = self.service.setattr(attr.ino, attr.clone());
+
+                self.quota_mgr.update_usage(uid, gid, 0, 1);
+                let _ = self.lease_mgr.revoke(parent);
+                self.watch_mgr.notify(WatchEvent::Create {
+                    parent,
+                    name: name.to_string(),
+                    ino: attr.ino,
+                });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateInode { attr: attr.clone() },
+                    self.config.site_id,
+                );
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateEntry {
+                        parent,
+                        name: name.to_string(),
+                        entry: DirEntry {
+                            name: name.to_string(),
+                            ino: attr.ino,
+                            file_type: attr.file_type,
+                        },
+                    },
+                    self.config.site_id,
+                );
+                self.inode_counter.fetch_add(1, Ordering::Relaxed);
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Mknod, duration, true);
+
+                Ok(attr)
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Mknod, duration, false);
+                Err(e)
+            }
+        }
+    }
+
+    /// Checks if a user has the requested access to an inode (FUSE access).
+    pub fn access(&self, ino: InodeId, uid: u32, gid: u32, mode: u32) -> Result<(), MetaError> {
+        let start = Instant::now();
+        let attr = self.service.getattr(ino)?;
+
+        let ctx = crate::access::UserContext::new(uid, gid, vec![]);
+        let access_mode = crate::access::AccessMode(mode);
+        let result = crate::access::check_access(&attr, &ctx, access_mode);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::Access, duration, result.is_ok());
+
+        result
+    }
+
+    /// Flushes file handle metadata (called on close by FUSE).
+    pub fn flush(&self, fh: u64) -> Result<(), MetaError> {
+        let start = Instant::now();
+
+        let result = if self.fh_mgr.get(fh).is_ok() {
+            Ok(())
+        } else {
+            Err(MetaError::KvError("invalid file handle".to_string()))
+        };
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::Flush, duration, result.is_ok());
+
+        result
+    }
+
+    /// Syncs metadata for an inode to persistent storage.
+    pub fn fsync(&self, ino: InodeId, _datasync: bool) -> Result<(), MetaError> {
+        let start = Instant::now();
+
+        let result = self.service.getattr(ino).map(|_| ());
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::Fsync, duration, result.is_ok());
+
+        result
+    }
+
     /// Returns a reference to the metadata journal for replication tailing.
     pub fn journal(&self) -> &std::sync::Arc<crate::journal::MetadataJournal> {
         self.service.journal()
@@ -1193,5 +1350,127 @@ mod tests {
         let members = node.membership().all_members();
         assert_eq!(members.len(), 1);
         assert_eq!(members[0].node_id, NodeId::new(1));
+    }
+
+    #[test]
+    fn test_readdir_plus() {
+        let node = make_node_memory();
+        let _ = node
+            .create_file(InodeId::ROOT_INODE, "a.txt", 1000, 1000, 0o644)
+            .unwrap();
+        let _ = node
+            .mkdir(InodeId::ROOT_INODE, "b_dir", 1000, 1000, 0o755)
+            .unwrap();
+
+        let entries = node.readdir_plus(InodeId::ROOT_INODE).unwrap();
+        assert!(entries.len() >= 2);
+
+        let a_entry = entries.iter().find(|e| e.entry.name == "a.txt").unwrap();
+        assert_eq!(a_entry.attr.file_type, FileType::RegularFile);
+        assert_eq!(a_entry.attr.uid, 1000);
+        assert_eq!(a_entry.attr.mode, 0o644);
+
+        let b_entry = entries.iter().find(|e| e.entry.name == "b_dir").unwrap();
+        assert_eq!(b_entry.attr.file_type, FileType::Directory);
+    }
+
+    #[test]
+    fn test_mknod_fifo() {
+        let node = make_node_memory();
+        let attr = node
+            .mknod(
+                InodeId::ROOT_INODE,
+                "myfifo",
+                FileType::Fifo,
+                1000,
+                1000,
+                0o644,
+            )
+            .unwrap();
+        assert_eq!(attr.file_type, FileType::Fifo);
+        assert_eq!(attr.uid, 1000);
+
+        let entry = node.lookup(InodeId::ROOT_INODE, "myfifo").unwrap();
+        assert_eq!(entry.ino, attr.ino);
+    }
+
+    #[test]
+    fn test_mknod_socket() {
+        let node = make_node_memory();
+        let attr = node
+            .mknod(
+                InodeId::ROOT_INODE,
+                "mysock",
+                FileType::Socket,
+                1000,
+                1000,
+                0o755,
+            )
+            .unwrap();
+        assert_eq!(attr.file_type, FileType::Socket);
+    }
+
+    #[test]
+    fn test_mknod_invalid_type() {
+        let node = make_node_memory();
+        let result = node.mknod(
+            InodeId::ROOT_INODE,
+            "invalid",
+            FileType::RegularFile,
+            1000,
+            1000,
+            0o644,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_access_owner_read() {
+        let node = make_node_memory();
+        let file = node
+            .create_file(InodeId::ROOT_INODE, "test.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        node.access(file.ino, 1000, 1000, 4).unwrap();
+    }
+
+    #[test]
+    fn test_access_denied() {
+        let node = make_node_memory();
+        let file = node
+            .create_file(InodeId::ROOT_INODE, "test.txt", 1000, 1000, 0o600)
+            .unwrap();
+
+        let result = node.access(file.ino, 2000, 2000, 4);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_flush_valid_handle() {
+        let node = make_node_memory();
+        let file = node
+            .create_file(InodeId::ROOT_INODE, "test.txt", 1000, 1000, 0o644)
+            .unwrap();
+        let fh = node.open(file.ino, 1, 0x01).unwrap();
+
+        node.flush(fh).unwrap();
+    }
+
+    #[test]
+    fn test_flush_invalid_handle() {
+        let node = make_node_memory();
+        let result = node.flush(999);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fsync() {
+        let node = make_node_memory();
+        let file = node
+            .create_file(InodeId::ROOT_INODE, "test.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        node.fsync(file.ino, false).unwrap();
+        node.fsync(file.ino, true).unwrap();
     }
 }

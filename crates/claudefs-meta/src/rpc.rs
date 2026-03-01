@@ -148,6 +148,41 @@ pub enum MetadataRequest {
         /// Attribute name.
         name: String,
     },
+    /// Read directory entries with full attributes (readdirplus).
+    ReaddirPlus {
+        /// Directory inode.
+        dir: InodeId,
+        /// Starting offset.
+        offset: u64,
+        /// Maximum entries to return.
+        count: u32,
+    },
+    /// Create a special file (device, FIFO, socket).
+    Mknod {
+        /// Parent directory inode.
+        parent: InodeId,
+        /// File name.
+        name: String,
+        /// File type (BlockDevice, CharDevice, Fifo, Socket).
+        file_type: FileType,
+        /// File mode.
+        mode: u32,
+        /// User ID.
+        uid: u32,
+        /// Group ID.
+        gid: u32,
+    },
+    /// Check access permissions.
+    Access {
+        /// Target inode.
+        ino: InodeId,
+        /// Access mode bits (R_OK=4, W_OK=2, X_OK=1).
+        mode: u32,
+        /// User ID.
+        uid: u32,
+        /// Group ID.
+        gid: u32,
+    },
 }
 
 impl MetadataRequest {
@@ -178,6 +213,9 @@ pub fn request_to_opcode(request: &MetadataRequest) -> u16 {
         MetadataRequest::SetXattr { .. } => 0x010F,
         MetadataRequest::ListXattrs { .. } => 0x0110,
         MetadataRequest::RemoveXattr { .. } => 0x0111,
+        MetadataRequest::ReaddirPlus { .. } => 0x0112,
+        MetadataRequest::Mknod { .. } => 0x0113,
+        MetadataRequest::Access { .. } => 0x0114,
     }
 }
 
@@ -188,7 +226,9 @@ pub fn is_read_only(request: &MetadataRequest) -> bool {
         | MetadataRequest::GetAttr { .. }
         | MetadataRequest::Readlink { .. }
         | MetadataRequest::Readdir { .. }
-        | MetadataRequest::ListXattrs { .. } => true,
+        | MetadataRequest::ListXattrs { .. }
+        | MetadataRequest::ReaddirPlus { .. }
+        | MetadataRequest::Access { .. } => true,
         MetadataRequest::SetAttr { .. }
         | MetadataRequest::CreateFile { .. }
         | MetadataRequest::Mkdir { .. }
@@ -201,7 +241,8 @@ pub fn is_read_only(request: &MetadataRequest) -> bool {
         | MetadataRequest::Close { .. }
         | MetadataRequest::GetXattr { .. }
         | MetadataRequest::SetXattr { .. }
-        | MetadataRequest::RemoveXattr { .. } => false,
+        | MetadataRequest::RemoveXattr { .. }
+        | MetadataRequest::Mknod { .. } => false,
     }
 }
 
@@ -240,6 +281,13 @@ pub enum MetadataResponse {
     DirEntries {
         /// List of directory entries.
         entries: Vec<DirEntry>,
+        /// Whether there are more entries.
+        has_more: bool,
+    },
+    /// Directory entries with full attributes (readdirplus response).
+    DirEntriesPlus {
+        /// List of entries with attributes.
+        entries: Vec<(DirEntry, InodeAttr)>,
         /// Whether there are more entries.
         has_more: bool,
     },
@@ -458,6 +506,46 @@ impl RpcDispatcher {
                     },
                 }
             }
+            MetadataRequest::ReaddirPlus { dir, .. } => match self.node.readdir_plus(dir) {
+                Ok(entries) => {
+                    let entries: Vec<(DirEntry, InodeAttr)> =
+                        entries.into_iter().map(|e| (e.entry, e.attr)).collect();
+                    MetadataResponse::DirEntriesPlus {
+                        entries,
+                        has_more: false,
+                    }
+                }
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Mknod {
+                parent,
+                name,
+                file_type,
+                mode,
+                uid,
+                gid,
+            } => match self.node.mknod(parent, &name, file_type, uid, gid, mode) {
+                Ok(attr) => MetadataResponse::EntryCreated {
+                    ino: attr.ino,
+                    attr,
+                },
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
+            MetadataRequest::Access {
+                ino,
+                mode,
+                uid,
+                gid,
+            } => match self.node.access(ino, uid, gid, mode) {
+                Ok(()) => MetadataResponse::Ok,
+                Err(e) => MetadataResponse::Error {
+                    message: e.to_string(),
+                },
+            },
         }
     }
 

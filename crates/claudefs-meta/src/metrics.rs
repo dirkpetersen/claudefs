@@ -39,6 +39,16 @@ pub enum MetricOp {
     ListXattrs,
     /// RemoveXattr operation (extended attribute removal).
     RemoveXattr,
+    /// ReaddirPlus operation (enhanced readdir with attributes).
+    ReaddirPlus,
+    /// Mknod operation (special file creation).
+    Mknod,
+    /// Access operation (permission check).
+    Access,
+    /// Flush operation (file handle flush).
+    Flush,
+    /// Fsync operation (metadata sync to storage).
+    Fsync,
     /// Statfs operation (filesystem statistics).
     Statfs,
     /// Readdir operation.
@@ -70,6 +80,11 @@ impl MetricOp {
             MetricOp::SetXattr => "set_xattr",
             MetricOp::ListXattrs => "list_xattrs",
             MetricOp::RemoveXattr => "remove_xattr",
+            MetricOp::ReaddirPlus => "readdir_plus",
+            MetricOp::Mknod => "mknod",
+            MetricOp::Access => "access",
+            MetricOp::Flush => "flush",
+            MetricOp::Fsync => "fsync",
             MetricOp::Statfs => "statfs",
             MetricOp::Readdir => "readdir",
             MetricOp::Open => "open",
