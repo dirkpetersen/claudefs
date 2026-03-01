@@ -36,3 +36,13 @@ pub use drain::DrainManager;
 pub use health::HealthAggregator;
 pub use snapshot::SnapshotCatalog;
 pub use tiering::TieringManager;
+
+pub mod capacity;
+pub mod events;
+pub mod migration;
+pub mod rbac;
+
+pub use capacity::CapacityPlanner;
+pub use events::EventBus;
+pub use migration::MigrationRegistry;
+pub use rbac::RbacRegistry;
