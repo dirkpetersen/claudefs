@@ -19,6 +19,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 tokio-rustls = "0.26"
 rustls-pemfile = "2.1"
 rcgen = { version = "0.13", features = ["pem", "x509-parser"] }
+getrandom = "0.2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }

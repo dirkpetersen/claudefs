@@ -448,6 +448,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "bytes",
+ "getrandom 0.2.17",
  "proptest",
  "rcgen",
  "rustls",
