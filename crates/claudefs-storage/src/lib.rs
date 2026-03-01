@@ -27,6 +27,7 @@ pub mod segment;
 pub mod s3_tier;
 pub mod smart;
 pub mod superblock;
+pub mod scrub;
 pub mod write_journal;
 pub mod zns;
 
@@ -53,6 +54,7 @@ pub use recovery::{
     RecoveryConfig, RecoveryManager, RecoveryPhase, RecoveryReport, RecoveryState,
     JOURNAL_CHECKPOINT_MAGIC, AllocatorBitmap, JournalCheckpoint,
 };
+pub use scrub::{ScrubConfig, ScrubEngine, ScrubError, ScrubState, ScrubStats};
 pub use segment::{SegmentPacker, SegmentPackerConfig, PackedSegment, SegmentHeader, SegmentEntry, SegmentPackerStats, SEGMENT_SIZE};
 pub use hot_swap::{
     HotSwapManager, HotSwapStats, HotSwapEvent, HotSwapError,
