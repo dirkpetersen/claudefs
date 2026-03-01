@@ -24,6 +24,8 @@ pub mod filehandle;
 pub mod fingerprint;
 /// Read-only follower query routing for relaxed POSIX mode
 pub mod follower_read;
+/// Metadata garbage collector for orphaned inodes, expired tombstones, stale locks
+pub mod gc;
 /// Metadata node health diagnostics and readiness probes
 pub mod health;
 /// Inode operations
