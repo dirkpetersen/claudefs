@@ -607,13 +607,21 @@ dependencies = [
 name = "claudefs-security"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "claudefs-gateway",
+ "claudefs-mgmt",
  "claudefs-reduce",
+ "claudefs-repl",
+ "claudefs-storage",
  "claudefs-transport",
+ "hyper",
  "proptest",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
+ "tower 0.4.13",
  "tracing",
 ]
 
