@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 6 MILESTONE COMPLETE
+
+#### 2026-03-01 (A5 — FUSE: Phase 6 Production Readiness)
+
+##### A5: FUSE — 326 tests, 22 modules
+
+**Phase 6 (91 new tests, 5 new modules) — production-hardening:**
+1. `prefetch.rs` — Sequential read-ahead engine: pattern detection, block-aligned prefetch lists, buffer cache to serve reads before transport hit (15 tests)
+2. `writebuf.rs` — Write coalescing buffer: merge adjacent/overlapping dirty ranges, per-inode dirty state, threshold-based flush signaling (15 tests)
+3. `reconnect.rs` — Transport reconnection: exponential backoff + jitter, ConnectionState machine (Connected/Disconnected/Reconnecting/Failed), `retry_with_backoff` helper (16 tests)
+4. `openfile.rs` — Open file handle table: per-handle O_RDONLY/O_WRONLY/O_RDWR flags, file position, dirty state, multi-handle-per-inode support (16 tests)
+5. `dirnotify.rs` — Directory change notifications: per-directory event queues (Created/Deleted/Renamed/Attrib), watched-set management, configurable depth limits (29 tests)
+
+**MILESTONE: 326 tests, 22 modules, all passing, no clippy errors**
+
+---
+
 ### A6: Replication — Phase 3 Production Readiness COMPLETE
 
 #### 2026-03-01 (A6 — Replication: Phase 3 Security Fixes + Active-Active Failover)
