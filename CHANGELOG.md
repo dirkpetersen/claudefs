@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A7: Protocol Gateways — Phase 2 Complete (MILESTONE)
+
+#### 2026-03-01 (A7 — Protocol Gateways: Phase 2 Foundation)
+
+**MILESTONE: 263 gateway tests, 14 modules — NFSv3, pNFS, S3, ONC RPC, MOUNT, AUTH_SYS, config**
+
+**Phase 1 — Core Types (107 tests, 7 modules):**
+- `error.rs` — GatewayError + nfs3_status() RFC 1813 mapping (15 tests)
+- `xdr.rs` — XdrEncoder/XdrDecoder for ONC RPC wire format RFC 4506 (20 tests)
+- `protocol.rs` — FileHandle3, Fattr3, Nfstime3, Ftype3, ReadDirResult with XDR (20 tests)
+- `nfs.rs` — VfsBackend trait, MockVfsBackend, Nfs3Handler for all 22 NFSv3 procedures (20 tests)
+- `pnfs.rs` — pNFS layout types, PnfsLayoutServer with round-robin stripe assignment (15 tests)
+- `s3.rs` — S3Handler in-memory: buckets, objects, list/prefix/delimiter, copy (20 tests)
+- `smb.rs` — SMB3 VFS interface stub for Samba VFS plugin integration (10 tests)
+
+**Phase 2 — ONC RPC Infrastructure (73 tests, 5 new modules):**
+- `rpc.rs` — ONC RPC CALL/REPLY wire encoding, TCP record marking, program constants (20 tests)
+- `auth.rs` — AUTH_SYS credential parsing, AuthCred (None/Sys/Unknown) (15 tests)
+- `mount.rs` — MOUNT v3: MNT/DUMP/UMNT/UMNTALL/EXPORT, export access control (16 tests)
+- `portmap.rs` — portmapper/rpcbind: NFS→2049, MOUNT→20048 (10 tests)
+- `server.rs` — RpcDispatcher routing to NFS3+MOUNT3, TCP record mark processing (15 tests)
+
+**Phase 3 — S3 HTTP + NFS XDR + Config (83 tests, 4 new modules):**
+- `s3_xml.rs` — Manual XML: XmlBuilder, ListBuckets/ListObjects/Error/multipart responses (20 tests)
+- `s3_router.rs` — S3 HTTP routing: GET/PUT/DELETE/HEAD/POST → S3Operation dispatch (20 tests)
+- `nfs_readdirplus.rs` — NFSv3 XDR encoders: READDIRPLUS, GETATTR, LOOKUP, READ, WRITE, FSSTAT (15 tests)
+- `config.rs` — GatewayConfig: BindAddr, ExportConfig, NfsConfig, S3Config, validate() (15 tests)
+
+**Phase 4 — Server Binary + Cleanup:**
+- `main.rs`: CLI (--export, --nfs-port, --s3-port, --log-level), tracing, config validation
+- Zero clippy errors, zero non-documentation warnings
+
+---
+
 ### A8: Management — Phase 3 Complete (MILESTONE)
 
 #### 2026-03-01 (A8 — Management: Phases 1–3 Complete)
