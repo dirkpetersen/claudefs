@@ -24,4 +24,7 @@ pub enum ReduceError {
     /// I/O error
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// Attempted to downgrade WORM retention policy
+    #[error("Cannot downgrade WORM retention policy")]
+    PolicyDowngradeAttempted,
 }
