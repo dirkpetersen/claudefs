@@ -8,11 +8,13 @@
 
 pub mod attr;
 pub mod cache;
+pub mod cache_coherence;
 pub mod capability;
 pub mod client_auth;
 pub mod crash_recovery;
 pub mod datacache;
 pub mod deleg;
+pub mod dir_cache;
 pub mod dirnotify;
 pub mod error;
 pub mod fallocate;
@@ -38,6 +40,7 @@ pub mod prefetch;
 pub mod quota_enforce;
 pub mod ratelimit;
 pub mod reconnect;
+pub mod sec_policy;
 pub mod server;
 pub mod session;
 pub mod snapshot;
