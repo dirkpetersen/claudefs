@@ -170,7 +170,7 @@ pub fn parse_mode(s: &str) -> crate::error::Result<u32> {
 
         for (i, c) in chars.iter().enumerate() {
             let group = i / 3;
-            let pos_in_group = i % 3;
+            let _pos_in_group = i % 3;
             let base = 8 - group * 3;
             match c {
                 'r' => mode |= 1 << (base),

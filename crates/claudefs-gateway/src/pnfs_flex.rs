@@ -223,7 +223,7 @@ impl FlexFileLayoutServer {
             let servers: Vec<_> = self.data_servers[start..end].to_vec();
             let mirror = FlexFileMirror::new(servers, self.stripe_unit);
 
-            let mut segment = FlexFileSegment::new(0, u64::MAX, iomode, vec![mirror]);
+            let segment = FlexFileSegment::new(0, u64::MAX, iomode, vec![mirror]);
             layout.segments.push(segment);
         }
 
