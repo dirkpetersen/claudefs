@@ -87,7 +87,10 @@ pub enum SpanStatus {
     /// Operation completed successfully.
     Ok,
     /// Operation failed with an error.
-    Error { message: String },
+    Error {
+        /// Error message describing the failure.
+        message: String,
+    },
 }
 
 fn rand_u64() -> u64 {
@@ -103,6 +106,7 @@ fn rand_u64() -> u64 {
     hash
 }
 
+/// Collects and manages trace spans for distributed tracing.
 pub struct TraceCollector {
     completed_spans: RwLock<Vec<SpanRecord>>,
     span_id_generator: AtomicU64,
@@ -110,6 +114,7 @@ pub struct TraceCollector {
 }
 
 impl TraceCollector {
+    /// Creates a new trace collector with the specified maximum span buffer size.
     pub fn new(max_spans: usize) -> Self {
         Self {
             completed_spans: RwLock::new(Vec::new()),
@@ -118,6 +123,7 @@ impl TraceCollector {
         }
     }
 
+    /// Creates a new trace with a randomly generated trace ID and span ID.
     pub fn new_trace(&self) -> TraceContext {
         let trace_id = TraceId::random();
         let span_id = SpanId(self.span_id_generator.fetch_add(1, Ordering::Relaxed));
@@ -129,6 +135,7 @@ impl TraceCollector {
         }
     }
 
+    /// Creates a child span context from a parent context.
     pub fn child_span(&self, parent: &TraceContext) -> TraceContext {
         let span_id = SpanId(self.span_id_generator.fetch_add(1, Ordering::Relaxed));
         TraceContext {
@@ -139,6 +146,7 @@ impl TraceCollector {
         }
     }
 
+    /// Starts a new span with the given name and context.
     pub fn start_span(&self, name: String, ctx: &TraceContext) -> SpanRecord {
         SpanRecord {
             name,
@@ -150,10 +158,12 @@ impl TraceCollector {
         }
     }
 
+    /// Ends a span by setting its end time to the current timestamp.
     pub fn end_span(&self, span: &mut SpanRecord) {
         span.end_time = Some(Timestamp::now());
     }
 
+    /// Records a completed span to the buffer.
     pub fn record_span(&self, span: SpanRecord) {
         let mut spans = self.completed_spans.write().unwrap();
         if spans.len() >= self.max_spans {
@@ -187,10 +197,12 @@ impl TraceCollector {
             .collect()
     }
 
+    /// Adds a key-value attribute to a span.
     pub fn add_attribute(span: &mut SpanRecord, key: String, value: String) {
         span.attributes.push((key, value));
     }
 
+    /// Sets the span status to error with the given message.
     pub fn set_error(span: &mut SpanRecord, message: String) {
         span.status = SpanStatus::Error { message };
     }
