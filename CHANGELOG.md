@@ -6,6 +6,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 8 Advanced Resilience & Cross-Crate Integration COMPLETE
+
+#### 2026-03-01 (A9 — Phase 8: Advanced Resilience & Cross-Crate Integration Tests)
+
+##### A9: Test & Validation — Phase 8 (1226 total tests, 39 modules)
+
+**Phase 8 (172 new tests, 5 new modules) — advanced resilience and cross-crate validation:**
+
+1. `io_priority_qos_tests.rs` (38 tests): A5 I/O priority classifier and QoS budget validation
+   - WorkloadClass priority ordering (Interactive > Foreground > Background > Idle)
+   - IoPriorityClassifier: default, PID override, UID override, PID > UID precedence
+   - classify_by_op: sync writes elevated to Foreground+, reads use default class
+   - IoClassStats: record_op accumulation, avg_latency_us calculation
+   - IoPriorityStats: total_ops/bytes, class_share percentages across workloads
+   - PriorityBudget: try_consume with/without limits, independent class budgets
+
+2. `storage_resilience.rs` (29 tests): Storage subsystem resilience under error/edge-case conditions
+   - BuddyAllocator: create, stats, 4K/64K allocation, free/reclaim, multiple concurrent allocs
+   - Capacity tracking: decrease on alloc, exhaustion returns Err on empty allocator
+   - BlockSize: as_bytes for all variants (B4K/B64K/B1M/B64M)
+   - Checksum: CRC32c compute/verify-pass/verify-fail, BlockHeader construction
+   - CapacityTracker: watermark levels (Normal/Warning/Critical), evict/write-through signals
+   - DeviceConfig/DeviceRole variants, DefragEngine lifecycle (new, can_run)
+
+3. `system_invariants.rs` (37 tests): Cross-crate data integrity invariants (A1+A3+A4)
+   - End-to-end checksum pipeline: Crc32c vs XxHash64 produce distinct values
+   - Compression roundtrip: LZ4 and Zstd with size reduction verification
+   - Encryption roundtrip: AES-GCM-256, wrong-key rejection, nonce freshness
+   - BLAKE3 fingerprint: determinism, collision resistance, 32-byte output
+   - Chunker: splits data, reassembly preserves bytes, CasIndex insert/lookup
+   - Frame encode/decode: Opcode roundtrip, request_id preservation, validate()
+   - ConsistentHashRing: empty lookup returns None, single node, deterministic mapping
+
+4. `transport_resilience.rs` (28 tests): Transport layer under stress and failure conditions
+   - CircuitBreaker: initial Closed state, opens on N failures, resets on success, reset()
+   - LoadShedder: no shedding initially, low-latency records, stats tracking
+   - RetryConfig/RetryExecutor: max_retries default, instantiation
+   - CancelRegistry: default construction
+   - KeepAliveConfig/State/Stats/Tracker: default interval, state variants
+   - TenantId/TenantConfig/TenantManager/TenantTracker: try_admit bandwidth
+   - HedgeConfig/HedgeStats/HedgeTracker: enabled flag, total_hedges initial
+   - ZeroCopyConfig/RegionPool: region_size > 0, available_regions > 0
+
+5. `worm_delegation_tests.rs` (40 tests): A5 WORM compliance and file delegation cross-scenarios
+   - ImmutabilityMode: None allows writes/deletes; AppendOnly blocks writes but allows append
+   - ImmutabilityMode::Immutable blocks all operations (write/delete/rename/truncate)
+   - WormRetention: blocks during period, allows after expiry; LegalHold blocks delete/rename
+   - WormRecord: check_write/delete/rename/truncate on Immutable vs None modes
+   - WormRegistry: set_mode/get/check_write/clear/len lifecycle
+   - Delegation: new Read/Write, is_active, is_expired (before/after), time_remaining, recall/returned/revoke
+   - DelegationManager: grant read/write, write-blocks-read/write conflicts, multiple reads allowed
+   - recall_for_ino, return_deleg (ok and unknown), revoke_expired cleanup
+
+---
+
 ### A11: Infrastructure & CI — Phase 7 Production-Ready COMPLETE
 
 #### 2026-03-01 (A11 — Infrastructure & CI: Phase 7 Completion)

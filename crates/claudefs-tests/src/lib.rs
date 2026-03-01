@@ -35,12 +35,17 @@ pub mod acl_integration;
 pub mod fault_recovery_tests;
 pub mod fuse_tests;
 pub mod gateway_integration;
+pub mod io_priority_qos_tests;
 pub mod mgmt_integration;
 pub mod perf_regression;
 pub mod pipeline_integration;
 pub mod quota_integration;
 pub mod repl_integration;
 pub mod security_integration;
+pub mod storage_resilience;
+pub mod system_invariants;
+pub mod transport_resilience;
+pub mod worm_delegation_tests;
 
 pub use bench::{detect_fio_binary, parse_fio_json, FioConfig, FioResult, FioRunner, FioRwMode};
 pub use chaos::{FaultHandle, FaultInjector, FaultType, NetworkTopology, NodeId};
