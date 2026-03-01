@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 6 MILESTONE COMPLETE
+
+#### 2026-03-01 (A9 — Phase 6: FUSE, Replication, and Gateway Integration Tests)
+
+##### A9: Test & Validation — Phase 6 (834 total tests, 29 modules)
+
+**Phase 6 (143 new tests, 5 new modules) — integration tests for higher-level crates:**
+
+1. `fuse_tests.rs` (21 tests): FUSE client crate integration tests
+   - FuseError variant formatting and display (`NotFound`, `PermissionDenied`, `AlreadyExists`, `MountFailed`, `NotSupported`)
+   - FuseError errno mapping (`NotFound→ENOENT`, `PermissionDenied→EACCES`, `IsDirectory→EISDIR`)
+   - `CacheConfig` default values (capacity=10000, ttl=30, neg_ttl=5), custom config, `MetadataCache::new()`
+   - `LockManager`: shared locks don't conflict, exclusive conflicts with shared/exclusive, unlock removes lock, byte-range overlap/non-overlap logic
+
+2. `repl_integration.rs` (27 tests): Replication crate integration tests
+   - `CompressionAlgo` default (Lz4), `is_compressed()` for None/Lz4/Zstd
+   - `CompressionConfig` default values and custom construction
+   - `CompressedBatch` compression ratio calculation and `is_beneficial()` logic
+   - `BackpressureLevel` ordering, `suggested_delay_ms()`, `is_halted()`, `is_active()`
+   - `BackpressureController` state machine: None start, queue depth triggers Mild, error count triggers Moderate, `force_halt()`
+   - `Metric` counter/gauge format (Prometheus text format with `# TYPE <name> <type>`)
+   - `EntryBatch` construction and bincode roundtrip serialization
+   - `ConduitConfig` default and constructor
+
+3. `gateway_integration.rs` (25 tests): Gateway crate integration tests
+   - Wire validation: NFS file handle (empty/valid/too-long), NFS filename (empty/valid/slash/null), NFS path (no-slash/valid/null), NFS count (0/valid/max)
+   - `SessionId` construction and conversion, `ClientSession` lifecycle (record_op, is_idle, add/remove mount)
+   - `SessionManager`: create sessions, session count, expire idle sessions
+   - `ExportManager`: empty on creation, add export, duplicate add fails, `is_exported()`, `count()`
+
+4. `fault_recovery_tests.rs` (27 tests): Cross-crate error and recovery tests
+   - Error type constructability from 7 crates: `FuseError`, `ReplError`, `GatewayError`, `StorageError`, `ReduceError`, `TransportError` — verify construction and display
+   - `RecoveryConfig` and `RecoveryManager` instantiation and defaults
+   - `RecoveryPhase` variants (NotStarted, SuperblockRead, JournalReplayed, Complete, Failed)
+   - Error message content assertions (error strings contain expected text)
+
+5. `pipeline_integration.rs` (22 tests): Cross-crate pipeline integration tests
+   - `ReductionPipeline` with `BuddyAllocator` and `MockIoEngine` — data roundtrips through compress+encrypt+store
+   - `BlockSize` variants (B4K/B64K/B1M/B64M) and `as_bytes()` values
+   - `MetaInodeId` operations and inode routing
+   - `EntryBatch` bincode serialization roundtrip
+   - `SessionManager` + `SessionProtocol` integration with gateway wire validation
+
+**New crate dependencies added to `claudefs-tests/Cargo.toml`:** `claudefs-fuse`, `claudefs-repl`, `claudefs-gateway`, `libc`
+
+**MILESTONE: 834 claudefs-tests tests, 29 modules, zero compilation errors**
+
+---
+
 ### A5: FUSE Client — Phase 3 Production Readiness COMPLETE (MILESTONE)
 
 #### 2026-03-01 (A5 — FUSE Client: Phase 3 Production Readiness)

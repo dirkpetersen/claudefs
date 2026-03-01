@@ -19,11 +19,15 @@ bytes = "1"
 rand = "0.8"
 tempfile = "3"
 proptest = "1.4"
+libc = "0.2"
 
 claudefs-storage = { path = "../claudefs-storage" }
 claudefs-meta = { path = "../claudefs-meta" }
 claudefs-reduce = { path = "../claudefs-reduce" }
 claudefs-transport = { path = "../claudefs-transport" }
+claudefs-fuse = { path = "../claudefs-fuse" }
+claudefs-repl = { path = "../claudefs-repl" }
+claudefs-gateway = { path = "../claudefs-gateway" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }
