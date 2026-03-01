@@ -391,7 +391,7 @@ These scale-up clusters are short-lived (hours) and fully preemptible.
 
 ## Model Selection: Cost vs Accuracy
 
-Five Claude models are available. Each agent task is assigned the cheapest model that can do the job reliably. The principle: **Opus for architecture, Sonnet for implementation, Haiku for repetition.**
+Since OpenCode/Fireworks handles all Rust code generation, Claude agents only orchestrate (read docs, write prompts, run cargo, commit). The principle: **Sonnet for orchestration, Haiku for boilerplate, Opus only for security audit.**
 
 ### Available Models
 
@@ -405,19 +405,32 @@ Five Claude models are available. Each agent task is assigned the cheapest model
 
 ### Model Assignment by Agent
 
+Since OpenCode handles all Rust code generation, Claude agents only need to orchestrate: read docs, write prompts for OpenCode, run cargo build/test, review output, commit. Sonnet is sufficient for this. Opus is reserved only for security audit where deep reasoning catches what the code author missed.
+
 | Agent | Primary Task | Model | Rationale |
 |-------|-------------|-------|-----------|
-| **A1: Storage Engine** | io_uring FFI, unsafe code, block allocator | **Opus** | Low-level unsafe Rust + io_uring requires highest accuracy. Bugs here corrupt data silently. |
-| **A2: Metadata Service** | Raft consensus, distributed locking | **Opus** | Distributed consensus is the hardest correctness problem. Subtle bugs cause split-brain. |
-| **A3: Data Reduction** | Dedupe pipeline, compression, encryption | **Sonnet** | Well-defined algorithms with existing crate wrappers. Trait implementations against known interfaces. |
-| **A4: Transport** | RDMA FFI, custom RPC protocol | **Opus** | Unsafe libfabric bindings + zero-copy buffer management. Correctness-critical network code. |
-| **A5: FUSE Client** | FUSE daemon, passthrough, caching | **Sonnet** | Mostly wiring A2+A4 together via fuser crate. Passthrough mode is well-documented. |
-| **A6: Replication** | gRPC conduit, conflict resolution | **Sonnet** | Straightforward async Rust (tonic + tokio). Conflict logic is well-specified in decisions.md. |
-| **A7: Protocol Gateways** | NFS/pNFS, Samba VFS (C), S3 API | **Sonnet** | Protocol translation layers. The Samba VFS plugin is small C, NFS is well-documented. |
-| **A8: Management** | Prometheus, DuckDB, Web UI, CLI | **Sonnet Fast** | High-volume code gen (React components, CLI subcommands, Grafana JSON). Well-understood patterns. |
-| **A9: Test & Validation** | Test suites, benchmarks, CI integration | **Sonnet** | Writing test harnesses, wrappers around existing test tools. Needs to understand the codebase but not architect it. |
-| **A10: Security Audit** | Unsafe review, fuzzing, crypto audit | **Opus** | Reviewing other agents' unsafe code requires the deepest reasoning. Must catch what the author missed. |
-| **A11: Infrastructure & CI** | Terraform, GitHub Actions, deployment | **Haiku** | Boilerplate-heavy infrastructure-as-code. Terraform modules, YAML pipelines, shell scripts. Well-templated work. |
+| **A1: Storage Engine** | Orchestrate io_uring, block allocator via OpenCode | **Sonnet** | Writes prompts for OpenCode, reviews output, runs cargo. No direct Rust authoring. |
+| **A2: Metadata Service** | Orchestrate Raft, KV store via OpenCode | **Sonnet** | Plans metadata interfaces, delegates implementation to OpenCode. |
+| **A3: Data Reduction** | Orchestrate dedupe/compress/encrypt via OpenCode | **Sonnet** | Well-defined algorithms, clear prompts for OpenCode. |
+| **A4: Transport** | Orchestrate RDMA/TCP, RPC via OpenCode | **Sonnet** | Designs protocol, delegates wire format implementation. |
+| **A5: FUSE Client** | Wire FUSE to A2+A4 via OpenCode | **Sonnet** | Integration work, well-documented fuser crate. |
+| **A6: Replication** | Orchestrate gRPC conduit via OpenCode | **Sonnet** | Straightforward tonic + tokio. |
+| **A7: Protocol Gateways** | NFS/pNFS, Samba VFS, S3 via OpenCode | **Sonnet** | Protocol translation layers. |
+| **A8: Management** | Prometheus, DuckDB, Web UI, CLI | **Haiku** | High-volume boilerplate (React, CLI subcommands, Grafana JSON). |
+| **A9: Test & Validation** | Test harnesses, POSIX suites | **Sonnet** | Understands codebase to write test prompts. |
+| **A10: Security Audit** | Unsafe review, fuzzing, crypto audit | **Opus** | Only agent using Opus. Reviews other agents' unsafe code with deepest reasoning. |
+| **A11: Infrastructure & CI** | CI/CD, deployment, cluster ops | **Haiku** | Boilerplate YAML, shell scripts, Terraform. |
+
+### Bedrock Budget Enforcement
+
+**$25/day Bedrock limit.** When exceeded:
+1. Cost monitor sets `/tmp/cfs-bedrock-budget-exceeded` flag
+2. All agent sessions are killed
+3. Watchdog relaunches them — launcher reads the flag and forces **Haiku for all agents**
+4. Supervisor also switches to Haiku
+5. Flag resets at start of next day when spend is under limit
+
+This prevents runaway Bedrock costs while keeping agents productive on Haiku.
 
 ### Model Usage by Task Type (Within Any Agent)
 
@@ -425,8 +438,8 @@ Agents can switch models for different sub-tasks within their work:
 
 | Task Type | Model | Examples |
 |-----------|-------|---------|
-| **Architecture decisions** (trait design, API surface, cross-crate interfaces) | Opus | Defining the `StorageEngine` trait, designing the RPC protocol schema |
-| **Core implementation** (new complex logic) | Opus or Sonnet | Raft state machine, EC stripe calculation, RDMA buffer management |
+| **Architecture decisions** (trait design, API surface, cross-crate interfaces) | Sonnet | Defining the `StorageEngine` trait, designing the RPC protocol schema |
+| **Core implementation** (new complex logic) | Sonnet | Raft state machine, EC stripe calculation, RDMA buffer management |
 | **Standard implementation** (known patterns) | Sonnet | Implementing a gRPC service, writing a FUSE handler, Axum route handlers |
 | **Bulk code generation** (repetitive structure) | Sonnet Fast | CLI subcommands, Protobuf message types, Parquet schema definitions |
 | **Tests and fixtures** | Sonnet | Property-based tests, integration test setup, mock implementations |
