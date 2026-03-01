@@ -16,6 +16,7 @@ pub mod health;
 pub mod message;
 pub mod protocol;
 pub mod qos;
+pub mod routing;
 pub mod rdma;
 pub mod rpc;
 pub mod tcp;
@@ -37,5 +38,6 @@ pub use tracecontext::{
     TraceContext, TraceFlags, TraceId, TraceParent, TraceState, TRACEPARENT_HEADER,
     TRACESTATE_HEADER,
 };
+pub use routing::{ConsistentHashRing, NodeId, NodeInfo, RoutingTable, ShardId, ShardRouter};
 pub use transport::{Transport, Connection, Listener};
 pub use health::{HealthConfig, HealthStatus, HealthStats, ConnectionHealth};
