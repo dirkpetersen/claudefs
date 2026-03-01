@@ -33,6 +33,7 @@ pub mod smart;
 pub mod snapshot;
 pub mod superblock;
 pub mod scrub;
+pub mod tiering_policy;
 pub mod write_journal;
 pub mod wear_leveling;
 pub mod zns;

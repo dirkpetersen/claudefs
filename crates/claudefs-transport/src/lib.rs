@@ -57,6 +57,7 @@ pub mod routing;
 pub mod rdma;
 pub mod rpc;
 pub mod server;
+pub mod splice;
 pub mod tcp;
 pub mod tenant;
 pub mod tls;
@@ -140,3 +141,7 @@ pub use observability::{
 };
 pub use bandwidth::{BandwidthAllocator, BandwidthConfig, BandwidthResult, BandwidthStats, EnforcementMode};
 pub use request_dedup::{DedupConfig, DedupEntry, DedupResult, DedupStats, DedupTracker, RequestId};
+pub use splice::{
+    SpliceConfig, SpliceError, SpliceFlags, SpliceOperation, SplicePipeline, SplicePlan,
+    SpliceStats, TransferEndpoint,
+};
