@@ -10,11 +10,16 @@ pub mod connectathon;
 pub mod crash;
 pub mod harness;
 pub mod integration;
+pub mod jepsen;
 pub mod linearizability;
 pub mod posix;
+pub mod posix_compliance;
 pub mod proptest_reduce;
 pub mod proptest_storage;
 pub mod proptest_transport;
+pub mod regression;
+pub mod report;
+pub mod soak;
 
 pub use bench::{detect_fio_binary, parse_fio_json, FioConfig, FioResult, FioRunner, FioRwMode};
 pub use chaos::{FaultHandle, FaultInjector, FaultType, NetworkTopology, NodeId};
@@ -22,8 +27,21 @@ pub use connectathon::{ConnectathonReport, ConnectathonResult, ConnectathonRunne
 pub use crash::{CrashConsistencyTest, CrashError, CrashPoint, CrashReport, CrashSimulator};
 pub use harness::{TestCluster, TestEnv};
 pub use integration::{IntegrationReport, IntegrationTestSuite};
+pub use jepsen::{
+    CheckResult, JepsenChecker, JepsenHistory, JepsenOp, JepsenOpType, JepsenTestConfig, Nemesis,
+    RegisterModel, RegisterOp,
+};
 pub use linearizability::{History, LinearizabilityReport2, Model, Operation};
 pub use posix::{
     detect_fsx_binary, detect_pjdfstest_binary, FsxResult, FsxRunner, PjdfsResult, PjdfsRunner,
     XfstestsResult, XfstestsRunner,
+};
+pub use posix_compliance::{PosixComplianceSuite, PosixSuiteReport, PosixTestResult};
+pub use regression::{
+    RegressionCase, RegressionRegistry, RegressionResult, RegressionRunner, RegressionSummary,
+    Severity,
+};
+pub use report::{AggregateReport, ReportBuilder, TestCaseResult, TestStatus, TestSuiteReport};
+pub use soak::{
+    generate_task_sequence, FileSoakTest, SoakConfig, SoakSnapshot, SoakStats, WorkerOp, WorkerTask,
 };
