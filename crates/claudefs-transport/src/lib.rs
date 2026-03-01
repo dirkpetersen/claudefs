@@ -21,6 +21,7 @@ pub mod error;
 pub use drain::{DrainConfig, DrainController, DrainGuard, DrainListener, DrainState, DrainStats};
 pub mod flowcontrol;
 pub mod health;
+pub mod keepalive;
 pub mod message;
 pub mod metrics;
 pub mod mux;
@@ -53,6 +54,7 @@ pub use flowcontrol::{
     FlowControlConfig, FlowControlState, FlowController, FlowPermit, WindowController,
 };
 pub use health::{HealthConfig, HealthStatus, HealthStats, ConnectionHealth};
+pub use keepalive::{KeepAliveConfig, KeepAliveManager, KeepAliveState, KeepAliveStats, KeepAliveTracker};
 pub use message::{serialize_message, deserialize_message};
 pub use protocol::{Frame, FrameHeader, Opcode, FrameFlags};
 pub use qos::{
