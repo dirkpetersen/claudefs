@@ -22,7 +22,10 @@ use tracing::debug;
 use crate::cache::{CacheConfig, MetadataCache};
 use crate::datacache::{DataCache, DataCacheConfig};
 use crate::inode::{InodeEntry, InodeKind, InodeTable};
+use crate::locking::LockManager;
+use crate::mmap::MmapTracker;
 use crate::operations::{apply_mode_umask, blocks_for_size, check_access};
+use crate::perf::FuseMetrics;
 use crate::symlink::SymlinkStore;
 use crate::xattr::XattrStore;
 
@@ -69,6 +72,9 @@ struct ClaudeFsState {
     next_fh: u64,
     xattr: XattrStore,
     symlinks: SymlinkStore,
+    locks: LockManager,
+    #[allow(dead_code)]
+    mmap_tracker: MmapTracker,
     #[allow(dead_code)]
     data_cache: DataCache,
 }
@@ -76,6 +82,7 @@ struct ClaudeFsState {
 pub struct ClaudeFsFilesystem {
     config: ClaudeFsConfig,
     state: Arc<Mutex<ClaudeFsState>>,
+    metrics: Arc<FuseMetrics>,
 }
 
 impl ClaudeFsFilesystem {
@@ -87,16 +94,23 @@ impl ClaudeFsFilesystem {
             next_fh: 1,
             xattr: XattrStore::new(),
             symlinks: SymlinkStore::new(),
+            locks: LockManager::new(),
+            mmap_tracker: MmapTracker::new(),
             data_cache: DataCache::new(config.data_cache.clone()),
         };
         Self {
             config,
             state: Arc::new(Mutex::new(state)),
+            metrics: Arc::new(FuseMetrics::new()),
         }
     }
 
     pub fn config(&self) -> &ClaudeFsConfig {
         &self.config
+    }
+
+    pub fn metrics_snapshot(&self) -> crate::perf::MetricsSnapshot {
+        self.metrics.snapshot()
     }
 }
 
@@ -133,6 +147,7 @@ impl Filesystem for ClaudeFsFilesystem {
     fn lookup(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
         let name_str = name.to_string_lossy();
         debug!("lookup parent={} name={}", parent, name_str);
+        self.metrics.inc_lookup();
 
         let mut state = match self.state.lock() {
             Ok(s) => s,
@@ -175,6 +190,7 @@ impl Filesystem for ClaudeFsFilesystem {
 
     fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         debug!("getattr ino={}", ino);
+        self.metrics.inc_getattr();
         let state = match self.state.lock() {
             Ok(s) => s,
             Err(_) => {
@@ -266,6 +282,7 @@ impl Filesystem for ClaudeFsFilesystem {
     ) {
         let name_str = name.to_string_lossy();
         debug!("mkdir parent={} name={} mode={:o}", parent, name_str, mode);
+        self.metrics.inc_mkdir();
 
         let mut state = match self.state.lock() {
             Ok(s) => s,
@@ -302,6 +319,7 @@ impl Filesystem for ClaudeFsFilesystem {
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
         let name_str = name.to_string_lossy();
         debug!("unlink parent={} name={}", parent, name_str);
+        self.metrics.inc_unlink();
 
         let mut state = match self.state.lock() {
             Ok(s) => s,
@@ -335,6 +353,7 @@ impl Filesystem for ClaudeFsFilesystem {
         match state.inodes.remove(ino) {
             Ok(()) => {
                 state.xattr.clear_inode(ino);
+                state.locks.clear_inode(ino);
                 if is_symlink {
                     state.symlinks.remove(ino);
                 }
@@ -347,6 +366,7 @@ impl Filesystem for ClaudeFsFilesystem {
     fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
         let name_str = name.to_string_lossy();
         debug!("rmdir parent={} name={}", parent, name_str);
+        self.metrics.inc_rmdir();
 
         let mut state = match self.state.lock() {
             Ok(s) => s,
@@ -393,6 +413,7 @@ impl Filesystem for ClaudeFsFilesystem {
             "rename parent={} name={} newparent={} newname={}",
             parent, name_str, newparent, newname_str
         );
+        self.metrics.inc_rename();
 
         let mut state = match self.state.lock() {
             Ok(s) => s,
@@ -497,6 +518,7 @@ impl Filesystem for ClaudeFsFilesystem {
         let available = inode_size.saturating_sub(offset as u64);
         let read_size = (size as u64).min(available) as usize;
 
+        self.metrics.inc_read(read_size as u64);
         reply.data(&vec![0u8; read_size]);
     }
 
@@ -513,6 +535,7 @@ impl Filesystem for ClaudeFsFilesystem {
         reply: ReplyWrite,
     ) {
         debug!("write ino={} offset={} size={}", ino, offset, data.len());
+        self.metrics.inc_write(data.len() as u64);
 
         let mut state = match self.state.lock() {
             Ok(s) => s,
@@ -727,6 +750,7 @@ impl Filesystem for ClaudeFsFilesystem {
             "create parent={} name={} mode={:o} flags={}",
             parent, name_str, mode, flags
         );
+        self.metrics.inc_create();
 
         let mut state = match self.state.lock() {
             Ok(s) => s,
@@ -1499,5 +1523,100 @@ mod tests {
         state.xattr.clear_inode(ino);
 
         assert_eq!(state.xattr.list(ino).len(), 0);
+    }
+
+    #[test]
+    fn test_metrics_snapshot_returns_zero_counters_initially() {
+        let fs = make_fs();
+        let snapshot = fs.metrics_snapshot();
+
+        assert_eq!(snapshot.lookups, 0);
+        assert_eq!(snapshot.reads, 0);
+        assert_eq!(snapshot.writes, 0);
+        assert_eq!(snapshot.creates, 0);
+        assert_eq!(snapshot.mkdirs, 0);
+        assert_eq!(snapshot.unlinks, 0);
+        assert_eq!(snapshot.rmdirs, 0);
+        assert_eq!(snapshot.renames, 0);
+    }
+
+    #[test]
+    fn test_after_create_metrics_creates_incremented() {
+        let fs = make_fs();
+        fs.metrics.inc_create();
+
+        let snapshot = fs.metrics_snapshot();
+        assert!(snapshot.creates > 0);
+    }
+
+    #[test]
+    fn test_after_mkdir_metrics_mkdirs_incremented() {
+        let fs = make_fs();
+        fs.metrics.inc_mkdir();
+
+        let snapshot = fs.metrics_snapshot();
+        assert!(snapshot.mkdirs > 0);
+    }
+
+    #[test]
+    fn test_lock_manager_integration_clear_inode_called_on_unlink() {
+        let fs = make_fs();
+        let mut state = fs.state.lock().unwrap();
+
+        let ino = state
+            .inodes
+            .alloc(ROOT_INODE, "test.txt", InodeKind::File, 0o644, 0, 0)
+            .unwrap();
+
+        let lock = crate::locking::LockRecord {
+            lock_type: crate::locking::LockType::Exclusive,
+            owner: 1,
+            pid: 100,
+            start: 0,
+            end: u64::MAX,
+        };
+        state.locks.try_lock(ino, lock).unwrap();
+
+        assert_eq!(state.locks.lock_count(ino), 1);
+
+        state.locks.clear_inode(ino);
+
+        assert_eq!(state.locks.lock_count(ino), 0);
+    }
+
+    #[test]
+    fn test_mmap_tracker_count_starts_at_zero() {
+        let fs = make_fs();
+        let state = fs.state.lock().unwrap();
+
+        assert_eq!(state.mmap_tracker.count(), 0);
+    }
+
+    #[test]
+    fn test_mmap_tracker_has_writable_mapping_false_on_empty() {
+        let fs = make_fs();
+        let state = fs.state.lock().unwrap();
+
+        assert!(!state.mmap_tracker.has_writable_mapping(100));
+    }
+
+    #[test]
+    fn test_metrics_inc_read_updates_bytes_read() {
+        let metrics = FuseMetrics::new();
+        metrics.inc_read(4096);
+
+        let snapshot = metrics.snapshot();
+        assert_eq!(snapshot.bytes_read, 4096);
+    }
+
+    #[test]
+    fn test_filesystem_metrics_arc_is_shared() {
+        let fs = make_fs();
+
+        let metrics_clone = fs.metrics.clone();
+        metrics_clone.inc_lookup();
+
+        let snapshot = fs.metrics_snapshot();
+        assert_eq!(snapshot.lookups, 1);
     }
 }
