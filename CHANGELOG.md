@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 3 MILESTONE COMPLETE
+
+#### 2026-03-01 (A9 — Test & Validation: Phases 2+3 Complete)
+
+##### A9: Test & Validation — Phases 2+3 (468 total tests, 18 modules)
+
+**Phase 2 (106 new tests, 5 modules):**
+1. `posix_compliance.rs` — Programmatic POSIX compliance tests: file I/O, rename atomicity, mkdir/rmdir, hardlinks, symlinks, truncate, seek/tell, O_APPEND, permissions, timestamps, concurrent writes, large directories, deep paths, special filenames (16 tests)
+2. `jepsen.rs` — Jepsen-style distributed test framework: JepsenHistory, RegisterModel, JepsenChecker linearizability, Nemesis fault injection (20 tests)
+3. `soak.rs` — Long-running soak test framework: SoakStats atomic counters, SoakSnapshot calculations, FileSoakTest, WorkerTask generator (19 tests)
+4. `regression.rs` — Regression test registry: Severity ordering, RegressionCase component tagging, open/fixed filtering, seed_known_issues (25 tests)
+5. `report.rs` — Test report generation: JSON/JUnit XML output, AggregateReport, ReportBuilder fluent API, pass_rate (26 tests)
+
+**Phase 3 (124 new tests, 4 modules):**
+1. `ci_matrix.rs` — CI test matrix framework: MatrixDimension, MatrixPoint, cartesian expansion, exclude combinations, CiJob/CiStep YAML generation (31 tests)
+2. `storage_tests.rs` — Storage integration tests: BuddyAllocator, Checksum (CRC32/BLAKE3), MockIoEngine, StorageEngineConfig (24 tests)
+3. `meta_tests.rs` — Metadata integration tests: InodeId/FileType/InodeAttrs types, serde roundtrips, KV store ops, Raft log serialization (40 tests)
+4. `reduce_tests.rs` — Reduction integration tests: CDC chunking, LZ4/Zstd roundtrips, AES-GCM encryption, BLAKE3 fingerprints, ReductionPipeline (29 tests)
+
+**MILESTONE: 468 claudefs-tests tests, 1714 workspace tests total (468 A9 + 1246 other crates)**
+
+---
+
 ### A5: FUSE Client — Phase 5 MILESTONE COMPLETE
 
 #### 2026-03-01 (A5 — FUSE Client: All Phases Complete)
