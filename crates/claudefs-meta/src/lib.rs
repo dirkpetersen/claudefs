@@ -92,7 +92,7 @@ pub use lease::{LeaseManager, LeaseType};
 pub use locking::{LockManager, LockType};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use multiraft::MultiRaftManager;
-pub use node::{MetadataNode, MetadataNodeConfig};
+pub use node::{MetadataNode, MetadataNodeConfig, StatFs};
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
 pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};

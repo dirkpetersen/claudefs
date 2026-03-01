@@ -9,6 +9,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
+use serde::{Deserialize, Serialize};
+
 use crate::fingerprint::FingerprintIndex;
 use crate::kvstore::{KvStore, MemoryKvStore};
 use crate::raft_log::RaftLogStore;
@@ -45,6 +47,23 @@ impl Default for MetadataNodeConfig {
             dir_shard_config: DirShardConfig::default(),
         }
     }
+}
+
+/// Filesystem statistics returned by statfs.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatFs {
+    /// Total number of inodes.
+    pub total_inodes: u64,
+    /// Number of free inodes.
+    pub free_inodes: u64,
+    /// Total number of blocks (4KB each).
+    pub total_blocks: u64,
+    /// Number of free blocks.
+    pub free_blocks: u64,
+    /// Block size in bytes.
+    pub block_size: u32,
+    /// Maximum filename length.
+    pub max_name_len: u32,
 }
 
 /// Unified metadata server node.
@@ -576,6 +595,246 @@ impl MetadataNode {
         result
     }
 
+    /// Creates a symbolic link.
+    pub fn symlink(
+        &self,
+        parent: InodeId,
+        name: &str,
+        target: &str,
+        uid: u32,
+        gid: u32,
+    ) -> Result<InodeAttr, MetaError> {
+        let start = Instant::now();
+
+        self.quota_mgr
+            .check_quota(uid, gid, 0, 1)
+            .inspect_err(|_e| {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Symlink, duration, false);
+            })?;
+
+        let result = self.service.symlink(parent, name, target, uid, gid);
+
+        match result {
+            Ok(attr) => {
+                self.quota_mgr.update_usage(uid, gid, 0, 1);
+                let _ = self.lease_mgr.revoke(parent);
+                self.watch_mgr.notify(WatchEvent::Create {
+                    parent,
+                    name: name.to_string(),
+                    ino: attr.ino,
+                });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateInode { attr: attr.clone() },
+                    self.config.site_id,
+                );
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateEntry {
+                        parent,
+                        name: name.to_string(),
+                        entry: DirEntry {
+                            name: name.to_string(),
+                            ino: attr.ino,
+                            file_type: attr.file_type,
+                        },
+                    },
+                    self.config.site_id,
+                );
+                self.inode_counter.fetch_add(1, Ordering::Relaxed);
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Symlink, duration, true);
+
+                Ok(attr)
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Symlink, duration, false);
+                Err(e)
+            }
+        }
+    }
+
+    /// Creates a hard link.
+    pub fn link(
+        &self,
+        parent: InodeId,
+        name: &str,
+        target_ino: InodeId,
+    ) -> Result<InodeAttr, MetaError> {
+        let start = Instant::now();
+
+        let result = self.service.link(parent, name, target_ino);
+
+        match result {
+            Ok(attr) => {
+                let _ = self.lease_mgr.revoke(parent);
+                let _ = self.lease_mgr.revoke(target_ino);
+                self.watch_mgr.notify(WatchEvent::Create {
+                    parent,
+                    name: name.to_string(),
+                    ino: target_ino,
+                });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateEntry {
+                        parent,
+                        name: name.to_string(),
+                        entry: DirEntry {
+                            name: name.to_string(),
+                            ino: target_ino,
+                            file_type: attr.file_type,
+                        },
+                    },
+                    self.config.site_id,
+                );
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Link, duration, true);
+
+                Ok(attr)
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Link, duration, false);
+                Err(e)
+            }
+        }
+    }
+
+    /// Reads the target of a symbolic link.
+    pub fn readlink(&self, ino: InodeId) -> Result<String, MetaError> {
+        let start = Instant::now();
+        let result = self.service.readlink(ino);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::Readlink, duration, result.is_ok());
+
+        result
+    }
+
+    /// Gets an extended attribute value.
+    pub fn get_xattr(&self, ino: InodeId, name: &str) -> Result<Vec<u8>, MetaError> {
+        let start = Instant::now();
+        let result = self.xattr_store.get(ino, name);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::GetXattr, duration, result.is_ok());
+
+        result
+    }
+
+    /// Sets an extended attribute value.
+    pub fn set_xattr(&self, ino: InodeId, name: &str, value: &[u8]) -> Result<(), MetaError> {
+        let start = Instant::now();
+
+        if let Some(worm_state) = self.worm_mgr.get_state(ino) {
+            if worm_state.is_protected() {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::SetXattr, duration, false);
+                return Err(MetaError::PermissionDenied);
+            }
+        }
+
+        let result = self.xattr_store.set(ino, name, value);
+
+        match result {
+            Ok(()) => {
+                let _ = self.lease_mgr.revoke(ino);
+                self.watch_mgr.notify(WatchEvent::XattrChange { ino });
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::SetXattr, duration, true);
+
+                Ok(())
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::SetXattr, duration, false);
+                Err(e)
+            }
+        }
+    }
+
+    /// Lists extended attribute names on an inode.
+    pub fn list_xattrs(&self, ino: InodeId) -> Result<Vec<String>, MetaError> {
+        let start = Instant::now();
+        let result = self.xattr_store.list(ino);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::ListXattrs, duration, result.is_ok());
+
+        result
+    }
+
+    /// Removes an extended attribute.
+    pub fn remove_xattr(&self, ino: InodeId, name: &str) -> Result<(), MetaError> {
+        let start = Instant::now();
+
+        if let Some(worm_state) = self.worm_mgr.get_state(ino) {
+            if worm_state.is_protected() {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics
+                    .record_op(MetricOp::RemoveXattr, duration, false);
+                return Err(MetaError::PermissionDenied);
+            }
+        }
+
+        let result = self.xattr_store.remove(ino, name);
+
+        match result {
+            Ok(()) => {
+                let _ = self.lease_mgr.revoke(ino);
+                self.watch_mgr.notify(WatchEvent::XattrChange { ino });
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics
+                    .record_op(MetricOp::RemoveXattr, duration, true);
+
+                Ok(())
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics
+                    .record_op(MetricOp::RemoveXattr, duration, false);
+                Err(e)
+            }
+        }
+    }
+
+    /// Returns filesystem statistics.
+    pub fn statfs(&self) -> StatFs {
+        let start = Instant::now();
+        let inode_count = self.inode_count();
+        let max_inodes: u64 = 1_000_000_000;
+
+        let result = StatFs {
+            total_inodes: max_inodes,
+            free_inodes: max_inodes.saturating_sub(inode_count),
+            total_blocks: 1_000_000_000,
+            free_blocks: 900_000_000,
+            block_size: 4096,
+            max_name_len: 255,
+        };
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics.record_op(MetricOp::Statfs, duration, true);
+
+        result
+    }
+
+    /// Returns a reference to the metadata journal for replication tailing.
+    pub fn journal(&self) -> &std::sync::Arc<crate::journal::MetadataJournal> {
+        self.service.journal()
+    }
+
+    /// Returns the fingerprint index for CAS dedup integration (A3).
+    pub fn fingerprint_index(&self) -> &FingerprintIndex {
+        &self.fingerprint_idx
+    }
+
     /// Returns a snapshot of current metrics.
     pub fn metrics_snapshot(&self) -> MetadataMetrics {
         let active_leases = self.lease_mgr.active_lease_count() as u64;
@@ -779,5 +1038,98 @@ mod tests {
     fn test_is_healthy() {
         let node = make_node_memory();
         assert!(node.is_healthy());
+    }
+
+    #[test]
+    fn test_symlink() {
+        let node = make_node_memory();
+        let attr = node
+            .symlink(InodeId::ROOT_INODE, "mylink", "/tmp/target", 1000, 1000)
+            .unwrap();
+        assert_eq!(attr.file_type, FileType::Symlink);
+        assert_eq!(attr.symlink_target, Some("/tmp/target".to_string()));
+
+        let entry = node.lookup(InodeId::ROOT_INODE, "mylink").unwrap();
+        assert_eq!(entry.ino, attr.ino);
+    }
+
+    #[test]
+    fn test_link() {
+        let node = make_node_memory();
+        let file = node
+            .create_file(InodeId::ROOT_INODE, "original.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        let linked = node
+            .link(InodeId::ROOT_INODE, "link.txt", file.ino)
+            .unwrap();
+        assert_eq!(linked.ino, file.ino);
+        assert_eq!(linked.nlink, 2);
+
+        let entry = node.lookup(InodeId::ROOT_INODE, "link.txt").unwrap();
+        assert_eq!(entry.ino, file.ino);
+    }
+
+    #[test]
+    fn test_readlink() {
+        let node = make_node_memory();
+        let attr = node
+            .symlink(InodeId::ROOT_INODE, "mylink", "/etc/hosts", 1000, 1000)
+            .unwrap();
+
+        let target = node.readlink(attr.ino).unwrap();
+        assert_eq!(target, "/etc/hosts");
+    }
+
+    #[test]
+    fn test_xattr_set_get() {
+        let node = make_node_memory();
+        let file = node
+            .create_file(InodeId::ROOT_INODE, "test.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        node.set_xattr(file.ino, "user.author", b"alice").unwrap();
+        let value = node.get_xattr(file.ino, "user.author").unwrap();
+        assert_eq!(value, b"alice");
+    }
+
+    #[test]
+    fn test_xattr_list() {
+        let node = make_node_memory();
+        let file = node
+            .create_file(InodeId::ROOT_INODE, "test.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        node.set_xattr(file.ino, "user.a", b"1").unwrap();
+        node.set_xattr(file.ino, "user.b", b"2").unwrap();
+
+        let names = node.list_xattrs(file.ino).unwrap();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"user.a".to_string()));
+        assert!(names.contains(&"user.b".to_string()));
+    }
+
+    #[test]
+    fn test_xattr_remove() {
+        let node = make_node_memory();
+        let file = node
+            .create_file(InodeId::ROOT_INODE, "test.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        node.set_xattr(file.ino, "user.key", b"value").unwrap();
+        node.remove_xattr(file.ino, "user.key").unwrap();
+
+        let result = node.get_xattr(file.ino, "user.key");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_statfs() {
+        let node = make_node_memory();
+        let stats = node.statfs();
+        assert_eq!(stats.block_size, 4096);
+        assert_eq!(stats.max_name_len, 255);
+        assert!(stats.total_inodes > 0);
+        assert!(stats.free_inodes <= stats.total_inodes);
     }
 }
