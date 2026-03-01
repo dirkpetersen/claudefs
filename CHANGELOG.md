@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Phase 1: Infrastructure & CI Setup
+
+#### 2026-03-01 (A11 Session — GitHub Actions CI/CD)
+
+##### A11: Infrastructure — GitHub Actions CI/CD Pipeline
+
+**GitHub Actions Workflows (`.github/workflows/`):**
+
+1. **CI Workflow** (`ci.yml`):
+   - Triggers on push to main and all pull requests
+   - Build: `cargo build --workspace --all-features`
+   - Test: `cargo test --workspace --all-features` (967 tests passing)
+   - Lint: `cargo clippy --workspace --all-features -- -D warnings`
+   - Format check: `cargo fmt --all -- --check`
+   - Cargo dependency caching via `actions/cache@v4`
+
+2. **Security Audit** (`ci.yml` job: `security-audit`):
+   - `cargo audit` for CVE scanning of dependencies
+   - Runs independently from build/test jobs
+
+3. **MSRV Check** (`ci.yml` job: `msrv-check`):
+   - Validates Rust 1.80 minimum supported version
+   - `cargo check --workspace` on MSRV toolchain
+
+4. **Release Workflow** (`release.yml`):
+   - Triggers on version tags (`v*.*.*`) and phase milestone tags (`phase-*`)
+   - Builds release artifacts (`cargo build --release`)
+   - Runs release-mode tests
+   - Auto-creates GitHub Release with generated notes
+
+**Current Test Status:** 967 tests passing across 6 crates (495 meta, 223 transport, 126 reduce/fuse, 90 storage, 16 routing, 13 integration, 4 operations)
+
+---
+
 ### Phase 2: Transport Layer Hardening
 
 #### 2026-03-01 (A4 Session — Phase 2 Transport Features)
