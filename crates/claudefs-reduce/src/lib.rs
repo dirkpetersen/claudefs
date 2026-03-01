@@ -22,6 +22,7 @@ pub mod segment;
 pub mod similarity;
 pub mod snapshot;
 pub mod write_path;
+/// WORM compliance and retention policy enforcement.
 pub mod worm_reducer;
 
 pub use compression::CompressionAlgorithm;
@@ -30,7 +31,7 @@ pub use encryption::{EncryptedChunk, EncryptionAlgorithm, EncryptionKey};
 pub use error::ReduceError;
 pub use fingerprint::{ChunkHash, SuperFeatures};
 pub use gc::{GcConfig, GcEngine, GcStats};
-pub use key_manager::{DataKey, KeyManager, KeyManagerConfig, KeyVersion, WrappedKey};
+pub use key_manager::{DataKey, KeyManager, KeyManagerConfig, KeyVersion, VersionedKey, WrappedKey};
 pub use metrics::{MetricKind, MetricValue, MetricsHandle, MetricsSnapshot, ReduceMetric, ReductionMetrics};
 pub use pipeline::{PipelineConfig, ReducedChunk, ReductionPipeline, ReductionStats};
 pub use background::{BackgroundConfig, BackgroundHandle, BackgroundProcessor, BackgroundStats, BackgroundTask};

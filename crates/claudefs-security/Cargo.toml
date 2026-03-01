@@ -13,6 +13,7 @@ claudefs-reduce = { path = "../claudefs-reduce" }
 claudefs-repl = { path = "../claudefs-repl" }
 claudefs-gateway = { path = "../claudefs-gateway" }
 claudefs-mgmt = { path = "../claudefs-mgmt" }
+claudefs-fuse = { path = "../claudefs-fuse" }
 thiserror.workspace = true
 serde.workspace = true
 tracing.workspace = true

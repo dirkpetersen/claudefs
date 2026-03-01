@@ -137,7 +137,7 @@ impl MetadataNode {
             num_shards: config.num_shards,
             max_journal_entries: 100_000,
         };
-        let service = MetadataService::new(service_config);
+        let service = MetadataService::new_with_kv(service_config, kv.clone());
 
         service.init_root()?;
 
