@@ -16,6 +16,7 @@ pub mod flowcontrol;
 pub mod health;
 pub mod message;
 pub mod metrics;
+pub mod mux;
 pub mod protocol;
 pub mod qos;
 pub mod retry;
@@ -48,4 +49,5 @@ pub use tracecontext::{
 pub use metrics::{MetricsSnapshot, TransportMetrics};
 pub use retry::{RetryConfig, RetryExecutor, RetryOutcome, RetryPolicy, is_retryable};
 pub use routing::{ConsistentHashRing, NodeId, NodeInfo, RoutingTable, ShardId, ShardRouter};
+pub use mux::{Multiplexer, MuxConfig, StreamHandle, StreamState};
 pub use transport::{Transport, Connection, Listener};
