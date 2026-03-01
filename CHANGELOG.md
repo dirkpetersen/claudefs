@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 3 Complete (2026-03-01)
+
+#### 318 tests, 17 modules, 50+ security findings documented
+
+**New Phase 3 modules:**
+- `crypto_zeroize_audit.rs`: 15 tests auditing key material handling
+  - Verified Debug redaction for EncryptionKey, DataKey, VersionedKey
+  - Confirmed WORM policy downgrade prevention (FINDING-CZ-08 resolved by A3)
+  - Validated nonce randomness, ciphertext properties, key derivation
+- `fuzz_fuse.rs`: 48 tests for FUSE protocol security fuzzing
+  - Mount option parsing: injection attacks, boundary values, unicode
+  - Cache config: zero/max capacity, TTL edge cases
+  - Passthrough: kernel version detection, fd management
+  - Inode table: allocation, lookup, forget operations
+- `dep_audit.rs`: 18 tests for dependency CVE sweep
+  - Tracked: bincode (RUSTSEC-2025-0141), rustls-pemfile (RUSTSEC-2025-0134)
+  - Tracked: fuser (RUSTSEC-2021-0154), lru (RUSTSEC-2026-0002)
+  - Supply chain: no openssl on data path, RustCrypto stack verified
+
+**Management API pentest findings (5 deferred for A8):**
+- FINDING-32: Rate limiter window timing
+- FINDING-34: RBAC not integrated in drain endpoint
+- FINDING-37: Metrics endpoint config leak
+- FINDING-38: Error responses not structured JSON
+- FINDING-42: HTTP verb tunneling via X-Method-Override
+
 ### A3: Data Reduction — Phase 4 Security Hardening Started (2026-03-01)
 
 #### Security audit complete: 24 findings identified, 1 CRITICAL resolved
