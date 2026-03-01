@@ -6,6 +6,170 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Phase 7 Production Readiness COMPLETE
+
+#### 2026-03-01 (A8 — Phase 7: Audit Trail, Performance Reporting, Rebalancing, Topology)
+
+**Phase 7 (64 new tests, 4 new modules) — production readiness & operational tooling:**
+
+1. `audit_trail.rs` (20 tests): Immutable ring-buffer audit trail for compliance
+   - AuditEventKind: 14 admin/security event types (Login, TokenCreate, QuotaChange, etc.)
+   - AuditFilter: flexible querying by user, kind, time range, success
+   - Ring-buffer with 10,000 event capacity (oldest evicted when full)
+   - Sequential event IDs for forensic tracing
+
+2. `perf_report.rs` (26 tests): Latency histogram and SLA violation detection
+   - LatencyHistogram: sorted samples with floor-based percentile (p50/p99/p100)
+   - PerformanceTracker: per-OpKind histograms (Read/Write/Stat/Open/Fsync etc.)
+   - SLA threshold monitoring with violation structs (measured vs target)
+   - Convenience methods p99_us/p50_us for fast operator access
+
+3. `rebalance.rs` (22 tests): Thread-safe data rebalancing job scheduler
+   - RebalanceScheduler: Mutex<HashMap> for concurrent job state management
+   - JobState: Pending/Running/Paused/Complete/Failed state machine
+   - Auto-start on submit when under max_concurrent limit
+   - Lifecycle: start_job, pause_job, resume_job, update_progress, complete_job, fail_job
+   - Progress tracking (bytes_moved/bytes_total) with progress_fraction()
+
+4. `topology.rs`: Cluster topology map
+   - NodeInfo with NodeRole (Storage, Meta, Client, Gateway) and NodeStatus
+   - TopologyMap for cluster-wide node discovery and membership
+
+**Total A8: 640 tests, 27 modules (up from 576 tests after Phase 6)**
+
+---
+
+### A1: Storage Engine — Phase 2 Integration COMPLETE
+
+#### 2026-03-01 (A1 — Phase 2: Write Journal, Atomic Writes, I/O Scheduling, Caching, Metrics, Health)
+
+**Phase 2 (155 new tests, 6 new modules) — production integration features:**
+
+1. `write_journal.rs` (23 tests): D3 synchronous write-ahead journal
+   - JournalEntry with sequence numbers, checksums, timestamps
+   - JournalOp variants: Write, Truncate, Delete, Mkdir, Fsync
+   - SyncMode: Sync, BatchSync, AsyncSync for write durability control
+   - Commit/truncate lifecycle for segment packing integration
+   - Journal full detection and space reclamation
+
+2. `atomic_write.rs` (32 tests): Kernel 6.11+ NVMe atomic write support (D10)
+   - AtomicWriteCapability: device probing and size/alignment checks
+   - AtomicWriteBatch: validated batches with fence support
+   - AtomicWriteEngine: submission engine with fallback to non-atomic path
+   - Alignment and size limit enforcement
+
+3. `io_scheduler.rs` (22 tests): Priority-based I/O scheduler with QoS
+   - IoPriority: Critical > High > Normal > Low
+   - Per-priority queues with starvation prevention (aging promotion)
+   - Configurable queue depth, inflight limits, critical reservation
+   - Drain and complete tracking for full I/O lifecycle
+
+4. `block_cache.rs` (27 tests): LRU block cache for hot data
+   - CacheEntry with dirty tracking, pinning, access counting
+   - LRU eviction that skips pinned blocks
+   - Memory limit and entry count enforcement
+   - Hit rate calculation and comprehensive stats
+
+5. `metrics.rs` (24 tests): Prometheus-compatible storage metrics
+   - Counter, Gauge, Histogram metric types
+   - I/O ops, bytes, latency ring buffer, allocation tracking
+   - Cache hit/miss and journal stats
+   - Export to Metric structs for A8 management integration
+   - P99 latency calculation from ring buffer
+
+6. `smart.rs` (27 tests): NVMe SMART health monitoring
+   - NvmeSmartLog with full NVMe health attributes
+   - HealthStatus: Healthy, Warning, Critical, Failed with reasons
+   - SmartMonitor: multi-device monitoring with configurable thresholds
+   - Temperature, spare capacity, endurance, media error detection
+   - Alert system with severity levels
+
+**Total:** 394 tests (378 unit + 16 proptest), 25 modules, all passing.
+
+---
+
+### A7: Protocol Gateways — Phase 3 Security Hardening COMPLETE
+
+#### 2026-03-01 (A7 — Phase 3: Production Readiness Security Fixes)
+
+**Fixed 5 security findings from A10 auth audit (FINDING-16 through FINDING-20):**
+
+- **FINDING-16 (HIGH):** Replaced predictable `generate_token(uid, counter)` with CSPRNG-based
+  generation using `rand::rngs::OsRng` — tokens are now 32 random bytes (64 hex chars),
+  unpredictable and non-guessable
+- **FINDING-17/20 (HIGH/LOW):** Added `SquashPolicy` enum (`None`, `RootSquash`, `AllSquash`)
+  and `AuthCred::effective_uid(policy)` / `effective_gid(policy)` methods for configurable NFS
+  root squashing. Default is `RootSquash` (uid=0 → nobody:nogroup) — safe by default
+- **FINDING-18 (MEDIUM):** `AuthToken::new()` now stores SHA-256 hash of token string, not
+  plaintext. All HashMap lookups hash the input first — prevents plaintext token exposure
+  via memory dumps
+- **FINDING-19 (MEDIUM):** Replaced all `Mutex::lock().unwrap()` with
+  `.unwrap_or_else(|e| e.into_inner())` — a thread panic no longer permanently disables
+  the token auth system via mutex poisoning
+- **Additional:** Added `AUTH_SYS_MAX_MACHINENAME_LEN = 255` check in `decode_xdr` per RFC 1831
+  to prevent unbounded memory allocation from malformed NFS AUTH_SYS credentials
+
+**Tests:** 615 gateway tests passing (608 original + 7 new security tests)
+
+**Branch:** `a7-phase3-security` (main blocked by A11 workflow token scope issue)
+
+---
+
+### A9: Test & Validation — Phase 8 Advanced Resilience & Cross-Crate Integration COMPLETE
+
+#### 2026-03-01 (A9 — Phase 8: Advanced Resilience & Cross-Crate Integration Tests)
+
+##### A9: Test & Validation — Phase 8 (1226 total tests, 39 modules)
+
+**Phase 8 (172 new tests, 5 new modules) — advanced resilience and cross-crate validation:**
+
+1. `io_priority_qos_tests.rs` (38 tests): A5 I/O priority classifier and QoS budget validation
+   - WorkloadClass priority ordering (Interactive > Foreground > Background > Idle)
+   - IoPriorityClassifier: default, PID override, UID override, PID > UID precedence
+   - classify_by_op: sync writes elevated to Foreground+, reads use default class
+   - IoClassStats: record_op accumulation, avg_latency_us calculation
+   - IoPriorityStats: total_ops/bytes, class_share percentages across workloads
+   - PriorityBudget: try_consume with/without limits, independent class budgets
+
+2. `storage_resilience.rs` (29 tests): Storage subsystem resilience under error/edge-case conditions
+   - BuddyAllocator: create, stats, 4K/64K allocation, free/reclaim, multiple concurrent allocs
+   - Capacity tracking: decrease on alloc, exhaustion returns Err on empty allocator
+   - BlockSize: as_bytes for all variants (B4K/B64K/B1M/B64M)
+   - Checksum: CRC32c compute/verify-pass/verify-fail, BlockHeader construction
+   - CapacityTracker: watermark levels (Normal/Warning/Critical), evict/write-through signals
+   - DeviceConfig/DeviceRole variants, DefragEngine lifecycle (new, can_run)
+
+3. `system_invariants.rs` (37 tests): Cross-crate data integrity invariants (A1+A3+A4)
+   - End-to-end checksum pipeline: Crc32c vs XxHash64 produce distinct values
+   - Compression roundtrip: LZ4 and Zstd with size reduction verification
+   - Encryption roundtrip: AES-GCM-256, wrong-key rejection, nonce freshness
+   - BLAKE3 fingerprint: determinism, collision resistance, 32-byte output
+   - Chunker: splits data, reassembly preserves bytes, CasIndex insert/lookup
+   - Frame encode/decode: Opcode roundtrip, request_id preservation, validate()
+   - ConsistentHashRing: empty lookup returns None, single node, deterministic mapping
+
+4. `transport_resilience.rs` (28 tests): Transport layer under stress and failure conditions
+   - CircuitBreaker: initial Closed state, opens on N failures, resets on success, reset()
+   - LoadShedder: no shedding initially, low-latency records, stats tracking
+   - RetryConfig/RetryExecutor: max_retries default, instantiation
+   - CancelRegistry: default construction
+   - KeepAliveConfig/State/Stats/Tracker: default interval, state variants
+   - TenantId/TenantConfig/TenantManager/TenantTracker: try_admit bandwidth
+   - HedgeConfig/HedgeStats/HedgeTracker: enabled flag, total_hedges initial
+   - ZeroCopyConfig/RegionPool: region_size > 0, available_regions > 0
+
+5. `worm_delegation_tests.rs` (40 tests): A5 WORM compliance and file delegation cross-scenarios
+   - ImmutabilityMode: None allows writes/deletes; AppendOnly blocks writes but allows append
+   - ImmutabilityMode::Immutable blocks all operations (write/delete/rename/truncate)
+   - WormRetention: blocks during period, allows after expiry; LegalHold blocks delete/rename
+   - WormRecord: check_write/delete/rename/truncate on Immutable vs None modes
+   - WormRegistry: set_mode/get/check_write/clear/len lifecycle
+   - Delegation: new Read/Write, is_active, is_expired (before/after), time_remaining, recall/returned/revoke
+   - DelegationManager: grant read/write, write-blocks-read/write conflicts, multiple reads allowed
+   - recall_for_ino, return_deleg (ok and unknown), revoke_expired cleanup
+
+---
+
 ### A11: Infrastructure & CI — Phase 7 Production-Ready COMPLETE
 
 #### 2026-03-01 (A11 — Infrastructure & CI: Phase 7 Completion)
