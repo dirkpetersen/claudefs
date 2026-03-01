@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tower::ServiceExt;
 
 #[derive(Debug, Clone)]
 pub struct AuthenticatedUser {

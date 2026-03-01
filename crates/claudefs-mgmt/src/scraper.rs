@@ -168,7 +168,7 @@ impl ScraperPool {
     }
 
     pub async fn scrape_all(&self) -> Vec<ScrapeResult> {
-        let scraper = NodeScraper::new(self.timeout_secs);
+        let _scraper = NodeScraper::new(self.timeout_secs);
         
         let futures: Vec<_> = self.scrapers.iter()
             .map(|(node_id, url)| {

@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::debug;
 
 #[derive(Debug, Error)]
 pub enum OpsMetricsError {
