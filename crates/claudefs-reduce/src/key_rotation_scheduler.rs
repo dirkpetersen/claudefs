@@ -9,35 +9,54 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::debug;
 
+/// Current state of the key rotation process.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RotationStatus {
+    /// No rotation is scheduled.
     Idle,
+    /// Rotation has been scheduled but not yet started.
     Scheduled {
+        /// The target KEK version to rotate to.
         target_version: KeyVersion,
     },
+    /// Rotation is in progress.
     InProgress {
+        /// The target KEK version.
         target_version: KeyVersion,
+        /// Number of chunks re-wrapped so far.
         rewrapped: usize,
+        /// Total number of chunks to re-wrap.
         total: usize,
     },
+    /// Rotation has completed successfully.
     Complete {
+        /// The KEK version after rotation.
         version: KeyVersion,
+        /// Total number of chunks re-wrapped.
         rewrapped: usize,
     },
+    /// Rotation has failed.
     Failed {
+        /// Reason for failure.
         reason: String,
     },
 }
 
+/// Entry tracking a single chunk's key rotation state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationEntry {
+    /// Unique identifier for the chunk.
     pub chunk_id: u64,
+    /// The wrapped DEK for this chunk.
     pub wrapped_key: WrappedKey,
+    /// Whether this chunk needs to be re-wrapped.
     pub needs_rotation: bool,
 }
 
+/// Configuration for the key rotation scheduler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationConfig {
+    /// Number of chunks to process per batch.
     pub batch_size: usize,
 }
 
@@ -47,12 +66,16 @@ impl Default for RotationConfig {
     }
 }
 
+/// Scheduler for managing key rotation of encrypted chunks.
+///
+/// Tracks which chunk DEKs need re-wrapping after a KEK rotation event.
 pub struct KeyRotationScheduler {
     status: RotationStatus,
     entries: HashMap<u64, RotationEntry>,
 }
 
 impl KeyRotationScheduler {
+    /// Creates a new key rotation scheduler in idle state.
     pub fn new() -> Self {
         Self {
             status: RotationStatus::Idle,
@@ -60,6 +83,7 @@ impl KeyRotationScheduler {
         }
     }
 
+    /// Registers a chunk with its current wrapped key.
     pub fn register_chunk(&mut self, chunk_id: u64, wrapped: WrappedKey) {
         self.entries.insert(
             chunk_id,
@@ -71,6 +95,7 @@ impl KeyRotationScheduler {
         );
     }
 
+    /// Schedules a key rotation to the target KEK version.
     pub fn schedule_rotation(&mut self, target_version: KeyVersion) -> Result<(), ReduceError> {
         if !matches!(self.status, RotationStatus::Idle) {
             return Err(ReduceError::EncryptionFailed(
@@ -81,6 +106,7 @@ impl KeyRotationScheduler {
         Ok(())
     }
 
+    /// Marks all chunks encrypted with the given KEK version as needing rotation.
     pub fn mark_needs_rotation(&mut self, old_version: KeyVersion) {
         for entry in self.entries.values_mut() {
             if entry.wrapped_key.kek_version == old_version {
@@ -89,6 +115,9 @@ impl KeyRotationScheduler {
         }
     }
 
+    /// Rewraps the next chunk that needs rotation.
+    ///
+    /// Returns the chunk ID of the re-wrapped chunk, or None if no more chunks need rotation.
     pub fn rewrap_next(&mut self, km: &mut KeyManager) -> Result<Option<u64>, ReduceError> {
         let (target_version, should_transition_to_in_progress) = match &self.status {
             RotationStatus::Scheduled { target_version } => (*target_version, true),
@@ -141,7 +170,7 @@ impl KeyRotationScheduler {
         } = &self.status
         {
             let rewrapped = *rewrapped;
-            let total = *total;
+            let _total = *total;
             self.status = RotationStatus::Complete {
                 version: target_version,
                 rewrapped,
@@ -151,18 +180,22 @@ impl KeyRotationScheduler {
         Ok(None)
     }
 
+    /// Returns the current rotation status.
     pub fn status(&self) -> &RotationStatus {
         &self.status
     }
 
+    /// Returns the number of chunks that still need rotation.
     pub fn pending_count(&self) -> usize {
         self.entries.values().filter(|e| e.needs_rotation).count()
     }
 
+    /// Returns the total number of registered chunks.
     pub fn total_chunks(&self) -> usize {
         self.entries.len()
     }
 
+    /// Gets the wrapped key for a chunk.
     pub fn get_wrapped_key(&self, chunk_id: u64) -> Option<&WrappedKey> {
         self.entries.get(&chunk_id).map(|e| &e.wrapped_key)
     }

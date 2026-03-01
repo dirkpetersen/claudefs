@@ -332,4 +332,88 @@ mod tests {
         let compacted = compact_batch(entries);
         assert!(compacted.is_empty());
     }
+
+    #[test]
+    fn test_acknowledge_unregistered_site_is_noop() {
+        let journal = Arc::new(MetadataJournal::new(1, 100));
+        let tracker = ReplicationTracker::new(journal);
+        tracker.acknowledge(999, 5).unwrap();
+    }
+
+    #[test]
+    fn test_lag_for_unregistered_site_is_journal_length() {
+        let journal = Arc::new(MetadataJournal::new(1, 100));
+        journal.append(create_op(100), LogIndex::new(1)).unwrap();
+        journal.append(create_op(200), LogIndex::new(2)).unwrap();
+
+        let tracker = ReplicationTracker::new(journal.clone());
+        let lag = tracker.lag_for_site(999).unwrap();
+        assert_eq!(lag, 2);
+    }
+
+    #[test]
+    fn test_multiple_sites_independent_lag() {
+        let journal = Arc::new(MetadataJournal::new(1, 100));
+        for i in 1..=5u64 {
+            journal
+                .append(create_op(100 + i), LogIndex::new(i))
+                .unwrap();
+        }
+
+        let tracker = ReplicationTracker::new(journal.clone());
+        tracker.register_site(10).unwrap();
+        tracker.register_site(20).unwrap();
+
+        tracker.acknowledge(10, 3).unwrap();
+        assert_eq!(tracker.lag_for_site(10).unwrap(), 2);
+        assert_eq!(tracker.lag_for_site(20).unwrap(), 5);
+    }
+
+    #[test]
+    fn test_compact_batch_delete_before_create_is_preserved() {
+        let entries = vec![
+            make_journal_entry(1, delete_op(100)),
+            make_journal_entry(2, create_op(100)),
+        ];
+
+        let compacted = compact_batch(entries);
+        assert_eq!(compacted.len(), 2);
+    }
+
+    #[test]
+    fn test_compact_batch_multiple_canceled_pairs() {
+        let entries = vec![
+            make_journal_entry(1, create_op(100)),
+            make_journal_entry(2, create_op(200)),
+            make_journal_entry(3, create_op(300)),
+            make_journal_entry(4, delete_op(100)),
+            make_journal_entry(5, delete_op(200)),
+            make_journal_entry(6, setattr_op(300)),
+        ];
+
+        let compacted = compact_batch(entries);
+        assert_eq!(compacted.len(), 2);
+        assert!(
+            matches!(&compacted[0].op, MetaOp::CreateInode { attr } if attr.ino.as_u64() == 300)
+        );
+        assert!(matches!(&compacted[1].op, MetaOp::SetAttr { .. }));
+    }
+
+    #[test]
+    fn test_pending_entries_limit_honored() {
+        let journal = Arc::new(MetadataJournal::new(1, 100));
+        for i in 1..=10u64 {
+            journal
+                .append(create_op(100 + i), LogIndex::new(i))
+                .unwrap();
+        }
+
+        let tracker = ReplicationTracker::new(journal.clone());
+        tracker.register_site(10).unwrap();
+
+        let pending = tracker.pending_entries(10, 3).unwrap();
+        assert_eq!(pending.len(), 3);
+        assert_eq!(pending[0].sequence, 1);
+        assert_eq!(pending[2].sequence, 3);
+    }
 }

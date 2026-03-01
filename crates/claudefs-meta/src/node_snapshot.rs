@@ -298,4 +298,107 @@ mod tests {
         let size = snapshot.total_size_bytes();
         assert!(size > 0);
     }
+
+    #[test]
+    fn test_snapshot_site_id() {
+        let config = MetadataNodeConfig {
+            node_id: NodeId::new(1),
+            num_shards: 64,
+            replication_factor: 3,
+            site_id: 42,
+            data_dir: None,
+            dir_shard_config: DirShardConfig::default(),
+        };
+        let node = MetadataNode::new(config).unwrap();
+        let snapshot = NodeSnapshot::capture(&node).unwrap();
+        assert_eq!(snapshot.site_id, 42);
+    }
+
+    #[test]
+    fn test_snapshot_multiple_files() {
+        let node = make_node();
+        for i in 0..10u32 {
+            let name = format!("file{}.txt", i);
+            node.create_file(InodeId::ROOT_INODE, &name, 1000 + i, 1000, 0o644)
+                .unwrap();
+        }
+        let snapshot = NodeSnapshot::capture(&node).unwrap();
+        assert!(
+            snapshot.next_inode_id > 10,
+            "next_inode_id should reflect 10 files created"
+        );
+    }
+
+    #[test]
+    fn test_snapshot_dir_entries_captured() {
+        let node = make_node();
+        node.mkdir(InodeId::ROOT_INODE, "alpha", 1000, 1000, 0o755)
+            .unwrap();
+        node.mkdir(InodeId::ROOT_INODE, "beta", 1000, 1000, 0o755)
+            .unwrap();
+        node.create_file(InodeId::ROOT_INODE, "gamma.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        let snapshot = NodeSnapshot::capture(&node).unwrap();
+        eprintln!("DEBUG: dir_entries count: {:?}", snapshot.dir_entries.len());
+        eprintln!("DEBUG: inodes count: {:?}", snapshot.inodes.len());
+        let total_dir_entries: usize = snapshot.dir_entries.iter().map(|(_, e)| e.len()).sum();
+        eprintln!("DEBUG: total_dir_entries: {}", total_dir_entries);
+        assert!(
+            total_dir_entries >= 3,
+            "should have at least 3 entries under root"
+        );
+    }
+
+    #[test]
+    fn test_deserialize_invalid_data_returns_error() {
+        let bad_data = b"this is not valid bincode";
+        assert!(NodeSnapshot::deserialize(bad_data).is_err());
+    }
+
+    #[test]
+    fn test_total_size_increases_with_more_inodes() {
+        let node_small = make_node();
+        let snapshot_small = NodeSnapshot::capture(&node_small).unwrap();
+        let size_small = snapshot_small.total_size_bytes();
+
+        let node_large = make_node();
+        for i in 0..100u32 {
+            let name = format!("f{}", i);
+            node_large
+                .create_file(InodeId::ROOT_INODE, &name, 1000, 1000, 0o644)
+                .unwrap();
+        }
+        let snapshot_large = NodeSnapshot::capture(&node_large).unwrap();
+        let size_large = snapshot_large.total_size_bytes();
+
+        assert!(
+            size_large > size_small,
+            "larger snapshot should have larger estimated size"
+        );
+    }
+
+    #[test]
+    fn test_snapshot_bincode_roundtrip_preserves_site_id() {
+        let config = MetadataNodeConfig {
+            node_id: NodeId::new(7),
+            num_shards: 16,
+            replication_factor: 3,
+            site_id: 99,
+            data_dir: None,
+            dir_shard_config: DirShardConfig::default(),
+        };
+        let node = MetadataNode::new(config).unwrap();
+        let _ = node
+            .create_file(InodeId::ROOT_INODE, "file.rs", 500, 500, 0o600)
+            .unwrap();
+
+        let snapshot = NodeSnapshot::capture(&node).unwrap();
+        let bytes = snapshot.serialize().unwrap();
+        let restored = NodeSnapshot::deserialize(&bytes).unwrap();
+
+        assert_eq!(restored.site_id, 99);
+        assert_eq!(restored.node_id, NodeId::new(7));
+        assert_eq!(restored.num_shards, 16);
+    }
 }

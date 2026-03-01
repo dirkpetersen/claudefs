@@ -57,9 +57,8 @@ pub struct MetadataService {
 }
 
 impl MetadataService {
-    /// Create a new metadata service with in-memory storage (Phase 1).
-    pub fn new(config: MetadataServiceConfig) -> Self {
-        let kv: Arc<dyn KvStore> = Arc::new(MemoryKvStore::new());
+    /// Create a new metadata service with the provided KV store.
+    pub fn new_with_kv(config: MetadataServiceConfig, kv: Arc<dyn KvStore>) -> Self {
         let inodes = Arc::new(InodeStore::new(kv.clone()));
         let dirs = DirectoryStore::new(kv.clone(), inodes.clone());
 
@@ -85,6 +84,12 @@ impl MetadataService {
             replication,
             config,
         }
+    }
+
+    /// Create a new metadata service with in-memory storage (Phase 1).
+    pub fn new(config: MetadataServiceConfig) -> Self {
+        let kv: Arc<dyn KvStore> = Arc::new(MemoryKvStore::new());
+        Self::new_with_kv(config, kv)
     }
 
     /// Initialize the root directory (inode 1).

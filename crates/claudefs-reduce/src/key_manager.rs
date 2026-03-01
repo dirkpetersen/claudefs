@@ -213,7 +213,7 @@ impl KeyManager {
         self.kek_history.len()
     }
 
-    #[cfg(test)]
+    /// Clears all historical KEK versions.
     pub fn clear_history(&mut self) {
         self.kek_history.clear();
     }

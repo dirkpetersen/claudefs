@@ -1,19 +1,33 @@
+//! WORM (Write Once Read Many) compliance and retention policy enforcement.
+//!
+//! Provides retention policies for immutable data, legal holds, and
+//! time-based expiration enforcement.
+
 use std::collections::HashMap;
 
+/// WORM mode defining the retention type for a data chunk.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum WormMode {
+    /// No retention enforcement - data can be garbage collected.
     None,
+    /// Immutable until a specific timestamp.
     Immutable,
+    /// Legal hold - never expires until explicitly released.
     LegalHold,
 }
 
+/// Retention policy defining when a data chunk can be garbage collected.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct RetentionPolicy {
+    /// The WORM mode for this policy.
     pub mode: WormMode,
+    /// Unix timestamp (seconds) after which immutable data can be released.
+    /// None for legal holds and None-mode policies.
     pub retain_until: Option<u64>,
 }
 
 impl RetentionPolicy {
+    /// Creates a policy with no retention enforcement.
     pub fn none() -> Self {
         Self {
             mode: WormMode::None,
@@ -21,6 +35,7 @@ impl RetentionPolicy {
         }
     }
 
+    /// Creates an immutable policy that retains data until the given timestamp.
     pub fn immutable_until(ts: u64) -> Self {
         Self {
             mode: WormMode::Immutable,
@@ -28,6 +43,7 @@ impl RetentionPolicy {
         }
     }
 
+    /// Creates a legal hold policy that retains data indefinitely.
     pub fn legal_hold() -> Self {
         Self {
             mode: WormMode::LegalHold,
@@ -35,6 +51,7 @@ impl RetentionPolicy {
         }
     }
 
+    /// Checks if this policy has expired at the given timestamp.
     pub fn is_expired(&self, now_ts: u64) -> bool {
         match self.mode {
             WormMode::None => true,
@@ -47,25 +64,30 @@ impl RetentionPolicy {
     }
 }
 
+/// Tracks retention policies for data chunks and manages garbage collection.
 pub struct WormReducer {
     records: HashMap<u64, (RetentionPolicy, u64)>,
 }
 
 impl WormReducer {
+    /// Creates a new empty WORM reducer.
     pub fn new() -> Self {
         Self {
             records: HashMap::new(),
         }
     }
 
+    /// Registers a chunk with a retention policy.
     pub fn register(&mut self, hash: u64, policy: RetentionPolicy, size: u64) {
         self.records.insert(hash, (policy, size));
     }
 
+    /// Gets the retention policy and size for a chunk.
     pub fn get(&self, hash: &u64) -> Option<&(RetentionPolicy, u64)> {
         self.records.get(hash)
     }
 
+    /// Returns the number of non-expired retention policies.
     pub fn active_count(&self, now_ts: u64) -> usize {
         self.records
             .values()
@@ -73,6 +95,7 @@ impl WormReducer {
             .count()
     }
 
+    /// Removes all expired entries and returns the count of removed entries.
     pub fn gc_expired(&mut self, now_ts: u64) -> usize {
         let expired: Vec<_> = self
             .records
@@ -87,6 +110,7 @@ impl WormReducer {
         expired.len()
     }
 
+    /// Returns the total number of registered chunks.
     pub fn total_count(&self) -> usize {
         self.records.len()
     }

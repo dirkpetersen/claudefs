@@ -170,4 +170,89 @@ mod tests {
         assert_eq!(retrieved.file_type, FileType::Directory);
         assert_eq!(retrieved.nlink, 2);
     }
+
+    #[test]
+    fn test_exists_returns_false_for_nonexistent() {
+        let store = make_store();
+        assert!(!store.exists(InodeId::new(999)).unwrap());
+    }
+
+    #[test]
+    fn test_set_inode_nonexistent_returns_error() {
+        let store = make_store();
+        let attr = InodeAttr::new_file(InodeId::new(999), 1000, 1000, 0o644, 1);
+        match store.set_inode(&attr) {
+            Err(MetaError::InodeNotFound(id)) => assert_eq!(id.as_u64(), 999),
+            other => panic!("expected InodeNotFound, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_multiple_inodes_independent() {
+        let store = make_store();
+        for i in 2..12u64 {
+            let attr = InodeAttr::new_file(InodeId::new(i), 1000 + i as u32, 1000, 0o644, 1);
+            store.create_inode(&attr).unwrap();
+        }
+        for i in 2..12u64 {
+            let attr = store.get_inode(InodeId::new(i)).unwrap();
+            assert_eq!(attr.uid, 1000 + i as u32);
+        }
+    }
+
+    #[test]
+    fn test_delete_clears_existence() {
+        let store = make_store();
+        let attr = InodeAttr::new_file(InodeId::new(2), 1000, 1000, 0o644, 1);
+        store.create_inode(&attr).unwrap();
+        assert!(store.exists(InodeId::new(2)).unwrap());
+        store.delete_inode(InodeId::new(2)).unwrap();
+        assert!(!store.exists(InodeId::new(2)).unwrap());
+    }
+
+    #[test]
+    fn test_update_file_size() {
+        let store = make_store();
+        let mut attr = InodeAttr::new_file(InodeId::new(2), 1000, 1000, 0o644, 1);
+        store.create_inode(&attr).unwrap();
+
+        attr.size = 1_073_741_824;
+        attr.blocks = 2097152;
+        store.set_inode(&attr).unwrap();
+
+        let retrieved = store.get_inode(InodeId::new(2)).unwrap();
+        assert_eq!(retrieved.size, 1_073_741_824);
+        assert_eq!(retrieved.blocks, 2097152);
+    }
+
+    #[test]
+    fn test_allocate_inode_monotonically_increases() {
+        let store = make_store();
+        let ids: Vec<u64> = (0..100).map(|_| store.allocate_inode().as_u64()).collect();
+        for i in 1..ids.len() {
+            assert!(
+                ids[i] > ids[i - 1],
+                "IDs should be monotonically increasing"
+            );
+        }
+    }
+
+    #[test]
+    fn test_root_inode_id_is_one() {
+        assert_eq!(InodeId::ROOT_INODE.as_u64(), 1);
+    }
+
+    #[test]
+    fn test_symlink_inode() {
+        use crate::types::FileType;
+        let store = make_store();
+        let mut attr = InodeAttr::new_file(InodeId::new(2), 1000, 1000, 0o777, 1);
+        attr.file_type = FileType::Symlink;
+        attr.symlink_target = Some("/target/path".to_string());
+        store.create_inode(&attr).unwrap();
+
+        let retrieved = store.get_inode(InodeId::new(2)).unwrap();
+        assert_eq!(retrieved.file_type, FileType::Symlink);
+        assert_eq!(retrieved.symlink_target, Some("/target/path".to_string()));
+    }
 }
