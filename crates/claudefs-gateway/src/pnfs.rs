@@ -1,5 +1,6 @@
 //! pNFS layout server implementation
 
+use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +27,7 @@ pub struct LayoutSegment {
     pub stripe_unit: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u32)]
 pub enum IoMode {
     Read = 1,
