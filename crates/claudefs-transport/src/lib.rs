@@ -45,5 +45,7 @@ pub use tracecontext::{
     TraceContext, TraceFlags, TraceId, TraceParent, TraceState, TRACEPARENT_HEADER,
     TRACESTATE_HEADER,
 };
+pub use metrics::{MetricsSnapshot, TransportMetrics};
+pub use retry::{RetryConfig, RetryExecutor, RetryOutcome, RetryPolicy, is_retryable};
 pub use routing::{ConsistentHashRing, NodeId, NodeInfo, RoutingTable, ShardId, ShardRouter};
 pub use transport::{Transport, Connection, Listener};
