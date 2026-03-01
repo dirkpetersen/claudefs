@@ -53,43 +53,40 @@ impl NodeSnapshot {
         let kv = node.kv_store();
 
         let mut inodes = Vec::new();
-        let inode_entries = kv.scan_prefix(b"inode:")?;
+        let inode_prefix_len = b"inode/".len();
+        let inode_entries = kv.scan_prefix(b"inode/")?;
         for (key, value) in inode_entries {
-            let key_str = String::from_utf8_lossy(&key);
-            let parts: Vec<&str> = key_str.split(':').collect();
-            if parts.len() >= 2 {
-                if let Ok(inode_id) = parts[1].parse::<u64>() {
-                    if let Ok(attr) = bincode::deserialize::<InodeAttr>(&value) {
-                        inodes.push((InodeId::new(inode_id), attr));
-                    }
+            if key.len() >= inode_prefix_len + 8 {
+                let inode_bytes = &key[inode_prefix_len..inode_prefix_len + 8];
+                let inode_id = u64::from_be_bytes(inode_bytes.try_into().unwrap());
+                if let Ok(attr) = bincode::deserialize::<InodeAttr>(&value) {
+                    inodes.push((InodeId::new(inode_id), attr));
                 }
             }
         }
 
         let mut dir_entries = Vec::new();
-        let dir_key_entries = kv.scan_prefix(b"dir:")?;
+        let dir_prefix_len = b"dirent/".len();
+        let dir_key_entries = kv.scan_prefix(b"dirent/")?;
         let mut current_dir: Option<InodeId> = None;
         let mut current_entries: Option<Vec<DirEntry>> = None;
 
         for (key, value) in dir_key_entries {
-            let key_str = String::from_utf8_lossy(&key);
-            let parts: Vec<&str> = key_str.split(':').collect();
-            if parts.len() >= 3 {
-                if let Some(parent_id) = parts.get(1).and_then(|s| s.parse::<u64>().ok()) {
-                    let this_parent = InodeId::new(parent_id);
-                    if current_dir != Some(this_parent) {
-                        if let (Some(dir), Some(entries)) =
-                            (current_dir.take(), current_entries.take())
-                        {
-                            dir_entries.push((dir, entries));
-                        }
-                        current_dir = Some(this_parent);
-                        current_entries = Some(Vec::new());
+            if key.len() >= dir_prefix_len + 8 {
+                let parent_bytes = &key[dir_prefix_len..dir_prefix_len + 8];
+                let parent_id = u64::from_be_bytes(parent_bytes.try_into().unwrap());
+                let this_parent = InodeId::new(parent_id);
+                if current_dir != Some(this_parent) {
+                    if let (Some(dir), Some(entries)) = (current_dir.take(), current_entries.take())
+                    {
+                        dir_entries.push((dir, entries));
                     }
-                    if let Ok(entry) = bincode::deserialize::<DirEntry>(&value) {
-                        if let Some(ref mut entries) = current_entries {
-                            entries.push(entry);
-                        }
+                    current_dir = Some(this_parent);
+                    current_entries = Some(Vec::new());
+                }
+                if let Ok(entry) = bincode::deserialize::<DirEntry>(&value) {
+                    if let Some(ref mut entries) = current_entries {
+                        entries.push(entry);
                     }
                 }
             }
@@ -340,10 +337,7 @@ mod tests {
             .unwrap();
 
         let snapshot = NodeSnapshot::capture(&node).unwrap();
-        eprintln!("DEBUG: dir_entries count: {:?}", snapshot.dir_entries.len());
-        eprintln!("DEBUG: inodes count: {:?}", snapshot.inodes.len());
         let total_dir_entries: usize = snapshot.dir_entries.iter().map(|(_, e)| e.len()).sum();
-        eprintln!("DEBUG: total_dir_entries: {}", total_dir_entries);
         assert!(
             total_dir_entries >= 3,
             "should have at least 3 entries under root"
