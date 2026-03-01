@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Phase 5 MILESTONE COMPLETE
+
+#### 2026-03-01 (A8 — Management: Phase 5 Observability & Scaling)
+
+##### A8: Management — 496 tests, 22 modules, ~10,000 lines
+
+**Phase 5 (159 new tests, 5 modules):**
+- `tracing_otel.rs` — W3C TraceContext propagation, SpanBuilder, TraceBuffer ring buffer, RateSampler (1-in-N), TracingManager with dropped-span stats (25 tests)
+- `sla.rs` — p50/p95/p99/p999 percentile computation, SlaWindow sliding window, SlaChecker against per-metric targets, SlaReport with summary line (24 tests)
+- `qos.rs` — QosPriority tiers (Critical/High/Normal/Low/Background), TokenBucket rate limiter, BandwidthLimit with burst, QosPolicy, QosRegistry for tenant/client/user/group assignment (36 tests)
+- `webhook.rs` — WebhookPayload with JSON body, WebhookEndpoint with event filter + HMAC signature, DeliveryRecord/DeliveryAttempt, WebhookRegistry with per-endpoint success_rate (37 tests)
+- `node_scaling.rs` — NodeState FSM (Joining/Active/Draining/Drained/Failed/Decommissioned), ClusterNode with fill_percent, RebalanceTask with progress tracking, ScalingPlan, NodeScalingManager (37 tests)
+
+**Previous phases:** Phase 1 (config, metrics, api, analytics, cli — 51 tests), Phase 2 (indexer, scraper, alerting, quota, grafana — 93 tests), Phase 3 (drain, tiering, snapshot, health — 94 tests), Phase 4 (capacity, events, rbac, migration — 99 tests)
+
+---
+
 ### A10: Security Audit — Phase 2 Authentication Audit
 
 #### 2026-03-01 (A10 — Authentication Security Audit)
