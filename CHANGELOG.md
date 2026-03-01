@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 3 Production Readiness COMPLETE
+
+#### 2026-03-01 (A6 — Replication: Phase 3 Security Fixes + Active-Active Failover)
+
+##### A6: Replication — 371 tests, 17 modules
+
+**Phase 3 (68 new tests, 3 new modules) addressing security findings and feature gaps:**
+
+1. `batch_auth.rs` — HMAC-SHA256 batch authentication (24 tests):
+   - Addresses FINDING-06 (no sender auth) and FINDING-07 (no batch integrity)
+   - Pure-Rust SHA256 + HMAC implementation (no external crypto deps)
+   - `BatchAuthKey` with secure zeroize-on-drop (addresses FINDING-08)
+   - `BatchAuthenticator::sign_batch()` / `verify_batch()` with constant-time comparison
+   - Deterministic signing, tamper-detection for source_site_id, batch_seq, payload
+
+2. `failover.rs` — Active-active failover state machine (29 tests):
+   - Priority 3 feature: automatic site failover with read-write on both sites
+   - `SiteMode` enum: ActiveReadWrite → DegradedAcceptWrites → Offline → StandbyReadOnly
+   - Configurable failure/recovery thresholds, `FailoverEvent` emission
+   - `FailoverManager`: register_site, record_health, force_mode, drain_events
+   - Concurrent-safe with tokio::sync::Mutex, writable_sites()/readable_sites() routing
+
+3. `auth_ratelimit.rs` — Authentication rate limiting (15 tests):
+   - Addresses FINDING-09 (no rate limiting on conduit)
+   - Sliding-window auth attempt counter with lockout (configurable 5-min default)
+   - Token-bucket batch rate limiting (per-site + global bytes limit)
+   - `AuthRateLimiter::check_auth_attempt()` / `check_batch_send()` / `reset_site()`
+
+**Previous phases: 303 tests (Phases 1–5), throttle/pipeline/fanout/health/report**
+
+**MILESTONE: 371 replication tests, 17 modules, zero clippy warnings**
+
+---
+
 ### A10: Security Audit — Phase 2 MILESTONE COMPLETE
 
 #### 2026-03-01 (A10 — Phase 2: Authentication Audit + Unsafe Review + API Pentest)
