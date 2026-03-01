@@ -561,6 +561,31 @@ pub enum RaftMessage {
         /// Match index for leader
         match_index: LogIndex,
     },
+    /// Pre-vote request (Raft thesis §9.6) — sent before real election to avoid disruption
+    PreVote {
+        /// Candidate's term (would-be next term, NOT incremented yet)
+        term: Term,
+        /// Candidate node ID
+        candidate_id: NodeId,
+        /// Index of candidate's last log entry
+        last_log_index: LogIndex,
+        /// Term of candidate's last log entry
+        last_log_term: Term,
+    },
+    /// Response to PreVote
+    PreVoteResponse {
+        /// Responder's term
+        term: Term,
+        /// Whether pre-vote was granted
+        vote_granted: bool,
+    },
+    /// Leadership transfer request (Raft thesis §6.4)
+    TimeoutNow {
+        /// Leader's term
+        term: Term,
+        /// Current leader ID
+        leader_id: NodeId,
+    },
 }
 
 /// Current state of a Raft node
@@ -572,4 +597,6 @@ pub enum RaftState {
     Candidate,
     /// Leading the cluster
     Leader,
+    /// Pre-candidate: gathering pre-votes before starting real election
+    PreCandidate,
 }

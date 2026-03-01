@@ -1064,6 +1064,193 @@ impl MetadataNode {
             this_node: self.config.node_id,
         }
     }
+
+    /// Batch create multiple files in one directory atomically.
+    /// The tuple is (name, uid, gid, mode). Returns the created inode IDs.
+    /// One quota check for the entire batch, one CDC event batch, metrics recorded once.
+    pub fn batch_create_files(
+        &self,
+        parent: InodeId,
+        entries: Vec<(String, u32, u32, u32)>,
+    ) -> Result<Vec<InodeId>, MetaError> {
+        let start = Instant::now();
+
+        let total_files = entries.len() as i64;
+
+        self.quota_mgr
+            .check_quota(0, 0, 0, total_files)
+            .inspect_err(|_e| {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics
+                    .record_op(MetricOp::CreateFile, duration, false);
+            })?;
+
+        let mut created_ids = Vec::with_capacity(entries.len());
+        let mut cdc_events = Vec::new();
+
+        for (name, uid, gid, mode) in entries {
+            match self.service.create_file(parent, &name, uid, gid, mode) {
+                Ok(attr) => {
+                    created_ids.push(attr.ino);
+                    cdc_events.push(MetaOp::CreateInode { attr: attr.clone() });
+                    cdc_events.push(MetaOp::CreateEntry {
+                        parent,
+                        name: name.clone(),
+                        entry: DirEntry {
+                            name,
+                            ino: attr.ino,
+                            file_type: attr.file_type,
+                        },
+                    });
+                }
+                Err(e) => {
+                    let duration = start.elapsed().as_micros() as u64;
+                    self.metrics
+                        .record_op(MetricOp::CreateFile, duration, false);
+                    return Err(e);
+                }
+            }
+        }
+
+        self.quota_mgr
+            .update_usage(0, 0, 0, created_ids.len() as i64);
+        let _ = self.lease_mgr.revoke(parent);
+        self.watch_mgr.notify(WatchEvent::BatchCreate {
+            parent,
+            count: created_ids.len() as u32,
+        });
+
+        for event in &cdc_events {
+            let _ = self.cdc_stream.publish(event.clone(), self.config.site_id);
+        }
+
+        self.inode_counter
+            .fetch_add(created_ids.len() as u64, Ordering::Relaxed);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics.record_op(MetricOp::CreateFile, duration, true);
+
+        Ok(created_ids)
+    }
+
+    /// Batch unlink: remove multiple entries from a directory atomically.
+    /// Returns count of removed entries. Checks WORM protection on each.
+    /// Skips WORM-protected files but continues with others.
+    pub fn batch_unlink(&self, parent: InodeId, names: Vec<String>) -> Result<u64, MetaError> {
+        let start = Instant::now();
+
+        let mut removed_count = 0u64;
+        let mut cdc_events = Vec::new();
+
+        for name in &names {
+            match self.service.lookup(parent, name) {
+                Ok(entry) => {
+                    let ino = entry.ino;
+
+                    if let Some(worm_state) = self.worm_mgr.get_state(ino) {
+                        if worm_state.is_protected() {
+                            tracing::debug!(
+                                node_id = %self.config.node_id,
+                                ino = %ino,
+                                name = %name,
+                                "skipping WORM-protected file in batch unlink"
+                            );
+                            continue;
+                        }
+                    }
+
+                    match self.service.unlink(parent, name) {
+                        Ok(()) => {
+                            removed_count += 1;
+                            cdc_events.push(MetaOp::DeleteEntry {
+                                parent,
+                                name: name.clone(),
+                            });
+                            cdc_events.push(MetaOp::DeleteInode { ino });
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                node_id = %self.config.node_id,
+                                name = %name,
+                                error = %e,
+                                "failed to unlink in batch operation"
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        node_id = %self.config.node_id,
+                        name = %name,
+                        error = %e,
+                        "lookup failed in batch unlink"
+                    );
+                }
+            }
+        }
+
+        for event in &cdc_events {
+            let _ = self.cdc_stream.publish(event.clone(), self.config.site_id);
+        }
+
+        self.inode_counter
+            .fetch_sub(removed_count, Ordering::Relaxed);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics.record_op(MetricOp::Unlink, duration, true);
+
+        Ok(removed_count)
+    }
+
+    /// Batch setattr: update attributes for multiple inodes.
+    /// Returns count of updated inodes.
+    pub fn batch_setattr(&self, updates: Vec<(InodeId, InodeAttr)>) -> Result<u64, MetaError> {
+        let start = Instant::now();
+
+        let mut updated_count = 0u64;
+        let mut cdc_events = Vec::new();
+
+        for (ino, attr) in updates {
+            if let Some(worm_state) = self.worm_mgr.get_state(ino) {
+                if worm_state.is_protected() {
+                    tracing::debug!(
+                        node_id = %self.config.node_id,
+                        ino = %ino,
+                        "skipping WORM-protected file in batch setattr"
+                    );
+                    continue;
+                }
+            }
+
+            let attr_for_cdc = attr.clone();
+            match self.service.setattr(ino, attr) {
+                Ok(()) => {
+                    updated_count += 1;
+                    cdc_events.push(MetaOp::SetAttr {
+                        ino,
+                        attr: attr_for_cdc,
+                    });
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        node_id = %self.config.node_id,
+                        ino = %ino,
+                        error = %e,
+                        "failed to setattr in batch operation"
+                    );
+                }
+            }
+        }
+
+        for event in &cdc_events {
+            let _ = self.cdc_stream.publish(event.clone(), self.config.site_id);
+        }
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics.record_op(MetricOp::Setattr, duration, true);
+
+        Ok(updated_count)
+    }
 }
 
 #[cfg(test)]
@@ -1472,5 +1659,141 @@ mod tests {
 
         node.fsync(file.ino, false).unwrap();
         node.fsync(file.ino, true).unwrap();
+    }
+
+    #[test]
+    fn test_batch_create_files() {
+        let node = make_node_memory();
+
+        let entries = vec![
+            ("file1.txt".to_string(), 1000, 1000, 0o644),
+            ("file2.txt".to_string(), 1000, 1000, 0o644),
+            ("file3.txt".to_string(), 1000, 1000, 0o644),
+            ("file4.txt".to_string(), 1000, 1000, 0o644),
+            ("file5.txt".to_string(), 1000, 1000, 0o644),
+            ("file6.txt".to_string(), 1000, 1000, 0o644),
+            ("file7.txt".to_string(), 1000, 1000, 0o644),
+            ("file8.txt".to_string(), 1000, 1000, 0o644),
+            ("file9.txt".to_string(), 1000, 1000, 0o644),
+            ("file10.txt".to_string(), 1000, 1000, 0o644),
+        ];
+
+        let ids = node
+            .batch_create_files(InodeId::ROOT_INODE, entries)
+            .unwrap();
+
+        assert_eq!(ids.len(), 10);
+
+        for i in 1..=10 {
+            let name = format!("file{}.txt", i);
+            let entry = node.lookup(InodeId::ROOT_INODE, &name).unwrap();
+            assert_eq!(entry.name, name);
+        }
+    }
+
+    #[test]
+    fn test_batch_create_checks_quota() {
+        let node = make_node_memory();
+
+        let entries = vec![
+            ("file1.txt".to_string(), 1000, 1000, 0o644),
+            ("file2.txt".to_string(), 1000, 1000, 0o644),
+        ];
+
+        let result = node.batch_create_files(InodeId::ROOT_INODE, entries);
+        assert!(result.is_ok());
+
+        let entries = vec![
+            ("file1.txt".to_string(), 1000, 1000, 0o644),
+            ("file2.txt".to_string(), 1000, 1000, 0o644),
+        ];
+
+        let result2 = node.batch_create_files(InodeId::ROOT_INODE, entries);
+        assert!(result2.is_err());
+    }
+
+    #[test]
+    fn test_batch_unlink() {
+        let node = make_node_memory();
+
+        let entries = vec![
+            ("a.txt".to_string(), 1000, 1000, 0o644),
+            ("b.txt".to_string(), 1000, 1000, 0o644),
+            ("c.txt".to_string(), 1000, 1000, 0o644),
+        ];
+
+        let _ = node
+            .batch_create_files(InodeId::ROOT_INODE, entries)
+            .unwrap();
+
+        let names = vec![
+            "a.txt".to_string(),
+            "b.txt".to_string(),
+            "c.txt".to_string(),
+        ];
+
+        let count = node.batch_unlink(InodeId::ROOT_INODE, names).unwrap();
+        assert_eq!(count, 3);
+
+        let result = node.lookup(InodeId::ROOT_INODE, "a.txt");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_batch_unlink_worm_protected() {
+        use crate::worm::RetentionPolicy;
+
+        let node = make_node_memory();
+
+        let attr1 = node
+            .create_file(InodeId::ROOT_INODE, "protected.txt", 1000, 1000, 0o644)
+            .unwrap();
+        let _ = node
+            .create_file(InodeId::ROOT_INODE, "normal.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        node.worm_mgr
+            .set_retention_policy(attr1.ino, RetentionPolicy::new(3600, None, false), 0);
+        node.worm_mgr.lock_file(attr1.ino, 0).unwrap();
+
+        let names = vec!["protected.txt".to_string(), "normal.txt".to_string()];
+
+        let count = node.batch_unlink(InodeId::ROOT_INODE, names).unwrap();
+        assert_eq!(count, 1);
+
+        let result = node.lookup(InodeId::ROOT_INODE, "protected.txt");
+        assert!(result.is_ok());
+
+        let result2 = node.lookup(InodeId::ROOT_INODE, "normal.txt");
+        assert!(result2.is_err());
+    }
+
+    #[test]
+    fn test_batch_setattr() {
+        let node = make_node_memory();
+
+        let attr1 = node
+            .create_file(InodeId::ROOT_INODE, "file1.txt", 1000, 1000, 0o644)
+            .unwrap();
+        let attr2 = node
+            .create_file(InodeId::ROOT_INODE, "file2.txt", 1000, 1000, 0o644)
+            .unwrap();
+
+        let mut new_attr1 = attr1.clone();
+        new_attr1.mode = 0o600;
+
+        let mut new_attr2 = attr2.clone();
+        new_attr2.gid = 2000;
+
+        let updates = vec![(attr1.ino, new_attr1), (attr2.ino, new_attr2)];
+
+        let count = node.batch_setattr(updates).unwrap();
+        assert_eq!(count, 2);
+
+        let updated1 = node.getattr(attr1.ino).unwrap();
+        assert_eq!(updated1.mode, 0o600);
+
+        let updated2 = node.getattr(attr2.ino).unwrap();
+        assert_eq!(updated2.gid, 2000);
     }
 }

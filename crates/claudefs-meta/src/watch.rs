@@ -59,6 +59,13 @@ pub enum WatchEvent {
         /// Inode whose xattrs changed
         ino: InodeId,
     },
+    /// Multiple entries were created in a batch operation.
+    BatchCreate {
+        /// Parent directory inode
+        parent: InodeId,
+        /// Number of entries created
+        count: u32,
+    },
 }
 
 /// A watch subscription on an inode (directory or file).
@@ -196,6 +203,7 @@ impl WatchManager {
             WatchEvent::AttrChange { ino } => vec![*ino],
             WatchEvent::DataChange { ino } => vec![*ino],
             WatchEvent::XattrChange { ino } => vec![*ino],
+            WatchEvent::BatchCreate { parent, .. } => vec![*parent],
         };
 
         // Collect all clients to notify
