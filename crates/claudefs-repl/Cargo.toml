@@ -19,6 +19,9 @@ prost.workspace = true
 tonic.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+bincode.workspace = true
+rand.workspace = true
+bytes.workspace = true
 
 [lib]
 name = "claudefs_repl"
