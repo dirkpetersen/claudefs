@@ -144,15 +144,20 @@ impl RegionPool {
         // Allocate aligned memory
         let size = self.config.region_size;
 
-        // Allocate a buffer that's large enough and properly aligned
         let layout = std::alloc::Layout::from_size_align(size, self.config.alignment)
             .expect("Invalid layout");
         let data = unsafe {
-            let ptr = std::alloc::alloc(layout);
+            // SAFETY: alloc_zeroed returns a pointer to zero-initialized memory with the
+            // requested size and alignment. We check for null (allocation failure) before
+            // creating a slice. The slice is then copied into a Vec, which takes ownership.
+            // The original allocation is freed via dealloc after the copy.
+            let ptr = std::alloc::alloc_zeroed(layout);
             if ptr.is_null() {
                 std::alloc::handle_alloc_error(layout);
             }
-            std::slice::from_raw_parts_mut(ptr, size).to_vec()
+            let data = std::slice::from_raw_parts(ptr, size).to_vec();
+            std::alloc::dealloc(ptr, layout);
+            data
         };
 
         Some(MemoryRegion { id, data })
