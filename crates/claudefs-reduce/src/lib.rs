@@ -5,6 +5,7 @@
 //! Write path: Data → Chunk (FastCDC) → Fingerprint (BLAKE3) → Dedupe → Compress → Encrypt → Store
 //! Read path:  Store → Decrypt → Decompress → Data
 
+pub mod background;
 pub mod compression;
 pub mod dedupe;
 pub mod encryption;
@@ -24,5 +25,6 @@ pub use fingerprint::{ChunkHash, SuperFeatures};
 pub use gc::{GcConfig, GcEngine, GcStats};
 pub use key_manager::{DataKey, KeyManager, KeyManagerConfig, KeyVersion, WrappedKey};
 pub use pipeline::{PipelineConfig, ReducedChunk, ReductionPipeline, ReductionStats};
+pub use background::{BackgroundConfig, BackgroundHandle, BackgroundProcessor, BackgroundStats, BackgroundTask};
 pub use segment::{Segment, SegmentEntry, SegmentPacker, SegmentPackerConfig};
 pub use similarity::{DeltaCompressor, SimilarityIndex};
