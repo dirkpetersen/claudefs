@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A7: Protocol Gateways — Phase 6 Complete (MILESTONE)
+
+#### 2026-03-01 (A7 — Protocol Gateways: Phase 6 Final)
+
+**MILESTONE: 507 gateway tests, 25 modules — complete NFSv3/pNFS/S3/SMB gateway stack**
+
+**Phase 6 additions (124 new tests, 5 modules):**
+1. `export_manager.rs` — Dynamic NFS export management: add/remove/list exports, client counting, graceful drain, reload from config (22 tests)
+2. `nfs_write.rs` — NFS3 unstable write tracking: WriteTracker, WriteStability (Unstable/DataSync/FileSync), COMMIT support (15 tests)
+3. `s3_bucket_policy.rs` — S3 bucket policy engine: PolicyStatement (Allow/Deny), Principal (Any/User/Group), wildcard Resource matching, BucketPolicyRegistry (20 tests)
+4. `wire.rs` — Wire protocol validation: NFS fh/filename/path/count, S3 key/size/part, format_mode, parse_mode, ETag, ISO 8601 (15 tests)
+5. `session.rs` — Client session management for NFS/S3/SMB: idle expiry, op count, bytes transferred, mount tracking (19 tests)
+
+**Full A7 module listing (25 modules, 507 tests):**
+- Phase 1 (7): error, xdr, protocol, nfs, pnfs, s3, smb
+- Phase 2 (5): rpc, auth, mount, portmap, server
+- Phase 3 (4): s3_xml, s3_router, nfs_readdirplus, config
+- Phase 4 (0 new, updates): main.rs improvements
+- Phase 5 (6): quota, access_log, s3_multipart, nfs_cache, pnfs_flex, token_auth
+- Phase 6 (5): export_manager, nfs_write, s3_bucket_policy, wire, session
+
+**Workspace test count: ~1877 tests total (507 A7 + 529 A4 + 495 A2 + 223 A3 + 90 A1 + 33+ others)**
+
+---
+
 ### A9: Test & Validation — Phase 5 MILESTONE COMPLETE
 
 #### 2026-03-01 (A9 — Phase 5: E2E Write Path, Concurrency, Snapshot Tests)
