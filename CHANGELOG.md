@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 2 Initial Audit
+
+#### 2026-03-01 (A10 — Security Audit: Phase 2 Initial)
+
+##### A10: Security — Phase 2 (68 security tests, 3 audit reports, 1438 workspace tests)
+
+**Security Audit Reports (docs/security/):**
+1. `unsafe-audit.md` — Comprehensive review of all 8 unsafe blocks across 3 files (uring_engine.rs, device.rs, zerocopy.rs). Risk: LOW. One potential UB found (uninitialized memory read in zerocopy allocator).
+2. `crypto-audit.md` — Full cryptographic implementation audit of claudefs-reduce. AES-256-GCM, ChaCha20-Poly1305, HKDF-SHA256, envelope encryption all correctly implemented. Primary finding: missing memory zeroization of key material.
+3. `dependency-audit.md` — cargo audit scan of 360 dependencies. Zero CVEs. 2 unsound advisories (fuser, lru), 2 unmaintained warnings (bincode 1.x, rustls-pemfile).
+
+**claudefs-security Crate (6 modules, 68 tests):**
+1. `audit.rs` — Audit finding types (Severity, Category, Finding, AuditReport)
+2. `fuzz_protocol.rs` — Protocol frame fuzzing with property-based tests (19 tests)
+3. `fuzz_message.rs` — Message deserialization fuzzing against OOM/panic (11 tests)
+4. `crypto_tests.rs` — Cryptographic security property tests (26 tests)
+5. `transport_tests.rs` — Transport validation, TLS, rate limiting, circuit breaker tests (12 tests)
+
+**Key Security Findings:**
+- FINDING-01 (HIGH): Missing zeroize on EncryptionKey/DataKey — keys persist in memory after drop
+- FINDING-02 (HIGH): Uninitialized memory read in zerocopy.rs alloc (UB) — needs alloc_zeroed
+- FINDING-03 (MEDIUM): Plaintext stored in EncryptedChunk type when encryption disabled
+- FINDING-04 (MEDIUM): Key history pruning can orphan encrypted data
+
+**MILESTONE: 1438 total workspace tests, 68 security tests, zero clippy errors**
+
+---
+
 ### Phase 5: Integration Readiness
 
 #### 2026-03-01 (A4 — Phase 5 Transport: Integration Readiness)

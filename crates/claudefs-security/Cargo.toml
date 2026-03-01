@@ -1,0 +1,19 @@
+[package]
+name = "claudefs-security"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ClaudeFS security audit: fuzzing harnesses, crypto property tests, unsafe review"
+
+[dependencies]
+claudefs-transport = { path = "../claudefs-transport" }
+claudefs-reduce = { path = "../claudefs-reduce" }
+thiserror.workspace = true
+serde.workspace = true
+tracing.workspace = true
+rand = "0.8"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros"] }
+proptest = "1.4"
