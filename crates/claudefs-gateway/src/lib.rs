@@ -13,6 +13,7 @@ pub mod mount;
 pub mod nfs;
 pub mod nfs_acl;
 pub mod nfs_cache;
+pub mod nfs_delegation;
 pub mod nfs_export;
 pub mod nfs_readdirplus;
 pub mod nfs_write;

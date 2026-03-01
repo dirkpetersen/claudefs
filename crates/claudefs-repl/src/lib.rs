@@ -27,3 +27,4 @@ pub mod tls_policy;
 pub mod site_registry;
 pub mod recv_ratelimit;
 pub mod journal_gc;
+pub mod repl_qos;

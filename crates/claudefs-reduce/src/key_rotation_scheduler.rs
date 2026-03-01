@@ -358,9 +358,11 @@ mod tests {
         scheduler.rewrap_next(&mut km).unwrap();
 
         match scheduler.status() {
-            RotationStatus::InProgress { rewrapped, total } => {
-                assert_eq!(rewrapped, 1);
-                assert_eq!(total, 3);
+            RotationStatus::InProgress {
+                rewrapped, total, ..
+            } => {
+                assert_eq!(*rewrapped, 1);
+                assert_eq!(*total, 3);
             }
             _ => panic!("Expected InProgress status"),
         }

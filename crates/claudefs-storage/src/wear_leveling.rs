@@ -200,9 +200,9 @@ impl WearLevelingEngine {
         zone.write_count += 1;
         zone.last_written_at = timestamp_secs;
 
-        let wear_increment = (bytes as f64) / (1024.0 * 1024.0 * 1024.0); // GB written
-        let wear_per_write = wear_increment / 100.0; // Assume 100GB max per zone
-        zone.wear_level = (zone.wear_level + wear_per_write).min(100.0);
+        let bytes_gb = (bytes as f64) / (1024.0 * 1024.0 * 1024.0);
+        let wear_increment = bytes_gb * 0.01;
+        zone.wear_level = (zone.wear_level + wear_increment).min(100.0);
 
         if zone.wear_level > self.config.hot_zone_threshold && !zone.is_hot {
             zone.is_hot = true;
