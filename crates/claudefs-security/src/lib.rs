@@ -42,3 +42,7 @@ pub mod fuzz_fuse;
 pub mod dep_audit;
 #[cfg(test)]
 pub mod dos_resilience;
+#[cfg(test)]
+pub mod covert_channels;
+#[cfg(test)]
+pub mod info_disclosure;
