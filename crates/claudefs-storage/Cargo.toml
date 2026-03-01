@@ -24,12 +24,6 @@ tempfile = "3"
 default = []
 uring = ["dep:io-uring"]
 
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
 [lib]
 name = "claudefs_storage"
 path = "src/lib.rs"
