@@ -23,6 +23,12 @@ input.md
 output.md
 opencode_input.md
 opencode_output.md
+*_input.md
+*_output.md
+a?-input.md
+a??-input.md
+a?-output.md
+a??-output.md
 *.tmp
 *.log
 

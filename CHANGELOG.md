@@ -8,6 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 1 Continued: Transport & Infrastructure
 
+#### 2026-03-01 (A4 Session — Deadline/Timeout Propagation)
+
+##### A4: Transport — Deadline/Timeout Propagation (9 new tests, 993 total)
+
+**New Module: Deadline Context (`deadline.rs`):**
+- `Deadline`: timestamp-based deadline with encode/decode for wire format
+- `DeadlineContext`: propagates timeouts through RPC call chains
+- Wire encoding for distributed deadline propagation
+- 9 tests; total transport: 152 tests
+
+**A11: Infrastructure — Deployment Scripts:**
+- `tools/cfs-deploy.sh`: build release binaries + deploy to cluster nodes via SSH
+- `tools/cfs-test-cluster.sh`: run unit, POSIX, and FIO test suites on cluster
+- Phase 1 release tagged as `phase-1` (984 tests at tag time)
+
+---
+
 #### 2026-03-01 (A4 Session — Rate Limiter + CI Workflows)
 
 ##### A4: Transport — Rate Limiting Module (9 new tests, 984 total)
