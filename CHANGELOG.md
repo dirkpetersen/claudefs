@@ -6,6 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Phase 2: Transport Layer Hardening
+
+#### 2026-03-01 (A4 Session — Phase 2 Transport Features)
+
+##### A4: Transport — QoS, Tracing, Health, Routing, Flow Control (111 tests)
+
+**New Phase 2 Modules (5 modules, 62 new tests):**
+
+1. **QoS/Traffic Shaping** (`qos.rs`):
+   - WorkloadClass enum: RealtimeMeta, Interactive, Batch, Replication, Management
+   - TokenBucket rate limiter with burst support
+   - QosScheduler per-class admission control with weighted fair queuing
+   - QosPermit RAII guard for bandwidth accounting
+   - 9 unit tests
+
+2. **W3C Trace Context** (`tracecontext.rs`):
+   - Full W3C Trace Context propagation (TraceParent, TraceState)
+   - TraceId/SpanId generation, parent-child span linking
+   - Distributed tracing headers for cross-service correlation
+   - 4 unit tests
+
+3. **Connection Health Monitoring** (`health.rs`):
+   - HealthStatus state machine (Healthy/Degraded/Unhealthy/Unknown)
+   - Atomic counters for lock-free concurrent access
+   - Latency tracking (min/max/avg), packet loss ratio
+   - Configurable failure/recovery thresholds
+   - 14 unit tests + 3 proptest property-based tests
+
+4. **Shard-Aware Routing** (`routing.rs`):
+   - ConsistentHashRing with virtual nodes for balanced distribution
+   - ShardRouter: inode -> shard -> node mapping
+   - RoutingTable for shard assignments with zone-aware placement
+   - 16 unit tests including rebalancing and distribution tests
+
+5. **Flow Control & Backpressure** (`flowcontrol.rs`):
+   - FlowController with request/byte limits and high/low watermarks
+   - FlowPermit RAII guard using safe Arc<Inner> pattern
+   - WindowController for sliding window flow control
+   - FlowControlState: Open/Throttled/Blocked transitions
+   - 16 unit tests including concurrent flow and backpressure tests
+
+**Bug Fixes:**
+- Fixed critical unsafe memory bug in flowcontrol (Arc::from_raw replaced with safe Arc<Inner>)
+- Fixed WindowController logic (window_end init, advance/ack, saturating_sub)
+- Fixed 48 clippy warnings across tracecontext module
+- Fixed duplicate dependency section in claudefs-storage Cargo.toml
+- Resolved multiple Cargo.lock merge conflicts
+
+**Test Suite:** 111 tests in claudefs-transport (49 Phase 1 + 62 Phase 2), all passing, zero clippy warnings.
+
+---
+
 ### Phase 3: Production Readiness
 
 #### 2026-03-01 (A11 Session 4 - Infrastructure Maintenance & Build Restoration)
