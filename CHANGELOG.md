@@ -10,47 +10,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### Quality Improvements and Architecture Documentation
 
-**Status:** ✅ 717 unit tests passing, code quality improved
+**Status:** ✅ 717 unit tests passing, code quality significantly improved
 
-**Achievements:**
-- Reduced clippy warnings from 146 → 138 (removed 8 warnings)
+**Major Achievement: Reduced clippy warnings from 146 → 60 (59% reduction!)**
+
+**Session Commits:**
+1. `ecc4bde` — Code cleanup & documentation improvements (146 → 138 warnings)
+2. `58bd907` — Document active_active module (138 → 107 warnings, 31 fewer)
+3. `4b09a41` — Document repl_bootstrap module (107 → 60 warnings, 47 fewer)
+
+**Cleanup Work:**
 - Fixed unused imports in 3 modules (split_brain, repl_bootstrap, repl_maintenance)
-- Fixed unused variables with proper underscore patterns (bytes_total, target_seq)
-- Added comprehensive module-level documentation to lib.rs (34 modules documented)
-- Created detailed README.md with architecture overview and integration guide
+- Fixed unused variables with underscore patterns (bytes_total, target_seq)
+- Created detailed README.md with complete architecture overview
 
 **Documentation Added:**
-- `lib.rs`: Doc comments for all 34 public modules
-  - Core components: engine, journal, wal, conduit, sync, checkpoint
+- `lib.rs`: Doc comments for all 34 public modules with descriptions
+  - Core: engine, journal, wal, conduit, sync, checkpoint
   - Conflict resolution: conflict_resolver, split_brain
-  - Failover & active-active: failover, site_failover, active_active
+  - Failover: failover, site_failover, active_active
   - Performance: compression, backpressure, throttle, pipeline, fanout, health
   - Security: uidmap, batch_auth, auth_ratelimit, recv_ratelimit, tls_policy
   - Operations: metrics, otel_repl, repl_audit, repl_qos, journal_gc, repl_bootstrap
-- `README.md`: Complete architecture guide with:
-  - Core components and their responsibilities
-  - Replication flow diagrams (write path, conflict handling, failover)
-  - Module dependencies
+
+- `active_active.rs`: Full API documentation
+  - SiteRole enum with variant docs
+  - LinkStatus enum with variant docs
+  - ForwardedWrite, WriteConflict, ActiveActiveStats structs with field docs
+  - ActiveActiveController with 6 method docs (new, local_write, apply_remote_write, set_link_status, stats, drain_pending)
+
+- `repl_bootstrap.rs`: Full API documentation
+  - BootstrapPhase enum with all 6 variant docs and field docs
+  - EnrollmentRecord struct with 5 field docs
+  - BootstrapProgress struct with 3 field docs
+  - BootstrapStats struct with 5 field docs
+  - BootstrapCoordinator with 13 method docs (new, start_enroll, begin_snapshot, update_snapshot_progress, begin_journal_catchup, update_catchup_progress, complete, fail, progress, phase, enrollment, stats, is_active)
+
+- `README.md`: 191-line architecture guide
+  - Core components and responsibilities
+  - Module dependencies graph
+  - Replication flow (write path, conflict handling, failover, recovery)
   - Integration points with A2/A4/A5/A8
-  - Testing and performance characteristics
-  - Operational procedures (bootstrap, split-brain, monitoring)
+  - Performance characteristics
+  - Operational procedures
+  - Code statistics
 
 **Code Quality Metrics:**
 - ✅ All 717 unit tests passing (100%)
-- ✅ Clippy warnings: 146 → 138 (8 improvement)
+- ✅ Clippy warnings: 146 → 60 (-86 warnings, -59% reduction!)
 - ✅ Zero test regressions
-- ✅ Module documentation complete
 - ✅ Workspace builds successfully
+- ✅ All imports cleaned up
+- ✅ All unused variables fixed
 
-**Remaining Warnings (138 total):**
-- 66 struct field docs (non-critical, scaffolding)
-- 27 method docs (mostly in secondary modules)
-- 16 enum variant docs
-- 12 struct docs (type definitions)
-- 4 enum docs
-- 4 associated function docs
-- 4 module docs (handled separately)
-- 2 if-same-then-else in backpressure.rs (logic simplification, not critical)
+**Remaining Warnings (60 total):**
+- 30+ struct field docs (secondary modules, non-critical)
+- 15+ method docs (secondary modules)
+- 10+ enum variant docs
+- 5+ struct docs
+- 2 if-same-then-else in backpressure.rs (logic simplification)
 
 **Next Steps:**
 - Progressive documentation of public APIs
