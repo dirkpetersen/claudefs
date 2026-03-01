@@ -76,6 +76,8 @@ pub mod scaling;
 pub mod service;
 /// Shard routing for distributed metadata
 pub mod shard;
+/// Per-shard statistics for monitoring and rebalancing
+pub mod shard_stats;
 /// Raft log snapshot and compaction
 pub mod snapshot;
 /// Multi-tenant namespace isolation
@@ -128,6 +130,7 @@ pub use scaling::{MigrationStatus, MigrationTask, ScalingManager, ShardPlacement
 pub use service::MetadataService;
 pub use service::MetadataServiceConfig;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
+pub use shard_stats::{ClusterShardStats, ShardStats};
 pub use snapshot::{RaftSnapshot, SnapshotManager};
 pub use tenant::{TenantConfig, TenantId, TenantManager, TenantUsage};
 pub use tracecontext::{SpanId, SpanRecord, SpanStatus, TraceCollector, TraceContext, TraceId};
