@@ -10,6 +10,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### 2026-03-01
 
+##### A2: Metadata Service — Phase 2 Progress (417 tests ✅)
+
+**Bug fixes:**
+- Fixed `plan_add_node` in scaling.rs: node_shard_counts were never populated
+  with actual primary shard counts, so rebalancing never generated migration tasks
+- Fixed `test_shards_on_node`: assertion now correctly checks primary OR replica
+  membership, matching the `shards_on_node()` method behavior
+- Both previously-ignored scaling tests now passing (0 ignored)
+
+**4 new Phase 2 modules:**
+- ✅ **btree_store.rs**: Persistent file-backed KV store (D10) — `PersistentKvStore`
+  implementing `KvStore` trait, WAL with fsync for crash consistency, atomic
+  checkpoint via temp-file-then-rename, length-prefixed bincode serialization,
+  RwLock read cache + Mutex WAL writer (14 tests)
+- ✅ **dirshard.rs**: Directory sharding for hot directories — `DirShardManager` tracks
+  per-directory operation rates, auto-detects hot dirs at 1000 ops/min threshold,
+  FNV-1a consistent hashing for entry routing, `DirShardConfig` with configurable
+  shard/unshard thresholds, unshard_candidates detection (13 tests)
+- ✅ **raft_log.rs**: Persistent Raft log store — `RaftLogStore` wrapping KvStore for
+  crash-safe consensus state, persists term/voted_for/commit_index + log entries,
+  `save_hard_state` atomic batch write, `truncate_from` for leader overwrites,
+  big-endian indexed keys for ordered scans (15 tests)
+- ✅ **node.rs**: MetadataNode unified server — combines all 35+ metadata modules into
+  a single `MetadataNode` struct with `MetadataNodeConfig`, auto-selects persistent
+  or in-memory storage, initializes root inode, delegates POSIX ops to MetadataService,
+  integrates ShardRouter/LeaseManager/LockManager/QuotaManager/MetricsCollector/
+  WatchManager/DirShardManager/XattrStore/ScalingManager/FingerprintIndex/WormManager/
+  CdcStream/RaftLogStore (14 tests — 7 added by A11 integration)
+
+**Test summary: 417 tests passing, 0 ignored, 0 clippy warnings**
+- Phase 1 core: 361 tests (consensus, KV, inodes, directories, sharding, etc.)
+- Phase 2 additions: 56 tests (persistent KV, dir sharding, Raft log, MetadataNode)
+
 ##### A3: Data Reduction — Phase 2 Complete (60 tests ✅)
 
 **5 new modules (Phase 2 + Priority 2 feature):**
