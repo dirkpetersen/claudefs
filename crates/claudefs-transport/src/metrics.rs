@@ -1,24 +1,42 @@
+//! Transport layer metrics collection.
+
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Default, Serialize)]
+/// Snapshot of transport metrics at a point in time.
 pub struct MetricsSnapshot {
+    /// Number of requests sent.
     pub requests_sent: u64,
+    /// Number of requests received.
     pub requests_received: u64,
+    /// Number of responses sent.
     pub responses_sent: u64,
+    /// Number of responses received.
     pub responses_received: u64,
+    /// Total bytes sent.
     pub bytes_sent: u64,
+    /// Total bytes received.
     pub bytes_received: u64,
+    /// Total number of errors.
     pub errors_total: u64,
+    /// Total number of retries.
     pub retries_total: u64,
+    /// Total number of timeouts.
     pub timeouts_total: u64,
+    /// Number of connections opened.
     pub connections_opened: u64,
+    /// Number of connections closed.
     pub connections_closed: u64,
+    /// Number of currently active connections.
     pub active_connections: u32,
+    /// Total number of health checks performed.
     pub health_checks_total: u64,
+    /// Total number of health checks that failed.
     pub health_checks_failed: u64,
 }
 
+/// Thread-safe transport layer metrics collector.
 pub struct TransportMetrics {
     requests_sent: AtomicU64,
     requests_received: AtomicU64,
@@ -51,6 +69,7 @@ impl std::fmt::Debug for TransportMetrics {
 }
 
 impl TransportMetrics {
+    /// Creates a new TransportMetrics instance with all counters initialized to zero.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -71,55 +90,68 @@ impl TransportMetrics {
         }
     }
 
+    /// Increments the requests sent counter.
     pub fn inc_requests_sent(&self) {
         self.requests_sent.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the requests received counter.
     pub fn inc_requests_received(&self) {
         self.requests_received.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the responses sent counter.
     pub fn inc_responses_sent(&self) {
         self.responses_sent.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the responses received counter.
     pub fn inc_responses_received(&self) {
         self.responses_received.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Adds to the bytes sent counter.
     pub fn add_bytes_sent(&self, bytes: u64) {
         self.bytes_sent.fetch_add(bytes, Ordering::Relaxed);
     }
 
+    /// Adds to the bytes received counter.
     pub fn add_bytes_received(&self, bytes: u64) {
         self.bytes_received.fetch_add(bytes, Ordering::Relaxed);
     }
 
+    /// Increments the errors total counter.
     pub fn inc_errors_total(&self) {
         self.errors_total.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the retries total counter.
     pub fn inc_retries_total(&self) {
         self.retries_total.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the timeouts total counter.
     pub fn inc_timeouts_total(&self) {
         self.timeouts_total.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the connections opened counter.
     pub fn inc_connections_opened(&self) {
         self.connections_opened.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the connections closed counter.
     pub fn inc_connections_closed(&self) {
         self.connections_closed.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Records a new connection opened, incrementing both opened counter and active connections.
     pub fn connection_opened(&self) {
         self.inc_connections_opened();
         self.active_connections.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Records a connection closed, decrementing active connections.
     pub fn connection_closed(&self) {
         self.inc_connections_closed();
         let _ = self
@@ -133,14 +165,17 @@ impl TransportMetrics {
             });
     }
 
+    /// Increments the health checks total counter.
     pub fn inc_health_checks_total(&self) {
         self.health_checks_total.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the health checks failed counter.
     pub fn inc_health_checks_failed(&self) {
         self.health_checks_failed.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Takes a snapshot of all current metric values.
     #[must_use]
     pub fn snapshot(&self) -> MetricsSnapshot {
         MetricsSnapshot {
