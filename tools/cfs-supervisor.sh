@@ -103,9 +103,14 @@ Be quick and efficient. Do not re-read all the docs. Just fix what's broken and 
 PROMPTEOF
 )
 
-# Use Sonnet for speed (supervisor doesn't need Opus)
+# Use Haiku if budget exceeded, otherwise Sonnet
+SUPERVISOR_MODEL="global.anthropic.claude-sonnet-4-6"
+if [[ -f /tmp/cfs-bedrock-budget-exceeded ]]; then
+  SUPERVISOR_MODEL="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+fi
+
 timeout 300 claude --dangerously-skip-permissions \
-  --model global.anthropic.claude-sonnet-4-6 \
+  --model "$SUPERVISOR_MODEL" \
   -p "$PROMPT" 2>&1 | tail -50
 
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [supervisor] === Supervisor check complete ==="

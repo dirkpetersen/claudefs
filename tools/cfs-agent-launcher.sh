@@ -25,15 +25,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Model assignments per agent
+# Since OpenCode/Fireworks handles all Rust code generation, Claude agents
+# only need to orchestrate (read docs, write prompts, run cargo, commit).
+# Sonnet is sufficient for orchestration. Haiku for boilerplate-heavy work.
+# Opus reserved only for A10 security audit (needs deepest reasoning to
+# catch what the code author missed). No Opus for builder agents.
 declare -A AGENT_MODEL=(
-  [A1]="global.anthropic.claude-opus-4-6-v1"
-  [A2]="global.anthropic.claude-opus-4-6-v1"
+  [A1]="global.anthropic.claude-sonnet-4-6"
+  [A2]="global.anthropic.claude-sonnet-4-6"
   [A3]="global.anthropic.claude-sonnet-4-6"
-  [A4]="global.anthropic.claude-opus-4-6-v1"
+  [A4]="global.anthropic.claude-sonnet-4-6"
   [A5]="global.anthropic.claude-sonnet-4-6"
   [A6]="global.anthropic.claude-sonnet-4-6"
   [A7]="global.anthropic.claude-sonnet-4-6"
-  [A8]="global.anthropic.claude-sonnet-4-6"
+  [A8]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
   [A9]="global.anthropic.claude-sonnet-4-6"
   [A10]="global.anthropic.claude-opus-4-6-v1"
   [A11]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -90,6 +95,12 @@ launch_agent() {
   if tmux has-session -t "$session_name" 2>/dev/null; then
     echo "[$agent_id] Session already running: $session_name"
     return
+  fi
+
+  # If Bedrock budget exceeded, force all agents to Haiku
+  if [[ -f /tmp/cfs-bedrock-budget-exceeded ]]; then
+    model="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    echo "[$agent_id] Bedrock budget exceeded — using Haiku"
   fi
 
   # Build the agent prompt
