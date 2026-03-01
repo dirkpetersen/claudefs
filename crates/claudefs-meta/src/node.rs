@@ -237,6 +237,22 @@ impl MetadataNode {
         &self.scaling_mgr
     }
 
+    /// Returns the KV store reference (for snapshot/restore).
+    pub fn kv_store(&self) -> &Arc<dyn KvStore> {
+        &self.kv
+    }
+
+    /// Returns the xattr store reference (for snapshot/restore).
+    pub fn xattr_store(&self) -> &XattrStore {
+        &self.xattr_store
+    }
+
+    /// Returns the current inode counter value.
+    pub fn next_inode_id(&self) -> u64 {
+        self.inode_counter
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     /// Creates a regular file.
     pub fn create_file(
         &self,
