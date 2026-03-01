@@ -33,3 +33,5 @@ pub mod repl_audit;
 pub mod split_brain;
 pub mod otel_repl;
 pub mod repl_bootstrap;
+pub mod repl_maintenance;
+pub mod active_active;
