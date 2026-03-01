@@ -60,16 +60,35 @@ pub struct ScalingManager {
     migrations: RwLock<Vec<MigrationTask>>,
     num_shards: u16,
     replica_count: usize,
+    max_concurrent_migrations: usize,
 }
 
 impl ScalingManager {
     /// Creates a new scaling manager with the given shard count and replica count.
+    /// Defaults max_concurrent_migrations to 4.
     pub fn new(num_shards: u16, replica_count: usize) -> Self {
         Self {
             placements: RwLock::new(HashMap::new()),
             migrations: RwLock::new(Vec::new()),
             num_shards,
             replica_count,
+            max_concurrent_migrations: 4,
+        }
+    }
+
+    /// Creates a new scaling manager with the given shard count, replica count,
+    /// and maximum concurrent migrations.
+    pub fn with_max_migrations(
+        num_shards: u16,
+        replica_count: usize,
+        max_concurrent_migrations: usize,
+    ) -> Self {
+        Self {
+            placements: RwLock::new(HashMap::new()),
+            migrations: RwLock::new(Vec::new()),
+            num_shards,
+            replica_count,
+            max_concurrent_migrations,
         }
     }
 
@@ -305,6 +324,157 @@ impl ScalingManager {
         }
     }
 
+    /// Starts the next pending migration. Returns None if no pending migrations
+    /// or if max concurrent migrations reached.
+    pub fn start_next_migration(&self) -> Option<MigrationTask> {
+        let active = self.active_migration_count();
+        if active >= self.max_concurrent_migrations {
+            return None;
+        }
+
+        let mut migrations = self.migrations.write().unwrap();
+        if let Some(task) = migrations
+            .iter_mut()
+            .find(|m| matches!(m.status, MigrationStatus::Pending))
+        {
+            task.status = MigrationStatus::InProgress;
+            tracing::debug!("Started migration for shard {}", task.shard_id);
+            Some(task.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Marks a specific migration as InProgress. Returns error if not found or not Pending.
+    pub fn start_migration(&self, shard_id: ShardId) -> Result<(), MetaError> {
+        let mut migrations = self.migrations.write().unwrap();
+        if let Some(task) = migrations.iter_mut().find(|m| m.shard_id == shard_id) {
+            match &task.status {
+                MigrationStatus::Pending => {
+                    task.status = MigrationStatus::InProgress;
+                    tracing::debug!("Started migration for shard {}", shard_id);
+                    Ok(())
+                }
+                _ => Err(MetaError::KvError(format!(
+                    "migration for shard {:?} is not in Pending state",
+                    shard_id
+                ))),
+            }
+        } else {
+            Err(MetaError::KvError(format!(
+                "migration for shard {:?} not found",
+                shard_id
+            )))
+        }
+    }
+
+    /// Marks a migration as Failed with a reason. Returns error if not found.
+    pub fn fail_migration(&self, shard_id: ShardId, reason: String) -> Result<(), MetaError> {
+        let mut migrations = self.migrations.write().unwrap();
+        if let Some(task) = migrations.iter_mut().find(|m| m.shard_id == shard_id) {
+            task.status = MigrationStatus::Failed { reason };
+            tracing::debug!("Failed migration for shard {}", shard_id);
+            Ok(())
+        } else {
+            Err(MetaError::KvError(format!(
+                "migration for shard {:?} not found",
+                shard_id
+            )))
+        }
+    }
+
+    /// Retries a failed migration by resetting it to Pending. Returns error if not Failed.
+    pub fn retry_migration(&self, shard_id: ShardId) -> Result<(), MetaError> {
+        let mut migrations = self.migrations.write().unwrap();
+        if let Some(task) = migrations.iter_mut().find(|m| m.shard_id == shard_id) {
+            match &task.status {
+                MigrationStatus::Failed { .. } => {
+                    task.status = MigrationStatus::Pending;
+                    tracing::debug!("Retrying migration for shard {}", shard_id);
+                    Ok(())
+                }
+                _ => Err(MetaError::KvError(format!(
+                    "migration for shard {:?} is not in Failed state",
+                    shard_id
+                ))),
+            }
+        } else {
+            Err(MetaError::KvError(format!(
+                "migration for shard {:?} not found",
+                shard_id
+            )))
+        }
+    }
+
+    /// Returns the status of a specific migration.
+    pub fn migration_status(&self, shard_id: ShardId) -> Option<MigrationStatus> {
+        let migrations = self.migrations.read().unwrap();
+        migrations
+            .iter()
+            .find(|m| m.shard_id == shard_id)
+            .map(|m| m.status.clone())
+    }
+
+    /// Returns the number of currently InProgress migrations.
+    pub fn active_migration_count(&self) -> usize {
+        let migrations = self.migrations.read().unwrap();
+        migrations
+            .iter()
+            .filter(|m| matches!(m.status, MigrationStatus::InProgress))
+            .count()
+    }
+
+    /// Returns all completed migrations.
+    pub fn completed_migrations(&self) -> Vec<MigrationTask> {
+        let migrations = self.migrations.read().unwrap();
+        migrations
+            .iter()
+            .filter(|m| matches!(m.status, MigrationStatus::Completed))
+            .cloned()
+            .collect()
+    }
+
+    /// Clears all completed migrations from the list.
+    pub fn clear_completed(&self) -> usize {
+        let mut migrations = self.migrations.write().unwrap();
+        let before = migrations.len();
+        migrations.retain(|m| !matches!(m.status, MigrationStatus::Completed));
+        let cleared = before - migrations.len();
+        tracing::debug!("Cleared {} completed migrations", cleared);
+        cleared
+    }
+
+    /// Convenience: plans and immediately queues migrations to drain all shards from a node.
+    /// Returns the planned migration tasks.
+    pub fn drain_node(&self, node: NodeId, remaining: &[NodeId]) -> Vec<MigrationTask> {
+        self.plan_remove_node(node, remaining)
+    }
+
+    /// Executes a full migration cycle: starts pending migrations up to the concurrent limit,
+    /// returns the tasks that were started. The caller is responsible for actually streaming
+    /// the shard data and calling complete_migration() or fail_migration() when done.
+    pub fn tick_migrations(&self) -> Vec<MigrationTask> {
+        let active = self.active_migration_count();
+        let slots = self.max_concurrent_migrations.saturating_sub(active);
+
+        let mut started = Vec::new();
+        for _ in 0..slots {
+            if let Some(task) = self.start_next_migration() {
+                started.push(task);
+            } else {
+                break;
+            }
+        }
+
+        tracing::debug!(
+            "Tick: started {} migrations ({} active, {} max)",
+            started.len(),
+            active,
+            self.max_concurrent_migrations
+        );
+        started
+    }
+
     /// Returns the total number of shard placements.
     pub fn placement_count(&self) -> usize {
         let placements = self.placements.read().unwrap();
@@ -532,5 +702,193 @@ mod tests {
     fn test_is_balanced_empty() {
         let mgr = ScalingManager::new(256, 3);
         assert!(mgr.is_balanced(0.1));
+    }
+
+    #[test]
+    fn test_start_migration() {
+        let mgr = ScalingManager::new(4, 1);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+
+        let pending = mgr.pending_migrations();
+        assert!(!pending.is_empty());
+
+        let shard_id = pending[0].shard_id;
+        mgr.start_migration(shard_id).unwrap();
+
+        let status = mgr.migration_status(shard_id).unwrap();
+        assert!(matches!(status, MigrationStatus::InProgress));
+    }
+
+    #[test]
+    fn test_fail_migration() {
+        let mgr = ScalingManager::new(4, 1);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+
+        let pending = mgr.pending_migrations();
+        let shard_id = pending[0].shard_id;
+
+        mgr.start_migration(shard_id).unwrap();
+        mgr.fail_migration(shard_id, "test failure".to_string())
+            .unwrap();
+
+        let status = mgr.migration_status(shard_id).unwrap();
+        assert!(matches!(status, MigrationStatus::Failed { reason } if reason == "test failure"));
+    }
+
+    #[test]
+    fn test_retry_migration() {
+        let mgr = ScalingManager::new(4, 1);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+
+        let pending = mgr.pending_migrations();
+        let shard_id = pending[0].shard_id;
+
+        mgr.start_migration(shard_id).unwrap();
+        mgr.fail_migration(shard_id, "test failure".to_string())
+            .unwrap();
+        mgr.retry_migration(shard_id).unwrap();
+
+        let status = mgr.migration_status(shard_id).unwrap();
+        assert!(matches!(status, MigrationStatus::Pending));
+    }
+
+    #[test]
+    fn test_start_next_migration() {
+        let mgr = ScalingManager::new(4, 1);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+        mgr.plan_add_node(NodeId::new(4), &nodes);
+
+        let started = mgr.start_next_migration();
+        assert!(started.is_some());
+        assert!(matches!(
+            started.unwrap().status,
+            MigrationStatus::InProgress
+        ));
+    }
+
+    #[test]
+    fn test_max_concurrent_migrations() {
+        let mgr = ScalingManager::with_max_migrations(8, 1, 2);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+        mgr.plan_add_node(NodeId::new(4), &nodes);
+        mgr.plan_add_node(NodeId::new(5), &nodes);
+        mgr.plan_add_node(NodeId::new(6), &nodes);
+
+        let mut count = 0;
+        while mgr.start_next_migration().is_some() {
+            count += 1;
+        }
+
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_active_migration_count() {
+        let mgr = ScalingManager::new(4, 1);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+        mgr.plan_add_node(NodeId::new(4), &nodes);
+
+        mgr.start_next_migration();
+        mgr.start_next_migration();
+
+        assert_eq!(mgr.active_migration_count(), 2);
+    }
+
+    #[test]
+    fn test_completed_migrations_and_clear() {
+        let mgr = ScalingManager::new(4, 1);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+
+        let pending = mgr.pending_migrations();
+        let shard_id = pending[0].shard_id;
+
+        mgr.complete_migration(shard_id);
+
+        let completed = mgr.completed_migrations();
+        assert_eq!(completed.len(), 1);
+
+        let cleared = mgr.clear_completed();
+        assert_eq!(cleared, 1);
+
+        assert!(mgr.completed_migrations().is_empty());
+    }
+
+    #[test]
+    fn test_drain_node() {
+        let mgr = ScalingManager::new(6, 1);
+        let nodes = vec![NodeId::new(1), NodeId::new(2), NodeId::new(3)];
+        mgr.initialize_placements(&nodes);
+
+        let tasks = mgr.drain_node(NodeId::new(1), &[NodeId::new(2), NodeId::new(3)]);
+
+        assert!(!tasks.is_empty());
+        assert!(tasks.iter().all(|t| t.source == NodeId::new(1)));
+    }
+
+    #[test]
+    fn test_tick_migrations() {
+        let mgr = ScalingManager::with_max_migrations(6, 1, 3);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+        mgr.plan_add_node(NodeId::new(4), &nodes);
+        mgr.plan_add_node(NodeId::new(5), &nodes);
+
+        let started = mgr.tick_migrations();
+        assert_eq!(started.len(), 3);
+        assert_eq!(mgr.active_migration_count(), 3);
+    }
+
+    #[test]
+    fn test_migration_status() {
+        let mgr = ScalingManager::new(4, 1);
+        let nodes = vec![NodeId::new(1), NodeId::new(2)];
+        mgr.initialize_placements(&nodes);
+
+        mgr.plan_add_node(NodeId::new(3), &nodes);
+
+        let pending = mgr.pending_migrations();
+        let shard_id = pending[0].shard_id;
+
+        assert!(matches!(
+            mgr.migration_status(shard_id).unwrap(),
+            MigrationStatus::Pending
+        ));
+
+        mgr.start_migration(shard_id).unwrap();
+        assert!(matches!(
+            mgr.migration_status(shard_id).unwrap(),
+            MigrationStatus::InProgress
+        ));
+
+        mgr.complete_migration(shard_id);
+        assert!(matches!(
+            mgr.migration_status(shard_id).unwrap(),
+            MigrationStatus::Completed
+        ));
+
+        assert!(mgr.migration_status(ShardId::new(999)).is_none());
     }
 }
