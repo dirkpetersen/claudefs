@@ -14,9 +14,13 @@ pub mod config;
 pub mod grafana;
 pub mod indexer;
 pub mod metrics;
+pub mod perf_report;
 pub mod quota;
 pub mod scraper;
 pub mod security;
+pub mod topology;
+
+pub use topology::{NodeInfo, NodeRole, NodeStatus, TopologyMap};
 
 pub use alerting::AlertManager;
 pub use analytics::AnalyticsEngine;
@@ -57,3 +61,9 @@ pub use rbac::RbacRegistry;
 pub use sla::{SlaChecker, SlaWindow, SlaTarget, SlaReport, SlaMetricKind, compute_percentiles};
 pub use tracing_otel::{TracingManager, SpanBuilder, SpanContext, TracePropagator, RateSampler};
 pub use webhook::WebhookRegistry;
+
+pub mod audit_trail;
+pub mod rebalance;
+
+pub use audit_trail::{AuditTrail, AuditEvent, AuditEventKind, AuditFilter};
+pub use rebalance::{RebalanceScheduler, RebalanceJob, RebalanceJobId, JobState};
