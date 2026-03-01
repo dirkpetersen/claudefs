@@ -6,20 +6,24 @@
 
 pub mod bench;
 pub mod chaos;
+pub mod ci_matrix;
 pub mod connectathon;
 pub mod crash;
 pub mod harness;
 pub mod integration;
 pub mod jepsen;
 pub mod linearizability;
+pub mod meta_tests;
 pub mod posix;
 pub mod posix_compliance;
 pub mod proptest_reduce;
 pub mod proptest_storage;
 pub mod proptest_transport;
+pub mod reduce_tests;
 pub mod regression;
 pub mod report;
 pub mod soak;
+pub mod storage_tests;
 
 pub use bench::{detect_fio_binary, parse_fio_json, FioConfig, FioResult, FioRunner, FioRwMode};
 pub use chaos::{FaultHandle, FaultInjector, FaultType, NetworkTopology, NodeId};
