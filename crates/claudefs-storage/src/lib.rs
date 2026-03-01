@@ -17,6 +17,7 @@ pub mod error;
 pub mod fdp;
 pub mod flush;
 pub mod io_uring_bridge;
+pub mod recovery;
 pub mod segment;
 pub mod superblock;
 pub mod zns;
@@ -34,6 +35,10 @@ pub use allocator::{BuddyAllocator, AllocatorConfig, AllocatorStats};
 pub use engine::{StorageEngine, StorageEngineConfig, StorageEngineStats};
 pub use error::{StorageError, StorageResult};
 pub use io_uring_bridge::{IoEngine, MockIoEngine, IoStats, IoRequestId, IoOpType};
+pub use recovery::{
+    RecoveryConfig, RecoveryManager, RecoveryPhase, RecoveryReport, RecoveryState,
+    JOURNAL_CHECKPOINT_MAGIC, AllocatorBitmap, JournalCheckpoint,
+};
 pub use segment::{SegmentPacker, SegmentPackerConfig, PackedSegment, SegmentHeader, SegmentEntry, SegmentPackerStats, SEGMENT_SIZE};
 pub use superblock::{Superblock, DeviceRoleCode, SUPERBLOCK_MAGIC, SUPERBLOCK_VERSION};
 

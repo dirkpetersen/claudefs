@@ -112,6 +112,7 @@ impl ScalingManager {
         placements.get(&shard_id).cloned()
     }
 
+    /// Plans migrations to rebalance shards when a new node joins the cluster.
     pub fn plan_add_node(&self, new_node: NodeId, existing_nodes: &[NodeId]) -> Vec<MigrationTask> {
         let placements = self.placements.read().unwrap();
         let mut tasks = Vec::new();
@@ -180,6 +181,7 @@ impl ScalingManager {
         tasks
     }
 
+    /// Plans migrations to rebalance shards when a node leaves the cluster.
     pub fn plan_remove_node(
         &self,
         leaving_node: NodeId,
@@ -246,6 +248,7 @@ impl ScalingManager {
         tasks
     }
 
+    /// Applies a migration task, updating the shard's primary to the target node.
     pub fn apply_migration(&self, task: &MigrationTask) -> Result<(), MetaError> {
         let mut placements = self.placements.write().unwrap();
 
@@ -266,6 +269,7 @@ impl ScalingManager {
         }
     }
 
+    /// Returns all pending or in-progress migration tasks.
     pub fn pending_migrations(&self) -> Vec<MigrationTask> {
         let migrations = self.migrations.read().unwrap();
         migrations
@@ -280,6 +284,7 @@ impl ScalingManager {
             .collect()
     }
 
+    /// Marks a migration as completed. Returns true if the migration was found.
     pub fn complete_migration(&self, shard_id: ShardId) -> bool {
         let mut migrations = self.migrations.write().unwrap();
         if let Some(task) = migrations.iter_mut().find(|m| m.shard_id == shard_id) {
@@ -291,11 +296,13 @@ impl ScalingManager {
         }
     }
 
+    /// Returns the total number of shard placements.
     pub fn placement_count(&self) -> usize {
         let placements = self.placements.read().unwrap();
         placements.len()
     }
 
+    /// Returns all shards (primary or replica) hosted on the given node.
     pub fn shards_on_node(&self, node_id: NodeId) -> Vec<ShardId> {
         let placements = self.placements.read().unwrap();
         placements
@@ -305,6 +312,7 @@ impl ScalingManager {
             .collect()
     }
 
+    /// Checks if shard distribution across nodes is balanced within the given tolerance.
     pub fn is_balanced(&self, tolerance: f64) -> bool {
         let placements = self.placements.read().unwrap();
 
