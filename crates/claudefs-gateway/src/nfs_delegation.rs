@@ -1,14 +1,20 @@
 //! NFSv4 file delegation management
 
+use rand::rngs::OsRng;
+use rand::thread_rng;
 use rand::RngCore;
 use std::collections::HashMap;
 use thiserror::Error;
 
+/// Delegation type
 pub enum DelegationType {
+    /// Read delegation allows caching for read operations
     Read,
+    /// Write delegation allows caching for read/write operations
     Write,
 }
 
+/// Delegation state
 pub enum DelegationState {
     Granted,
     RecallPending,
@@ -22,7 +28,7 @@ pub struct DelegationId(pub [u8; 16]);
 impl DelegationId {
     pub fn generate() -> Self {
         let mut bytes = [0u8; 16];
-        rand::rng().fill_bytes(&mut bytes);
+        thread_rng().fill_bytes(&mut bytes);
         DelegationId(bytes)
     }
 
@@ -344,7 +350,8 @@ mod tests {
         let mut m = DelegationManager::new();
         m.grant(1, 100, DelegationType::Read).unwrap();
         m.recall_file(1);
-        let del = m.file_delegations(1).first().unwrap();
+        let delegations = m.file_delegations(1);
+        let del = delegations.first().unwrap();
         assert!(matches!(del.state, DelegationState::RecallPending));
     }
 
@@ -363,7 +370,8 @@ mod tests {
         let mut m = DelegationManager::new();
         m.grant(1, 100, DelegationType::Read).unwrap();
         m.revoke_client(100);
-        let del = m.file_delegations(1).first().unwrap();
+        let delegations = m.file_delegations(1);
+        let del = delegations.first().unwrap();
         assert!(matches!(del.state, DelegationState::Revoked));
     }
 
