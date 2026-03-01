@@ -12,6 +12,7 @@
 pub mod buffer;
 pub mod connection;
 pub mod error;
+pub mod flowcontrol;
 pub mod health;
 pub mod message;
 pub mod protocol;
@@ -27,6 +28,10 @@ pub mod transport;
 
 pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
 pub use error::{TransportError, Result};
+pub use flowcontrol::{
+    FlowControlConfig, FlowControlState, FlowController, FlowPermit, WindowController,
+};
+pub use health::{HealthConfig, HealthStatus, HealthStats, ConnectionHealth};
 pub use message::{serialize_message, deserialize_message};
 pub use protocol::{Frame, FrameHeader, Opcode, FrameFlags};
 pub use qos::{
@@ -40,4 +45,3 @@ pub use tracecontext::{
 };
 pub use routing::{ConsistentHashRing, NodeId, NodeInfo, RoutingTable, ShardId, ShardRouter};
 pub use transport::{Transport, Connection, Listener};
-pub use health::{HealthConfig, HealthStatus, HealthStats, ConnectionHealth};
