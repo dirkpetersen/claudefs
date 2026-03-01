@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 3 Production Readiness (2026-03-01)
+
+#### New modules added (6 modules, +99 tests → 918 total)
+
+1. **dir_cache.rs** (26 tests): Directory entry caching with TTL expiry
+   - DirEntry, ReaddirSnapshot with configurable TTL
+   - DirCache: snapshot caching, negative entry caching, eviction, stats
+   - DirCacheConfig (default: 1024 dirs, 30s TTL, 5s negative TTL)
+
+2. **fadvise.rs** (32 tests): POSIX fadvise hint tracking
+   - FadviseHint enum (Normal/Sequential/Random/WillNeed/DontNeed/NoReuse)
+   - HintTracker: per-inode hint state, readahead multipliers, prefetch decisions
+   - Integrates with prefetch.rs for adaptive read-ahead
+
+3. **path_resolver.rs** (25 tests): Path component resolution with TOCTOU detection
+   - ResolvedPath, ResolvedComponent with generation tracking
+   - PathResolver: LRU cache with staleness detection, prefix invalidation
+   - GenerationTracker: bump-based invalidation on rename/unlink
+
+4. **buffer_pool.rs** (22 tests): Reusable I/O buffer pool
+   - BufferSize: Page4K (4KB), Block64K (64KB), Block1M (1MB)
+   - BufferPool: size-class pools with configurable max entries, reuse stats
+   - hit_rate() metric for monitoring buffer reuse efficiency
+
+5. **mount_opts.rs** (7 tests): FUSE mount option management
+   - MountOptions with source, target, read_only, allow_other, direct_io flags
+   - to_fuse_args() generates -o option strings for fuser
+
+6. **notify_filter.rs** (13 tests): Filesystem notification filtering
+   - NotifyFilter with FilterType (Inode/Path/Global) and FilterAction (Notify/Suppress/Throttle)
+   - NotifyFilterStats with AtomicU64 counters for matched/suppressed/throttled events
+
+#### Bug fixes
+- Fixed `NotifyFilter::default()` — `enabled` was `false` (from #[derive(Default)]);
+  changed to explicit `impl Default` with `enabled: true` to fix 2 failing tests
+
 ### A2: Metadata Service — Phase 3 Production Hardening
 
 #### 2026-03-01 (A2 — Phase 3 Bug Fix: node_snapshot key prefix mismatch)
