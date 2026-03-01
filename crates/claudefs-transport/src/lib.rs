@@ -11,6 +11,7 @@
 
 pub mod buffer;
 pub mod connection;
+pub mod deadline;
 pub mod error;
 pub mod flowcontrol;
 pub mod health;
@@ -31,6 +32,7 @@ pub mod tracecontext;
 pub mod transport;
 
 pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
+pub use deadline::{Deadline, DeadlineContext, encode_deadline, decode_deadline};
 pub use error::{TransportError, Result};
 pub use flowcontrol::{
     FlowControlConfig, FlowControlState, FlowController, FlowPermit, WindowController,
