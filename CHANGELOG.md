@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 3 Production Readiness (166 tests, 18 modules)
+
+#### 2026-03-01 (A3 — Phase 3: Zero Clippy Warnings)
+
+**Production-quality codebase: 166 tests, 18 modules, 0 clippy warnings, 0 unsafe code**
+
+All 18 modules fully documented and validated:
+
+1. **encryption.rs**: AES-256-GCM + ChaCha20-Poly1305 AEAD with HKDF key derivation — proptest roundtrip, tamper detection
+2. **key_manager.rs**: Envelope encryption DEK/KEK management with rotation and history pruning
+3. **key_rotation_scheduler.rs**: Background DEK re-wrapping scheduler with state machine (Idle→Scheduled→InProgress→Complete)
+4. **worm_reducer.rs**: WORM compliance — WormMode (None/Immutable/LegalHold), retention policies, GC for expired records
+5. **dedupe.rs**: FastCDC chunker + BLAKE3 CAS index with reference counting and GC drain
+6. **compression.rs**: LZ4/Zstd/None compression with proptest roundtrip validation
+7. **fingerprint.rs**: BLAKE3 ChunkHash + SuperFeatures for similarity indexing
+8. **similarity.rs**: MinHash-based similarity detection + Zstd delta compression (Tier 2 dedup)
+9. **segment.rs**: 2MB segment packer for EC 4+2 pipeline integration
+10. **gc.rs**: Mark-and-sweep GC engine with mark/clear/sweep lifecycle
+11. **pipeline.rs**: Full inline pipeline: chunk→dedupe→compress→encrypt→store
+12. **write_path.rs**: Integrated write path with distributed dedup via fingerprint bridge
+13. **background.rs**: Async Tokio background processor for similarity dedup and GC
+14. **meta_bridge.rs**: FingerprintStore trait + LocalFingerprintStore + NullFingerprintStore for A2 integration
+15. **metrics.rs**: Reduction metrics (ratio, throughput, dedupe/compress savings)
+16. **recompressor.rs**: Background LZ4→Zstd recompression for S3 tiering efficiency
+17. **snapshot.rs**: CoW snapshot management with retention and reference counting
+18. **error.rs**: ReduceError with thiserror variants
+
+**Fixes in this release:**
+- Added comprehensive `///` doc comments to all public types/methods (worm_reducer, key_rotation_scheduler, key_manager)
+- Fixed unused variable warning in key_rotation_scheduler (line 144)
+- Zero clippy warnings across all 18 modules
+
+---
+
 ### A7: Protocol Gateways — Phase 3 Production Readiness (Additional Modules)
 
 #### 2026-03-01 (A7 — Phase 3 Production Readiness Round 2)
