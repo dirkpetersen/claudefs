@@ -144,6 +144,12 @@ impl ScalingManager {
         node_shard_counts.insert(new_node, new_node_shard_count);
 
         for placement in placements.values() {
+            if let Some(count) = node_shard_counts.get_mut(&placement.primary) {
+                *count += 1;
+            }
+        }
+
+        for placement in placements.values() {
             if node_shard_counts
                 .get(&placement.primary)
                 .copied()
@@ -374,7 +380,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // TODO: A2 needs to fix plan_add_node test logic (Phase 2)
     fn test_plan_add_node() {
         let mgr = ScalingManager::new(9, 2);
         let existing = vec![NodeId::new(1), NodeId::new(2)];
@@ -492,7 +497,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // TODO: A2 needs to fix shards_on_node test logic (Phase 2)
     fn test_shards_on_node() {
         let mgr = ScalingManager::new(6, 1);
         let nodes = vec![NodeId::new(1), NodeId::new(2), NodeId::new(3)];
@@ -502,7 +506,7 @@ mod tests {
         assert!(!shards.is_empty());
         assert!(shards.iter().all(|s| {
             let p = mgr.get_placement(*s).unwrap();
-            p.primary == NodeId::new(1)
+            p.primary == NodeId::new(1) || p.replicas.contains(&NodeId::new(1))
         }));
     }
 
