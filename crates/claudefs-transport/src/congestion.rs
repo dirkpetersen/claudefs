@@ -226,8 +226,7 @@ impl CongestionWindow {
                 (bytes as f64 / self.bbr_bandwidth_bps as f64 * 1_000_000.0) as u64;
             if delivery_time_us > 0 {
                 let estimated_bw = (bytes as f64 / delivery_time_us as f64 * 1_000_000.0) as u64;
-                self.bbr_bandwidth_bps =
-                    (self.bbr_bandwidth_bps * 7 / 8 + estimated_bw * 1 / 8).max(1);
+                self.bbr_bandwidth_bps = (self.bbr_bandwidth_bps * 7 / 8 + estimated_bw / 8).max(1);
                 self.bbr_pacing_rate_bps = self.bbr_bandwidth_bps;
             }
         }

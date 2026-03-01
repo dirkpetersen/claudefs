@@ -1,3 +1,5 @@
+//! Connection authentication module for mTLS and certificate handling.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
