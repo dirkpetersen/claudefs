@@ -8,6 +8,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 2: Integration
 
+#### 2026-03-01 (Night Session)
+
+##### A2: Metadata Service — Phase 2 Deep Integration (447 tests ✅)
+
+**Manager integration (node.rs):**
+- Quota enforcement: check_quota() before create_file/mkdir, update_usage() after
+- Lease revocation: revoke() on parent/target inodes for all mutations
+- Watch notifications: emit Create/Delete/Rename/AttrChange events
+- CDC events: publish CreateInode/DeleteInode/SetAttr/CreateEntry/DeleteEntry
+- WORM protection: block unlink/rmdir/setattr on protected files
+- Metrics recording: duration and success/failure for all operations
+- Atomic inode counter replaces tree-walk counting
+
+**Raft-routed mutations (raftservice.rs):**
+- All 8 mutation methods now propose through Raft before local apply
+- propose_or_local() helper: falls back to local when no Raft group initialized
+- is_leader_for() checks leadership for an inode's owning shard
+
+**Migration lifecycle (scaling.rs):**
+- start_migration/start_next_migration: transition Pending → InProgress
+- fail_migration: mark as Failed with reason; retry_migration: reset to Pending
+- tick_migrations: batch-start up to max_concurrent_migrations (default 4)
+- drain_node: convenience method to evacuate all shards from a node
+
+**Cross-shard 2PC coordinator (cross_shard.rs — new module):**
+- CrossShardCoordinator wraps TransactionManager for atomic cross-shard ops
+- execute_rename: same-shard direct apply, cross-shard via 2PC
+- execute_link: same-shard direct apply, cross-shard via 2PC
+- Proper abort handling when apply_fn fails after 2PC commit decision
+
+**Quota persistence (quota.rs):**
+- Optional KvStore backing: quotas survive restarts when store is provided
+- with_store() constructor, load_from_store() for recovery
+- Auto-persist on set_quota(), remove_quota(), update_usage()
+
+**Test count: 417 → 447 (+30 new tests)**
+
+---
+
 #### 2026-03-01 (Later Session)
 
 ##### A11: Infrastructure & CI — Phase 2 CI/CD Pipeline
