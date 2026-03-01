@@ -6,9 +6,10 @@ use chacha20poly1305::ChaCha20Poly1305;
 use hkdf::Hkdf;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// 256-bit (32-byte) encryption key
-#[derive(Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct EncryptionKey(pub [u8; 32]);
 
 impl std::fmt::Debug for EncryptionKey {
