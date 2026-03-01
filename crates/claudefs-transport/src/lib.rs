@@ -38,4 +38,4 @@ pub use tracecontext::{
     TRACESTATE_HEADER,
 };
 pub use transport::{Transport, Connection, Listener};
-pub use health::{HealthConfig, ConnectionHealth, HealthStatus, HealthMonitor, ReconnectPolicy};
+pub use health::{HealthConfig, HealthStatus, HealthStats, ConnectionHealth};
