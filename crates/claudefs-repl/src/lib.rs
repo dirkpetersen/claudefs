@@ -25,6 +25,7 @@ pub mod uidmap;
 pub mod wal;
 pub mod tls_policy;
 pub mod site_registry;
+pub mod site_failover;
 pub mod recv_ratelimit;
 pub mod journal_gc;
 pub mod repl_qos;

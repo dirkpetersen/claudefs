@@ -11,6 +11,7 @@ pub mod analytics;
 pub mod api;
 pub mod cli;
 pub mod config;
+pub mod cost_tracker;
 pub mod grafana;
 pub mod indexer;
 pub mod metrics;

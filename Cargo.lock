@@ -501,6 +501,7 @@ dependencies = [
  "libc",
  "lru",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tracing",
