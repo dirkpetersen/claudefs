@@ -287,8 +287,8 @@ fn finding_cz_aes_gcm_ciphertext_properties() {
 
     let encrypted = encrypt(plaintext, &key, EncryptionAlgorithm::AesGcm256).unwrap();
 
-    // AES-GCM produces: 16 bytes (plaintext) + 16 bytes (auth tag) = 32 bytes
-    assert_eq!(encrypted.ciphertext.len(), 32);
+    // AES-GCM produces: plaintext_len + 16 bytes (auth tag) = 12 + 16 = 28 bytes
+    assert_eq!(encrypted.ciphertext.len(), plaintext.len() + 16);
 
     // Verify different nonces produce different ciphertext
     let encrypted2 = encrypt(plaintext, &key, EncryptionAlgorithm::AesGcm256).unwrap();

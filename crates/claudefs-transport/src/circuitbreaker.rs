@@ -2,6 +2,43 @@
 //!
 //! This module provides a circuit breaker implementation that prevents cascading failures
 //! by failing fast when a service is experiencing issues.
+//!
+//! # How It Works
+//!
+//! The circuit breaker has three states:
+//!
+//! 1. **Closed**: Normal operation. Requests pass through. Failures are counted.
+//! 2. **Open**: Circuit is open. Requests are blocked. After `open_duration`, transitions to half-open.
+//! 3. **HalfOpen**: Testing recovery. Limited requests are allowed to test if the service recovered.
+//!
+//! # Example
+//!
+//! ```
+//! use claudefs_transport::circuitbreaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
+//!
+//! let config = CircuitBreakerConfig::default();
+//! let breaker = CircuitBreaker::new(config);
+//!
+//! // Check if request can proceed
+//! if breaker.can_execute() {
+//!     // Execute request
+//!     // ...
+//!     breaker.record_success();
+//! } else {
+//!     // Circuit is open, fail fast
+//!     println!("Circuit is open, skipping request");
+//! }
+//! ```
+//!
+//! # Tuning
+//!
+//! - Decrease `failure_threshold` to open circuit faster
+//! - Increase `open_duration` to wait longer before testing recovery
+//! - Increase `success_threshold` to require more successes before closing
+//!
+//! # See Also
+//! - [`CircuitState`] - State enumeration
+//! - [`CircuitBreakerConfig`] - Configuration options
 
 use std::time::Duration;
 
@@ -19,6 +56,31 @@ pub const DEFAULT_OPEN_DURATION_MS: u64 = 30_000;
 pub const DEFAULT_HALF_OPEN_MAX_REQUESTS: u32 = 1;
 
 /// Represents the state of the circuit breaker.
+///
+/// # State Transitions
+///
+/// ```
+/// use claudefs_transport::circuitbreaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
+/// use std::thread;
+/// use std::time::Duration;
+///
+/// let mut config = CircuitBreakerConfig::default();
+/// config.open_duration = Duration::from_millis(50);
+/// let breaker = CircuitBreaker::new(config);
+///
+/// // Closed -> Open: After failure_threshold failures
+/// for _ in 0..5 { breaker.record_failure(); }
+/// assert_eq!(breaker.state(), CircuitState::Open);
+///
+/// // Open -> HalfOpen: After open_duration
+/// thread::sleep(Duration::from_millis(60));
+/// assert!(breaker.can_execute());
+/// assert_eq!(breaker.state(), CircuitState::HalfOpen);
+///
+/// // HalfOpen -> Closed: After success_threshold successes
+/// for _ in 0..3 { breaker.record_success(); }
+/// assert_eq!(breaker.state(), CircuitState::Closed);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CircuitState {
     /// Normal operation; requests are allowed through.
@@ -40,6 +102,34 @@ impl CircuitState {
 }
 
 /// Configuration for the circuit breaker.
+///
+/// # Default Values
+///
+/// - `failure_threshold`: 5 consecutive failures to open
+/// - `success_threshold`: 3 consecutive successes to close
+/// - `open_duration`: 30 seconds
+/// - `half_open_max_requests`: 1 request at a time
+///
+/// # Examples
+///
+/// ```
+/// use claudefs_transport::circuitbreaker::CircuitBreakerConfig;
+/// use std::time::Duration;
+///
+/// // Aggressive configuration
+/// let config = CircuitBreakerConfig {
+///     failure_threshold: 3,           // Open after 3 failures
+///     success_threshold: 2,           // Close after 2 successes
+///     open_duration: Duration::from_secs(10),  // Wait 10s before testing
+///     half_open_max_requests: 3,     // Allow 3 test requests
+/// };
+/// ```
+///
+/// # Tuning Guidelines
+///
+/// - **For unstable services**: Lower failure_threshold to open sooner
+/// - **For stable services**: Raise failure_threshold to avoid flapping
+/// - **For recovery**: Increase open_duration to allow service time to recover
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerConfig {
     /// Number of consecutive failures required to open the circuit.
