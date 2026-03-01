@@ -3,8 +3,13 @@
 //! Tracks known peer sites with their TLS fingerprints, enabling validation
 //! that the `source_site_id` in an `EntryBatch` matches the authenticated TLS identity.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
+
+/// Newtype wrapper for site identifiers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SiteId(pub u64);
 
 /// Record of a known site in the registry.
 #[derive(Debug, Clone, PartialEq)]
