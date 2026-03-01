@@ -8,8 +8,9 @@ use thiserror::Error;
 use tracing::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PathId(u64);
+pub struct PathId(#[allow(dead_code)] u64);
 
+#[allow(clippy::derivable_impls)]
 impl Default for PathId {
     fn default() -> Self {
         PathId(0)
@@ -75,18 +76,13 @@ pub struct PathInfo {
     pub priority: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum PathSelectionPolicy {
+    #[default]
     RoundRobin,
     LowestLatency,
     WeightedRandom,
     Failover,
-}
-
-impl Default for PathSelectionPolicy {
-    fn default() -> Self {
-        PathSelectionPolicy::LowestLatency
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -307,11 +303,7 @@ impl MultipathRouter {
                 path.metrics.min_latency_us = latency_us;
             }
 
-            let latency_diff = if path.metrics.latency_us > latency_us {
-                path.metrics.latency_us - latency_us
-            } else {
-                latency_us - path.metrics.latency_us
-            };
+            let latency_diff = latency_us.abs_diff(path.metrics.latency_us);
             path.metrics.jitter_us =
                 ((0.5 * latency_diff as f64) + (0.5 * path.metrics.jitter_us as f64)) as u64;
 
