@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 3 Production Guide (2026-03-01)
+
+#### Documentation: Comprehensive deployment and operational guide
+
+- **TRANSPORT-PHASE3-GUIDE.md** (531 lines): Complete operational guide for production deployment
+  - Core components: Protocol, TCP/RDMA, RPC, client stack documentation
+  - QoS and resilience features: Circuit breaker, flow control, deadlines
+  - Security: mTLS, enrollment, connection authentication
+  - Deployment examples: Single-node, multi-node TCP, high-performance RDMA
+  - Configuration reference for all transport options
+  - Troubleshooting guide and performance tuning recommendations
+  - Integration guide for downstream agents (A5/A6/A7)
+
+**Transport status:** ✅ 667 tests passing, 51 modules, production-ready
+
+---
+
 ### A5: FUSE Client — Phase 3 Production Readiness (2026-03-01)
 
 #### New modules added (6 modules, +99 tests → 918 total)
