@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Phase 5: Integration Readiness
+
+#### 2026-03-01 (A4 — Phase 5 Transport: Integration Readiness)
+
+##### A4: Transport — Phase 5 (529 transport tests, 43 modules, 1370 workspace)
+
+**A4 Phase 5 Transport Modules (5 new modules, 112 new tests):**
+1. `pipeline.rs` — Configurable request middleware pipeline with stage composition (20 tests)
+2. `backpressure.rs` — Coordinated backpressure with queue/memory/throughput signals (23 tests)
+3. `adaptive.rs` — Adaptive timeout tuning from sliding-window latency histograms (20 tests)
+4. `connmigrate.rs` — Connection migration during node drain and rolling upgrades (21 tests)
+5. `observability.rs` — Structured spans, events, and metrics for distributed tracing (28 tests)
+
+**MILESTONE: 1370 tests passing across the workspace, zero clippy warnings (non-docs)**
+
+---
+
 ### Phase 4: Advanced Production Features
 
 #### 2026-03-01 (A4 — Phase 4 Transport: Advanced Production Features)

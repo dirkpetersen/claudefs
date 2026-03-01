@@ -13,13 +13,21 @@
 //! - Speculative hedging
 //! - Multi-tenant traffic isolation
 //! - Zero-copy buffer management
+//! - Configurable request middleware pipeline
+//! - Coordinated backpressure signal propagation
+//! - Adaptive timeout tuning
+//! - Connection migration
+//! - Structured observability with spans and events
 
+pub mod adaptive;
+pub mod backpressure;
 pub mod batch;
 pub mod buffer;
 pub mod cancel;
 pub mod circuitbreaker;
 pub mod client;
 pub mod compress;
+pub mod connmigrate;
 pub mod connection;
 pub mod deadline;
 pub mod discovery;
@@ -34,7 +42,9 @@ pub mod loadshed;
 pub mod message;
 pub mod metrics;
 pub mod mux;
+pub mod observability;
 pub mod pool;
+pub mod pipeline;
 pub mod priority;
 pub mod protocol;
 pub mod qos;
@@ -101,3 +111,25 @@ pub use hedge::{HedgeConfig, HedgePolicy, HedgeStats, HedgeTracker};
 pub use loadshed::{LoadShedConfig, LoadShedStats, LoadShedder};
 pub use tenant::{TenantId, TenantConfig, TenantTracker, TenantStats, TenantManager, TenantAdmitResult};
 pub use zerocopy::{ZeroCopyConfig, MemoryRegion, RegionId, RegionPool, RegionPoolStats};
+pub use adaptive::{
+    AdaptiveConfig, AdaptiveStats, AdaptiveStatsSnapshot, AdaptiveTimeout, LatencyHistogram,
+    PercentileSnapshot,
+};
+pub use backpressure::{
+    BackpressureConfig, BackpressureMonitor, BackpressureSignal, BackpressureStats,
+    BackpressureStatsSnapshot, BackpressureThrottle, PressureLevel, ThrottleConfig,
+};
+pub use connmigrate::{
+    ConnectionId, MigrationConfig, MigrationError, MigrationManager, MigrationReason,
+    MigrationRecord, MigrationState, MigrationStats, MigrationStatsSnapshot,
+};
+pub use pipeline::{
+    Pipeline, PipelineConfig, PipelineError, PipelineRequest, PipelineResult,
+    PipelineStats, PipelineStatsSnapshot, PipelineDirection, StageAction, StageConfig,
+    StageId, StageProcessor, StageResult, PassthroughStage, RejectStage, HeaderStage,
+};
+pub use observability::{
+    ObservabilityConfig, ObservabilityStats, ObservabilityStatsSnapshot,
+    SpanId, SpanStatus, SpanEvent, Span, SpanBuilder, SpanCollector,
+    EventSeverity, Attribute, AttributeValue,
+};
