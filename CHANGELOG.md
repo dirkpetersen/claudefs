@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 1 Complete
+
+#### 2026-03-01 (A9 — Test & Validation: Phase 1 Foundation)
+
+##### A9: Test & Validation — Phase 1 (238 tests, 13 modules)
+
+**New `claudefs-tests` crate — cross-cutting test & validation infrastructure:**
+
+1. `harness.rs` — TestEnv and TestCluster scaffolding for integration tests
+2. `posix.rs` — pjdfstest, fsx, xfstests runner wrappers for POSIX validation
+3. `proptest_storage.rs` — property-based tests for block IDs, checksums, placement hints (~25 tests)
+4. `proptest_reduce.rs` — compression roundtrip, encryption roundtrip, BLAKE3 fingerprint determinism, FastCDC chunking reassembly (~25 proptest tests)
+5. `proptest_transport.rs` — message framing roundtrip, protocol version compatibility, circuit breaker state machine, rate limiter invariants (~30 tests)
+6. `integration.rs` — cross-crate integration test framework with IntegrationTestSuite
+7. `linearizability.rs` — WGL linearizability checker, KvModel, History analysis for Jepsen-style tests (~20 tests)
+8. `crash.rs` — CrashSimulator and CrashConsistencyTest framework (CrashMonkey-style) (~20 tests)
+9. `chaos.rs` — FaultInjector, NetworkTopology, FaultType for distributed fault injection (~20 tests)
+10. `bench.rs` — FIO config builder, fio JSON output parser, benchmark harness (~20 tests)
+11. `connectathon.rs` — Connectathon NFS test suite runner wrapper (~15 tests)
+
+**MILESTONE: 1608 workspace tests (1370 existing + 238 new A9 tests), zero clippy errors**
+
+---
+
 ### A5: FUSE Client — Phase 2 Complete
 
 #### 2026-03-01 (A5 — FUSE Client: Phase 1+2 Foundation)
