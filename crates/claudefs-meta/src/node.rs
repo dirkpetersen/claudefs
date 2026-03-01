@@ -199,11 +199,13 @@ impl MetadataNode {
     ) -> Result<InodeAttr, MetaError> {
         let start = Instant::now();
 
-        self.quota_mgr.check_quota(uid, gid, 0, 1).inspect_err(|_e| {
-            let duration = start.elapsed().as_micros() as u64;
-            self.metrics
-                .record_op(MetricOp::CreateFile, duration, false);
-        })?;
+        self.quota_mgr
+            .check_quota(uid, gid, 0, 1)
+            .inspect_err(|_e| {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics
+                    .record_op(MetricOp::CreateFile, duration, false);
+            })?;
 
         let result = self.service.create_file(parent, name, uid, gid, mode);
 
@@ -259,10 +261,12 @@ impl MetadataNode {
     ) -> Result<InodeAttr, MetaError> {
         let start = Instant::now();
 
-        self.quota_mgr.check_quota(uid, gid, 0, 1).inspect_err(|_e| {
-            let duration = start.elapsed().as_micros() as u64;
-            self.metrics.record_op(MetricOp::Mkdir, duration, false);
-        })?;
+        self.quota_mgr
+            .check_quota(uid, gid, 0, 1)
+            .inspect_err(|_e| {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Mkdir, duration, false);
+            })?;
 
         let result = self.service.mkdir(parent, name, uid, gid, mode);
 
