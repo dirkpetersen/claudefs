@@ -7,15 +7,13 @@
 //! - Bootstrapping a new node from an existing snapshot
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::kvstore::KvStore;
-use crate::quota::{QuotaEntry, QuotaManager, QuotaTarget};
+use crate::quota::{QuotaEntry, QuotaTarget};
 use crate::types::*;
-use crate::worm::{WormEntry, WormManager};
-use crate::xattr::XattrStore;
+use crate::worm::WormEntry;
+use crate::MetadataNode;
 
 const SNAPSHOT_VERSION: u32 = 1;
 
@@ -52,24 +50,20 @@ impl NodeSnapshot {
     /// Captures the full state of a MetadataNode into a snapshot.
     pub fn capture(node: &MetadataNode) -> Result<Self, MetaError> {
         let kv = node.kv_store();
-        let xattr_store = node.xattr_store();
-        let quota_mgr = node.quota_manager();
-        let worm_mgr = node.worm_manager();
 
         let mut inodes = Vec::new();
         let inode_entries = kv.scan_prefix(b"inode:")?;
-        for (_, value) in inode_entries {
-            if let Ok(inode_id) = extract_inode_id_from_key(&value) {
-                if let Ok(attr) = bincode::deserialize::<InodeAttr>(&value) {
-                    inodes.push((inode_id, attr));
+        for (key, value) in inode_entries {
+            let key_str = String::from_utf8_lossy(&key);
+            let parts: Vec<&str> = key_str.split(':').collect();
+            if parts.len() >= 2 {
+                if let Ok(inode_id) = parts[1].parse::<u64>() {
+                    if let Ok(attr) = bincode::deserialize::<InodeAttr>(&value) {
+                        inodes.push((InodeId::new(inode_id), attr));
+                    }
                 }
             }
         }
-
-        let inode_by_key: HashMap<String, InodeId> = inodes
-            .iter()
-            .map(|(id, _)| (format!("inode:{}", id.as_u64()), *id))
-            .collect();
 
         let mut dir_entries = Vec::new();
         let dir_key_entries = kv.scan_prefix(b"dir:")?;
@@ -79,7 +73,7 @@ impl NodeSnapshot {
         for (key, value) in dir_key_entries {
             let key_str = String::from_utf8_lossy(&key);
             let parts: Vec<&str> = key_str.split(':').collect();
-            if parts.len() >= 2 {
+            if parts.len() >= 3 {
                 if let Some(parent_id) = parts.get(1).and_then(|s| s.parse::<u64>().ok()) {
                     let this_parent = InodeId::new(parent_id);
                     if current_dir != Some(this_parent) {
@@ -111,7 +105,7 @@ impl NodeSnapshot {
         for (key, value) in xattr_entries {
             let key_str = String::from_utf8_lossy(&key);
             let parts: Vec<&str> = key_str.splitn(3, ':').collect();
-            if parts.len() >= 2 {
+            if parts.len() >= 3 {
                 if let Some(ino_id) = parts.get(1).and_then(|s| s.parse::<u64>().ok()) {
                     let this_ino = InodeId::new(ino_id);
                     if current_ino != Some(this_ino) {
@@ -135,7 +129,8 @@ impl NodeSnapshot {
             xattrs.push((ino, attrs));
         }
 
-        let quotas: Vec<(QuotaTarget, QuotaEntry)> = quota_mgr
+        let quotas: Vec<(QuotaTarget, QuotaEntry)> = node
+            .quota_manager()
             .list_quotas()
             .into_iter()
             .map(|e| (e.target.clone(), e))
@@ -216,16 +211,6 @@ impl NodeSnapshot {
         }
 
         size
-    }
-}
-
-fn extract_inode_id_from_key(value: &[u8]) -> Result<InodeId, MetaError> {
-    if let Ok(attr) = bincode::deserialize::<InodeAttr>(value) {
-        Ok(attr.ino)
-    } else {
-        Err(MetaError::KvError(
-            "failed to deserialize inode".to_string(),
-        ))
     }
 }
 

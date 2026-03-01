@@ -146,6 +146,7 @@ impl TenantManager {
         }
 
         let tenant_id = config.tenant_id.clone();
+        let tenant_name = tenant_id.to_string();
         tenants.insert(tenant_id.clone(), config);
 
         let mut usage = self
@@ -154,7 +155,7 @@ impl TenantManager {
             .map_err(|e| MetaError::KvError(format!("lock poisoned: {}", e)))?;
         usage.insert(tenant_id, TenantUsage::default());
 
-        tracing::info!("created tenant: {}", config.tenant_id);
+        tracing::info!("created tenant: {}", tenant_name);
         Ok(())
     }
 

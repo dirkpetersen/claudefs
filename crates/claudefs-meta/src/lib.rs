@@ -42,8 +42,6 @@ pub mod metrics;
 pub mod multiraft;
 /// Unified metadata server node
 pub mod node;
-/// MetadataNode snapshot and restore for disaster recovery
-pub mod node_snapshot;
 /// Speculative path resolution with caching
 pub mod pathres;
 /// QoS (Quality of Service) and traffic shaping for metadata operations
@@ -68,8 +66,6 @@ pub mod service;
 pub mod shard;
 /// Raft log snapshot and compaction
 pub mod snapshot;
-/// Multi-tenant namespace isolation
-pub mod tenant;
 /// Distributed tracing context for metadata operations
 pub mod tracecontext;
 /// Distributed transaction coordinator (two-phase commit)
@@ -101,7 +97,6 @@ pub use membership::{MemberInfo, MembershipEvent, MembershipManager, NodeState};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use multiraft::MultiRaftManager;
 pub use node::{ClusterStatus, DirEntryPlus, MetadataNode, MetadataNodeConfig, StatFs};
-pub use node_snapshot::NodeSnapshot;
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
 pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
@@ -114,7 +109,6 @@ pub use service::MetadataService;
 pub use service::MetadataServiceConfig;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use snapshot::{RaftSnapshot, SnapshotManager};
-pub use tenant::{TenantConfig, TenantId, TenantManager, TenantUsage};
 pub use tracecontext::{SpanId, SpanRecord, SpanStatus, TraceCollector, TraceContext, TraceId};
 pub use transaction::{Transaction, TransactionId, TransactionManager, TransactionState};
 pub use watch::{Watch, WatchEvent, WatchManager};
