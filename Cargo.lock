@@ -546,6 +546,7 @@ dependencies = [
  "chrono",
  "clap",
  "futures",
+ "http 1.4.0",
  "http-body 0.4.6",
  "hyper",
  "reqwest",

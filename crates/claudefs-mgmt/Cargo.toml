@@ -10,14 +10,39 @@ description = "ClaudeFS subsystem: Prometheus exporter, DuckDB analytics, Web UI
 name = "cfs-mgmt"
 path = "src/main.rs"
 
+[lib]
+name = "claudefs_mgmt"
+path = "src/lib.rs"
+
 [dependencies]
 tokio.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 serde.workspace = true
+serde_json = "1.0"
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
-[lib]
-name = "claudefs_mgmt"
-path = "src/lib.rs"
+# HTTP server
+axum = { version = "0.7", features = ["macros", "json"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["trace", "cors", "auth"] }
+hyper = { version = "1.0", features = ["full"] }
+http-body = "0.4"
+http = "1.0"
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Serialization
+toml = "0.8"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+reqwest = { version = "0.12", features = ["json"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.10"
