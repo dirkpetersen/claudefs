@@ -27,6 +27,7 @@ pub mod message;
 pub mod metrics;
 pub mod mux;
 pub mod pool;
+pub mod priority;
 pub mod protocol;
 pub mod qos;
 pub mod retry;
@@ -45,6 +46,10 @@ pub mod version;
 pub use batch::{
     BatchConfig, BatchCollector, BatchEnvelope, BatchItem, BatchRequest, BatchResponse,
     BatchResult, BatchStats, BatchStatsSnapshot,
+};
+pub use priority::{
+    Priority, PriorityConfig, PriorityScheduler, PriorityStats, PriorityStatsSnapshot,
+    PrioritizedRequest, classify_opcode,
 };
 pub use compress::{
     CompressionAlgorithm, CompressionConfig, CompressedPayload, Compressor,
