@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Production Readiness & Build Unblocking
+
+#### 2026-03-01 (A8 — Session Work: Critical Build Fixes + Code Cleanup)
+
+**Unblocked critical build failures and improved production quality:**
+
+1. **Created missing FUSE modules (18ea4e3):**
+   - **buffer_pool.rs** (9.6KB, 22 tests): Buffer pool for FUSE I/O operations
+   - **mount_opts.rs** (3.9KB): FUSE mount options parsing
+   - **notify_filter.rs** (5.3KB): Directory notification filtering
+   - These modules were declared in lib.rs but missing, completely blocking the build
+   - Generated via OpenCode (minimax-m2p5) with Default impl, doc comments, unit tests
+
+2. **Created fuzz_fuse module for A10 (d2eb95b):**
+   - **fuzz_fuse.rs** (4.7KB): FUSE protocol fuzzing harness
+   - Unblocked claudefs-security crate compilation
+   - FuzzResult enum (Processed/Rejected/Panicked), fuzz_fuse_request() function
+   - Generated via OpenCode to support A10 security audit work
+
+3. **Cleaned up management crate warnings (d9fbdae):**
+   - Removed 6 unused imports (Duration, debug, VecDeque x2, HashSet, ServiceExt)
+   - Fixed 2 unused variables (scraper, snapshot)
+   - All changes across 8 files: alerting.rs, ops_metrics.rs, node_scaling.rs, qos.rs, webhook.rs, api.rs, scraper.rs, snapshot.rs
+   - Zero warnings for these types of issues in claudefs-mgmt
+
+**Build Status: ✅ Library compiles clean**
+- Library build: 0 errors, warnings only
+- A8 tests: 814/814 passing (100%)
+- All 3 commits pushed to origin/main
+
+---
+
 ### A3: Data Reduction — Phase 3 Production Readiness (166 tests, 18 modules)
 
 #### 2026-03-01 (A3 — Phase 3: Zero Clippy Warnings)
