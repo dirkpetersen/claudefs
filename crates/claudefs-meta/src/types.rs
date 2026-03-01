@@ -600,3 +600,336 @@ pub enum RaftState {
     /// Pre-candidate: gathering pre-votes before starting real election
     PreCandidate,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_inode_id_new_and_as_u64() {
+        let id = InodeId::new(42);
+        assert_eq!(id.as_u64(), 42);
+        let large = InodeId::new(u64::MAX);
+        assert_eq!(large.as_u64(), u64::MAX);
+    }
+
+    #[test]
+    fn test_inode_id_root_inode() {
+        assert_eq!(InodeId::ROOT_INODE.as_u64(), 1);
+    }
+
+    #[test]
+    fn test_inode_id_shard() {
+        let id = InodeId::new(256);
+        assert_eq!(id.shard(4).as_u16(), 0);
+        assert_eq!(id.shard(256).as_u16(), 0);
+        assert_eq!(id.shard(257).as_u16(), 256);
+        let id2 = InodeId::new(257);
+        assert_eq!(id2.shard(256).as_u16(), 1);
+        let id3 = InodeId::new(1);
+        assert_eq!(id3.shard(256).as_u16(), 1);
+        let id4 = InodeId::new(1);
+        assert_eq!(id4.shard(1).as_u16(), 0);
+        let id5 = InodeId::new(100);
+        assert_eq!(id5.shard(1).as_u16(), 0);
+    }
+
+    #[test]
+    fn test_node_id_display() {
+        let id = NodeId::new(123);
+        assert_eq!(format!("{}", id), "123");
+    }
+
+    #[test]
+    fn test_log_index_zero() {
+        assert_eq!(LogIndex::ZERO.as_u64(), 0);
+    }
+
+    #[test]
+    fn test_timestamp_ord() {
+        let t1 = Timestamp {
+            secs: 100,
+            nanos: 500,
+        };
+        let t2 = Timestamp {
+            secs: 100,
+            nanos: 1000,
+        };
+        assert!(t1 < t2);
+        let t3 = Timestamp {
+            secs: 200,
+            nanos: 0,
+        };
+        assert!(t1 < t3);
+        assert!(t2 < t3);
+        let t4 = Timestamp {
+            secs: 100,
+            nanos: 500,
+        };
+        assert_eq!(t1, t4);
+    }
+
+    #[test]
+    fn test_timestamp_now_reasonable() {
+        let now = Timestamp::now();
+        assert!(now.secs > 1700000000);
+    }
+
+    #[test]
+    fn test_timestamp_eq() {
+        let t1 = Timestamp {
+            secs: 100,
+            nanos: 500,
+        };
+        let t2 = Timestamp {
+            secs: 100,
+            nanos: 500,
+        };
+        assert_eq!(t1, t2);
+    }
+
+    #[test]
+    fn test_vector_clock_ord_sequence_first() {
+        let vc1 = VectorClock::new(100, 10);
+        let vc2 = VectorClock::new(1, 20);
+        assert!(vc1 < vc2);
+    }
+
+    #[test]
+    fn test_vector_clock_ord_same_sequence() {
+        let vc1 = VectorClock::new(10, 100);
+        let vc2 = VectorClock::new(20, 100);
+        assert!(vc1 < vc2);
+    }
+
+    #[test]
+    fn test_vector_clock_eq() {
+        let vc1 = VectorClock::new(42, 100);
+        let vc2 = VectorClock::new(42, 100);
+        assert_eq!(vc1, vc2);
+    }
+
+    #[test]
+    fn test_filetype_mode_bits() {
+        assert_eq!(FileType::RegularFile.mode_bits(), 0o100000);
+        assert_eq!(FileType::Directory.mode_bits(), 0o040000);
+        assert_eq!(FileType::Symlink.mode_bits(), 0o120000);
+        assert_eq!(FileType::BlockDevice.mode_bits(), 0o060000);
+        assert_eq!(FileType::CharDevice.mode_bits(), 0o020000);
+        assert_eq!(FileType::Fifo.mode_bits(), 0o010000);
+        assert_eq!(FileType::Socket.mode_bits(), 0o140000);
+    }
+
+    #[test]
+    fn test_filetype_mode_bits_unique() {
+        let bits: Vec<u32> = vec![
+            FileType::RegularFile.mode_bits(),
+            FileType::Directory.mode_bits(),
+            FileType::Symlink.mode_bits(),
+            FileType::BlockDevice.mode_bits(),
+            FileType::CharDevice.mode_bits(),
+            FileType::Fifo.mode_bits(),
+            FileType::Socket.mode_bits(),
+        ];
+        use std::collections::HashSet;
+        let unique: HashSet<u32> = bits.into_iter().collect();
+        assert_eq!(unique.len(), 7);
+    }
+
+    #[test]
+    fn test_new_directory_defaults() {
+        let ino = InodeId::new(42);
+        let attr = InodeAttr::new_directory(ino, 1000, 1000, 0o755, 1);
+        assert_eq!(attr.file_type, FileType::Directory);
+        assert_eq!(attr.nlink, 2);
+        assert!(attr.symlink_target.is_none());
+        assert_eq!(attr.repl_state, ReplicationState::Local);
+    }
+
+    #[test]
+    fn test_new_file_defaults() {
+        let ino = InodeId::new(42);
+        let attr = InodeAttr::new_file(ino, 1000, 1000, 0o644, 1);
+        assert_eq!(attr.file_type, FileType::RegularFile);
+        assert_eq!(attr.nlink, 1);
+        assert_eq!(attr.size, 0);
+    }
+
+    #[test]
+    fn test_new_symlink_defaults() {
+        let ino = InodeId::new(42);
+        let target = "/path/to/target".to_string();
+        let attr = InodeAttr::new_symlink(ino, 1000, 1000, 0o777, 1, target.clone());
+        assert_eq!(attr.file_type, FileType::Symlink);
+        assert_eq!(attr.nlink, 1);
+        assert_eq!(attr.size, target.len() as u64);
+        assert_eq!(attr.symlink_target, Some(target));
+    }
+
+    #[test]
+    fn test_inode_attr_serde_roundtrip() {
+        let ino = InodeId::new(42);
+        let attr = InodeAttr::new_file(ino, 1000, 1000, 0o644, 1);
+        let encoded = bincode::serialize(&attr).unwrap();
+        let decoded: InodeAttr = bincode::deserialize(&encoded).unwrap();
+        assert_eq!(attr, decoded);
+    }
+
+    #[test]
+    fn test_dir_entry_serde_roundtrip() {
+        let entry = DirEntry {
+            name: "test.txt".to_string(),
+            ino: InodeId::new(42),
+            file_type: FileType::RegularFile,
+        };
+        let encoded = bincode::serialize(&entry).unwrap();
+        let decoded: DirEntry = bincode::deserialize(&encoded).unwrap();
+        assert_eq!(entry, decoded);
+    }
+
+    #[test]
+    fn test_meta_op_create_inode_serde() {
+        let attr = InodeAttr::new_file(InodeId::new(42), 1000, 1000, 0o644, 1);
+        let op = MetaOp::CreateInode { attr };
+        let encoded = bincode::serialize(&op).unwrap();
+        let decoded: MetaOp = bincode::deserialize(&encoded).unwrap();
+        match decoded {
+            MetaOp::CreateInode { attr: decoded_attr } => {
+                assert_eq!(decoded_attr.ino, InodeId::new(42));
+            }
+            _ => panic!("Wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_meta_op_rename_serde() {
+        let op = MetaOp::Rename {
+            src_parent: InodeId::new(1),
+            src_name: "old".to_string(),
+            dst_parent: InodeId::new(2),
+            dst_name: "new".to_string(),
+        };
+        let encoded = bincode::serialize(&op).unwrap();
+        let decoded: MetaOp = bincode::deserialize(&encoded).unwrap();
+        match decoded {
+            MetaOp::Rename {
+                src_parent,
+                src_name,
+                dst_parent,
+                dst_name,
+            } => {
+                assert_eq!(src_parent, InodeId::new(1));
+                assert_eq!(src_name, "old");
+                assert_eq!(dst_parent, InodeId::new(2));
+                assert_eq!(dst_name, "new");
+            }
+            _ => panic!("Wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_raft_message_append_entries_serde() {
+        let entry = LogEntry {
+            index: LogIndex::new(1),
+            term: Term::new(1),
+            op: MetaOp::DeleteInode {
+                ino: InodeId::new(42),
+            },
+        };
+        let msg = RaftMessage::AppendEntries {
+            term: Term::new(2),
+            leader_id: NodeId::new(1),
+            prev_log_index: LogIndex::ZERO,
+            prev_log_term: Term::new(0),
+            entries: vec![entry],
+            leader_commit: LogIndex::new(0),
+        };
+        let encoded = bincode::serialize(&msg).unwrap();
+        let decoded: RaftMessage = bincode::deserialize(&encoded).unwrap();
+        match decoded {
+            RaftMessage::AppendEntries {
+                term,
+                leader_id,
+                entries,
+                ..
+            } => {
+                assert_eq!(term, Term::new(2));
+                assert_eq!(leader_id, NodeId::new(1));
+                assert_eq!(entries.len(), 1);
+            }
+            _ => panic!("Wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_raft_state_serde() {
+        for state in [
+            RaftState::Follower,
+            RaftState::Candidate,
+            RaftState::Leader,
+            RaftState::PreCandidate,
+        ] {
+            let encoded = bincode::serialize(&state).unwrap();
+            let decoded: RaftState = bincode::deserialize(&encoded).unwrap();
+            assert_eq!(state, decoded);
+        }
+    }
+
+    #[test]
+    fn test_meta_error_display() {
+        let err = MetaError::InodeNotFound(InodeId::new(42));
+        assert_eq!(format!("{}", err), "inode 42 not found");
+    }
+
+    #[test]
+    fn test_meta_error_not_leader() {
+        let err = MetaError::NotLeader {
+            leader_hint: Some(NodeId::new(5)),
+        };
+        assert_eq!(format!("{}", err), "not the Raft leader");
+        let err2 = MetaError::NotLeader { leader_hint: None };
+        assert_eq!(format!("{}", err2), "not the Raft leader");
+    }
+
+    #[test]
+    fn test_meta_error_entry_exists() {
+        let err = MetaError::EntryExists {
+            parent: InodeId::new(1),
+            name: "foo".to_string(),
+        };
+        assert_eq!(
+            format!("{}", err),
+            "entry 'foo' already exists in directory 1"
+        );
+    }
+
+    #[test]
+    fn test_inode_id_ordering() {
+        let id1 = InodeId::new(10);
+        let id2 = InodeId::new(20);
+        let id3 = InodeId::new(20);
+        assert!(id1 < id2);
+        assert!(id2 == id3);
+        assert!(id1 < id2);
+    }
+
+    #[test]
+    fn test_shard_id_display() {
+        let shard = ShardId::new(42);
+        assert_eq!(format!("{}", shard), "42");
+    }
+
+    #[test]
+    fn test_replication_state_serde() {
+        for state in [
+            ReplicationState::Local,
+            ReplicationState::Pending,
+            ReplicationState::Replicated,
+            ReplicationState::Conflict,
+        ] {
+            let encoded = bincode::serialize(&state).unwrap();
+            let decoded: ReplicationState = bincode::deserialize(&encoded).unwrap();
+            assert_eq!(state, decoded);
+        }
+    }
+}
