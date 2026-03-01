@@ -15,6 +15,11 @@ use crate::types::*;
 pub struct OpenFlags(u32);
 
 impl OpenFlags {
+    /// Creates OpenFlags from a raw u32 value.
+    pub fn from_raw(raw: u32) -> Self {
+        OpenFlags(raw)
+    }
+
     /// Read access flag.
     pub const READ: OpenFlags = OpenFlags(0x01);
     /// Write access flag.
