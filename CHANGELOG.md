@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A7: Protocol Gateways — Phase 7 COMPLETE (MILESTONE)
+
+#### 2026-03-01 (A7 — Protocol Gateways: Phase 7 Final Enhancements)
+
+**MILESTONE: 608 gateway tests, 29 modules — final ACL, CORS, health, and stats modules**
+
+**Phase 7 additions (101 new tests, 4 modules):**
+1. `nfs_acl.rs` — POSIX ACL types (AclPerms, AclEntry, PosixAcl) and NFSv4 ACL types (Nfs4AceType, Nfs4AceFlags, Nfs4AccessMask, Nfs4Ace), check_access, to_mode_bits (~37 tests)
+2. `s3_cors.rs` — S3 CORS configuration: CorsRule/CorsConfig matching, PreflightRequest/Response, handle_preflight(), cors_response_headers(), CorsRegistry (~23 tests)
+3. `health.rs` — Gateway health checks: HealthStatus, CheckResult, HealthReport (composite overall), HealthChecker registry with register/update/remove/clear (~26 tests)
+4. `stats.rs` — Gateway statistics: ProtocolStats (atomic counters), GatewayStats (nfs3/s3/smb3 aggregation), to_prometheus() Prometheus text export (~15 tests)
+
+**Workspace totals as of Phase 7:**
+- A1 Storage: 223 tests
+- A2 Metadata: 495 tests
+- A3 Reduce: 90 tests
+- A4 Transport: 528 tests
+- A5 FUSE: 431 tests
+- A6 Replication: 431 tests
+- A7 Gateway: 608 tests
+- A8 Mgmt: 496 tests
+- **TOTAL: 3302 workspace tests, zero failures**
+
+---
+
+
 ### A6: Replication — Phase 6 Production Readiness COMPLETE
 
 #### 2026-03-01 (A6 — Replication: Phase 6 Compression, Backpressure, Metrics)
