@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A7: Protocol Gateways — Phase 3 Security Hardening COMPLETE
+
+#### 2026-03-01 (A7 — Phase 3: Production Readiness Security Fixes)
+
+**Fixed 5 security findings from A10 auth audit (FINDING-16 through FINDING-20):**
+
+- **FINDING-16 (HIGH):** Replaced predictable `generate_token(uid, counter)` with CSPRNG-based
+  generation using `rand::rngs::OsRng` — tokens are now 32 random bytes (64 hex chars),
+  unpredictable and non-guessable
+- **FINDING-17/20 (HIGH/LOW):** Added `SquashPolicy` enum (`None`, `RootSquash`, `AllSquash`)
+  and `AuthCred::effective_uid(policy)` / `effective_gid(policy)` methods for configurable NFS
+  root squashing. Default is `RootSquash` (uid=0 → nobody:nogroup) — safe by default
+- **FINDING-18 (MEDIUM):** `AuthToken::new()` now stores SHA-256 hash of token string, not
+  plaintext. All HashMap lookups hash the input first — prevents plaintext token exposure
+  via memory dumps
+- **FINDING-19 (MEDIUM):** Replaced all `Mutex::lock().unwrap()` with
+  `.unwrap_or_else(|e| e.into_inner())` — a thread panic no longer permanently disables
+  the token auth system via mutex poisoning
+- **Additional:** Added `AUTH_SYS_MAX_MACHINENAME_LEN = 255` check in `decode_xdr` per RFC 1831
+  to prevent unbounded memory allocation from malformed NFS AUTH_SYS credentials
+
+**Tests:** 615 gateway tests passing (608 original + 7 new security tests)
+
+**Branch:** `a7-phase3-security` (main blocked by A11 workflow token scope issue)
+
+---
+
 ### A9: Test & Validation — Phase 8 Advanced Resilience & Cross-Crate Integration COMPLETE
 
 #### 2026-03-01 (A9 — Phase 8: Advanced Resilience & Cross-Crate Integration Tests)
