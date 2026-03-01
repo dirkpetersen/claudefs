@@ -21,6 +21,7 @@
 
 pub mod adaptive;
 pub mod backpressure;
+pub mod bandwidth;
 pub mod batch;
 pub mod buffer;
 pub mod cancel;
@@ -61,6 +62,7 @@ pub mod tenant;
 pub mod tls;
 pub mod tls_tcp;
 pub mod ratelimit;
+pub mod request_dedup;
 pub mod tracecontext;
 pub mod transport;
 pub mod version;
@@ -136,3 +138,5 @@ pub use observability::{
     SpanId, SpanStatus, SpanEvent, Span, SpanBuilder, SpanCollector,
     EventSeverity, Attribute, AttributeValue,
 };
+pub use bandwidth::{BandwidthAllocator, BandwidthConfig, BandwidthResult, BandwidthStats, EnforcementMode};
+pub use request_dedup::{DedupConfig, DedupEntry, DedupResult, DedupStats, DedupTracker, RequestId};
