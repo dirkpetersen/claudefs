@@ -31,11 +31,16 @@ pub mod storage_tests;
 pub mod transport_tests;
 pub mod write_path_e2e;
 
-pub mod fuse_tests;
-pub mod repl_integration;
-pub mod gateway_integration;
+pub mod acl_integration;
 pub mod fault_recovery_tests;
+pub mod fuse_tests;
+pub mod gateway_integration;
+pub mod mgmt_integration;
+pub mod perf_regression;
 pub mod pipeline_integration;
+pub mod quota_integration;
+pub mod repl_integration;
+pub mod security_integration;
 
 pub use bench::{detect_fio_binary, parse_fio_json, FioConfig, FioResult, FioRunner, FioRwMode};
 pub use chaos::{FaultHandle, FaultInjector, FaultType, NetworkTopology, NodeId};

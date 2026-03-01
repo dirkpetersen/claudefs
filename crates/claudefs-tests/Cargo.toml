@@ -28,6 +28,7 @@ claudefs-transport = { path = "../claudefs-transport" }
 claudefs-fuse = { path = "../claudefs-fuse" }
 claudefs-repl = { path = "../claudefs-repl" }
 claudefs-gateway = { path = "../claudefs-gateway" }
+claudefs-mgmt = { path = "../claudefs-mgmt" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }
