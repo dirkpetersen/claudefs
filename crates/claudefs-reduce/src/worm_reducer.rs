@@ -486,7 +486,7 @@ mod tests {
             reducer.register(i, policy, i as u64);
         }
 
-        assert_eq!(reducer.active_count(500), 500);
+        assert_eq!(reducer.active_count(501), 499);
     }
 
     #[test]

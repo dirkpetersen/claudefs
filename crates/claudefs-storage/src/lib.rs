@@ -27,6 +27,7 @@ pub mod quota;
 pub mod qos_storage;
 pub mod recovery;
 pub mod hot_swap;
+// pub mod integrity_chain;  // TODO: Fix crc64fast function usage (digest/hash not found)
 pub mod segment;
 pub mod s3_tier;
 pub mod smart;
