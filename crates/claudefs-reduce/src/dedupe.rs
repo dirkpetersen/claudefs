@@ -102,9 +102,9 @@ impl CasIndex {
         Self::default()
     }
 
-    /// Returns true if this hash already exists (it's a duplicate)
+    /// Returns true if this hash has refcount > 0 (still referenced)
     pub fn lookup(&self, hash: &ChunkHash) -> bool {
-        self.entries.contains_key(hash)
+        self.refcount(hash) > 0
     }
 
     /// Insert or increment refcount for a hash
@@ -113,10 +113,11 @@ impl CasIndex {
     }
 
     /// Decrement refcount. Returns true if refcount hits 0 (block can be reclaimed).
+    /// Note: Entry remains in the index with refcount = 0 until explicitly removed.
     pub fn release(&mut self, hash: &ChunkHash) -> bool {
         match self.entries.get_mut(hash) {
             Some(count) if *count <= 1 => {
-                self.entries.remove(hash);
+                *count = 0;
                 true
             }
             Some(count) => {
@@ -140,6 +141,27 @@ impl CasIndex {
     /// Is the index empty?
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    /// Remove all entries with refcount == 0 and return their hashes.
+    /// Used by the GC engine to reclaim unreferenced chunks.
+    pub fn drain_unreferenced(&mut self) -> Vec<ChunkHash> {
+        let zero_refcount: Vec<ChunkHash> = self
+            .entries
+            .iter()
+            .filter(|(_, &count)| count == 0)
+            .map(|(hash, _)| *hash)
+            .collect();
+        for hash in &zero_refcount {
+            self.entries.remove(hash);
+        }
+        zero_refcount
+    }
+
+    /// Iterate over all chunk hashes and their refcounts.
+    /// Used by GC for sweep operations.
+    pub fn iter(&self) -> impl Iterator<Item = (&ChunkHash, u64)> {
+        self.entries.iter().map(|(k, v)| (k, *v))
     }
 }
 

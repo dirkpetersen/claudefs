@@ -10,11 +10,17 @@ pub mod dedupe;
 pub mod encryption;
 pub mod error;
 pub mod fingerprint;
+pub mod gc;
 pub mod pipeline;
+pub mod segment;
+pub mod similarity;
 
 pub use compression::CompressionAlgorithm;
 pub use dedupe::{CasIndex, Chunk, Chunker, ChunkerConfig};
 pub use encryption::{EncryptedChunk, EncryptionAlgorithm, EncryptionKey};
 pub use error::ReduceError;
 pub use fingerprint::{ChunkHash, SuperFeatures};
+pub use gc::{GcConfig, GcEngine, GcStats};
 pub use pipeline::{PipelineConfig, ReducedChunk, ReductionPipeline, ReductionStats};
+pub use segment::{Segment, SegmentEntry, SegmentPacker, SegmentPackerConfig};
+pub use similarity::{DeltaCompressor, SimilarityIndex};

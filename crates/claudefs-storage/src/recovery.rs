@@ -1016,7 +1016,7 @@ mod tests {
 
     #[test]
     fn test_recovery_manager_mark_complete() {
-        let mut config = RecoveryConfig::default();
+        let config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
 
         manager.mark_complete();
@@ -1026,7 +1026,7 @@ mod tests {
 
     #[test]
     fn test_recovery_manager_mark_failed() {
-        let mut config = RecoveryConfig::default();
+        let config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
 
         manager.mark_failed("test error".to_string());
@@ -1038,7 +1038,7 @@ mod tests {
 
     #[test]
     fn test_recovery_manager_add_error() {
-        let mut config = RecoveryConfig::default();
+        let config = RecoveryConfig::default();
         let mut manager = RecoveryManager::new(config);
 
         manager.add_error("error 1".to_string());

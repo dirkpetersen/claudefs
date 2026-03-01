@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
-use crate::block::{BlockRef, BlockSize};
+use crate::block::{BlockId, BlockRef, BlockSize};
 use crate::device::DeviceRole;
 use crate::error::{StorageError, StorageResult};
 
@@ -465,14 +465,14 @@ impl HotSwapManager {
     pub fn fail_device(&self, device_idx: u16, reason: String) -> StorageResult<()> {
         let mut states = self.device_states.lock().unwrap();
 
-        let current_state = states
+        let current_state = *states
             .get(&device_idx)
             .ok_or_else(|| StorageError::DeviceError {
                 device: format!("device_{}", device_idx),
                 reason: "device not found".to_string(),
             })?;
 
-        if *current_state == DeviceState::Removed {
+        if current_state == DeviceState::Removed {
             return Err(StorageError::DeviceError {
                 device: format!("device_{}", device_idx),
                 reason: "cannot fail removed device".to_string(),
@@ -488,7 +488,7 @@ impl HotSwapManager {
         });
 
         let mut stats = self.stats.lock().unwrap();
-        if *current_state == DeviceState::Draining {
+        if current_state == DeviceState::Draining {
             stats.drains_failed += 1;
         }
 
