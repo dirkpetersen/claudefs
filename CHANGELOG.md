@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 2 Authentication Audit
+
+#### 2026-03-01 (A10 — Authentication Security Audit)
+
+##### A10: Security — 115 tests, 9 modules
+
+**Phase 1 (68 tests):** audit.rs (Finding types), fuzz_protocol.rs (19 frame fuzzing tests), fuzz_message.rs (11 deserialization tests), crypto_tests.rs (26 crypto property tests), transport_tests.rs (12 transport validation tests)
+
+**Phase 2 (47 new tests):** conduit_auth_tests.rs (15 tests — FINDING-05 through FINDING-09: TLS optional, sender spoofing, no batch integrity, key material exposure, no rate limiting), api_security_tests.rs (17 tests — FINDING-10 through FINDING-15: timing attack on token comparison, auth bypass, RBAC not wired, no rate limiting, no RBAC on drain), gateway_auth_tests.rs (21 tests — FINDING-16 through FINDING-20: predictable token generation, AUTH_SYS UID trust, plaintext tokens, mutex poisoning, no root squashing)
+
+**Audit report:** `docs/security/auth-audit.md` — 16 findings (6 HIGH, 7 MEDIUM, 3 LOW), 15 open, 1 accepted
+
+---
+
 ### A6: Replication — Phase 5 MILESTONE COMPLETE
 
 #### 2026-03-01 (A6 — Replication: All Phases Complete)
