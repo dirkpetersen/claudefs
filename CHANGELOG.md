@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 3 Production Readiness COMPLETE (MILESTONE)
+
+#### 2026-03-01 (A5 — FUSE Client: Phase 3 Production Readiness)
+
+##### A5: FUSE — 431 tests, 27 modules, 5 new production-readiness modules
+
+**Phase 3 (105 new tests, 5 new modules) — distributed tracing, quota enforcement, migration, health, capability negotiation:**
+
+1. `tracing_client.rs` — Distributed tracing for FUSE ops (25 tests):
+   - W3C TraceContext-compatible `TraceId` (u128/32-char hex) and `SpanId` (u64/16-char hex)
+   - `TraceContext::to_traceparent()` / `from_traceparent()` for propagation headers
+   - `FuseSpan` with op name, parent span, elapsed_us(), error tracking
+   - `FuseTracer` with 1-in-N sampling, max_active_spans cap, dropped/total counters
+
+2. `quota_enforce.rs` — Client-side quota enforcement with TTL cache (20 tests):
+   - `QuotaUsage` with bytes_used/soft/hard and inodes_used/soft/hard limits
+   - `QuotaStatus` enum: Ok / SoftExceeded / HardExceeded
+   - `QuotaEnforcer` with per-uid/gid cache, configurable TTL (default 30s)
+   - `check_write()` / `check_create()` return `Err(PermissionDenied)` on hard limit, `Ok(SoftExceeded)` on soft
+   - Expired entries treated as missing (permissive default — avoids blocking on stale state)
+
+3. `migration.rs` — Filesystem migration support — Priority 2 feature (25 tests):
+   - `MigrationEntry` with ino, kind, path, size, checksum fields
+   - `MigrationPhase` state machine: Idle → Scanning → Copying → Verifying → Done/Failed
+   - `MigrationCheckpoint` with resumable progress (entries_scanned, bytes_copied, last_path, errors)
+   - `MigrationManager::files()` / `directories()` filter, `compute_checksum()` for verification
+   - `can_resume()` check for checkpoint-based restart
+
+4. `health.rs` — FUSE client health monitoring and diagnostics (20 tests):
+   - `HealthStatus` enum: Healthy / Degraded { reason } / Unhealthy { reason }
+   - `ComponentHealth` (transport, cache, errors) with per-component status
+   - `HealthThresholds` (cache_hit_rate, error_rate degraded/unhealthy thresholds)
+   - `HealthReport` aggregates worst-of-all-components for overall status
+   - `HealthChecker` with `check_transport()`, `check_cache()`, `check_errors()`, `build_report()`
+
+5. `capability.rs` — Kernel capability negotiation and FUSE feature detection (15 tests):
+   - `KernelVersion` with parse("6.8.0"), `at_least()`, Ord, Display
+   - Named constants: `KERNEL_FUSE_PASSTHROUGH` (6.8), `KERNEL_ATOMIC_WRITES` (6.11), `KERNEL_DYNAMIC_IORING` (6.20)
+   - `PassthroughMode` enum: Full (≥6.8) / Partial (≥5.14) / None (<5.14)
+   - `NegotiatedCapabilities` for passthrough_mode, atomic_writes, dynamic_ioring, writeback_cache
+   - `CapabilityNegotiator` records negotiation result for session lifetime
+
+**MILESTONE: 431 tests, 27 modules, all passing, zero functional clippy errors**
+
+---
+
 ### A7: Protocol Gateways — Phase 7 COMPLETE (MILESTONE)
 
 #### 2026-03-01 (A7 — Protocol Gateways: Phase 7 Final Enhancements)
