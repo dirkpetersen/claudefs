@@ -5,7 +5,9 @@
 //! metadata operations, manages the lifecycle of all sub-components, and handles routing.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::fingerprint::FingerprintIndex;
 use crate::kvstore::{KvStore, MemoryKvStore};
@@ -68,6 +70,7 @@ pub struct MetadataNode {
     worm_mgr: WormManager,
     cdc_stream: CdcStream,
     raft_log: RaftLogStore,
+    inode_counter: AtomicU64,
 }
 
 impl MetadataNode {
@@ -121,6 +124,8 @@ impl MetadataNode {
 
         let cdc_stream = CdcStream::new(10000);
 
+        let inode_counter = AtomicU64::new(1);
+
         Ok(Self {
             config,
             kv,
@@ -139,6 +144,7 @@ impl MetadataNode {
             worm_mgr,
             cdc_stream,
             raft_log,
+            inode_counter,
         })
     }
 
@@ -152,6 +158,36 @@ impl MetadataNode {
         self.config.num_shards
     }
 
+    /// Returns a reference to the LeaseManager.
+    pub fn lease_manager(&self) -> &LeaseManager {
+        &self.lease_mgr
+    }
+
+    /// Returns a reference to the QuotaManager.
+    pub fn quota_manager(&self) -> &QuotaManager {
+        &self.quota_mgr
+    }
+
+    /// Returns a reference to the WormManager.
+    pub fn worm_manager(&self) -> &WormManager {
+        &self.worm_mgr
+    }
+
+    /// Returns a reference to the CdcStream.
+    pub fn cdc_stream(&self) -> &CdcStream {
+        &self.cdc_stream
+    }
+
+    /// Returns a reference to the WatchManager.
+    pub fn watch_manager(&self) -> &WatchManager {
+        &self.watch_mgr
+    }
+
+    /// Returns a reference to the ScalingManager.
+    pub fn scaling_manager(&self) -> &ScalingManager {
+        &self.scaling_mgr
+    }
+
     /// Creates a regular file.
     pub fn create_file(
         &self,
@@ -161,7 +197,55 @@ impl MetadataNode {
         gid: u32,
         mode: u32,
     ) -> Result<InodeAttr, MetaError> {
-        self.service.create_file(parent, name, uid, gid, mode)
+        let start = Instant::now();
+
+        self.quota_mgr.check_quota(uid, gid, 0, 1).inspect_err(|_e| {
+            let duration = start.elapsed().as_micros() as u64;
+            self.metrics
+                .record_op(MetricOp::CreateFile, duration, false);
+        })?;
+
+        let result = self.service.create_file(parent, name, uid, gid, mode);
+
+        match result {
+            Ok(attr) => {
+                self.quota_mgr.update_usage(uid, gid, 0, 1);
+                let _ = self.lease_mgr.revoke(parent);
+                self.watch_mgr.notify(WatchEvent::Create {
+                    parent,
+                    name: name.to_string(),
+                    ino: attr.ino,
+                });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateInode { attr: attr.clone() },
+                    self.config.site_id,
+                );
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateEntry {
+                        parent,
+                        name: name.to_string(),
+                        entry: DirEntry {
+                            name: name.to_string(),
+                            ino: attr.ino,
+                            file_type: attr.file_type,
+                        },
+                    },
+                    self.config.site_id,
+                );
+                self.inode_counter.fetch_add(1, Ordering::Relaxed);
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::CreateFile, duration, true);
+
+                Ok(attr)
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics
+                    .record_op(MetricOp::CreateFile, duration, false);
+                Err(e)
+            }
+        }
     }
 
     /// Creates a directory.
@@ -173,42 +257,243 @@ impl MetadataNode {
         gid: u32,
         mode: u32,
     ) -> Result<InodeAttr, MetaError> {
-        self.service.mkdir(parent, name, uid, gid, mode)
+        let start = Instant::now();
+
+        self.quota_mgr.check_quota(uid, gid, 0, 1).inspect_err(|_e| {
+            let duration = start.elapsed().as_micros() as u64;
+            self.metrics.record_op(MetricOp::Mkdir, duration, false);
+        })?;
+
+        let result = self.service.mkdir(parent, name, uid, gid, mode);
+
+        match result {
+            Ok(attr) => {
+                self.quota_mgr.update_usage(uid, gid, 0, 1);
+                let _ = self.lease_mgr.revoke(parent);
+                self.watch_mgr.notify(WatchEvent::Create {
+                    parent,
+                    name: name.to_string(),
+                    ino: attr.ino,
+                });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateInode { attr: attr.clone() },
+                    self.config.site_id,
+                );
+                let _ = self.cdc_stream.publish(
+                    MetaOp::CreateEntry {
+                        parent,
+                        name: name.to_string(),
+                        entry: DirEntry {
+                            name: name.to_string(),
+                            ino: attr.ino,
+                            file_type: attr.file_type,
+                        },
+                    },
+                    self.config.site_id,
+                );
+                self.inode_counter.fetch_add(1, Ordering::Relaxed);
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Mkdir, duration, true);
+
+                Ok(attr)
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Mkdir, duration, false);
+                Err(e)
+            }
+        }
     }
 
     /// Looks up a directory entry.
     pub fn lookup(&self, parent: InodeId, name: &str) -> Result<DirEntry, MetaError> {
-        let attr = self.service.lookup(parent, name)?;
-        Ok(DirEntry {
+        let start = Instant::now();
+        let result = self.service.lookup(parent, name).map(|attr| DirEntry {
             name: name.to_string(),
             ino: attr.ino,
             file_type: attr.file_type,
-        })
+        });
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::Lookup, duration, result.is_ok());
+
+        result
     }
 
     /// Gets inode attributes.
     pub fn getattr(&self, ino: InodeId) -> Result<InodeAttr, MetaError> {
-        self.service.getattr(ino)
+        let start = Instant::now();
+        let result = self.service.getattr(ino);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::Getattr, duration, result.is_ok());
+
+        result
     }
 
     /// Sets inode attributes.
     pub fn setattr(&self, ino: InodeId, attr: InodeAttr) -> Result<(), MetaError> {
-        self.service.setattr(ino, attr)
+        let start = Instant::now();
+
+        if let Some(worm_state) = self.worm_mgr.get_state(ino) {
+            if worm_state.is_protected() {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Setattr, duration, false);
+                return Err(MetaError::PermissionDenied);
+            }
+        }
+
+        let attr_for_cdc = attr.clone();
+        let result = self.service.setattr(ino, attr);
+
+        match result {
+            Ok(()) => {
+                let _ = self.lease_mgr.revoke(ino);
+                self.watch_mgr.notify(WatchEvent::AttrChange { ino });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::SetAttr {
+                        ino,
+                        attr: attr_for_cdc,
+                    },
+                    self.config.site_id,
+                );
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Setattr, duration, true);
+
+                Ok(())
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Setattr, duration, false);
+                Err(e)
+            }
+        }
     }
 
     /// Lists directory entries.
     pub fn readdir(&self, dir: InodeId) -> Result<Vec<DirEntry>, MetaError> {
-        self.service.readdir(dir)
+        let start = Instant::now();
+        let result = self.service.readdir(dir);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::Readdir, duration, result.is_ok());
+
+        result
     }
 
     /// Removes a file.
     pub fn unlink(&self, parent: InodeId, name: &str) -> Result<(), MetaError> {
-        self.service.unlink(parent, name)
+        let start = Instant::now();
+
+        let entry = self.service.lookup(parent, name)?;
+        let ino = entry.ino;
+
+        if let Some(worm_state) = self.worm_mgr.get_state(ino) {
+            if worm_state.is_protected() {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Unlink, duration, false);
+                return Err(MetaError::PermissionDenied);
+            }
+        }
+
+        let uid = entry.uid;
+        let gid = entry.gid;
+
+        let result = self.service.unlink(parent, name);
+
+        match result {
+            Ok(()) => {
+                self.quota_mgr.update_usage(uid, gid, 0, -1);
+                let _ = self.lease_mgr.revoke(parent);
+                let _ = self.lease_mgr.revoke(ino);
+                self.watch_mgr.notify(WatchEvent::Delete {
+                    parent,
+                    name: name.to_string(),
+                    ino,
+                });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::DeleteEntry {
+                        parent,
+                        name: name.to_string(),
+                    },
+                    self.config.site_id,
+                );
+                let _ = self
+                    .cdc_stream
+                    .publish(MetaOp::DeleteInode { ino }, self.config.site_id);
+                self.inode_counter.fetch_sub(1, Ordering::Relaxed);
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Unlink, duration, true);
+
+                Ok(())
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Unlink, duration, false);
+                Err(e)
+            }
+        }
     }
 
     /// Removes an empty directory.
     pub fn rmdir(&self, parent: InodeId, name: &str) -> Result<(), MetaError> {
-        self.service.rmdir(parent, name)
+        let start = Instant::now();
+
+        let entry = self.service.lookup(parent, name)?;
+        let ino = entry.ino;
+
+        if let Some(worm_state) = self.worm_mgr.get_state(ino) {
+            if worm_state.is_protected() {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Rmdir, duration, false);
+                return Err(MetaError::PermissionDenied);
+            }
+        }
+
+        let uid = entry.uid;
+        let gid = entry.gid;
+
+        let result = self.service.rmdir(parent, name);
+
+        match result {
+            Ok(()) => {
+                self.quota_mgr.update_usage(uid, gid, 0, -1);
+                let _ = self.lease_mgr.revoke(parent);
+                let _ = self.lease_mgr.revoke(ino);
+                self.watch_mgr.notify(WatchEvent::Delete {
+                    parent,
+                    name: name.to_string(),
+                    ino,
+                });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::DeleteEntry {
+                        parent,
+                        name: name.to_string(),
+                    },
+                    self.config.site_id,
+                );
+                let _ = self
+                    .cdc_stream
+                    .publish(MetaOp::DeleteInode { ino }, self.config.site_id);
+                self.inode_counter.fetch_sub(1, Ordering::Relaxed);
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Rmdir, duration, true);
+
+                Ok(())
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Rmdir, duration, false);
+                Err(e)
+            }
+        }
     }
 
     /// Renames a directory entry.
@@ -219,20 +504,72 @@ impl MetadataNode {
         dst_parent: InodeId,
         dst_name: &str,
     ) -> Result<(), MetaError> {
-        self.service
-            .rename(src_parent, src_name, dst_parent, dst_name)
+        let start = Instant::now();
+
+        let entry = self.service.lookup(src_parent, src_name)?;
+        let ino = entry.ino;
+
+        let result = self
+            .service
+            .rename(src_parent, src_name, dst_parent, dst_name);
+
+        match result {
+            Ok(()) => {
+                let _ = self.lease_mgr.revoke(src_parent);
+                let _ = self.lease_mgr.revoke(dst_parent);
+                let _ = self.lease_mgr.revoke(ino);
+                self.watch_mgr.notify(WatchEvent::Rename {
+                    old_parent: src_parent,
+                    old_name: src_name.to_string(),
+                    new_parent: dst_parent,
+                    new_name: dst_name.to_string(),
+                    ino,
+                });
+                let _ = self.cdc_stream.publish(
+                    MetaOp::Rename {
+                        src_parent,
+                        src_name: src_name.to_string(),
+                        dst_parent,
+                        dst_name: dst_name.to_string(),
+                    },
+                    self.config.site_id,
+                );
+
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Rename, duration, true);
+
+                Ok(())
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_micros() as u64;
+                self.metrics.record_op(MetricOp::Rename, duration, false);
+                Err(e)
+            }
+        }
     }
 
     /// Opens a file handle.
     pub fn open(&self, ino: InodeId, client_id: u64, flags: u32) -> Result<u64, MetaError> {
+        let start = Instant::now();
         let open_flags = OpenFlags::from_raw(flags);
         let fh = self.fh_mgr.open(ino, NodeId::new(client_id), open_flags);
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics.record_op(MetricOp::Open, duration, true);
+
         Ok(fh)
     }
 
     /// Closes a file handle.
     pub fn close(&self, fh: u64) -> Result<(), MetaError> {
-        self.fh_mgr.close(fh).map(|_| ())
+        let start = Instant::now();
+        let result = self.fh_mgr.close(fh).map(|_| ());
+
+        let duration = start.elapsed().as_micros() as u64;
+        self.metrics
+            .record_op(MetricOp::Close, duration, result.is_ok());
+
+        result
     }
 
     /// Returns a snapshot of current metrics.
@@ -257,25 +594,7 @@ impl MetadataNode {
 
     /// Returns the total inode count.
     pub fn inode_count(&self) -> u64 {
-        let root = self.service.getattr(InodeId::ROOT_INODE);
-        match root {
-            Ok(_attr) => {
-                let entries = self
-                    .service
-                    .readdir(InodeId::ROOT_INODE)
-                    .unwrap_or_default();
-                let mut count = 1u64;
-                for entry in &entries {
-                    if let Ok(eattr) = self.service.getattr(entry.ino) {
-                        if eattr.file_type == FileType::Directory {
-                            count += 1;
-                        }
-                    }
-                }
-                count
-            }
-            Err(_) => 0,
-        }
+        self.inode_counter.load(Ordering::Relaxed)
     }
 
     /// Returns whether the node is healthy.
