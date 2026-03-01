@@ -112,19 +112,26 @@ fn finding_cz_07_versioned_key_debug_redacted() {
 fn finding_cz_08_worm_policy_overwrite_compliance_gap() {
     let mut reducer = WormReducer::new();
 
-    reducer.register(123, RetentionPolicy::immutable_until(1000), 512);
+    reducer
+        .register(123, RetentionPolicy::immutable_until(1000), 512)
+        .unwrap();
     let (old_policy, old_size) = reducer.get(&123).unwrap();
     assert!(matches!(old_policy.mode, WormMode::Immutable));
     assert_eq!(*old_size, 512);
 
-    // FINDING-CZ-08: WormReducer::register() allows overwriting existing retention policies
-    // without any warning or validation. This is a compliance weakness - an older legal hold
-    // could be accidentally replaced with a shorter immutable period.
-    // A3 should add logic to prevent overwriting stronger policies with weaker ones.
-    reducer.register(123, RetentionPolicy::none(), 256);
-    let (new_policy, new_size) = reducer.get(&123).unwrap();
-    assert!(matches!(new_policy.mode, WormMode::None));
-    assert_eq!(*new_size, 256);
+    // FINDING-CZ-08 RESOLVED: WormReducer::register() now correctly rejects
+    // policy downgrades. Attempting to overwrite an Immutable policy with None
+    // should fail, preserving WORM compliance.
+    let result = reducer.register(123, RetentionPolicy::none(), 256);
+    assert!(
+        result.is_err(),
+        "FINDING-CZ-08: Policy downgrade should be rejected"
+    );
+
+    // Verify original policy is preserved
+    let (preserved_policy, preserved_size) = reducer.get(&123).unwrap();
+    assert!(matches!(preserved_policy.mode, WormMode::Immutable));
+    assert_eq!(*preserved_size, 512);
 }
 
 #[test]
