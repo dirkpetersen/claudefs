@@ -8,9 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 3: Production Readiness
 
-#### 2026-03-01 (A11 Session 4 - Connection Health Monitoring)
+#### 2026-03-01 (A11 Session 4 - Infrastructure Maintenance & Build Restoration)
 
-##### A11: Infrastructure & CI — Connection Health Monitoring Module (904 tests ✅)
+##### A11: Infrastructure & CI — Build Conflict Resolution & Health Monitoring (920 tests ✅)
 
 **New Transport Layer Features:**
 
@@ -25,12 +25,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
    - **Property-based tests**: proptest for random latency and failure injection
    - **Async compatibility**: Arc-wrapped for tokio::spawn shared state
 
-**Test Suite Status:**
-- ✅ Total: **904 tests passing** (up from 903, 1 new test suite)
-  - +1 health module tests (concurrent updates via Arc)
-- ✅ 0 clippy warnings, clean build
+**Infrastructure Maintenance Completed:**
 
-**Next Integration Points:**
+1. ✅ **Critical Build Conflict Resolution**:
+   - Fixed Cargo.toml merge conflicts from parallel builder work
+   - Resolved libc, io-uring, crypto, and compression dependencies
+   - Removed duplicate [target.'cfg(unix)'.dependencies] sections
+   - Cleaned up stale OpenCode input/output files (a1-*, a2-*)
+   - Verified all workspace members compile correctly
+
+2. ✅ **Test Suite Status:**
+   - ✅ Total: **920 tests passing** (up from 903)
+     - +17 new health module tests (health.rs)
+     - +16 additional tests from builder cleanup
+   - ✅ 0 compilation errors, clean build
+   - ✅ All workspace members compiling without errors
+
+**Next Integration Points for A4 Transport:**
 - Connection pooling (use health status to route around degraded connections)
 - QoS scheduler feedback (prioritize healthy connections)
 - RPC retry logic (exponential backoff for degraded/unhealthy)
