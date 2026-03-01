@@ -20,6 +20,7 @@ pub mod rpc;
 pub mod tcp;
 pub mod tls;
 pub mod tls_tcp;
+pub mod tracecontext;
 pub mod transport;
 
 pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
@@ -31,4 +32,8 @@ pub use qos::{
 };
 pub use tls::{TlsConfig, TlsConnector, TlsAcceptor};
 pub use tls_tcp::TlsTcpTransport;
+pub use tracecontext::{
+    TraceContext, TraceFlags, TraceId, TraceParent, TraceState, TRACEPARENT_HEADER,
+    TRACESTATE_HEADER,
+};
 pub use transport::{Transport, Connection, Listener};
