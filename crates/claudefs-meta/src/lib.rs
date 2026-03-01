@@ -117,6 +117,7 @@ pub use neg_cache::{NegCacheConfig, NegativeCache};
 pub use node::{ClusterStatus, DirEntryPlus, MetadataNode, MetadataNodeConfig, StatFs};
 pub use node_snapshot::NodeSnapshot;
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
+pub use prefetch::{PrefetchConfig, PrefetchEngine, PrefetchRequest, PrefetchResult};
 pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
 pub use raft_log::RaftLogStore;
