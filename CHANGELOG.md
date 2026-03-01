@@ -40,11 +40,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-### A8: Management — Phase 3 Complete (MILESTONE)
+### A8: Management — Phase 4 Complete (MILESTONE)
 
-#### 2026-03-01 (A8 — Management: Phases 1–3 Complete)
+#### 2026-03-01 (A8 — Management: Phases 1–4 Complete)
 
-##### A8: Management — 238 tests, 13 modules, 5,227 lines
+##### A8: Management — 337 tests, 17 modules, ~7,500 lines
+
+**Phase 4 additions (99 tests, 4 new modules):**
+1. `capacity.rs` — CapacityPlanner with linear regression (least-squares slope/intercept/r²), days_until_full projections, daily/weekly growth rates, Recommendation enum (Sufficient/PlanExpansion/OrderImmediately/Emergency) (18 tests)
+2. `events.rs` — Filesystem change data capture: FsEvent with EventKind (Created/Deleted/Modified/Renamed/OwnerChanged/PermissionChanged/Replicated/Tiered), tokio broadcast EventBus, WebhookSubscription with event-kind filtering (16 tests)
+3. `rbac.rs` — Role-based access control: 10 Permission variants, built-in roles (admin/operator/viewer/tenant-admin), RbacRegistry with check_permission, Admin implies all (18 tests)
+4. `migration.rs` — Data migration tracking: MigrationSource (NFS/Local/ClaudeFS/S3), MigrationState machine with valid-transition enforcement, MigrationJob with throughput-bps, MigrationRegistry (18 tests)
+
+##### A8: Management — 238 tests, 13 modules, 5,227 lines (Phase 3 summary)
 
 **Phase 1: Foundation (51 tests, 6 modules):**
 1. `config.rs` — `MgmtConfig` with serde JSON/TOML loading, cluster node addresses, Prometheus scrape config, DuckDB/Parquet paths, TLS cert options (5 tests)
