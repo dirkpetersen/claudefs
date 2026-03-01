@@ -22,8 +22,12 @@ pub mod dirshard;
 pub mod filehandle;
 /// CAS fingerprint index for deduplication
 pub mod fingerprint;
+/// Read-only follower query routing for relaxed POSIX mode
+pub mod follower_read;
 /// Inode operations
 pub mod inode;
+/// Inode generation numbers for NFS export consistency
+pub mod inode_gen;
 /// Metadata journal for replication
 pub mod journal;
 /// Journal tailing API for cross-site replication
@@ -32,6 +36,8 @@ pub mod journal_tailer;
 pub mod kvstore;
 /// Lease-based metadata caching
 pub mod lease;
+/// Automatic lease renewal with configurable TTL threshold
+pub mod lease_renew;
 /// Distributed lock manager
 pub mod locking;
 /// SWIM-based cluster membership tracking
@@ -93,9 +99,12 @@ pub use cross_shard::{CrossShardCoordinator, CrossShardResult};
 pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
 pub use fingerprint::FingerprintIndex;
+pub use follower_read::{FollowerReadConfig, FollowerReadRouter, ReadConsistency, ReadTarget};
+pub use inode_gen::{Generation, InodeGenManager, NfsFileHandle};
 pub use journal_tailer::{JournalTailer, ReplicationBatch, TailerConfig, TailerCursor};
 pub use kvstore::{KvStore, MemoryKvStore};
 pub use lease::{LeaseManager, LeaseType};
+pub use lease_renew::{LeaseRenewConfig, LeaseRenewManager, RenewalAction};
 pub use locking::{LockManager, LockType};
 pub use membership::{MemberInfo, MembershipEvent, MembershipManager, NodeState};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
