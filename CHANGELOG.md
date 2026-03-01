@@ -8,7 +8,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 2: Integration
 
-#### 2026-03-01
+#### 2026-03-01 (Later Session)
+
+##### A11: Infrastructure & CI — Phase 2 CI/CD Pipeline
+
+**Deliverables:**
+
+- ✅ **Fixed qos.rs compilation error** — removed malformed duplicate `WorkloadClass` enum causing "unclosed delimiter" error
+- ✅ **Designed GitHub Actions CI/CD pipeline** (`ci.yml`):
+  - Cargo check, test (parallel matrix), clippy, fmt, doc, coverage, release build
+  - Fast tests: A2 (417), A3 (223), A4 (58) — ~3 min
+  - Storage tests: A1 (60) — 45 min timeout for io_uring passthrough simulation
+  - Total: ~15 min serial gates
+  - Clippy: `-D warnings` enforcement (0 warnings)
+  - Coverage: cargo-tarpaulin → codecov
+
+- ✅ **Designed nightly integration workflow** (`nightly.yml`):
+  - Daily 2 AM UTC extended test suite with security audit
+  - Stress tests for storage (single-threaded)
+  - CVE scanning via rustsec
+  - Benchmark skeleton for Phase 3+
+
+- ✅ **Designed commit lint workflow** (`commit-lint.yml`):
+  - Validates all commits follow `[A#]` format per docs/agents.md
+  - Enforces per-agent accountability
+
+- ✅ **Documentation** (`docs/ci-cd.md`):
+  - Complete CI/CD architecture (workflows, deployment, troubleshooting)
+  - Cost analysis: well under free tier (~1000 min/month)
+  - Local development guide
+
+**Blockers:**
+- GitHub token lacks `workflow` scope — cannot push `.github/workflows/*` to GitHub
+- Created GitHub Issue #12 for human intervention (update token scope)
+
+**Status:** All workflows designed and locally prepared. Awaiting token scope fix.
+
+---
+
+#### 2026-03-01 (Earlier Session)
 
 ##### A2: Metadata Service — Phase 2 Progress (417 tests ✅)
 
