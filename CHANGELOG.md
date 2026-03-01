@@ -154,6 +154,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+### A1: Storage Engine — Phase 3 Production Readiness
+
+#### 2026-03-01 (A1 — Phase 3: Security Fix, Scrubbing, Proptest Hardening)
+
+**CRITICAL fix + 1 new module + proptest expansion:**
+
+1. **FINDING-21 fix (CRITICAL):** Use-after-close in ManagedDevice
+   - Replaced `Option<RawFd>` with `Option<std::fs::File>` for RAII ownership
+   - Removed unsafe `libc::close()` from Drop impl — File handles close automatically
+   - Eliminates double-close vulnerability and potential fd reuse attack
+
+2. `scrub.rs` (26 tests): Background data integrity verification
+   - ScrubConfig: rate-limited I/O, batch sizing, weekly scan schedule
+   - ScrubState: Idle → Running → Completed/Paused state machine
+   - verify_block: detects silent corruption via checksum verification
+   - Multi-device scheduling, batch retrieval, progress tracking
+
+3. Proptest expansion (12 new property-based tests):
+   - Write journal: sequence monotonicity, entries_since consistency, truncation
+   - I/O scheduler: priority ordering, enqueue/dequeue conservation
+   - Block cache: insert/get roundtrip, capacity enforcement
+   - Metrics: I/O accumulation correctness
+   - SMART: temperature conversion, health evaluation determinism
+
+**Total:** 434 tests (406 unit + 28 proptest), 26 modules, all passing.
+
+---
+
 ### A7: Protocol Gateways — Phase 3 Security Hardening COMPLETE
 
 #### 2026-03-01 (A7 — Phase 3: Production Readiness Security Fixes)
