@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 5 MILESTONE COMPLETE
+
+#### 2026-03-01 (A9 — Phase 5: E2E Write Path, Concurrency, Snapshot Tests)
+
+##### A9: Test & Validation — Phase 5 (691 total tests, 24 modules)
+
+**Phase 5 (102 new tests, 3 modules):**
+1. `write_path_e2e.rs` — Cross-crate end-to-end write path (58 tests): ReductionPipeline + BuddyAllocator + MockIoEngine, LZ4/Zstd/no-compression variants, write-read roundtrip through encrypt+compress, checksum verification, pipeline stats, compressible vs incompressible data ratios
+2. `concurrency_tests.rs` — Thread-safety tests (32 tests): ConcurrentAllocatorTest, ConcurrentReadTest, ConcurrentCompressTest, ConcurrentTestResult throughput, stress_test_mutex_map with 4 threads, Arc<RwLock> patterns
+3. `snapshot_tests.rs` — Snapshot and recovery (42 tests): SnapshotManager lifecycle (create/list/get/retain), SnapshotInfo fields, RetentionPolicy, RecoveryConfig/Manager, RecoveryPhase variants, AllocatorBitmap, JournalCheckpoint serialization
+
+**MILESTONE: 691 claudefs-tests tests, 24 modules, zero clippy errors**
+
+---
+
 ### A7: Protocol Gateways — Phase 5 Complete (MILESTONE)
 
 #### 2026-03-01 (A7 — Protocol Gateways: Phase 5 Advanced Modules)
