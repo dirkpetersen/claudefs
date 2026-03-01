@@ -42,6 +42,8 @@ pub mod pathres;
 pub mod qos;
 /// Per-user/group quota management
 pub mod quota;
+/// Persistent Raft log store for crash-safe consensus state
+pub mod raft_log;
 /// Raft-integrated metadata service (Phase 2)
 pub mod raftservice;
 /// Linearizable reads via ReadIndex protocol
