@@ -9,6 +9,9 @@ description = "ClaudeFS security audit: fuzzing harnesses, crypto property tests
 [dependencies]
 claudefs-transport = { path = "../claudefs-transport" }
 claudefs-reduce = { path = "../claudefs-reduce" }
+claudefs-repl = { path = "../claudefs-repl" }
+claudefs-gateway = { path = "../claudefs-gateway" }
+claudefs-mgmt = { path = "../claudefs-mgmt" }
 thiserror.workspace = true
 serde.workspace = true
 tracing.workspace = true
@@ -17,3 +20,7 @@ rand = "0.8"
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }
 proptest = "1.4"
+axum = { version = "0.7", features = ["macros", "json"] }
+tower = { version = "0.4", features = ["util"] }
+hyper = { version = "1.0", features = ["full"] }
+serde_json = "1.0"
