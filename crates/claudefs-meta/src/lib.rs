@@ -96,7 +96,7 @@ pub use locking::{LockManager, LockType};
 pub use membership::{MemberInfo, MembershipEvent, MembershipManager, NodeState};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use multiraft::MultiRaftManager;
-pub use node::{ClusterStatus, MetadataNode, MetadataNodeConfig, StatFs};
+pub use node::{ClusterStatus, DirEntryPlus, MetadataNode, MetadataNodeConfig, StatFs};
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
 pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
