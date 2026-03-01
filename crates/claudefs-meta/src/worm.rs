@@ -110,7 +110,7 @@ impl WormAuditEvent {
 }
 
 /// WORM entry for a protected file.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WormEntry {
     /// Inode ID of the protected file.
     pub ino: InodeId,
