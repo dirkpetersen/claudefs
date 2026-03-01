@@ -98,12 +98,6 @@ impl WorkloadClass {
     }
 }
 
-impl Default for WorkloadClass {
-    fn default() -> Self {
-        WorkloadClass::Management
-    }
-}
-
 /// Configuration for QoS parameters per workload class.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QosConfig {
