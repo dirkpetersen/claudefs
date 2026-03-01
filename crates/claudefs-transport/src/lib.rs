@@ -12,6 +12,7 @@
 pub mod buffer;
 pub mod connection;
 pub mod error;
+pub mod health;
 pub mod message;
 pub mod protocol;
 pub mod qos;
@@ -37,3 +38,4 @@ pub use tracecontext::{
     TRACESTATE_HEADER,
 };
 pub use transport::{Transport, Connection, Listener};
+pub use health::{HealthConfig, ConnectionHealth, HealthStatus, HealthMonitor, ReconnectPolicy};
