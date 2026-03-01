@@ -7,14 +7,17 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A key version identifier for tracking which KEK was used to wrap a DEK.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Ord, PartialOrd)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Ord, PartialOrd, Zeroize,
+)]
 pub struct KeyVersion(pub u32);
 
 /// A Data Encryption Key (DEK) — used to encrypt actual chunk data.
 /// In envelope encryption, the DEK is stored wrapped (encrypted) by the KEK.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct DataKey {
     /// Raw 32-byte key material
     pub key: [u8; 32],
@@ -38,7 +41,7 @@ pub struct WrappedKey {
 }
 
 /// A versioned Key Encryption Key (KEK / master key).
-#[derive(Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct VersionedKey {
     /// The key version
     pub version: KeyVersion,
@@ -184,12 +187,13 @@ impl KeyManager {
             .map_err(|e| ReduceError::EncryptionFailed(format!("{}", e)))?;
 
         let n = aes_gcm::Nonce::from_slice(&wrapped.nonce);
-        let decrypted = cipher
+        let mut plaintext = cipher
             .decrypt(n, wrapped.ciphertext.as_ref())
             .map_err(|_| ReduceError::DecryptionAuthFailed)?;
 
         let mut key = [0u8; 32];
-        key.copy_from_slice(&decrypted);
+        key.copy_from_slice(&plaintext);
+        plaintext.zeroize();
         Ok(DataKey { key })
     }
 
@@ -215,6 +219,18 @@ impl KeyManager {
 
     /// Clears all historical KEK versions.
     pub fn clear_history(&mut self) {
+        for (_, versioned_key) in self.kek_history.iter_mut() {
+            versioned_key.zeroize();
+        }
+        self.kek_history.clear();
+    }
+}
+
+impl Drop for KeyManager {
+    fn drop(&mut self) {
+        for (_, versioned_key) in self.kek_history.iter_mut() {
+            versioned_key.zeroize();
+        }
         self.kek_history.clear();
     }
 }
