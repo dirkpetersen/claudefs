@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct FencingToken(pub u64);

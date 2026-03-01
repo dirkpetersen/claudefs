@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BootstrapPhase {
@@ -94,7 +93,7 @@ impl BootstrapCoordinator {
     pub fn update_snapshot_progress(&mut self, bytes_received: u64) {
         if let BootstrapPhase::SnapshotTransfer {
             bytes_received: old_received,
-            bytes_total,
+            bytes_total: _,
             ..
         } = &mut self.phase
         {
@@ -116,7 +115,7 @@ impl BootstrapCoordinator {
     pub fn update_catchup_progress(&mut self, current_seq: u64) {
         if let BootstrapPhase::JournalCatchup {
             current_seq: old_seq,
-            target_seq,
+            target_seq: _,
             ..
         } = &mut self.phase
         {
