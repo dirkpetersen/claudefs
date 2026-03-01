@@ -15,30 +15,38 @@ pub enum FadviseHint {
 }
 
 impl FadviseHint {
+    pub const POSIX_FADV_NORMAL: i32 = 0;
+    pub const POSIX_FADV_RANDOM: i32 = 1;
+    pub const POSIX_FADV_SEQUENTIAL: i32 = 2;
+    pub const POSIX_FADV_WILLNEED: i32 = 3;
+    pub const POSIX_FADV_DONTNEED: i32 = 4;
+    pub const POSIX_FADV_NOREUSE: i32 = 5;
+
     pub fn from_linux_const(val: i32) -> Option<Self> {
         match val {
-            1 => Some(Self::Sequential),
-            2 => Some(Self::Random),
-            3 => Some(Self::WillNeed),
-            4 => Some(Self::DontNeed),
-            5 => Some(Self::NoReuse),
-            _ => Some(Self::Normal),
+            Self::POSIX_FADV_SEQUENTIAL => Some(Self::Sequential),
+            Self::POSIX_FADV_RANDOM => Some(Self::Random),
+            Self::POSIX_FADV_WILLNEED => Some(Self::WillNeed),
+            Self::POSIX_FADV_DONTNEED => Some(Self::DontNeed),
+            Self::POSIX_FADV_NOREUSE => Some(Self::NoReuse),
+            Self::POSIX_FADV_NORMAL => Some(Self::Normal),
+            _ => None,
         }
     }
 
     pub fn readahead_multiplier(&self) -> u32 {
         match self {
+            Self::Normal => 1,
             Self::Sequential => 4,
             Self::Random => 0,
             Self::WillNeed => 2,
-            Self::NoReuse => 1,
-            Self::DontNeed => 1,
-            Self::Normal => 1,
+            Self::DontNeed => 0,
+            Self::NoReuse => 0,
         }
     }
 
     pub fn suppresses_readahead(&self) -> bool {
-        matches!(self, Self::Random)
+        matches!(self, Self::Random | Self::DontNeed | Self::NoReuse)
     }
 }
 
@@ -130,16 +138,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_from_linux_const_sequential() {
-        assert_eq!(
-            FadviseHint::from_linux_const(1),
-            Some(FadviseHint::Sequential)
-        );
+    fn test_from_linux_const_normal() {
+        assert_eq!(FadviseHint::from_linux_const(0), Some(FadviseHint::Normal));
     }
 
     #[test]
     fn test_from_linux_const_random() {
-        assert_eq!(FadviseHint::from_linux_const(2), Some(FadviseHint::Random));
+        assert_eq!(FadviseHint::from_linux_const(1), Some(FadviseHint::Random));
+    }
+
+    #[test]
+    fn test_from_linux_const_sequential() {
+        assert_eq!(
+            FadviseHint::from_linux_const(2),
+            Some(FadviseHint::Sequential)
+        );
     }
 
     #[test]
@@ -164,9 +177,13 @@ mod tests {
     }
 
     #[test]
-    fn test_from_linux_const_default_normal() {
-        assert_eq!(FadviseHint::from_linux_const(0), Some(FadviseHint::Normal));
-        assert_eq!(FadviseHint::from_linux_const(99), Some(FadviseHint::Normal));
+    fn test_from_linux_const_unknown_returns_none() {
+        assert_eq!(FadviseHint::from_linux_const(99), None);
+    }
+
+    #[test]
+    fn test_readahead_multiplier_normal() {
+        assert_eq!(FadviseHint::Normal.readahead_multiplier(), 1);
     }
 
     #[test]
@@ -185,18 +202,13 @@ mod tests {
     }
 
     #[test]
-    fn test_readahead_multiplier_normal() {
-        assert_eq!(FadviseHint::Normal.readahead_multiplier(), 1);
-    }
-
-    #[test]
     fn test_readahead_multiplier_dontneed() {
-        assert_eq!(FadviseHint::DontNeed.readahead_multiplier(), 1);
+        assert_eq!(FadviseHint::DontNeed.readahead_multiplier(), 0);
     }
 
     #[test]
     fn test_readahead_multiplier_noreuse() {
-        assert_eq!(FadviseHint::NoReuse.readahead_multiplier(), 1);
+        assert_eq!(FadviseHint::NoReuse.readahead_multiplier(), 0);
     }
 
     #[test]
@@ -205,12 +217,20 @@ mod tests {
     }
 
     #[test]
+    fn test_suppresses_readahead_dontneed() {
+        assert!(FadviseHint::DontNeed.suppresses_readahead());
+    }
+
+    #[test]
+    fn test_suppresses_readahead_noreuse() {
+        assert!(FadviseHint::NoReuse.suppresses_readahead());
+    }
+
+    #[test]
     fn test_suppresses_readahead_others() {
         assert!(!FadviseHint::Normal.suppresses_readahead());
         assert!(!FadviseHint::Sequential.suppresses_readahead());
         assert!(!FadviseHint::WillNeed.suppresses_readahead());
-        assert!(!FadviseHint::DontNeed.suppresses_readahead());
-        assert!(!FadviseHint::NoReuse.suppresses_readahead());
     }
 
     #[test]

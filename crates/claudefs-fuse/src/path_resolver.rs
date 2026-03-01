@@ -61,8 +61,8 @@ impl Default for PathResolverConfig {
     fn default() -> Self {
         Self {
             max_depth: 64,
-            cache_capacity: 1024,
-            ttl: Duration::from_secs(60),
+            cache_capacity: 1000,
+            ttl: Duration::from_secs(30),
         }
     }
 }
@@ -485,8 +485,8 @@ mod tests {
     fn test_default_config() {
         let config = PathResolverConfig::default();
         assert_eq!(config.max_depth, 64);
-        assert_eq!(config.cache_capacity, 1024);
-        assert_eq!(config.ttl, Duration::from_secs(60));
+        assert_eq!(config.cache_capacity, 1000);
+        assert_eq!(config.ttl, Duration::from_secs(30));
     }
 
     #[test]
