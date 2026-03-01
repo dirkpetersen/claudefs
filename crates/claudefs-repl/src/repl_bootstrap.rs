@@ -1,55 +1,89 @@
 use serde::{Deserialize, Serialize};
 
+/// Phases of replication bootstrap for a new replica site.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BootstrapPhase {
+    /// No bootstrap in progress.
     Idle,
+    /// Enrolling with primary site.
     Enrolling {
+        /// ID of the primary site.
         primary_site: u64,
     },
+    /// Transferring snapshot data from primary.
     SnapshotTransfer {
+        /// ID of the primary site.
         primary_site: u64,
+        /// Bytes received so far.
         bytes_received: u64,
+        /// Total bytes to receive.
         bytes_total: u64,
     },
+    /// Catching up journal entries after snapshot.
     JournalCatchup {
+        /// ID of the primary site.
         primary_site: u64,
+        /// Journal sequence to start from.
         start_seq: u64,
+        /// Current journal sequence being applied.
         current_seq: u64,
+        /// Target journal sequence for catchup.
         target_seq: u64,
     },
+    /// Bootstrap completed successfully.
     Complete {
+        /// Nanosecond timestamp of enrollment completion.
         enrolled_at_ns: u64,
     },
+    /// Bootstrap failed.
     Failed {
+        /// Reason for failure.
         reason: String,
     },
 }
 
+/// Record of a replica site's enrollment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnrollmentRecord {
+    /// ID of the enrolled site.
     pub site_id: u64,
+    /// Name of the enrolled site.
     pub site_name: String,
+    /// Timestamp of enrollment completion.
     pub enrolled_at_ns: u64,
+    /// Initial journal sequence at enrollment.
     pub initial_seq: u64,
+    /// TLS certificate fingerprint of enrolled site.
     pub tls_fingerprint: Option<String>,
 }
 
+/// Progress information for bootstrap operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BootstrapProgress {
+    /// Current phase of bootstrap.
     pub phase: BootstrapPhase,
+    /// Percentage of bootstrap complete (0-100).
     pub percent_complete: u8,
+    /// Elapsed milliseconds since bootstrap start.
     pub elapsed_ms: u64,
 }
 
+/// Statistics for bootstrap operations.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BootstrapStats {
+    /// Number of bootstrap attempts.
     pub bootstrap_attempts: u64,
+    /// Number of successful bootstraps.
     pub bootstrap_successes: u64,
+    /// Number of failed bootstraps.
     pub bootstrap_failures: u64,
+    /// Total bytes transferred in snapshots.
     pub total_bytes_transferred: u64,
+    /// Total journal entries caught up.
     pub total_journal_entries_caught_up: u64,
 }
 
+/// Coordinator for bootstrapping new replica sites.
 pub struct BootstrapCoordinator {
     local_site_id: u64,
     phase: BootstrapPhase,
@@ -59,6 +93,7 @@ pub struct BootstrapCoordinator {
 }
 
 impl BootstrapCoordinator {
+    /// Creates a new bootstrap coordinator for the given local site.
     pub fn new(local_site_id: u64) -> Self {
         Self {
             local_site_id,
@@ -69,6 +104,7 @@ impl BootstrapCoordinator {
         }
     }
 
+    /// Starts enrollment with the primary site.
     pub fn start_enroll(&mut self, primary_site: u64, started_at_ns: u64) {
         self.phase = BootstrapPhase::Enrolling { primary_site };
         self.started_at_ns = started_at_ns;
@@ -82,6 +118,7 @@ impl BootstrapCoordinator {
         });
     }
 
+    /// Begins snapshot transfer phase.
     pub fn begin_snapshot(&mut self, primary_site: u64, bytes_total: u64) {
         self.phase = BootstrapPhase::SnapshotTransfer {
             primary_site,
@@ -90,6 +127,7 @@ impl BootstrapCoordinator {
         };
     }
 
+    /// Updates snapshot transfer progress.
     pub fn update_snapshot_progress(&mut self, bytes_received: u64) {
         if let BootstrapPhase::SnapshotTransfer {
             bytes_received: old_received,
@@ -103,6 +141,7 @@ impl BootstrapCoordinator {
         }
     }
 
+    /// Begins journal catchup phase after snapshot.
     pub fn begin_journal_catchup(&mut self, primary_site: u64, start_seq: u64, target_seq: u64) {
         self.phase = BootstrapPhase::JournalCatchup {
             primary_site,
@@ -112,6 +151,7 @@ impl BootstrapCoordinator {
         };
     }
 
+    /// Updates journal catchup progress.
     pub fn update_catchup_progress(&mut self, current_seq: u64) {
         if let BootstrapPhase::JournalCatchup {
             current_seq: old_seq,
@@ -127,6 +167,7 @@ impl BootstrapCoordinator {
         }
     }
 
+    /// Marks bootstrap as complete.
     pub fn complete(&mut self, at_ns: u64, tls_fingerprint: Option<String>) {
         self.stats.bootstrap_successes += 1;
         if let Some(enrollment) = &mut self.enrollment {
@@ -141,11 +182,13 @@ impl BootstrapCoordinator {
         }
     }
 
+    /// Marks bootstrap as failed.
     pub fn fail(&mut self, reason: String) {
         self.stats.bootstrap_failures += 1;
         self.phase = BootstrapPhase::Failed { reason };
     }
 
+    /// Returns current bootstrap progress.
     pub fn progress(&self, now_ns: u64) -> BootstrapProgress {
         let percent_complete = match &self.phase {
             BootstrapPhase::Idle => 0,
@@ -173,18 +216,22 @@ impl BootstrapCoordinator {
         }
     }
 
+    /// Returns current bootstrap phase.
     pub fn phase(&self) -> &BootstrapPhase {
         &self.phase
     }
 
+    /// Returns the enrollment record if bootstrap completed.
     pub fn enrollment(&self) -> Option<&EnrollmentRecord> {
         self.enrollment.as_ref()
     }
 
+    /// Returns bootstrap statistics.
     pub fn stats(&self) -> &BootstrapStats {
         &self.stats
     }
 
+    /// Returns true if bootstrap is in progress.
     pub fn is_active(&self) -> bool {
         matches!(
             self.phase,
