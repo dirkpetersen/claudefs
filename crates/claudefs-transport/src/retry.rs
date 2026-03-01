@@ -238,6 +238,7 @@ pub fn is_retryable(error: &TransportError) -> bool {
         TransportError::RdmaNotAvailable { .. } => false,
         TransportError::TlsError { .. } => false,
         TransportError::SerializationError(_) => false,
+        TransportError::ServerDraining { .. } => false,
     }
 }
 

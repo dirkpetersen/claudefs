@@ -103,6 +103,13 @@ pub enum TransportError {
     #[error("Serialization error: {0}")]
     SerializationError(String),
 
+    /// Server is draining and not accepting new requests.
+    #[error("Server draining, rejecting request {request_id}")]
+    ServerDraining {
+        /// Request identifier that was rejected.
+        request_id: u64,
+    },
+
     /// I/O error from the standard library.
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
