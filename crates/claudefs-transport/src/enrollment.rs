@@ -907,7 +907,7 @@ mod tests {
         let ca = ClusterCA::new(&config).unwrap();
         let service = EnrollmentService::new(ca, config);
 
-        assert_eq!(service.ca_cert_pem().len(), service.ca_fingerprint().len());
+        assert!(!service.ca_cert_pem().is_empty());
         assert_eq!(service.ca_fingerprint().len(), 64);
     }
 

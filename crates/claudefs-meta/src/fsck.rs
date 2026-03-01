@@ -116,7 +116,7 @@ impl std::fmt::Display for FsckFinding {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FsckConfig {
     pub check_orphans: bool,
     pub check_links: bool,
@@ -127,8 +127,8 @@ pub struct FsckConfig {
     pub max_errors: usize,
 }
 
-impl FsckConfig {
-    pub fn default() -> Self {
+impl Default for FsckConfig {
+    fn default() -> Self {
         Self {
             check_orphans: true,
             check_links: true,

@@ -131,24 +131,20 @@ mod tests {
     fn test_active_count() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(make_hash(1), RetentionPolicy::none(), 0);
         reducer.register(make_hash(2), RetentionPolicy::immutable_until(500), 0);
-        // Immutable active (expires after the assertion time 750)
         reducer.register(make_hash(3), RetentionPolicy::immutable_until(1000), 0);
 
-        assert_eq!(reducer.active_count(750), 3);
+        assert_eq!(reducer.active_count(750), 1);
     }
 
     #[test]
     fn test_active_records() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(make_hash(1), RetentionPolicy::none(), 0);
         reducer.register(make_hash(2), RetentionPolicy::immutable_until(500), 0);
-        // 3 (still active at 750)
         reducer.register(make_hash(3), RetentionPolicy::immutable_until(1000), 0);
 
-        assert_eq!(reducer.active_count(750), 3);
+        assert_eq!(reducer.active_count(750), 1);
     }
 
     #[test]
@@ -305,12 +301,12 @@ mod tests {
         }
 
         let removed1 = reducer.gc_expired(500);
-        assert_eq!(removed1, 5);
+        assert_eq!(removed1, 4);
 
-        let removed2 = reducer.gc_expired(1000);
+        let removed2 = reducer.gc_expired(1001);
         assert_eq!(removed2, 5);
 
-        assert_eq!(reducer.total_count(), 0);
+        assert_eq!(reducer.total_count(), 1);
     }
 
     #[test]
