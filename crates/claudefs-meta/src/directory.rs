@@ -379,4 +379,128 @@ mod tests {
             other => panic!("expected NotADirectory, got {:?}", other),
         }
     }
+
+    #[test]
+    fn test_rename_nonexistent_source() {
+        let (_kv, _inodes, dirs) = make_stores();
+        match dirs.rename(InodeId::ROOT_INODE, "nonexistent", InodeId::ROOT_INODE, "target") {
+            Err(MetaError::EntryNotFound { .. }) => {}
+            other => panic!("expected EntryNotFound, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_rename_overwrites_existing() {
+        let (_kv, inodes, dirs) = make_stores();
+        let ino_a = inodes.allocate_inode();
+        inodes
+            .create_inode(&InodeAttr::new_file(ino_a, 1000, 1000, 0o644, 1))
+            .unwrap();
+        let ino_b = inodes.allocate_inode();
+        inodes
+            .create_inode(&InodeAttr::new_file(ino_b, 1000, 1000, 0o644, 1))
+            .unwrap();
+        dirs.create_entry(
+            InodeId::ROOT_INODE,
+            &DirEntry { name: "a".into(), ino: ino_a, file_type: FileType::RegularFile },
+        )
+        .unwrap();
+        dirs.create_entry(
+            InodeId::ROOT_INODE,
+            &DirEntry { name: "b".into(), ino: ino_b, file_type: FileType::RegularFile },
+        )
+        .unwrap();
+        dirs.rename(InodeId::ROOT_INODE, "a", InodeId::ROOT_INODE, "b")
+            .unwrap();
+        assert!(matches!(
+            dirs.lookup(InodeId::ROOT_INODE, "a"),
+            Err(MetaError::EntryNotFound { .. })
+        ));
+        assert_eq!(dirs.lookup(InodeId::ROOT_INODE, "b").unwrap().ino, ino_a);
+    }
+
+    #[test]
+    fn test_delete_nonexistent_entry() {
+        let (_kv, _inodes, dirs) = make_stores();
+        assert!(matches!(
+            dirs.delete_entry(InodeId::ROOT_INODE, "nonexistent"),
+            Err(MetaError::EntryNotFound { .. })
+        ));
+    }
+
+    #[test]
+    fn test_lookup_nonexistent_entry() {
+        let (_kv, _inodes, dirs) = make_stores();
+        assert!(matches!(
+            dirs.lookup(InodeId::ROOT_INODE, "nonexistent"),
+            Err(MetaError::EntryNotFound { .. })
+        ));
+    }
+
+    #[test]
+    fn test_list_empty_directory() {
+        let (_kv, _inodes, dirs) = make_stores();
+        assert!(dirs.list_entries(InodeId::ROOT_INODE).unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_create_entry_in_nonexistent_parent() {
+        let (_kv, inodes, dirs) = make_stores();
+        let ino = inodes.allocate_inode();
+        inodes
+            .create_inode(&InodeAttr::new_file(ino, 1000, 1000, 0o644, 1))
+            .unwrap();
+        let entry = DirEntry { name: "f.txt".into(), ino, file_type: FileType::RegularFile };
+        assert!(matches!(
+            dirs.create_entry(InodeId::new(999), &entry),
+            Err(MetaError::InodeNotFound(_))
+        ));
+    }
+
+    #[test]
+    fn test_multiple_directories() {
+        let (_kv, inodes, dirs) = make_stores();
+        let d1 = inodes.allocate_inode();
+        inodes
+            .create_inode(&InodeAttr::new_directory(d1, 1000, 1000, 0o755, 1))
+            .unwrap();
+        let d2 = inodes.allocate_inode();
+        inodes
+            .create_inode(&InodeAttr::new_directory(d2, 1000, 1000, 0o755, 1))
+            .unwrap();
+        dirs.create_entry(
+            InodeId::ROOT_INODE,
+            &DirEntry { name: "d1".into(), ino: d1, file_type: FileType::Directory },
+        )
+        .unwrap();
+        dirs.create_entry(
+            InodeId::ROOT_INODE,
+            &DirEntry { name: "d2".into(), ino: d2, file_type: FileType::Directory },
+        )
+        .unwrap();
+        let f1 = inodes.allocate_inode();
+        inodes
+            .create_inode(&InodeAttr::new_file(f1, 1000, 1000, 0o644, 1))
+            .unwrap();
+        let f2 = inodes.allocate_inode();
+        inodes
+            .create_inode(&InodeAttr::new_file(f2, 1000, 1000, 0o644, 1))
+            .unwrap();
+        dirs.create_entry(
+            d1,
+            &DirEntry { name: "f1.txt".into(), ino: f1, file_type: FileType::RegularFile },
+        )
+        .unwrap();
+        dirs.create_entry(
+            d2,
+            &DirEntry { name: "f2.txt".into(), ino: f2, file_type: FileType::RegularFile },
+        )
+        .unwrap();
+        let e1 = dirs.list_entries(d1).unwrap();
+        assert_eq!(e1.len(), 1);
+        assert_eq!(e1[0].name, "f1.txt");
+        let e2 = dirs.list_entries(d2).unwrap();
+        assert_eq!(e2.len(), 1);
+        assert_eq!(e2[0].name, "f2.txt");
+    }
 }
