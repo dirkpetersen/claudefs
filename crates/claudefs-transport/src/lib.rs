@@ -13,6 +13,7 @@ pub mod batch;
 pub mod buffer;
 pub mod circuitbreaker;
 pub mod client;
+pub mod compress;
 pub mod connection;
 pub mod deadline;
 pub mod discovery;
@@ -44,6 +45,10 @@ pub mod version;
 pub use batch::{
     BatchConfig, BatchCollector, BatchEnvelope, BatchItem, BatchRequest, BatchResponse,
     BatchResult, BatchStats, BatchStatsSnapshot,
+};
+pub use compress::{
+    CompressionAlgorithm, CompressionConfig, CompressedPayload, Compressor,
+    CompressionStats, CompressionStatsSnapshot,
 };
 pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
 pub use client::{TransportClient, TransportClientConfig};
