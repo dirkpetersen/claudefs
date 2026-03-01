@@ -619,6 +619,8 @@ name = "claudefs-security"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "bincode",
+ "blake3",
  "claudefs-fuse",
  "claudefs-gateway",
  "claudefs-mgmt",
@@ -626,16 +628,19 @@ dependencies = [
  "claudefs-repl",
  "claudefs-storage",
  "claudefs-transport",
+ "hkdf",
  "hyper",
  "proptest",
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror",
  "tokio",
  "tower 0.4.13",
  "tracing",
  "urlencoding",
+ "zeroize",
 ]
 
 [[package]]

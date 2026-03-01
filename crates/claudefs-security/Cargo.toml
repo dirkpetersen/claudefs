@@ -23,7 +23,12 @@ rand = "0.8"
 tokio = { workspace = true, features = ["test-util", "macros"] }
 proptest = "1.4"
 axum = { version = "0.7", features = ["macros", "json"] }
-tower = { version = "0.4", features = ["util"] }
+tower = { version = "0.4", features = ["util", "timeout", "limit"] }
 hyper = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 urlencoding = "2.1"
+bincode.workspace = true
+sha2.workspace = true
+hkdf.workspace = true
+blake3.workspace = true
+zeroize = { version = "1.7", features = ["derive"] }
