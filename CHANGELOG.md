@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A7: Protocol Gateways — Phase 3 Production Readiness (Additional Modules)
+
+#### 2026-03-01 (A7 — Phase 3 Production Readiness Additions)
+
+**5 new production-readiness modules, 808 total gateway tests (+122 from 686):**
+
+1. **gateway_tls.rs** (~22 tests): TLS/mTLS configuration for HTTPS S3 endpoint and secure NFS
+   - TlsVersion (Tls12/Tls13), CipherPreference (Modern/Compatible/Legacy)
+   - CertSource (PemFiles/InMemory), ClientCertMode (None/Optional/Required)
+   - AlpnProtocol (Http11/Http2/Nfs), TlsConfig with sensible defaults
+   - TlsConfigValidator with detailed error types, TlsRegistry for endpoint management
+
+2. **nfs_delegation.rs** (~20 tests): NFSv4 file delegation management
+   - DelegationType (Read/Write), DelegationState (Granted/RecallPending/Returned/Revoked)
+   - DelegationId (random 16-byte stateid), Delegation lifecycle (grant/recall/return/revoke)
+   - DelegationManager: Write-delegation conflict detection, per-client revocation, file-level recall
+
+3. **s3_notification.rs** (~21 tests): S3-compatible event notification routing
+   - NotificationEvent (ObjectCreated/ObjectRemoved/ObjectRestored/ReducedRedundancyLostObject)
+   - NotificationFilter with prefix/suffix matching, NotificationConfig with enable/disable
+   - NotificationManager: per-bucket subscriptions, event routing, delivery count metrics
+
+4. **perf_config.rs** (~22 tests): Gateway performance tuning configuration
+   - BufferConfig, ConnectionConfig, TimeoutConfig with protocol-specific defaults
+   - AutoTuneConfig (Disabled/Conservative/Aggressive modes)
+   - PerfConfig::for_protocol() with NFS/S3/pNFS/SMB tuning profiles
+   - PerfConfigValidator with comprehensive error types
+
+5. **gateway_audit.rs** (~23 tests): Security audit trail for gateway events
+   - AuditSeverity (Info/Warning/Critical), AuditEventType (AuthSuccess/AuthFailure/ExportViolation/etc.)
+   - AuditRecord with severity derived from event type
+   - AuditTrail: ring-buffer with configurable max_records, severity/type filtering, metrics
+
+**A7 milestone:** 808 tests, 40 modules, Phase 3 production readiness complete.
+
 ### A11: Infrastructure & CI — Phase 3 Production Readiness Planning
 
 #### 2026-03-01 (A11 — Phase 3 Production Readiness)
