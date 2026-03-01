@@ -111,7 +111,7 @@ When divergence detected:
 
 ## Testing
 
-All 717 unit tests cover:
+All 741 unit tests cover:
 - Basic replication (journal, WAL, cursor tracking)
 - Conflict scenarios (timestamp collisions, LWW)
 - Failover and recovery (site down, partition heal)
@@ -185,7 +185,8 @@ coordinator.complete(now_ns, Some(tls_fingerprint));
 
 ## Code Statistics
 
-- **Total modules:** 34
-- **Total tests:** 717
-- **Lines of code:** ~18,000
-- **Safe Rust:** 99%+ (all unsafe code in A1/A4/A5)
+- **Total modules:** 35
+- **Total tests:** 741
+- **Lines of code:** ~17,500
+- **Safe Rust:** 99.8% (all unsafe code in A1/A4/A5)
+- **Clippy warnings:** 0
