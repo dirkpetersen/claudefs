@@ -557,7 +557,7 @@ mod tests {
     #[test]
     fn test_detect_pattern_sequential() {
         let config = create_test_config();
-        let engine = TieringPolicyEngine::new(config);
+        let mut engine = TieringPolicyEngine::new(config);
 
         engine.register_segment(1, 4096, 100);
         for _ in 0..10 {
@@ -570,7 +570,7 @@ mod tests {
     #[test]
     fn test_detect_pattern_random() {
         let config = create_test_config();
-        let engine = TieringPolicyEngine::new(config);
+        let mut engine = TieringPolicyEngine::new(config);
 
         engine.register_segment(1, 4096, 100);
         for _ in 0..10 {
@@ -583,7 +583,7 @@ mod tests {
     #[test]
     fn test_detect_pattern_write_heavy() {
         let config = create_test_config();
-        let engine = TieringPolicyEngine::new(config);
+        let mut engine = TieringPolicyEngine::new(config);
 
         engine.register_segment(1, 4096, 100);
         for _ in 0..100 {
@@ -596,7 +596,7 @@ mod tests {
     #[test]
     fn test_detect_pattern_write_once_read_many() {
         let config = create_test_config();
-        let engine = TieringPolicyEngine::new(config);
+        let mut engine = TieringPolicyEngine::new(config);
 
         engine.register_segment(1, 4096, 100);
         engine.record_access(1, 4096, true, true, 200);
@@ -611,7 +611,7 @@ mod tests {
     #[test]
     fn test_detect_pattern_unknown() {
         let config = create_test_config();
-        let engine = TieringPolicyEngine::new(config);
+        let mut engine = TieringPolicyEngine::new(config);
 
         engine.register_segment(1, 4096, 100);
 
@@ -624,7 +624,7 @@ mod tests {
         config.recency_weight = 1.0;
         config.size_weight = 0.5;
         config.frequency_weight = 0.3;
-        let engine = TieringPolicyEngine::new(config);
+        let mut engine = TieringPolicyEngine::new(config);
 
         engine.register_segment(1, 1024 * 1024 * 10, 100);
 
@@ -639,7 +639,7 @@ mod tests {
         config.recency_weight = 1.0;
         config.size_weight = 0.5;
         config.frequency_weight = 0.3;
-        let engine = TieringPolicyEngine::new(config);
+        let mut engine = TieringPolicyEngine::new(config);
 
         engine.register_segment(1, 1024, 100);
         for _ in 0..10 {

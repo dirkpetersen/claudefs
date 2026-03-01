@@ -18,7 +18,7 @@ impl std::fmt::Debug for EncryptionKey {
 }
 
 /// 96-bit (12-byte) nonce for AEAD ciphers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Nonce(pub [u8; 12]);
 
 /// AEAD cipher selection

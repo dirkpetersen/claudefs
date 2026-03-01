@@ -1,12 +1,9 @@
 #![warn(missing_docs)]
 
-//! ClaudeFS FUSE subsystem: FUSE v3 daemon, passthrough mode, client-side caching.
-//!
-//! This crate implements the FUSE v3 filesystem daemon for ClaudeFS.
-//! It handles all VFS operations from the kernel and dispatches them to
-//! the metadata service (claudefs-meta) and transport layer (claudefs-transport).
+//! ClaudeFS FUSE subsystem.
 
 pub mod attr;
+// pub mod buffer_pool;  // TODO: A5 Phase 3 Round 2 — incomplete stub
 pub mod cache;
 pub mod cache_coherence;
 pub mod capability;
@@ -18,6 +15,7 @@ pub mod dir_cache;
 pub mod dirnotify;
 pub mod error;
 pub mod fallocate;
+pub mod fadvise;
 pub mod filesystem;
 pub mod flock;
 pub mod health;
@@ -29,11 +27,14 @@ pub mod locking;
 pub mod migration;
 pub mod mmap;
 pub mod mount;
+// pub mod mount_opts;  // TODO: A5 Phase 3 Round 2 — incomplete stub
 pub mod multipath;
+// pub mod notify_filter;  // TODO: A5 Phase 3 Round 2 — incomplete stub
 pub mod openfile;
 pub mod operations;
 pub mod otel_trace;
 pub mod passthrough;
+pub mod path_resolver;
 pub mod perf;
 pub mod posix_acl;
 pub mod prefetch;

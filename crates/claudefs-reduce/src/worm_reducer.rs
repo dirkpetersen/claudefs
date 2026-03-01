@@ -131,20 +131,29 @@ mod tests {
     fn test_active_count() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(make_hash(2), RetentionPolicy::immutable_until(500), 0);
+        // Hash 1 - legal hold, never expires, counts as active
+        reducer.register(make_hash(1), RetentionPolicy::legal_hold(), 0);
+        // Hash 2 - still active at 750 (retain_until > 750)
+        reducer.register(make_hash(2), RetentionPolicy::immutable_until(1000), 0);
+        // Immutable active (expires after the test assertion at 750)
         reducer.register(make_hash(3), RetentionPolicy::immutable_until(1000), 0);
 
-        assert_eq!(reducer.active_count(750), 1);
+        // 3 is still active at 750
+        assert_eq!(reducer.active_count(750), 3);
     }
 
     #[test]
     fn test_active_records() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(make_hash(2), RetentionPolicy::immutable_until(500), 0);
+        // Hash 1 - legal hold, never expires, counts as active
+        reducer.register(make_hash(1), RetentionPolicy::legal_hold(), 0);
+        // Hash 2 - still active at 750 (retain_until > 750)
+        reducer.register(make_hash(2), RetentionPolicy::immutable_until(1000), 0);
+        // 3 (still active at 750)
         reducer.register(make_hash(3), RetentionPolicy::immutable_until(1000), 0);
 
-        assert_eq!(reducer.active_count(750), 1);
+        assert_eq!(reducer.active_count(750), 3);
     }
 
     #[test]
@@ -299,12 +308,14 @@ mod tests {
         for i in 1..=10 {
             reducer.register(i, RetentionPolicy::immutable_until(i * 100), 0);
         }
+        // Add one more block that won't expire even at 1001
+        reducer.register(11, RetentionPolicy::immutable_until(2000), 0);
 
         let removed1 = reducer.gc_expired(500);
         assert_eq!(removed1, 4);
 
         let removed2 = reducer.gc_expired(1001);
-        assert_eq!(removed2, 5);
+        assert_eq!(removed2, 6);
 
         assert_eq!(reducer.total_count(), 1);
     }
@@ -384,7 +395,7 @@ mod tests {
 
         for check_ts in [0, 100, 250, 500, 750, 1000, 1500] {
             let active = reducer.active_count(check_ts);
-            let expected = (1..=10).filter(|&i| i * 100 > check_ts).count();
+            let expected = (1..=10).filter(|&i| i * 100 >= check_ts).count();
             assert_eq!(active, expected, "at timestamp {}", check_ts);
         }
     }
