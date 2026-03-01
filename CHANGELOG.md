@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 4 Advanced Features COMPLETE (MILESTONE)
+
+#### 2026-03-01 (A5 — FUSE Client: Phase 4 Advanced Features)
+
+##### A5: FUSE — 526 tests, 32 modules, 5 new advanced feature modules
+
+**Phase 4 (95 new tests, 5 new modules) — snapshot management, I/O rate limiting, interrupt tracking, fallocate, POSIX ACL:**
+
+1. `snapshot.rs` — CoW snapshot and clone management (15 tests):
+   - `SnapshotState` enum: Creating / Active / Deleting / Error(String)
+   - `SnapshotInfo` with id, name, created_at_secs, size_bytes, state, is_clone
+   - `SnapshotRegistry` with create/delete/list/find_by_name, capacity limit, age_secs
+   - Writable clone support via `create_clone()`, `is_read_only()` check
+   - `active_count()`, `list()` sorted by creation time
+
+2. `ratelimit.rs` — Token-bucket I/O rate limiting for QoS (19 tests):
+   - `TokenBucket` with configurable rate/burst, refill-on-access, fill_level
+   - `RateLimitDecision`: Allow / Throttle{wait_ms} / Reject
+   - `RateLimiterConfig` with bytes_per_sec, ops_per_sec, burst_factor, reject_threshold
+   - `IoRateLimiter` with check_io(bytes) and check_op() — independent byte/op buckets
+   - Statistics: total_allowed, total_throttled, total_rejected
+
+3. `interrupt.rs` — FUSE interrupt tracking for FUSE_INTERRUPT support (20 tests):
+   - `RequestId(u64)`, `RequestState`: Pending / Processing / Interrupted / Completed
+   - `RequestRecord` with opcode, pid, timing, wait_ms()
+   - `InterruptTracker` with register/start/complete/interrupt lifecycle
+   - `drain_timed_out()` for stale request cleanup
+   - `interrupted_ids()` for batch cancellation, capacity limit protection
+
+4. `fallocate.rs` — POSIX fallocate(2) mode handling (22 tests):
+   - `FALLOC_FL_*` constants matching Linux kernel flags
+   - `FallocateOp` enum: Allocate / PunchHole / ZeroRange / CollapseRange / InsertRange
+   - `FallocateOp::from_flags()` validates flag combinations (PUNCH_HOLE requires KEEP_SIZE, etc.)
+   - `is_space_saving()`, `modifies_size()`, `affected_range()` predicates
+   - `FallocateStats` tracking allocations/holes/zero-ranges and byte counts
+
+5. `posix_acl.rs` — POSIX ACL enforcement for FUSE layer (25 tests):
+   - `AclTag`: UserObj / User(uid) / GroupObj / Group(gid) / Mask / Other
+   - `AclPerms` with from_bits/to_bits round-trip, all/none/read_only constructors
+   - `PosixAcl::check_access(uid, file_uid, gid, file_gid, req)` — POSIX access check algorithm
+   - Mask-based effective permissions via `effective_perms()`
+   - Constants: `XATTR_POSIX_ACL_ACCESS`, `XATTR_POSIX_ACL_DEFAULT`
+
+**MILESTONE: 526 tests, 32 modules, all passing, zero functional clippy errors**
+
+---
+
 ### A9: Test & Validation — Phase 6 MILESTONE COMPLETE
 
 #### 2026-03-01 (A9 — Phase 6: FUSE, Replication, and Gateway Integration Tests)
