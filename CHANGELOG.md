@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Phase 4: Advanced Production Features
+
+#### 2026-03-01 (A4 — Phase 4 Transport: Advanced Production Features)
+
+##### A4: Transport — Phase 4 (418 transport tests, 38 modules, 1259 workspace)
+
+**A4 Phase 4 Transport Modules (5 new modules, 90 new tests):**
+1. `loadshed.rs` — Adaptive server-side load shedding with latency/queue/CPU thresholds (16 tests)
+2. `cancel.rs` — Request cancellation propagation with parent/child tokens and registry (18 tests)
+3. `hedge.rs` — Speculative request hedging for tail-latency reduction with budget control (18 tests)
+4. `tenant.rs` — Multi-tenant traffic isolation with per-tenant bandwidth/IOPS guarantees (19 tests)
+5. `zerocopy.rs` — Zero-copy buffer registration with region pool and grow/shrink (19 tests)
+
+**MILESTONE: 1259 tests passing across the workspace, zero clippy warnings**
+
+---
+
 ### Phase 3: Production Readiness
 
 #### 2026-03-01 (A4 — Phase 3 Transport: Production Modules)
