@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
 
 /// Unique identifier for a node in the cluster.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct NodeId(u64);
 
 impl NodeId {
@@ -36,14 +36,8 @@ impl From<NodeId> for u64 {
     }
 }
 
-impl Default for NodeId {
-    fn default() -> Self {
-        NodeId(0)
-    }
-}
-
 /// Unique identifier for a shard in the cluster.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct ShardId(u32);
 
 impl ShardId {
@@ -67,12 +61,6 @@ impl From<u32> for ShardId {
 impl From<ShardId> for u32 {
     fn from(id: ShardId) -> Self {
         id.0
-    }
-}
-
-impl Default for ShardId {
-    fn default() -> Self {
-        ShardId(0)
     }
 }
 
@@ -123,7 +111,7 @@ impl NodeInfo {
 pub struct ConsistentHashRing {
     ring: BTreeMap<u64, (NodeId, u32)>,
     nodes: HashMap<NodeId, NodeInfo>,
-    virtual_node_count: u32,
+    _virtual_node_count: u32,
 }
 
 impl ConsistentHashRing {
@@ -132,7 +120,7 @@ impl ConsistentHashRing {
         ConsistentHashRing {
             ring: BTreeMap::new(),
             nodes: HashMap::new(),
-            virtual_node_count: 150,
+            _virtual_node_count: 150,
         }
     }
 
@@ -202,7 +190,7 @@ impl ConsistentHashRing {
 
         while result.len() < n && result.len() < total {
             if let Some((&_key, &(node_id, _))) = entries.get(pos % total) {
-                if !seen.contains_key(&node_id) {
+                if !*seen.entry(node_id).or_insert(false) {
                     seen.insert(node_id, true);
                     result.push(node_id);
                 }
@@ -250,7 +238,7 @@ impl ConsistentHashRing {
 
     /// Hashes a node ID with virtual node index for ring placement.
     fn hash_node(&self, node_id: &NodeId, virtual_index: u32) -> u64 {
-        let combined = (node_id.0 << 16) as u64 | (virtual_index as u64 & 0xFFFF);
+        let combined = (node_id.0 << 16) | (virtual_index as u64 & 0xFFFF);
         let mut x = combined.wrapping_add(0x9e3779b97f4a7c15);
         x = x.wrapping_mul(0xbf58476d1ce4e5b9);
         x ^= x >> 30;
@@ -401,16 +389,6 @@ impl ShardRouter {
             self.routing_table.assign(shard, nodes[node_index]);
         }
     }
-
-    /// Returns the hash of a key using FNV-1a.
-    fn hash_key(&self, key: &[u8]) -> u64 {
-        let mut hash: u64 = 0xcbf29ce484222325;
-        for &byte in key {
-            hash ^= byte as u64;
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-        hash
-    }
 }
 
 /// Lookup table for shard-to-node assignments.
@@ -450,10 +428,7 @@ impl RoutingTable {
         self.shards.insert(shard, node);
 
         if node != NodeId::default() {
-            self.node_shards
-                .entry(node)
-                .or_insert_with(Vec::new)
-                .push(shard);
+            self.node_shards.entry(node).or_default().push(shard);
         }
     }
 
@@ -471,6 +446,7 @@ impl RoutingTable {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
     use std::net::SocketAddr;
     use std::str::FromStr;
 
