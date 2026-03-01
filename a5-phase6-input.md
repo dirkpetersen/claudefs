@@ -1,478 +1,309 @@
-# A5 FUSE Client — Phase 6: Production Readiness
+# A5 FUSE Client — Phase 6: Advanced Reliability, Observability & Multipath
 
 You are implementing Phase 6 of the ClaudeFS FUSE client crate (`claudefs-fuse`).
-Phase 5 is already complete with 235 tests across 17 modules.
+The crate already has 37 modules and 641 passing tests.
 
-## Context: Existing Crate Structure
+## Existing Crate State
 
-The crate lives at `crates/claudefs-fuse/src/`. Existing modules:
-- `error.rs` — `FuseError`, `Result<T>` (thiserror)
-- `inode.rs` — `InodeId = u64`, `InodeKind { File, Dir, Symlink }`, `InodeEntry`
-- `attr.rs` — `FuseAttr` wrapper around `fuser::FileAttr`
-- `cache.rs` — `MetaCache<K,V>` with TTL
-- `operations.rs` — FUSE op dispatch tables
-- `filesystem.rs` — `ClaudeFsFilesystem` implementing `fuser::Filesystem`
-- `passthrough.rs` — FUSE passthrough mode
-- `server.rs` — FUSE server loop
-- `mount.rs` — mount/unmount
-- `xattr.rs` — extended attributes
-- `symlink.rs` — symlink handling
-- `datacache.rs` — data block cache
-- `transport.rs` — `FuseTransport` trait + `StubTransport`, `TransportConfig`, `RemoteRef`, `LookupResult`
-- `session.rs` — session management
-- `locking.rs` — POSIX advisory locks
-- `mmap.rs` — memory-mapped I/O
-- `perf.rs` — performance metrics
+`Cargo.toml` dependencies already present (do NOT modify Cargo.toml):
+```toml
+tokio.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+fuser = "0.15"
+libc = "0.2"
+lru = "0.12"
+```
 
-Cargo.toml dependencies: `tokio`, `thiserror`, `anyhow`, `serde`, `tracing`, `fuser = "0.15"`, `libc = "0.2"`, `lru = "0.12"`
+Existing modules in `crates/claudefs-fuse/src/`:
+attr, cache, capability, client_auth, datacache, deleg, dirnotify, error,
+fallocate, filesystem, health, inode, interrupt, io_priority, locking, migration,
+mmap, mount, openfile, operations, passthrough, perf, posix_acl, prefetch,
+quota_enforce, ratelimit, reconnect, server, session, snapshot, symlink,
+tiering_hints, tracing_client, transport, worm, writebuf, xattr
 
-## Key Types from Existing Code
-
+The `error` module exports:
 ```rust
-// From error.rs
-use thiserror::Error;
-#[derive(Debug, Error)]
-pub enum FuseError {
-    #[error("operation not supported: {op}")]
-    NotSupported { op: String },
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-    // ... etc
-}
 pub type Result<T> = std::result::Result<T, FuseError>;
 
-// From inode.rs
-pub type InodeId = u64;
-#[derive(Debug, Clone, PartialEq)]
-pub enum InodeKind { File, Dir, Symlink }
-
-// From transport.rs
-pub trait FuseTransport: Send + Sync {
-    fn lookup(&self, parent: InodeId, name: &str) -> Result<Option<LookupResult>>;
-    fn getattr(&self, ino: InodeId) -> Result<Option<LookupResult>>;
-    fn read(&self, ino: InodeId, offset: u64, size: u32) -> Result<Vec<u8>>;
-    fn write(&self, ino: InodeId, offset: u64, data: &[u8]) -> Result<u32>;
-    fn create(&self, parent: InodeId, name: &str, kind: InodeKind, mode: u32, uid: u32, gid: u32) -> Result<InodeId>;
-    fn remove(&self, parent: InodeId, name: &str) -> Result<()>;
-    fn rename(&self, parent: InodeId, name: &str, newparent: InodeId, newname: &str) -> Result<()>;
-    fn is_connected(&self) -> bool;
+#[derive(Debug, thiserror::Error)]
+pub enum FuseError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Permission denied: {0}")]
+    PermissionDenied(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+    #[error("Already exists: {0}")]
+    AlreadyExists(String),
+    #[error("Resource busy: {0}")]
+    ResourceBusy(String),
+    #[error("Not supported: {0}")]
+    NotSupported(String),
 }
 ```
 
-## Phase 6: 5 New Modules
-
-Implement the following 5 new production-readiness modules. Each must:
-- Be standalone (no cross-module imports beyond `error`, `inode`, `transport`)
-- Have `#[cfg(test)] mod tests { ... }` with AT LEAST 12 unit tests per module
-- Use `thiserror` for errors (add new variants to local enums, not FuseError)
-- No `unwrap()` in non-test code
-- No `panic!()` in non-test code
-- No `unsafe` except where explicitly specified
-- Use `tracing::debug!` / `tracing::warn!` / `tracing::error!` for logging
-
-### Module 1: `prefetch.rs` — Sequential Read-Ahead Prefetch
-
-A read-ahead engine that detects sequential read patterns and prefetches data blocks.
-
-```rust
-// Public interface
-pub struct PrefetchConfig {
-    pub window_size: usize,       // Number of blocks to prefetch ahead (default: 8)
-    pub block_size: u64,          // Block size in bytes (default: 65536 = 64KB)
-    pub max_inflight: usize,      // Max in-flight prefetch requests (default: 4)
-    pub detection_threshold: u32, // Sequential reads to trigger prefetch (default: 2)
-}
-impl Default for PrefetchConfig { ... }
-
-pub struct PrefetchEntry {
-    pub ino: InodeId,
-    pub offset: u64,
-    pub data: Vec<u8>,
-    pub ready: bool,
-}
-
-pub struct PrefetchEngine {
-    config: PrefetchConfig,
-    // Access pattern tracking per inode: last_offset, sequential_count
-    patterns: std::collections::HashMap<InodeId, AccessPattern>,
-    // Prefetch buffer keyed by (ino, block_start_offset)
-    buffer: std::collections::HashMap<(InodeId, u64), PrefetchEntry>,
-}
-
-impl PrefetchEngine {
-    pub fn new(config: PrefetchConfig) -> Self { ... }
-
-    // Record a read access and return the aligned block offset
-    pub fn record_access(&mut self, ino: InodeId, offset: u64, size: u32) -> u64 { ... }
-
-    // Returns true if sequential pattern detected for this inode
-    pub fn is_sequential(&self, ino: InodeId) -> bool { ... }
-
-    // Returns list of (ino, offset) pairs that should be prefetched
-    pub fn compute_prefetch_list(&self, ino: InodeId, current_offset: u64) -> Vec<(InodeId, u64)> { ... }
-
-    // Store a prefetched block in the buffer
-    pub fn store_prefetch(&mut self, ino: InodeId, offset: u64, data: Vec<u8>) { ... }
-
-    // Try to serve a read from the prefetch buffer
-    pub fn try_serve(&self, ino: InodeId, offset: u64, size: u32) -> Option<Vec<u8>> { ... }
-
-    // Evict prefetch entries for an inode (e.g., on file close)
-    pub fn evict(&mut self, ino: InodeId) { ... }
-
-    // Returns current buffer occupancy stats
-    pub fn stats(&self) -> PrefetchStats { ... }
-}
-
-pub struct PrefetchStats {
-    pub entries_cached: usize,
-    pub inodes_tracked: usize,
-    pub sequential_inodes: usize,
-}
-```
-
-Tests must cover:
-1. Default config has sensible values (window > 0, block_size > 0)
-2. Single random access does not trigger sequential detection
-3. Two consecutive sequential accesses trigger detection
-4. Three sequential accesses: compute_prefetch_list returns `window_size` entries
-5. Prefetch list offsets are block-aligned
-6. store_prefetch stores data retrievable by try_serve
-7. try_serve returns None for non-cached offset
-8. try_serve returns Some with correct data for cached block
-9. evict removes all entries for that inode but not others
-10. stats reflects correct counts
-11. record_access on same inode resets sequential count for large gap
-12. Large offset gap (> 2x block_size) resets sequential detection
-13. Multiple inodes tracked independently
-14. Prefetch list does not exceed max_inflight * block_size range
-15. try_serve with partial sub-block offset returns correct slice
-
-### Module 2: `writebuf.rs` — Write Coalescing Buffer
-
-A write buffer that coalesces small writes into larger aligned chunks before flushing.
-
-```rust
-pub struct WriteBufConfig {
-    pub flush_threshold: usize,  // Flush when buffer exceeds this (default: 1MB = 1<<20)
-    pub max_coalesce_gap: u64,   // Max gap between writes to coalesce (default: 4096)
-    pub dirty_timeout_ms: u64,   // Auto-flush after this many ms (default: 5000)
-}
-impl Default for WriteBufConfig { ... }
-
-pub struct WriteRange {
-    pub offset: u64,
-    pub data: Vec<u8>,
-}
-
-pub struct WriteBuf {
-    config: WriteBufConfig,
-    // Per-inode dirty ranges
-    dirty: std::collections::HashMap<InodeId, Vec<WriteRange>>,
-    // Total buffered bytes
-    total_bytes: usize,
-}
-
-impl WriteBuf {
-    pub fn new(config: WriteBufConfig) -> Self { ... }
-
-    // Buffer a write. Returns true if flush is needed (threshold exceeded)
-    pub fn buffer_write(&mut self, ino: InodeId, offset: u64, data: &[u8]) -> bool { ... }
-
-    // Coalesce adjacent/overlapping ranges for an inode
-    pub fn coalesce(&mut self, ino: InodeId) { ... }
-
-    // Take all dirty ranges for an inode (clears them from buffer)
-    pub fn take_dirty(&mut self, ino: InodeId) -> Vec<WriteRange> { ... }
-
-    // Check if inode has dirty data
-    pub fn is_dirty(&self, ino: InodeId) -> bool { ... }
-
-    // List all inodes with dirty data
-    pub fn dirty_inodes(&self) -> Vec<InodeId> { ... }
-
-    // Total bytes buffered
-    pub fn total_buffered(&self) -> usize { ... }
-
-    // Discard all buffered writes for an inode (e.g., on truncate)
-    pub fn discard(&mut self, ino: InodeId) { ... }
-}
-```
-
-Tests must cover:
-1. Default config has valid thresholds
-2. Single write buffers correctly (total_buffered = data.len())
-3. is_dirty returns true after write
-4. take_dirty returns the range and clears it
-5. is_dirty returns false after take_dirty
-6. buffer_write returns true when threshold exceeded
-7. buffer_write returns false when below threshold
-8. coalesce merges adjacent ranges (two touching writes → one range)
-9. coalesce merges overlapping ranges
-10. coalesce leaves non-adjacent ranges separate (gap > max_coalesce_gap)
-11. discard removes all data for inode
-12. discard does not affect other inodes
-13. dirty_inodes returns all inodes with data
-14. Multiple writes to same inode accumulate total_buffered
-15. Zero-length write is a no-op
-
-### Module 3: `reconnect.rs` — Transport Reconnection Logic
-
-Reconnection and failover logic for handling transport failures.
-
-```rust
-#[derive(Debug, Clone, PartialEq)]
-pub enum ConnectionState {
-    Connected,
-    Disconnected,
-    Reconnecting { attempt: u32 },
-    Failed,
-}
-
-pub struct ReconnectConfig {
-    pub initial_delay_ms: u64,    // First retry delay (default: 100)
-    pub max_delay_ms: u64,        // Cap on exponential backoff (default: 30_000)
-    pub max_attempts: u32,        // Give up after this many attempts (default: 10)
-    pub backoff_multiplier: f64,  // Exponential multiplier (default: 2.0)
-    pub jitter_fraction: f64,     // Random jitter 0.0–1.0 (default: 0.1)
-}
-impl Default for ReconnectConfig { ... }
-
-pub struct ReconnectState {
-    pub config: ReconnectConfig,
-    pub state: ConnectionState,
-    pub attempt: u32,
-    pub last_delay_ms: u64,
-}
-
-impl ReconnectState {
-    pub fn new(config: ReconnectConfig) -> Self { ... }
-
-    // Called when connection succeeds — reset to Connected state
-    pub fn on_connected(&mut self) { ... }
-
-    // Called when connection drops — transition to Reconnecting
-    pub fn on_disconnected(&mut self) { ... }
-
-    // Compute the next retry delay (with exponential backoff + jitter)
-    pub fn next_delay_ms(&mut self) -> u64 { ... }
-
-    // Returns true if we should give up (max attempts exceeded)
-    pub fn should_give_up(&self) -> bool { ... }
-
-    // Advance attempt counter; transitions to Failed if max exceeded
-    pub fn advance_attempt(&mut self) { ... }
-
-    // Returns true if currently in a state where ops should be retried
-    pub fn is_retrying(&self) -> bool { ... }
-}
-
-// Retry an operation with backoff, using the reconnect state
-pub fn retry_with_backoff<T, E, F>(
-    state: &mut ReconnectState,
-    op: F,
-) -> Result<T, E>
-where
-    F: Fn() -> std::result::Result<T, E>,
-    E: std::fmt::Debug;
-```
-
-Tests must cover:
-1. Default config has valid ranges (initial < max, multiplier > 1.0)
-2. New state is Disconnected
-3. on_connected sets state to Connected, resets attempt to 0
-4. on_disconnected transitions to Reconnecting
-5. next_delay_ms returns initial delay on first attempt
-6. next_delay_ms doubles on second attempt (exponential)
-7. next_delay_ms is capped at max_delay_ms
-8. next_delay_ms with zero jitter is exactly delay
-9. should_give_up returns false at zero attempts
-10. should_give_up returns true when attempt >= max_attempts
-11. advance_attempt increments counter
-12. advance_attempt transitions to Failed when max exceeded
-13. is_retrying returns true in Reconnecting state
-14. is_retrying returns false in Connected state
-15. is_retrying returns false in Failed state
-
-### Module 4: `openfile.rs` — Open File Handle Tracking
-
-Track open file handles, their mode flags, and per-handle state.
-
-```rust
-use std::collections::HashMap;
-
-pub type FileHandle = u64;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum OpenFlags {
-    ReadOnly,
-    WriteOnly,
-    ReadWrite,
-}
-
-impl OpenFlags {
-    pub fn is_readable(&self) -> bool { ... }
-    pub fn is_writable(&self) -> bool { ... }
-    pub fn from_libc(flags: i32) -> Self { ... }  // O_RDONLY=0, O_WRONLY=1, O_RDWR=2
-}
-
-#[derive(Debug, Clone)]
-pub struct OpenFileEntry {
-    pub fh: FileHandle,
-    pub ino: InodeId,
-    pub flags: OpenFlags,
-    pub offset: u64,       // Current file position
-    pub dirty: bool,       // Has unflushed writes
-}
-
-pub struct OpenFileTable {
-    next_fh: FileHandle,
-    entries: HashMap<FileHandle, OpenFileEntry>,
-}
-
-impl OpenFileTable {
-    pub fn new() -> Self { ... }
-
-    // Register a new open file. Returns the allocated FileHandle.
-    pub fn open(&mut self, ino: InodeId, flags: OpenFlags) -> FileHandle { ... }
-
-    // Get a reference to an open file entry
-    pub fn get(&self, fh: FileHandle) -> Option<&OpenFileEntry> { ... }
-
-    // Get a mutable reference
-    pub fn get_mut(&mut self, fh: FileHandle) -> Option<&mut OpenFileEntry> { ... }
-
-    // Close and remove a file handle
-    pub fn close(&mut self, fh: FileHandle) -> Option<OpenFileEntry> { ... }
-
-    // Update file position
-    pub fn seek(&mut self, fh: FileHandle, offset: u64) -> bool { ... }
-
-    // Mark a handle as having dirty (unflushed) data
-    pub fn mark_dirty(&mut self, fh: FileHandle) -> bool { ... }
-
-    // Mark a handle as clean (after flush)
-    pub fn mark_clean(&mut self, fh: FileHandle) -> bool { ... }
-
-    // List all open handles for a given inode
-    pub fn handles_for_inode(&self, ino: InodeId) -> Vec<FileHandle> { ... }
-
-    // Count open handles
-    pub fn count(&self) -> usize { ... }
-
-    // Count handles with dirty state
-    pub fn dirty_count(&self) -> usize { ... }
-}
-
-impl Default for OpenFileTable { fn default() -> Self { Self::new() } }
-```
-
-Tests must cover:
-1. New table has count = 0
-2. open() returns distinct handles for each call
-3. get() returns Some after open()
-4. get() returns None for unknown handle
-5. close() returns the entry
-6. get() returns None after close()
-7. count() reflects open/close lifecycle
-8. seek() updates offset
-9. seek() returns false for unknown handle
-10. mark_dirty() sets dirty = true
-11. mark_clean() sets dirty = false
-12. dirty_count() counts only dirty handles
-13. handles_for_inode() returns all handles for that inode
-14. handles_for_inode() returns empty for closed handles
-15. OpenFlags::from_libc(0) = ReadOnly, from_libc(1) = WriteOnly, from_libc(2) = ReadWrite
-16. is_readable / is_writable correct for all variants
-
-### Module 5: `dirnotify.rs` — Directory Change Notifications
-
-Track directory modification events for kernel inotify/dnotify integration.
-
-```rust
-use std::collections::{HashMap, VecDeque};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DirEvent {
-    Created { ino: InodeId, name: String },
-    Deleted { ino: InodeId, name: String },
-    Renamed { old_name: String, new_name: String, ino: InodeId },
-    Attrib  { ino: InodeId },   // Attribute changed (chmod, chown, etc.)
-}
-
-pub struct NotifyConfig {
-    pub max_queue_per_dir: usize,  // Max events per directory queue (default: 256)
-    pub max_dirs_tracked: usize,   // Max directories with active watches (default: 1024)
-}
-impl Default for NotifyConfig { ... }
-
-pub struct DirNotify {
-    config: NotifyConfig,
-    // Per-directory event queues
-    queues: HashMap<InodeId, VecDeque<DirEvent>>,
-    // Which directories have listeners
-    watched: std::collections::HashSet<InodeId>,
-}
-
-impl DirNotify {
-    pub fn new(config: NotifyConfig) -> Self { ... }
-
-    // Register a watch on a directory
-    pub fn watch(&mut self, dir_ino: InodeId) -> bool { ... }  // false if limit exceeded
-
-    // Remove a watch
-    pub fn unwatch(&mut self, dir_ino: InodeId) { ... }
-
-    // Post an event to a directory's queue (no-op if not watched)
-    pub fn post(&mut self, dir_ino: InodeId, event: DirEvent) { ... }
-
-    // Drain all pending events for a directory
-    pub fn drain(&mut self, dir_ino: InodeId) -> Vec<DirEvent> { ... }
-
-    // Peek at pending event count for a directory
-    pub fn pending_count(&self, dir_ino: InodeId) -> usize { ... }
-
-    // List all watched directory inodes
-    pub fn watched_dirs(&self) -> Vec<InodeId> { ... }
-
-    // Check if a directory is being watched
-    pub fn is_watched(&self, dir_ino: InodeId) -> bool { ... }
-
-    // Total events across all queues
-    pub fn total_pending(&self) -> usize { ... }
-}
-```
-
-Tests must cover:
-1. New DirNotify has no watched dirs
-2. watch() returns true for first watch
-3. is_watched() returns true after watch()
-4. is_watched() returns false before watch()
-5. unwatch() removes the directory
-6. post() on unwatched directory is silently ignored (no events)
-7. post() on watched directory stores the event
-8. drain() returns all events in order
-9. drain() clears the queue
-10. pending_count() reflects queued events
-11. total_pending() sums across all watched dirs
-12. max_queue_per_dir: events exceeding limit are dropped (oldest or newest — your choice, but document it)
-13. max_dirs_tracked: watch() returns false when limit exceeded
-14. Events have correct fields (Created name, Deleted name, Renamed old/new, Attrib ino)
-15. watched_dirs() returns all watched inodes
-
-## Output Requirements
-
-1. Output each file with a clear header: `## FILE: crates/claudefs-fuse/src/prefetch.rs`
-2. Each file must be complete and compilable Rust
-3. Imports: only from `std`, `crate::error`, `crate::inode`, `crate::transport`
-4. No external crate imports except those already in Cargo.toml: `tokio`, `thiserror`, `anyhow`, `serde`, `tracing`, `fuser`, `libc`, `lru`
-5. All types must derive `Debug` where sensible
-6. Do NOT modify `lib.rs`, `Cargo.toml`, or any existing files
-7. Each module must have exactly the functions described (additional helpers are OK)
-8. Aim for 12–16 tests per module (total: 60–80 new tests)
-
-## Conventions
-- Error handling: use `thiserror` in libs, local error enums per module where needed
-- Logging: `tracing::debug!`, `tracing::warn!`, `tracing::error!`
-- No panics or unwraps in non-test code
-- Structs that own data: impl Default where sensible
+The `inode` module exports `pub type InodeId = u64;`
+
+The `tracing_client` module exports `TraceId(u128)`, `SpanId(u64)`, `TraceContext { trace_id, span_id, sampled }`.
+
+The existing `locking.rs` implements POSIX fcntl() advisory locks (byte-range locking).
+
+## Task: Add 5 New Modules
+
+Implement these 5 new files. Each file must be self-contained (no cross-module imports except `crate::error::Result` and `crate::inode::InodeId` where needed). Do NOT use any new external crates beyond what's in Cargo.toml.
+
+---
+
+### 1. `crates/claudefs-fuse/src/otel_trace.rs`
+
+OpenTelemetry-compatible trace span collection and export.
+Uses `crate::tracing_client::{TraceId, SpanId, TraceContext}` (re-exports them as needed).
+
+**Requirements:**
+- `SpanStatus` enum: `Ok`, `Error(String)`, `Unset`
+- `SpanKind` enum: `Internal`, `Client`, `Server`, `Producer`, `Consumer`
+- `SpanAttribute` struct: `key: String, value: String`
+- `OtelSpan` struct:
+  - Fields: `trace_id: TraceId`, `span_id: SpanId`, `parent_span_id: Option<SpanId>`,
+    `operation: String`, `service: String`, `start_unix_ns: u64`, `end_unix_ns: u64`,
+    `status: SpanStatus`, `kind: SpanKind`, `attributes: Vec<SpanAttribute>`
+  - Methods: `duration_ns() -> u64`, `is_error() -> bool`, `add_attribute(key, value)`
+  - `set_status(status)`, `finish(end_ns: u64)`
+- `OtelSpanBuilder` struct for constructing spans:
+  - Fields mirroring OtelSpan (most optional), `start_unix_ns: u64`
+  - `new(operation, service, start_unix_ns)` constructor
+  - `with_parent(parent: &TraceContext)` sets trace_id and parent_span_id
+  - `with_trace_id(TraceId)`, `with_kind(SpanKind)`, `with_attribute(key, value)`
+  - `build(end_unix_ns: u64) -> OtelSpan` — generates deterministic span_id using hash of operation+start_unix_ns if not set
+- `OtelExportBuffer` struct: an in-memory buffer of completed spans
+  - `push(span: OtelSpan)` — drops oldest if buffer is full
+  - `drain() -> Vec<OtelSpan>` — removes and returns all buffered spans
+  - `len() -> usize`, `is_empty() -> bool`
+  - `capacity: usize` field, max 10_000 spans
+  - `new(capacity: usize) -> Self`
+- `SamplingDecision` enum: `RecordAndSample`, `Drop`
+- `OtelSampler` struct:
+  - `new(sample_rate: f64)` — 0.0=drop all, 1.0=sample all
+  - `should_sample(trace_id: TraceId) -> SamplingDecision` — deterministic based on trace_id lower 32 bits mod a large prime compared to threshold
+  - `sample_rate() -> f64`
+
+**Tests (20+):** Test `duration_ns`, `is_error`, `add_attribute`, `OtelSpanBuilder::build`,
+`with_parent` propagates trace_id correctly, `OtelExportBuffer::push/drain/len`,
+buffer drops oldest when full, `OtelSampler::should_sample` at 0.0/1.0/0.5,
+sampler determinism (same trace_id gives same decision).
+
+---
+
+### 2. `crates/claudefs-fuse/src/idmap.rs`
+
+UID/GID identity mapping for user namespace virtualization.
+Used to remap client UIDs/GIDs when the FUSE client crosses user-namespace boundaries.
+
+**Requirements:**
+- `IdMapMode` enum: `Identity` (no mapping), `Squash { nobody_uid: u32, nobody_gid: u32 }`,
+  `RangeShift { host_base: u32, local_base: u32, count: u32 }`,
+  `Table` (uses explicit mapping table)
+- `IdMapEntry` struct: `host_id: u32, local_id: u32` — one entry in the Table mode
+- `IdMapper` struct:
+  - `new(mode: IdMapMode) -> Self`
+  - `add_uid_entry(entry: IdMapEntry) -> Result<()>` — max 65_536 entries, returns error if exceeded or duplicate host_id
+  - `add_gid_entry(entry: IdMapEntry) -> Result<()>` — same constraints
+  - `map_uid(host_uid: u32) -> u32` — maps host→local. In Identity: returns host_uid.
+    In Squash: always returns nobody_uid. In RangeShift: if `host_uid` in `[host_base, host_base+count)`,
+    returns `local_base + (host_uid - host_base)`, else returns host_uid unchanged.
+    In Table: looks up entry, returns host_uid if not found.
+  - `map_gid(host_gid: u32) -> u32` — same logic for GIDs
+  - `reverse_map_uid(local_uid: u32) -> Option<u32>` — Table only: finds host_id for local_id
+  - `reverse_map_gid(local_gid: u32) -> Option<u32>` — same for GIDs
+  - `uid_entry_count() -> usize`, `gid_entry_count() -> usize`
+  - `mode() -> &IdMapMode`
+- Root preservation: `map_uid(0)` always returns 0 in Identity and RangeShift modes (root is not remapped unless explicitly in Table)
+- `IdMapStats` struct: `uid_lookups: u64, gid_lookups: u64, uid_hits: u64, gid_hits: u64`
+
+**Tests (20+):** Test Identity pass-through, Squash maps all UIDs to nobody,
+RangeShift in-range remapping, RangeShift out-of-range pass-through,
+Table mode lookup hit and miss, reverse_map_uid, add_entry duplicate returns error,
+max entries limit, root preservation in Identity/RangeShift, GID variants mirror UID.
+
+---
+
+### 3. `crates/claudefs-fuse/src/flock.rs`
+
+BSD `flock(2)` advisory lock support for the FUSE client.
+Complements the existing `locking.rs` which handles POSIX `fcntl()` byte-range locks.
+`flock()` locks are whole-file, owned by an open file description (fd+pid combination).
+
+**Requirements:**
+- `FlockType` enum: `Shared`, `Exclusive`, `Unlock`
+- `FlockHandle` struct:
+  - Fields: `fd: u64` (file descriptor token), `ino: InodeId`, `pid: u32`,
+    `lock_type: FlockType`, `nonblocking: bool`
+  - `new(fd, ino, pid, lock_type, nonblocking) -> Self`
+  - `is_blocking() -> bool` (inverse of nonblocking)
+  - `is_shared() -> bool`, `is_exclusive() -> bool`
+- `FlockConflict` enum: `None`, `WouldBlock { holder_pid: u32 }`, `Deadlock`
+- `FlockEntry` struct: `fd: u64, ino: InodeId, pid: u32, lock_type: FlockType`
+- `FlockRegistry` struct:
+  - `new() -> Self`
+  - `try_acquire(handle: FlockHandle) -> FlockConflict` — returns `None` on success (lock recorded),
+    `WouldBlock` if conflicting lock held, applies upgrade/downgrade if same fd already holds a lock
+  - `release(fd: u64, ino: InodeId)` — removes the lock for this fd+ino combination
+  - `release_all_for_pid(pid: u32)` — clean up all locks held by a crashed/exited process
+  - `has_lock(fd: u64, ino: InodeId) -> bool`
+  - `lock_type_for(fd: u64, ino: InodeId) -> Option<FlockType>`
+  - `holder_count(ino: InodeId) -> usize` — how many fds hold a lock on this inode
+  - Conflict rules: Shared + Shared = OK, Shared + Exclusive = conflict, Exclusive + anything = conflict,
+    same fd upgrading from Shared to Exclusive = allowed only if no other shared holders,
+    same fd downgrading from Exclusive to Shared = always allowed
+- `FlockStats` struct: `acquires: u64, releases: u64, conflicts: u64, upgrades: u64, downgrades: u64`
+
+**Tests (22+):** Shared+Shared succeeds, Exclusive blocks Shared, Exclusive blocks Exclusive,
+Shared blocks Exclusive, acquire returns WouldBlock not deadlock for nonblocking,
+release removes lock, has_lock after acquire/release, upgrade Shared→Exclusive when alone,
+upgrade blocked when another shared holder, downgrade Exclusive→Shared always works,
+release_all_for_pid cleans up, holder_count, lock_type_for returns None after release.
+
+---
+
+### 4. `crates/claudefs-fuse/src/multipath.rs`
+
+Multi-path I/O management for the FUSE client.
+Manages multiple concurrent transport paths to storage nodes with load balancing,
+health monitoring, and automatic failover. This is a routing/selection layer — it does
+not implement actual I/O, it decides *which path* to use.
+
+**Requirements:**
+- `PathId(u64)` newtype
+- `PathState` enum: `Active`, `Degraded`, `Failed`, `Reconnecting`
+  - `is_usable() -> bool` — Active or Degraded
+- `PathPriority(u8)` with associated const `DEFAULT: u8 = 100`
+- `PathMetrics` struct:
+  - Fields: `latency_us: u64` (exponential moving average), `error_count: u64`,
+    `bytes_sent: u64`, `bytes_recv: u64`, `last_error_at_secs: u64`
+  - `new() -> Self` — initializes latency_us to 1000 (1ms baseline)
+  - `record_success(latency_us: u64)` — updates EMA: `new_latency = (7 * old + latency_us) / 8`
+  - `record_error(now_secs: u64)` — increments error_count, records timestamp
+  - `error_rate_recent(now_secs: u64, window_secs: u64) -> f64` — returns 1.0 if last_error_at_secs >= now_secs.saturating_sub(window_secs) and error_count > 0, else 0.0
+  - `score() -> u64` — `latency_us + error_count * 1000`
+- `PathInfo` struct:
+  - Fields: `id: PathId`, `state: PathState`, `priority: u8`,
+    `remote_addr: String`, `metrics: PathMetrics`
+  - Methods: `new(id: PathId, remote_addr: String, priority: u8) -> Self`,
+    `mark_degraded(&mut self)`, `mark_failed(&mut self)`,
+    `mark_reconnecting(&mut self)`, `mark_active(&mut self)`, `is_usable() -> bool`
+- `LoadBalancePolicy` enum: `RoundRobin`, `LeastLatency`, `Primary`
+  - `Primary` uses highest-priority path exclusively, falls back to next if failed
+- `MultipathRouter` struct:
+  - `new(policy: LoadBalancePolicy) -> Self`
+  - `add_path(&mut self, info: PathInfo) -> Result<()>` — max 16 paths, error if duplicate PathId
+  - `remove_path(&mut self, id: PathId) -> Result<()>` — error if not found
+  - `select_path(&mut self) -> Option<PathId>` — selects according to policy among usable paths
+  - `record_success(&mut self, id: PathId, latency_us: u64) -> Result<()>`
+  - `record_error(&mut self, id: PathId, now_secs: u64) -> Result<()>` — marks Degraded after 3 errors, Failed after 10
+  - `mark_reconnecting(&mut self, id: PathId) -> Result<()>`, `mark_active(&mut self, id: PathId) -> Result<()>`
+  - `path_count(&self) -> usize`, `usable_path_count(&self) -> usize`
+  - `all_paths_failed(&self) -> bool`
+  - For `RoundRobin`: cycles through usable paths in insertion order using a round-robin index
+  - For `LeastLatency`: picks usable path with lowest `score()`
+  - For `Primary`: picks usable path with highest `priority`; if tie, picks lowest score
+
+**Tests (20+):** add_path/remove_path, select_path RoundRobin cycles correctly,
+select_path LeastLatency picks lowest score, Primary picks highest priority,
+Primary falls back when primary fails, record_error increments, degraded after 3 errors,
+failed after 10 errors, usable_path_count excludes Failed, all_paths_failed,
+max 16 paths limit enforced, select_path returns None when no usable paths,
+duplicate PathId returns error on add.
+
+---
+
+### 5. `crates/claudefs-fuse/src/crash_recovery.rs`
+
+FUSE client crash recovery: reconstructs open-file state and outstanding locks
+after a daemon crash and restart.
+
+**Requirements:**
+- `RecoveryState` enum: `Idle`, `Scanning`, `Replaying { replayed: u32, total: u32 }`,
+  `Complete { recovered: u32, orphaned: u32 }`, `Failed(String)`
+  - `is_in_progress() -> bool` — Scanning or Replaying
+  - `is_complete() -> bool` — Complete or Failed
+- `OpenFileRecord` struct: `ino: InodeId, fd: u64, pid: u32, flags: u32, path_hint: String`
+  - `is_writable() -> bool` — flags & 1 != 0 (O_WRONLY) or flags & 2 != 0 (O_RDWR)
+  - `is_append_only() -> bool` — flags & 1024 != 0 (O_APPEND)
+- `PendingWrite` struct: `ino: InodeId, offset: u64, len: u64, dirty_since_secs: u64`
+  - `age_secs(now: u64) -> u64` — now.saturating_sub(dirty_since_secs)
+  - `is_stale(now: u64, max_age_secs: u64) -> bool` — age_secs(now) > max_age_secs
+- `RecoveryJournal` struct:
+  - Tracks open files and pending writes collected during recovery scanning
+  - `new() -> Self`
+  - `add_open_file(&mut self, record: OpenFileRecord)`
+  - `add_pending_write(&mut self, write: PendingWrite)`
+  - `open_file_count(&self) -> usize`, `pending_write_count(&self) -> usize`
+  - `writable_open_files(&self) -> Vec<&OpenFileRecord>`
+  - `stale_pending_writes(&self, now_secs: u64, max_age_secs: u64) -> Vec<&PendingWrite>`
+- `RecoveryConfig` struct:
+  - Fields: `max_recovery_secs: u64`, `max_open_files: usize`, `stale_write_age_secs: u64`
+  - `default_config() -> Self` — max_recovery_secs=30, max_open_files=10_000, stale_write_age_secs=300
+- `CrashRecovery` struct:
+  - `new(config: RecoveryConfig) -> Self`
+  - `state(&self) -> &RecoveryState`
+  - `begin_scan(&mut self) -> Result<()>` — transitions Idle → Scanning, errors if not Idle
+  - `record_open_file(&mut self, record: OpenFileRecord) -> Result<()>` — errors if not Scanning,
+    errors (InvalidArgument) if max_open_files exceeded
+  - `record_pending_write(&mut self, write: PendingWrite) -> Result<()>` — errors if not Scanning
+  - `begin_replay(&mut self, total: u32) -> Result<()>` — Scanning → Replaying{0, total}
+  - `advance_replay(&mut self, count: u32)` — increments replayed field, clamps to total
+  - `complete(&mut self, orphaned: u32) -> Result<()>` — Replaying → Complete
+  - `fail(&mut self, reason: String)` — any state → Failed
+  - `reset(&mut self)` — any state → Idle, clears journal
+  - `journal(&self) -> &RecoveryJournal`
+
+**Tests (22+):** begin_scan transitions state, begin_scan errors if not Idle,
+record_open_file errors if not Scanning, max_open_files limit enforced,
+begin_replay transitions, advance_replay increments, advance_replay clamps at total,
+complete transitions, fail from any state, reset clears journal,
+is_writable with O_RDWR flags, is_append_only with O_APPEND flag,
+stale_pending_writes age filter, writable_open_files filter,
+full happy-path recovery sequence, is_in_progress, is_complete.
+
+---
+
+## Deliverables
+
+Provide the complete Rust source for each of these 5 files:
+1. `crates/claudefs-fuse/src/otel_trace.rs`
+2. `crates/claudefs-fuse/src/idmap.rs`
+3. `crates/claudefs-fuse/src/flock.rs`
+4. `crates/claudefs-fuse/src/multipath.rs`
+5. `crates/claudefs-fuse/src/crash_recovery.rs`
+
+Also provide the updated `crates/claudefs-fuse/src/lib.rs` with 5 new `pub mod` lines added.
+The full updated lib.rs should have these modules in alphabetical order:
+attr, cache, capability, client_auth, crash_recovery, datacache, deleg, dirnotify, error,
+fallocate, filesystem, flock, health, inode, interrupt, io_priority, idmap, locking, migration,
+mmap, mount, multipath, openfile, operations, otel_trace, passthrough, perf, posix_acl, prefetch,
+quota_enforce, ratelimit, reconnect, server, session, snapshot, symlink, tiering_hints,
+tracing_client, transport, worm, writebuf, xattr
+
+## Strict Requirements
+
+- No new external crates. Use only: std, tokio, thiserror, anyhow, serde, tracing, fuser, libc, lru.
+- No `use crate::X` for modules that don't exist yet (only import from error and inode).
+- All `#[cfg(test)]` test modules at end of each file.
+- Each test module starts with: `#[cfg(test)] mod tests { use super::*; ... }`
+- All test functions use `#[test]` (not tokio::test — no async needed).
+- Tests must compile and pass with only `std` + the types defined in that file.
+- Do NOT use `rand` crate — generate pseudo-random span_ids using std::collections::hash_map::DefaultHasher.
+- No `unsafe` code.
+- All public types derive `Debug`.
+- Use `crate::error::Result` (not FuseError directly) for return types.
+- Do NOT import `crate::error::FuseError` directly; use `crate::error::Result<T>` only.
+- `otel_trace.rs` MUST import `use crate::tracing_client::{TraceId, SpanId, TraceContext};`
+- `flock.rs` and `crash_recovery.rs` MUST import `use crate::inode::InodeId;`
+- `multipath.rs` does NOT need InodeId.
+- `idmap.rs` does NOT need InodeId.
