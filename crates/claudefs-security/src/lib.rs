@@ -46,3 +46,5 @@ pub mod dos_resilience;
 pub mod supply_chain;
 #[cfg(test)]
 pub mod operational_security;
+#[cfg(test)]
+pub mod advanced_fuzzing;
