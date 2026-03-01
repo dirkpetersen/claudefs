@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A2: Metadata Service — Phase 3 Production Hardening
+
+#### 2026-03-01 (A2 — Phase 3 Bug Fix: node_snapshot key prefix mismatch)
+
+**Critical bug fix: NodeSnapshot::capture() now correctly reads inode and directory data — 738 tests**
+
+**Bug fixed:** `node_snapshot.rs` was scanning KV store with wrong key prefixes:
+- Was using `inode:` (text format) — actual store uses `inode/` (binary format from `inode.rs`)
+- Was using `dir:` (text format) — actual store uses `dirent/` (binary format from `directory.rs`)
+- This caused `NodeSnapshot::capture()` to always return empty inode/dir_entry lists
+- Impact: disaster recovery snapshots, node bootstrapping, and backup serialization were silently broken
+
+**Fix:** Updated key scanning to use correct prefixes and binary big-endian u64 decoding matching the actual KV store implementation.
+
+**Additional:** Removed debug `eprintln!` statements left from prior development.
+
+**Status:** 738 tests passing, 0 clippy warnings
+
+---
+
 ### A8: Management — Production Readiness & Build Unblocking
 
 #### 2026-03-01 (A8 — Session Work: Critical Build Fixes + Code Cleanup)
