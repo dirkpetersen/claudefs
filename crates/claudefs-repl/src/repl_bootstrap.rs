@@ -85,6 +85,7 @@ pub struct BootstrapStats {
 
 /// Coordinator for bootstrapping new replica sites.
 pub struct BootstrapCoordinator {
+    #[allow(dead_code)]
     local_site_id: u64,
     phase: BootstrapPhase,
     started_at_ns: u64,

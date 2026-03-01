@@ -128,6 +128,7 @@ impl BackpressureController {
     /// Compute and return the current backpressure level.
     /// Uses the max of queue-depth-based and error-count-based levels.
     pub fn compute_level(&mut self) -> BackpressureLevel {
+        #[allow(clippy::if_same_then_else)]
         let queue_level = if self.force_halt {
             BackpressureLevel::Halt
         } else if self.queue_depth >= self.config.halt_queue_depth {
@@ -142,6 +143,7 @@ impl BackpressureController {
             BackpressureLevel::None
         };
 
+        #[allow(clippy::if_same_then_else)]
         let error_level = if self.force_halt {
             BackpressureLevel::Halt
         } else if self.consecutive_errors >= self.config.error_count_halt {
