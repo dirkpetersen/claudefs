@@ -37,7 +37,7 @@ pub struct InodeEntry {
 }
 
 pub struct InodeTable {
-    entries: HashMap<InodeId, InodeEntry>,
+    pub(crate) entries: HashMap<InodeId, InodeEntry>,
     next_ino: InodeId,
 }
 
@@ -198,6 +198,45 @@ impl InodeTable {
 
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    pub fn inc_nlink(&mut self, ino: InodeId) {
+        if let Some(entry) = self.entries.get_mut(&ino) {
+            entry.nlink += 1;
+        }
+    }
+
+    pub fn add_child(&mut self, parent: InodeId, child: InodeId) {
+        if let Some(parent_entry) = self.entries.get_mut(&parent) {
+            if matches!(parent_entry.kind, InodeKind::Directory) {
+                parent_entry.children.push(child);
+            }
+        }
+    }
+
+    pub fn link_to(&mut self, ino: InodeId, newparent: InodeId, name: &str) -> Result<()> {
+        let entry = self.entries.get(&ino).ok_or(FuseError::NotFound { ino })?;
+
+        if matches!(entry.kind, InodeKind::Directory) {
+            return Err(FuseError::IsDirectory { ino });
+        }
+
+        if let Some(parent_entry) = self.entries.get_mut(&newparent) {
+            if !matches!(parent_entry.kind, InodeKind::Directory) {
+                return Err(FuseError::NotDirectory { ino: newparent });
+            }
+            parent_entry.children.push(ino);
+        } else {
+            return Err(FuseError::NotFound { ino: newparent });
+        }
+
+        if let Some(entry) = self.entries.get_mut(&ino) {
+            entry.nlink += 1;
+            entry.parent = newparent;
+            entry.name = name.to_string();
+        }
+
+        Ok(())
     }
 }
 

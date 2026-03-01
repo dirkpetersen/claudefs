@@ -8,6 +8,7 @@
 
 pub mod attr;
 pub mod cache;
+pub mod datacache;
 pub mod error;
 pub mod filesystem;
 pub mod inode;
@@ -15,5 +16,7 @@ pub mod mount;
 pub mod operations;
 pub mod passthrough;
 pub mod server;
+pub mod symlink;
+pub mod xattr;
 
 pub use error::{FuseError, Result};
