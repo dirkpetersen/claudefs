@@ -8,6 +8,7 @@ description = "ClaudeFS subsystem: Inline dedupe (BLAKE3), compression (LZ4/Zstd
 
 [dependencies]
 tokio.workspace = true
+zeroize = { version = "1.7", features = ["derive"] }
 thiserror.workspace = true
 serde.workspace = true
 tracing.workspace = true
