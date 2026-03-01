@@ -4,6 +4,8 @@
 
 /// POSIX permission checking
 pub mod access;
+/// Persistent file-backed KV store with WAL and checkpoint
+pub mod btree_store;
 /// Change Data Capture (CDC) event streaming
 pub mod cdc;
 /// Conflict detection and resolution for cross-site replication
@@ -70,6 +72,7 @@ pub mod worm;
 pub mod xattr;
 
 pub use access::{AccessMode, UserContext};
+pub use btree_store::PersistentKvStore;
 pub use cdc::{CdcCursor, CdcEvent, CdcStream};
 pub use conflict::{ConflictDetector, ConflictEvent, ConflictWinner};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
