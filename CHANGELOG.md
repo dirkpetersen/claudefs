@@ -8,15 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 1 Continued: Transport & Infrastructure
 
-#### 2026-03-01 (A4 Session — Circuit Breaker)
+#### 2026-03-01 (A4 — Phase 2 Transport Layer Complete)
 
-##### A4: Transport — Circuit Breaker (10 new tests, 1003 total — MILESTONE: 1000+ tests!)
+##### A4: Transport — Phase 2 Complete (162 transport tests, 21 modules)
 
-**New Module: Circuit Breaker Pattern (`circuitbreaker.rs`):**
-- `CircuitState`: Closed (normal), Open (failing fast), HalfOpen (testing recovery)
-- `CircuitBreakerConfig`: failure_threshold (5), success_threshold (3), open_duration (30s)
-- `CircuitBreaker`: lock-free atomic state machine with time-based recovery
-- 10 unit tests; transport total: 161 tests
+**A4 Phase 2 Transport Modules (11 new modules, 113 new tests):**
+1. `qos.rs` — QoS/traffic shaping with token bucket rate limiting (9 tests)
+2. `tracecontext.rs` — W3C Trace Context distributed tracing (4 tests)
+3. `health.rs` — Connection health monitoring with atomic counters (17 tests)
+4. `routing.rs` — Consistent hash ring + shard-aware routing (16 tests)
+5. `flowcontrol.rs` — Flow control with sliding window & backpressure (16 tests)
+6. `retry.rs` — Exponential backoff retry with health integration (8 tests)
+7. `metrics.rs` — Prometheus-compatible transport metrics collection (7 tests)
+8. `mux.rs` — Connection multiplexing for concurrent RPC streams (8 tests)
+9. `ratelimit.rs` — Lock-free token bucket rate limiter (9 tests)
+10. `deadline.rs` — Deadline/timeout propagation through RPC chains (9 tests)
+11. `circuitbreaker.rs` — Circuit breaker for fault tolerance (9 + 1 doc-test)
 
 **🎉 MILESTONE: 1003 tests passing across the workspace — over 1000!**
 
