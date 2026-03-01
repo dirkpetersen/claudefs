@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 6 Production Readiness COMPLETE
+
+#### 2026-03-01 (A6 — Replication: Phase 6 Compression, Backpressure, Metrics)
+
+##### A6: Replication — 431 tests, 20 modules
+
+**Phase 6 (60 new tests, 3 new modules) production-readiness additions:**
+
+1. `compression.rs` (22 tests): Journal batch compression for WAN efficiency
+   - `CompressionAlgo`: None / Lz4 (default) / Zstd
+   - `BatchCompressor::compress()` / `decompress()` via bincode + lz4_flex/zstd
+   - `CompressedBatch` with `compression_ratio()` and `is_beneficial()`
+   - Auto-bypass: batches < `min_compress_bytes` (256B) sent uncompressed
+   - Added `lz4_flex` + `zstd` to claudefs-repl Cargo.toml
+
+2. `backpressure.rs` (20 tests): Adaptive backpressure for slow remote sites
+   - `BackpressureLevel`: None / Mild(5ms) / Moderate(50ms) / Severe(500ms) / Halt
+   - Dual-signal: queue depth + consecutive error count (max of both)
+   - `BackpressureController`: `set_queue_depth()`, `record_success/error()`, `force_halt()`
+   - `BackpressureManager`: per-site controllers, `halted_sites()` for routing
+
+3. `metrics.rs` (18 tests): Prometheus text exposition format metrics
+   - `Metric`: counter/gauge with label support, `format()` for text format
+   - `ReplMetrics`: 10 metrics (entries_tailed, entries_sent, bytes_sent, lag, pipeline_running, etc.)
+   - `update_from_stats()` integration with `PipelineStats`
+   - `MetricsAggregator`: multi-site aggregation, `format_all()`, `total_entries_sent/bytes_sent()`
+
+**MILESTONE: 431 replication tests, 20 modules, zero clippy warnings**
+
+---
+
 ### A7: Protocol Gateways — Phase 6 Complete (MILESTONE)
 
 #### 2026-03-01 (A7 — Protocol Gateways: Phase 6 Final)
