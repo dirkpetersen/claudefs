@@ -24,6 +24,8 @@ pub mod filehandle;
 pub mod fingerprint;
 /// Read-only follower query routing for relaxed POSIX mode
 pub mod follower_read;
+/// Metadata integrity checker (fsck) for distributed filesystem
+pub mod fsck;
 /// Metadata garbage collector for orphaned inodes, expired tombstones, stale locks
 pub mod gc;
 /// Metadata node health diagnostics and readiness probes
@@ -112,6 +114,7 @@ pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
 pub use fingerprint::FingerprintIndex;
 pub use follower_read::{FollowerReadConfig, FollowerReadRouter, ReadConsistency, ReadTarget};
+pub use fsck::{FsckConfig, FsckFinding, FsckIssue, FsckRepairAction, FsckReport, FsckSeverity};
 pub use health::{ComponentHealth, HealthChecker, HealthReport, HealthStatus, HealthThresholds};
 pub use inode_gen::{Generation, InodeGenManager, NfsFileHandle};
 pub use journal_tailer::{JournalTailer, ReplicationBatch, TailerConfig, TailerCursor};
