@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A7: Protocol Gateways — Phase 5 Complete (MILESTONE)
+
+#### 2026-03-01 (A7 — Protocol Gateways: Phase 5 Advanced Modules)
+
+**MILESTONE: 383 gateway tests, 20 modules — production-ready NFSv3/pNFS/S3 gateway**
+
+**Phase 5 additions (120 new tests, 6 modules):**
+1. `quota.rs` — Per-user/group quota tracking with hard/soft byte+inode limits, QuotaManager, fixed deadlock in record_write/delete (21 tests)
+2. `access_log.rs` — NFS/S3 access logging with structured events, CSV/structured output, ring buffer, per-protocol stats (24 tests)
+3. `s3_multipart.rs` — Multipart upload state machine: create/upload-part/complete/abort, ETag generation, part validation (22 tests)
+4. `nfs_cache.rs` — Server-side attribute cache with TTL, hit-rate tracking, capacity eviction (14 tests)
+5. `pnfs_flex.rs` — pNFS Flexible File layout (RFC 8435): FlexFileMirror, FlexFileSegment, FlexFileLayoutServer (17 tests)
+6. `token_auth.rs` — Bearer token authentication registry with expiry, permissions, cleanup (22 tests)
+
+**Total A7 test coverage: 383 tests across 20 modules (0 failures)**
+
+---
+
 ### A9: Test & Validation — Phase 4 MILESTONE
 
 #### 2026-03-01 (A9 — Phase 4: Transport, Distributed, Fuzz Tests)
