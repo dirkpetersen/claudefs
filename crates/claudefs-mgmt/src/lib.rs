@@ -63,10 +63,12 @@ pub use tracing_otel::{TracingManager, SpanBuilder, SpanContext, TracePropagator
 pub use webhook::WebhookRegistry;
 
 pub mod audit_trail;
+pub mod compliance;
 pub mod config_sync;
 pub mod diagnostics;
 pub mod maintenance;
 pub mod rebalance;
+pub mod cluster_bootstrap;
 
 pub use audit_trail::{AuditTrail, AuditEvent, AuditEventKind, AuditFilter};
 pub use config_sync::{ConfigStore, ConfigEntry, ConfigVersion, SyncStatus, ConfigSyncError};
