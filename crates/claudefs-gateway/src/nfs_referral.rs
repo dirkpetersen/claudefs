@@ -710,7 +710,7 @@ mod tests {
         );
         let entry = ReferralEntry::new("/data".to_string(), vec![target], ReferralType::Referral);
         db.add_referral(entry).unwrap();
-        db.disable_referral("/data").unwrap();
+        assert!(db.disable_referral("/data"));
 
         let result = db.lookup("/data");
         assert!(result.is_some());
@@ -741,7 +741,7 @@ mod tests {
         );
         db.add_referral(entry2).unwrap();
 
-        db.disable_referral("/data/sub").unwrap();
+        assert!(db.disable_referral("/data/sub"));
 
         let result = db.lookup_by_prefix("/data/sub/file.txt");
         assert!(result.is_some());
