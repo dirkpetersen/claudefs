@@ -105,6 +105,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 2: Integration
 
+#### 2026-03-01 (A2 Session — FUSE-Ready MetadataNode)
+
+##### A2: Metadata Service — Full POSIX API, RPC Dispatch, Replication Tailing (481 tests ✅)
+
+**MetadataNode POSIX completeness (node.rs):**
+- symlink/link/readlink with full integration (metrics, leases, watches, CDC, quotas)
+- xattr ops (get/set/list/remove) with WORM protection
+- statfs() returning filesystem statistics (StatFs struct)
+- readdir_plus() returning DirEntryPlus (entry + attrs) for FUSE readdirplus
+- mknod() for special files (FIFO, socket, block/char device)
+- access() wrapping permission checks for FUSE
+- flush()/fsync() for file handle and inode metadata sync
+
+**RpcDispatcher wired to MetadataNode (rpc.rs):**
+- All 21 opcodes (0x0100–0x0114) dispatch to actual MetadataNode operations
+- Replaced error stubs with real request handling via Arc<MetadataNode>
+- New opcodes: ReaddirPlus (0x0112), Mknod (0x0113), Access (0x0114)
+
+**Journal tailing API for A6 replication (journal_tailer.rs — new module):**
+- JournalTailer: cursor-tracked, batched consumption of metadata journal
+- Batch compaction: eliminates create+delete pairs per docs/metadata.md
+- TailerCursor with Serialize/Deserialize for crash recovery persistence
+- ReplicationBatch with first/last sequence and compaction stats
+- Resume-from-cursor for restarting after crashes
+
+**Cluster membership wired into MetadataNode (node.rs):**
+- MembershipTracker integrated into MetadataNode lifecycle
+- cluster_status() returning ClusterStatus (alive/suspect/dead counts)
+- is_healthy() now checks actual membership state
+- journal() accessor for A6 replication integration
+- fingerprint_index() accessor for A3 dedup integration
+
+**Metrics expanded:**
+- 10 new MetricOp variants: GetXattr, SetXattr, ListXattrs, RemoveXattr, Statfs,
+  ReaddirPlus, Mknod, Access, Flush, Fsync
+
+**Test growth:** 447 → 481 tests (+34), 0 clippy warnings
+
+---
+
 #### 2026-03-01 (Night Session)
 
 ##### A2: Metadata Service — Phase 2 Deep Integration (447 tests ✅)
