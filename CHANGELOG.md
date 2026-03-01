@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 5 MILESTONE COMPLETE
+
+#### 2026-03-01 (A6 — Replication: All Phases Complete)
+
+##### A6: Replication — 303 tests, 14 modules
+
+**Phase 1 (50 tests):** error.rs, journal.rs (CRC32 integrity, 11 ops, async tailer), wal.rs (replication cursors, history compaction), topology.rs (site roles, active filtering)
+
+**Phase 2 (61 tests):** conduit.rs (in-process gRPC mock, AtomicU64 stats, shutdown), sync.rs (LWW ConflictDetector, BatchCompactor, ReplicationSync)
+
+**Phase 3 (58 tests):** uidmap.rs (per-site UID/GID translation), engine.rs (async coordinator, per-site stats), checkpoint.rs (XOR fingerprint, bincode persistence, rolling window)
+
+**Phase 4 (58 tests):** fanout.rs (parallel N-site dispatch, failure_rate), health.rs (Healthy/Degraded/Disconnected/Critical, ClusterHealth), report.rs (ConflictReport, ReplicationStatusReport)
+
+**Phase 5 (46 tests):** throttle.rs (TokenBucket, dual byte+entry, unlimited mode, ThrottleManager), pipeline.rs (compaction → UID map → throttle → fanout integration, PipelineStats)
+
+**MILESTONE: 303 replication tests, zero clippy warnings, 14 modules**
+
+---
+
 ### A7: Protocol Gateways — Phase 2 Complete (MILESTONE)
 
 #### 2026-03-01 (A7 — Protocol Gateways: Phase 2 Foundation)
