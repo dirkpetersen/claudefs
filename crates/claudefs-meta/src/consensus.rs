@@ -45,6 +45,8 @@ pub struct RaftNode {
     next_index: HashMap<NodeId, LogIndex>,
     match_index: HashMap<NodeId, LogIndex>,
     votes_received: HashSet<NodeId>,
+    pre_votes_received: HashSet<NodeId>,
+    transferring_to: Option<NodeId>,
 }
 
 impl RaftNode {
@@ -66,6 +68,8 @@ impl RaftNode {
             next_index: HashMap::new(),
             match_index: HashMap::new(),
             votes_received: HashSet::new(),
+            pre_votes_received: HashSet::new(),
+            transferring_to: None,
         }
     }
 
@@ -126,6 +130,214 @@ impl RaftNode {
     /// Get the term of the last log entry.
     pub fn last_log_term(&self) -> Term {
         self.log.last().map(|e| e.term).unwrap_or(Term::new(0))
+    }
+
+    /// Start a pre-election: transition to PreCandidate, but do NOT increment term.
+    /// Returns a PreVote message to broadcast to all peers.
+    pub fn start_pre_election(&mut self) -> RaftMessage {
+        tracing::info!(
+            node_id = %self.config.node_id,
+            term = %self.current_term,
+            "starting pre-election"
+        );
+
+        self.state = RaftState::PreCandidate;
+        self.pre_votes_received.clear();
+        self.pre_votes_received.insert(self.config.node_id);
+
+        let last_log_index = self.last_log_index();
+        let last_log_term = self.last_log_term();
+
+        tracing::debug!(
+            node_id = %self.config.node_id,
+            term = %self.current_term,
+            last_log_index = %last_log_index,
+            last_log_term = %last_log_term,
+            "sending PreVote"
+        );
+
+        RaftMessage::PreVote {
+            term: self.current_term,
+            candidate_id: self.config.node_id,
+            last_log_index,
+            last_log_term,
+        }
+    }
+
+    /// Handle a PreVote message. Returns a PreVoteResponse.
+    pub fn handle_pre_vote(&mut self, msg: &RaftMessage) -> RaftMessage {
+        let (term, candidate_id, last_log_index, last_log_term) = match msg {
+            RaftMessage::PreVote {
+                term,
+                candidate_id,
+                last_log_index,
+                last_log_term,
+            } => (*term, *candidate_id, *last_log_index, *last_log_term),
+            _ => {
+                panic!("handle_pre_vote called with non-PreVote message");
+            }
+        };
+
+        tracing::debug!(
+            node_id = %self.config.node_id,
+            current_term = %self.current_term,
+            candidate_term = %term,
+            candidate_id = %candidate_id,
+            "received PreVote"
+        );
+
+        if term > self.current_term {
+            tracing::info!(
+                node_id = %self.config.node_id,
+                old_term = %self.current_term,
+                new_term = %term,
+                "stepping down to follower due to higher term in PreVote"
+            );
+            self.step_down(term);
+        }
+
+        let vote_granted = if term < self.current_term {
+            tracing::debug!(
+                node_id = %self.config.node_id,
+                "rejecting pre-vote: candidate term {} < current term {}",
+                term.as_u64(),
+                self.current_term.as_u64()
+            );
+            false
+        } else if !self.is_log_up_to_date(last_log_index, last_log_term) {
+            tracing::debug!(
+                node_id = %self.config.node_id,
+                "rejecting pre-vote: candidate log is not up to date"
+            );
+            false
+        } else {
+            tracing::debug!(
+                node_id = %self.config.node_id,
+                "granting pre-vote to candidate"
+            );
+            true
+        };
+
+        RaftMessage::PreVoteResponse {
+            term: self.current_term,
+            vote_granted,
+        }
+    }
+
+    /// Handle a PreVoteResponse. If we've gathered majority pre-votes,
+    /// proceed to real election. Returns Some(RequestVote) if real election starts.
+    pub fn handle_pre_vote_response(
+        &mut self,
+        from: NodeId,
+        msg: &RaftMessage,
+    ) -> Option<RaftMessage> {
+        let (term, vote_granted) = match msg {
+            RaftMessage::PreVoteResponse { term, vote_granted } => (*term, *vote_granted),
+            _ => {
+                panic!("handle_pre_vote_response called with non-PreVoteResponse message");
+            }
+        };
+
+        tracing::debug!(
+            node_id = %self.config.node_id,
+            from = %from,
+            term = %term,
+            vote_granted = vote_granted,
+            "received pre-vote response"
+        );
+
+        if self.state != RaftState::PreCandidate {
+            tracing::debug!(
+                node_id = %self.config.node_id,
+                "not in PreCandidate state, ignoring pre-vote response"
+            );
+            return None;
+        }
+
+        if term > self.current_term {
+            tracing::info!(
+                node_id = %self.config.node_id,
+                old_term = %self.current_term,
+                new_term = %term,
+                "stepping down to follower due to higher term in pre-vote response"
+            );
+            self.step_down(term);
+            return None;
+        }
+
+        if vote_granted {
+            self.pre_votes_received.insert(from);
+        }
+
+        let majority = (self.config.peers.len() + 2) / 2;
+        if self.pre_votes_received.len() >= majority {
+            tracing::info!(
+                node_id = %self.config.node_id,
+                pre_votes = %self.pre_votes_received.len(),
+                majority = %majority,
+                "gathered majority pre-votes, starting real election"
+            );
+
+            Some(self.start_election())
+        } else {
+            None
+        }
+    }
+
+    /// Transfer leadership to target node. Only valid when Leader.
+    /// Returns a TimeoutNow message to send to the target.
+    pub fn transfer_leadership(&mut self, target: NodeId) -> Result<RaftMessage, MetaError> {
+        if self.state != RaftState::Leader {
+            return Err(MetaError::NotLeader { leader_hint: None });
+        }
+
+        tracing::info!(
+            node_id = %self.config.node_id,
+            target = %target,
+            "transferring leadership to target"
+        );
+
+        self.transferring_to = Some(target);
+
+        Ok(RaftMessage::TimeoutNow {
+            term: self.current_term,
+            leader_id: self.config.node_id,
+        })
+    }
+
+    /// Handle a TimeoutNow message. Immediately start election (skip pre-vote).
+    pub fn handle_timeout_now(&mut self, msg: &RaftMessage) -> RaftMessage {
+        let (term, leader_id) = match msg {
+            RaftMessage::TimeoutNow { term, leader_id } => (*term, *leader_id),
+            _ => {
+                panic!("handle_timeout_now called with non-TimeoutNow message");
+            }
+        };
+
+        tracing::info!(
+            node_id = %self.config.node_id,
+            term = %term,
+            leader_id = %leader_id,
+            "received TimeoutNow, starting immediate election"
+        );
+
+        self.start_election()
+    }
+
+    /// Check if leadership transfer is in progress.
+    pub fn is_transferring(&self) -> bool {
+        self.transferring_to.is_some()
+    }
+
+    /// Cancel leadership transfer (called when election completes).
+    pub fn cancel_transfer(&mut self) {
+        if self.transferring_to.is_some() {
+            tracing::debug!(
+                node_id = %self.config.node_id,
+                "canceling leadership transfer"
+            );
+            self.transferring_to = None;
+        }
     }
 
     /// Start an election: transition to Candidate, increment term, vote for self.
@@ -318,6 +530,12 @@ impl RaftNode {
     pub fn propose(&mut self, op: MetaOp) -> Result<Vec<(NodeId, RaftMessage)>, MetaError> {
         if self.state != RaftState::Leader {
             return Err(MetaError::NotLeader { leader_hint: None });
+        }
+
+        if let Some(target) = &self.transferring_to {
+            return Err(MetaError::NotLeader {
+                leader_hint: Some(*target),
+            });
         }
 
         let index = LogIndex::new(self.log.len() as u64 + 1);
@@ -1267,6 +1485,251 @@ mod tests {
                 assert!(!vote_granted);
             }
             _ => panic!("expected RequestVoteResponse"),
+        }
+    }
+
+    #[test]
+    fn test_pre_election_does_not_increment_term() {
+        let config = create_three_node_config(NodeId::new(1));
+        let mut node = RaftNode::new(config);
+
+        let _ = node.start_pre_election();
+
+        assert_eq!(node.state(), RaftState::PreCandidate);
+        assert_eq!(node.current_term(), Term::new(0));
+    }
+
+    #[test]
+    fn test_pre_vote_granted_for_up_to_date_candidate() {
+        let config = create_three_node_config(NodeId::new(2));
+        let mut node = RaftNode::new(config);
+
+        let msg = RaftMessage::PreVote {
+            term: Term::new(1),
+            candidate_id: NodeId::new(1),
+            last_log_index: LogIndex::ZERO,
+            last_log_term: Term::new(0),
+        };
+
+        let response = node.handle_pre_vote(&msg);
+
+        match response {
+            RaftMessage::PreVoteResponse { term, vote_granted } => {
+                assert_eq!(term, Term::new(1));
+                assert!(vote_granted);
+            }
+            _ => panic!("expected PreVoteResponse"),
+        }
+    }
+
+    #[test]
+    fn test_pre_vote_rejected_for_stale_candidate() {
+        let config = create_three_node_config(NodeId::new(3));
+        let mut node = RaftNode::new(config);
+
+        let op = MetaOp::CreateInode {
+            attr: InodeAttr::new_file(InodeId::new(1), 0, 0, 0o644, 1),
+        };
+
+        let msg = RaftMessage::AppendEntries {
+            term: Term::new(2),
+            leader_id: NodeId::new(1),
+            prev_log_index: LogIndex::ZERO,
+            prev_log_term: Term::new(0),
+            entries: vec![LogEntry {
+                index: LogIndex::new(1),
+                term: Term::new(2),
+                op,
+            }],
+            leader_commit: LogIndex::new(1),
+        };
+        let _ = node.handle_append_entries(&msg);
+
+        let pre_vote_req = RaftMessage::PreVote {
+            term: Term::new(1),
+            candidate_id: NodeId::new(2),
+            last_log_index: LogIndex::ZERO,
+            last_log_term: Term::new(0),
+        };
+
+        let response = node.handle_pre_vote(&pre_vote_req);
+
+        match response {
+            RaftMessage::PreVoteResponse { vote_granted, .. } => {
+                assert!(!vote_granted);
+            }
+            _ => panic!("expected PreVoteResponse"),
+        }
+    }
+
+    #[test]
+    fn test_pre_vote_majority_triggers_real_election() {
+        let config = create_three_node_config(NodeId::new(1));
+        let mut node = RaftNode::new(config);
+
+        let _ = node.start_pre_election();
+        assert_eq!(node.state(), RaftState::PreCandidate);
+
+        let pre_vote_resp = RaftMessage::PreVoteResponse {
+            term: Term::new(0),
+            vote_granted: true,
+        };
+        let result = node.handle_pre_vote_response(NodeId::new(2), &pre_vote_resp);
+
+        assert!(result.is_some());
+        assert_eq!(node.state(), RaftState::Candidate);
+        assert_eq!(node.current_term(), Term::new(1));
+
+        match result {
+            Some(RaftMessage::RequestVote {
+                term, candidate_id, ..
+            }) => {
+                assert_eq!(term, Term::new(1));
+                assert_eq!(candidate_id, NodeId::new(1));
+            }
+            _ => panic!("expected RequestVote message"),
+        }
+    }
+
+    #[test]
+    fn test_pre_vote_does_not_disrupt_current_leader() {
+        let config = create_three_node_config(NodeId::new(2));
+        let mut node = RaftNode::new(config);
+
+        let pre_vote_req = RaftMessage::PreVote {
+            term: Term::new(0),
+            candidate_id: NodeId::new(1),
+            last_log_index: LogIndex::ZERO,
+            last_log_term: Term::new(0),
+        };
+
+        let response = node.handle_pre_vote(&pre_vote_req);
+
+        match response {
+            RaftMessage::PreVoteResponse { vote_granted, .. } => {
+                assert!(vote_granted);
+            }
+            _ => panic!("expected PreVoteResponse"),
+        }
+
+        assert_eq!(node.state(), RaftState::Follower);
+    }
+
+    #[test]
+    fn test_transfer_leadership_sends_timeout_now() {
+        let mut leader_config = create_three_node_config(NodeId::new(1));
+        leader_config.peers = vec![NodeId::new(2), NodeId::new(3)];
+        let mut node = RaftNode::new(leader_config);
+
+        node.start_election();
+        let _ = node.handle_vote_response(
+            NodeId::new(2),
+            &RaftMessage::RequestVoteResponse {
+                term: Term::new(1),
+                vote_granted: true,
+            },
+        );
+        let _ = node.handle_vote_response(
+            NodeId::new(3),
+            &RaftMessage::RequestVoteResponse {
+                term: Term::new(1),
+                vote_granted: true,
+            },
+        );
+
+        assert_eq!(node.state(), RaftState::Leader);
+
+        let result = node.transfer_leadership(NodeId::new(2));
+
+        assert!(result.is_ok());
+        match result {
+            Ok(RaftMessage::TimeoutNow { term, leader_id }) => {
+                assert_eq!(term, Term::new(1));
+                assert_eq!(leader_id, NodeId::new(1));
+            }
+            _ => panic!("expected TimeoutNow message"),
+        }
+
+        assert!(node.is_transferring());
+    }
+
+    #[test]
+    fn test_transfer_leadership_fails_when_not_leader() {
+        let config = create_three_node_config(NodeId::new(1));
+        let mut node = RaftNode::new(config);
+
+        let result = node.transfer_leadership(NodeId::new(2));
+
+        assert!(result.is_err());
+        match result {
+            Err(MetaError::NotLeader { .. }) => {}
+            _ => panic!("expected NotLeader error"),
+        }
+    }
+
+    #[test]
+    fn test_timeout_now_triggers_immediate_election() {
+        let config = create_three_node_config(NodeId::new(2));
+        let mut node = RaftNode::new(config);
+
+        let msg = RaftMessage::TimeoutNow {
+            term: Term::new(1),
+            leader_id: NodeId::new(1),
+        };
+
+        let election_msg = node.handle_timeout_now(&msg);
+
+        assert_eq!(node.state(), RaftState::Candidate);
+        assert_eq!(node.current_term(), Term::new(1));
+
+        match election_msg {
+            RaftMessage::RequestVote {
+                term, candidate_id, ..
+            } => {
+                assert_eq!(term, Term::new(1));
+                assert_eq!(candidate_id, NodeId::new(2));
+            }
+            _ => panic!("expected RequestVote message"),
+        }
+    }
+
+    #[test]
+    fn test_proposals_rejected_during_transfer() {
+        let mut leader_config = create_three_node_config(NodeId::new(1));
+        leader_config.peers = vec![NodeId::new(2), NodeId::new(3)];
+        let mut node = RaftNode::new(leader_config);
+
+        node.start_election();
+        let _ = node.handle_vote_response(
+            NodeId::new(2),
+            &RaftMessage::RequestVoteResponse {
+                term: Term::new(1),
+                vote_granted: true,
+            },
+        );
+        let _ = node.handle_vote_response(
+            NodeId::new(3),
+            &RaftMessage::RequestVoteResponse {
+                term: Term::new(1),
+                vote_granted: true,
+            },
+        );
+
+        let _ = node.transfer_leadership(NodeId::new(2));
+        assert!(node.is_transferring());
+
+        let op = MetaOp::CreateInode {
+            attr: InodeAttr::new_file(InodeId::new(1), 0, 0, 0o644, 1),
+        };
+
+        let result = node.propose(op);
+
+        assert!(result.is_err());
+        match result {
+            Err(MetaError::NotLeader { leader_hint }) => {
+                assert_eq!(leader_hint, Some(NodeId::new(2)));
+            }
+            _ => panic!("expected NotLeader error with target hint"),
         }
     }
 }

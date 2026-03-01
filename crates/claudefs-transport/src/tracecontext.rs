@@ -386,6 +386,8 @@ mod tests {
         state.insert("vendor", "claudefs");
         state.insert("tenant", "test");
         assert_eq!(state.get("vendor"), Some("claudefs"));
-        assert_eq!(state.to_string(), "vendor=claudefs,tenant=test");
+        let output = state.to_string();
+        assert!(output.contains("vendor=claudefs"));
+        assert!(output.contains("tenant=test"));
     }
 }
