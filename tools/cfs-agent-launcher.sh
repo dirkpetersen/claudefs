@@ -11,7 +11,7 @@ set -euo pipefail
 [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env" 2>/dev/null || true
 
 REPO_DIR="/home/cfs/claudefs"
-PHASE="${1:-1}"
+PHASE="1"
 LOG_DIR="/var/log/cfs-agents"
 mkdir -p "$LOG_DIR"
 
@@ -20,6 +20,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --phase) PHASE="$2"; shift 2 ;;
     --agent) SINGLE_AGENT="$2"; shift 2 ;;
+    [0-9]*) PHASE="$1"; shift ;;
     *) shift ;;
   esac
 done
