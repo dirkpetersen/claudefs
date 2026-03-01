@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A7: Protocol Gateways — Phase 3 Production Readiness (Additional Modules)
+
+#### 2026-03-01 (A7 — Phase 3 Production Readiness Round 2)
+
+**5 new production-readiness modules, 1007 total gateway tests (+124 from 883), 47 modules:**
+
+1. **s3_encryption.rs** (~30 tests): S3 server-side encryption (SSE-S3/SSE-KMS)
+   - SseAlgorithm (None/AesCbc256/AwsKms/AwsKmsDsse), SseContext, SseBucketConfig
+   - SseManager: resolve SSE for uploads, parse S3 SSE request headers, generate response headers
+   - Bucket-level enforcement (enforce_encryption=true rejects unencrypted uploads)
+   - Full S3 API header compatibility (x-amz-server-side-encryption*)
+
+2. **nfs_referral.rs** (~25 tests): NFSv4.1 referrals for multi-namespace federation
+   - ReferralEntry with ReferralType (Referral/Migration/Replication)
+   - ReferralDatabase: add/remove/enable/disable, longest-prefix path lookup
+   - FsLocations/FsLocation/FsServer for NFS4 fs_locations attribute response
+   - Enables namespace federation across ClaudeFS clusters
+
+3. **gateway_circuit_breaker.rs** (~21 tests): Circuit breaker for backend resilience
+   - CircuitState (Closed/Open/HalfOpen) state machine with configurable thresholds
+   - Auto-transition: Closed→Open on failures, Open→HalfOpen after timeout, HalfOpen→Closed on recovery
+   - CircuitBreakerRegistry: manages per-backend circuit breakers
+   - Prevents cascading failures when ClaudeFS storage/metadata nodes become unavailable
+
+4. **smb_multichannel.rs** (~22 tests): SMB3 multichannel configuration
+   - NicCapabilities with RDMA/RSS/TSO/checksum offload interface flags
+   - ChannelSelectionPolicy: RoundRobin, WeightedBySpeed, PreferRdma, PinToInterface
+   - MultichannelManager: per-session channel assignment, interface management
+   - Enables bandwidth aggregation and NIC failover for Windows clients
+
+5. **s3_object_lock.rs** (~22 tests): S3 Object Lock for WORM compliance
+   - RetentionMode (Governance/Compliance), LegalHoldStatus (On/Off)
+   - BucketObjectLockConfig with DefaultRetention (Days/Years periods)
+   - can_delete/can_overwrite: enforces retention with Governance bypass support
+   - Addresses Priority 2 enterprise feature gap (WORM/compliance)
+
+**A7 Phase 3 milestone:** 1007 tests, 47 modules, all Phase 3 production-readiness features complete.
+
 ### A8: Management — Phase 3 Production Readiness Additions
 
 #### 2026-03-01 (A8 — Phase 3 Production Readiness: live_config + ops_metrics)
