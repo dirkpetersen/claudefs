@@ -130,6 +130,10 @@ impl XdrDecoder {
     pub fn remaining(&self) -> usize {
         self.buf.len() - self.pos
     }
+
+    pub fn remaining_bytes(&self) -> Vec<u8> {
+        self.buf[self.pos..].to_vec()
+    }
 }
 
 impl Default for XdrEncoder {
