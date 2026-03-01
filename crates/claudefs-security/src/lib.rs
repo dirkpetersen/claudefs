@@ -44,3 +44,5 @@ pub mod dep_audit;
 pub mod dos_resilience;
 #[cfg(test)]
 pub mod supply_chain;
+#[cfg(test)]
+pub mod operational_security;
