@@ -7,7 +7,9 @@
 //! using a buddy allocator, and supports FDP/ZNS data placement hints.
 
 pub mod allocator;
+pub mod atomic_write;
 pub mod block;
+pub mod block_cache;
 pub mod capacity;
 pub mod checksum;
 pub mod defrag;
@@ -17,17 +19,25 @@ pub mod error;
 pub mod fdp;
 pub mod flush;
 pub mod io_uring_bridge;
+pub mod io_scheduler;
+pub mod metrics;
 pub mod recovery;
 pub mod hot_swap;
 pub mod segment;
 pub mod s3_tier;
+pub mod smart;
 pub mod superblock;
+pub mod write_journal;
 pub mod zns;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
 
+pub use atomic_write::{
+    AtomicWriteBatch, AtomicWriteCapability, AtomicWriteEngine, AtomicWriteRequest, AtomicWriteStats,
+};
 pub use block::{BlockId, BlockRef, BlockSize, PlacementHint};
+pub use block_cache::{BlockCache, BlockCacheConfig, CacheEntry, CacheStats};
 pub use capacity::{CapacityTracker, CapacityLevel, CapacityTrackerStats, SegmentTracker, TierOverride, WatermarkConfig};
 pub use checksum::{Checksum, ChecksumAlgorithm, BlockHeader};
 pub use defrag::{DefragConfig, DefragEngine, DefragPlan, DefragStats, FragmentationReport, SizeClassFragmentation, BlockRelocation};
@@ -37,6 +47,8 @@ pub use allocator::{BuddyAllocator, AllocatorConfig, AllocatorStats};
 pub use engine::{StorageEngine, StorageEngineConfig, StorageEngineStats};
 pub use error::{StorageError, StorageResult};
 pub use io_uring_bridge::{IoEngine, MockIoEngine, IoStats, IoRequestId, IoOpType};
+pub use io_scheduler::{IoPriority, ScheduledIo, IoScheduler, IoSchedulerConfig, IoSchedulerStats};
+pub use metrics::{Metric, MetricType, MetricValue, StorageMetrics};
 pub use recovery::{
     RecoveryConfig, RecoveryManager, RecoveryPhase, RecoveryReport, RecoveryState,
     JOURNAL_CHECKPOINT_MAGIC, AllocatorBitmap, JournalCheckpoint,
@@ -50,7 +62,14 @@ pub use s3_tier::{
     ObjectStoreBackend, MockObjectStore, MockObjectStoreStats,
     TieringEngine, TieringConfig, TieringMode, TieringStats, S3KeyBuilder,
 };
+pub use smart::{
+    AlertSeverity, HealthStatus, NvmeSmartLog, SmartAlert, SmartAttribute,
+    SmartMonitor, SmartMonitorConfig,
+};
 pub use superblock::{Superblock, DeviceRoleCode, SUPERBLOCK_MAGIC, SUPERBLOCK_VERSION};
+pub use write_journal::{
+    JournalConfig, JournalEntry, JournalOp, JournalStats, SyncMode, WriteJournal,
+};
 
 #[cfg(feature = "uring")]
 pub use uring_engine::{UringConfig, UringIoEngine, UringStats};
