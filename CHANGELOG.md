@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 1 Continued: Transport & Infrastructure
 
+#### 2026-03-01 (A4 Session — Circuit Breaker)
+
+##### A4: Transport — Circuit Breaker (10 new tests, 1003 total — MILESTONE: 1000+ tests!)
+
+**New Module: Circuit Breaker Pattern (`circuitbreaker.rs`):**
+- `CircuitState`: Closed (normal), Open (failing fast), HalfOpen (testing recovery)
+- `CircuitBreakerConfig`: failure_threshold (5), success_threshold (3), open_duration (30s)
+- `CircuitBreaker`: lock-free atomic state machine with time-based recovery
+- 10 unit tests; transport total: 161 tests
+
+**🎉 MILESTONE: 1003 tests passing across the workspace — over 1000!**
+
+---
+
 #### 2026-03-01 (A4 Session — Deadline/Timeout Propagation)
 
 ##### A4: Transport — Deadline/Timeout Propagation (9 new tests, 993 total)
