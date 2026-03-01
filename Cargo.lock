@@ -501,6 +501,7 @@ dependencies = [
  "libc",
  "lru",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tracing",
@@ -513,7 +514,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "prost",
+ "rand 0.8.5",
  "serde",
+ "sha2",
  "thiserror",
  "tokio",
  "tonic",

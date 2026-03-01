@@ -12,31 +12,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn finding_16_token_generation_is_predictable() {
-        let token1 = TokenAuth::generate_token(1000, 1);
-        let token2 = TokenAuth::generate_token(1000, 1);
-        assert_eq!(
+    fn finding_16_token_generation_is_random() {
+        let token1 = TokenAuth::generate_token();
+        let token2 = TokenAuth::generate_token();
+        assert_ne!(
             token1, token2,
-            "FINDING-16: Same inputs produce same token — not random"
+            "FINDING-16 FIXED: Tokens should be random, not deterministic"
         );
-
-        let predicted = format!("{:016x}{:08x}", 1u64, 1000u32);
-        assert_eq!(
-            token1, predicted,
-            "FINDING-16: Token is deterministic hex encoding"
-        );
+        assert_eq!(token1.len(), 64, "Token should be 32 bytes hex-encoded");
+        assert_eq!(token2.len(), 64, "Token should be 32 bytes hex-encoded");
     }
 
     #[test]
-    fn finding_16_sequential_tokens_predictable() {
-        let tokens: Vec<String> = (0..10)
-            .map(|i| TokenAuth::generate_token(1000, i))
-            .collect();
-
-        for (i, token) in tokens.iter().enumerate() {
-            let expected = format!("{:016x}{:08x}", i as u64, 1000u32);
-            assert_eq!(token, &expected);
-        }
+    fn finding_16_sequential_tokens_unique() {
+        let tokens: Vec<String> = (0..10).map(|_| TokenAuth::generate_token()).collect();
+        let unique: std::collections::HashSet<&String> = tokens.iter().collect();
+        assert_eq!(
+            unique.len(),
+            10,
+            "FINDING-16 FIXED: All 10 tokens should be unique"
+        );
     }
 
     #[test]
@@ -95,7 +90,7 @@ mod tests {
     }
 
     #[test]
-    fn finding_18_token_enumeration_possible() {
+    fn finding_18_token_stored_as_hash() {
         let auth = TokenAuth::new();
         auth.register(AuthToken::new("token-a", 1000, 100, "user1"));
         auth.register(AuthToken::new("token-b", 2000, 200, "user2"));
@@ -103,9 +98,12 @@ mod tests {
         let tokens = auth.tokens_for_user(1000);
         assert_eq!(tokens.len(), 1);
         assert_eq!(
-            tokens[0].token, "token-a",
-            "Token string returned in cleartext"
+            tokens[0].token.len(),
+            64,
+            "Token stored as 64-char SHA-256 hex hash"
         );
+        assert_ne!(tokens[0].token, "token-a", "Token NOT stored in cleartext");
+        assert!(auth.validate("token-a", 0).is_some());
     }
 
     #[test]
@@ -194,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn auth_sys_long_machinename() {
+    fn auth_sys_long_machinename_rejected() {
         let long_name = "a".repeat(10000);
         let cred = AuthSysCred {
             stamp: 1,
@@ -204,12 +202,22 @@ mod tests {
             gids: vec![],
         };
         let encoded = cred.encode_xdr();
-        let decoded = AuthSysCred::decode_xdr(&encoded).unwrap();
-        assert_eq!(
-            decoded.machinename.len(),
-            10000,
-            "No limit on machinename length — potential DoS"
+        let result = AuthSysCred::decode_xdr(&encoded);
+        assert!(
+            result.is_err(),
+            "Machinename > 255 bytes should be rejected"
         );
+
+        let ok_name = "b".repeat(255);
+        let ok_cred = AuthSysCred {
+            stamp: 1,
+            machinename: ok_name,
+            uid: 1000,
+            gid: 1000,
+            gids: vec![],
+        };
+        let ok_encoded = ok_cred.encode_xdr();
+        assert!(AuthSysCred::decode_xdr(&ok_encoded).is_ok());
     }
 
     #[test]

@@ -3,6 +3,14 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use rand::RngCore;
+use sha2::{Digest, Sha256};
+
+fn sha256_hex(input: &str) -> String {
+    let hash = Sha256::digest(input.as_bytes());
+    hash.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
 /// Token permissions bitmask
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TokenPermissions {
@@ -57,7 +65,7 @@ pub struct AuthToken {
 impl AuthToken {
     pub fn new(token: &str, uid: u32, gid: u32, name: &str) -> Self {
         Self {
-            token: token.to_string(),
+            token: sha256_hex(token),
             uid,
             gid,
             name: name.to_string(),
@@ -109,14 +117,14 @@ impl TokenAuth {
     pub fn register(&self, token: AuthToken) {
         self.tokens
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(token.token.clone(), token);
     }
 
     /// Validate a token string, return the token if valid and not expired
     pub fn validate(&self, token: &str, now: u64) -> Option<AuthToken> {
-        let tokens = self.tokens.lock().unwrap();
-        tokens.get(token).and_then(|t| {
+        let tokens = self.tokens.lock().unwrap_or_else(|e| e.into_inner());
+        tokens.get(&sha256_hex(token)).and_then(|t| {
             if t.is_expired(now) {
                 None
             } else {
@@ -127,14 +135,18 @@ impl TokenAuth {
 
     /// Revoke a token by string
     pub fn revoke(&self, token: &str) -> bool {
-        self.tokens.lock().unwrap().remove(token).is_some()
+        self.tokens
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&sha256_hex(token))
+            .is_some()
     }
 
     /// List all tokens for a user (by uid)
     pub fn tokens_for_user(&self, uid: u32) -> Vec<AuthToken> {
         self.tokens
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .values()
             .filter(|t| t.uid == uid)
             .cloned()
@@ -145,7 +157,7 @@ impl TokenAuth {
     pub fn valid_count(&self, now: u64) -> usize {
         self.tokens
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .values()
             .filter(|t| !t.is_expired(now))
             .count()
@@ -153,20 +165,26 @@ impl TokenAuth {
 
     /// Remove all expired tokens
     pub fn cleanup_expired(&self, now: u64) -> usize {
-        let mut tokens = self.tokens.lock().unwrap();
+        let mut tokens = self.tokens.lock().unwrap_or_else(|e| e.into_inner());
         let before = tokens.len();
         tokens.retain(|_, t| !t.is_expired(now));
         before - tokens.len()
     }
 
-    /// Generate a simple token string (hex of counter + uid)
-    pub fn generate_token(uid: u32, counter: u64) -> String {
-        format!("{:016x}{:08x}", counter, uid)
+    /// Generate a cryptographically secure token string (64 hex chars)
+    pub fn generate_token() -> String {
+        let mut rng = rand::rngs::OsRng;
+        let mut bytes = [0u8; 32];
+        rng.fill_bytes(&mut bytes);
+        bytes.iter().map(|b| format!("{:02x}", b)).collect()
     }
 
     /// Check if a token string exists (regardless of expiry)
     pub fn exists(&self, token: &str) -> bool {
-        self.tokens.lock().unwrap().contains_key(token)
+        self.tokens
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains_key(&sha256_hex(token))
     }
 }
 
@@ -207,7 +225,8 @@ mod tests {
     #[test]
     fn test_auth_token_new() {
         let token = AuthToken::new("abc123", 1000, 100, "testuser");
-        assert_eq!(token.token, "abc123");
+        assert_ne!(token.token, "abc123");
+        assert_eq!(token.token.len(), 64);
         assert_eq!(token.uid, 1000);
         assert_eq!(token.gid, 100);
         assert_eq!(token.name, "testuser");
@@ -348,8 +367,11 @@ mod tests {
 
     #[test]
     fn test_token_auth_generate_token() {
-        let token = TokenAuth::generate_token(1000, 12345);
-        assert_eq!(token, "0000000000003039000003e8");
+        let token = TokenAuth::generate_token();
+        assert_eq!(token.len(), 64);
+        assert!(token.chars().all(|c| c.is_ascii_hexdigit()));
+        let token2 = TokenAuth::generate_token();
+        assert_ne!(token, token2);
     }
 
     #[test]
