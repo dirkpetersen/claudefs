@@ -245,4 +245,77 @@ mod tests {
         mgr.acquire(InodeId::new(2), LockType::Write, NodeId::new(1))
             .unwrap();
     }
+
+    #[test]
+    fn test_release_enables_new_lock() {
+        let mgr = make_manager();
+        let ino = InodeId::new(42);
+        let lock_id = mgr.acquire(ino, LockType::Write, NodeId::new(1)).unwrap();
+
+        // Write lock blocks others
+        assert!(mgr
+            .acquire(ino, LockType::Write, NodeId::new(2))
+            .is_err());
+
+        // Release the lock
+        mgr.release(lock_id).unwrap();
+
+        // Now another node can acquire
+        mgr.acquire(ino, LockType::Write, NodeId::new(2)).unwrap();
+    }
+
+    #[test]
+    fn test_release_nonexistent_lock() {
+        let mgr = make_manager();
+        // Releasing a non-existent lock_id should succeed silently
+        mgr.release(99999).unwrap();
+    }
+
+    #[test]
+    fn test_locks_on_empty() {
+        let mgr = make_manager();
+        let locks = mgr.locks_on(InodeId::new(42)).unwrap();
+        assert!(locks.is_empty());
+    }
+
+    #[test]
+    fn test_is_locked_after_all_released() {
+        let mgr = make_manager();
+        let ino = InodeId::new(42);
+        let id1 = mgr.acquire(ino, LockType::Read, NodeId::new(1)).unwrap();
+        let id2 = mgr.acquire(ino, LockType::Read, NodeId::new(2)).unwrap();
+
+        assert!(mgr.is_locked(ino).unwrap());
+
+        mgr.release(id1).unwrap();
+        assert!(mgr.is_locked(ino).unwrap()); // Still locked by node 2
+
+        mgr.release(id2).unwrap();
+        assert!(!mgr.is_locked(ino).unwrap()); // Now fully unlocked
+    }
+
+    #[test]
+    fn test_lock_ids_unique() {
+        let mgr = make_manager();
+        let id1 = mgr
+            .acquire(InodeId::new(1), LockType::Read, NodeId::new(1))
+            .unwrap();
+        let id2 = mgr
+            .acquire(InodeId::new(1), LockType::Read, NodeId::new(2))
+            .unwrap();
+        let id3 = mgr
+            .acquire(InodeId::new(2), LockType::Write, NodeId::new(3))
+            .unwrap();
+
+        assert_ne!(id1, id2);
+        assert_ne!(id2, id3);
+        assert_ne!(id1, id3);
+    }
+
+    #[test]
+    fn test_release_all_for_node_returns_zero() {
+        let mgr = make_manager();
+        let released = mgr.release_all_for_node(NodeId::new(999)).unwrap();
+        assert_eq!(released, 0);
+    }
 }

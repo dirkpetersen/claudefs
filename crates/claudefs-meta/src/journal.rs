@@ -303,4 +303,90 @@ mod tests {
         let entries = journal.read_from(1, 10).unwrap();
         assert!(entries.is_empty());
     }
+
+    #[test]
+    fn test_read_from_future_sequence() {
+        let journal = MetadataJournal::new(1, 100);
+        journal
+            .append(create_test_op(100), LogIndex::new(1))
+            .unwrap();
+
+        let entries = journal.read_from(999, 10).unwrap();
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn test_read_with_limit() {
+        let journal = MetadataJournal::new(1, 100);
+        for i in 1..=10 {
+            journal
+                .append(create_test_op(i * 100), LogIndex::new(i))
+                .unwrap();
+        }
+
+        let entries = journal.read_from(1, 3).unwrap();
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].sequence, 1);
+        assert_eq!(entries[2].sequence, 3);
+    }
+
+    #[test]
+    fn test_compact_before_first_entry() {
+        let journal = MetadataJournal::new(1, 100);
+        journal
+            .append(create_test_op(100), LogIndex::new(1))
+            .unwrap();
+        journal
+            .append(create_test_op(200), LogIndex::new(2))
+            .unwrap();
+
+        // Compact before sequence 1 — nothing should be removed
+        let removed = journal.compact_before(1).unwrap();
+        assert_eq!(removed, 0);
+        assert_eq!(journal.len().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_compact_all() {
+        let journal = MetadataJournal::new(1, 100);
+        journal
+            .append(create_test_op(100), LogIndex::new(1))
+            .unwrap();
+        journal
+            .append(create_test_op(200), LogIndex::new(2))
+            .unwrap();
+
+        let removed = journal.compact_before(u64::MAX).unwrap();
+        assert_eq!(removed, 2);
+        assert!(journal.is_empty().unwrap());
+    }
+
+    #[test]
+    fn test_sequences_are_monotonic() {
+        let journal = MetadataJournal::new(1, 100);
+        let s1 = journal
+            .append(create_test_op(100), LogIndex::new(1))
+            .unwrap();
+        let s2 = journal
+            .append(create_test_op(200), LogIndex::new(2))
+            .unwrap();
+        let s3 = journal
+            .append(create_test_op(300), LogIndex::new(3))
+            .unwrap();
+
+        assert!(s1 < s2);
+        assert!(s2 < s3);
+    }
+
+    #[test]
+    fn test_vector_clock_in_entries() {
+        let journal = MetadataJournal::new(42, 100);
+        journal
+            .append(create_test_op(100), LogIndex::new(1))
+            .unwrap();
+
+        let entries = journal.read_from(1, 10).unwrap();
+        assert_eq!(entries[0].vector_clock.site_id, 42);
+        assert_eq!(entries[0].vector_clock.sequence, 1);
+    }
 }
