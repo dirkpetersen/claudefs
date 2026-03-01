@@ -369,6 +369,7 @@ dependencies = [
  "bincode",
  "prost",
  "serde",
+ "tempfile",
  "thiserror",
  "tokio",
  "tonic",

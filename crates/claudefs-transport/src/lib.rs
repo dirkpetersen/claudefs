@@ -14,6 +14,7 @@ pub mod connection;
 pub mod error;
 pub mod message;
 pub mod protocol;
+pub mod qos;
 pub mod rdma;
 pub mod rpc;
 pub mod tcp;
@@ -25,6 +26,9 @@ pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
 pub use error::{TransportError, Result};
 pub use message::{serialize_message, deserialize_message};
 pub use protocol::{Frame, FrameHeader, Opcode, FrameFlags};
+pub use qos::{
+    default_qos_config, QosConfig, QosError, QosPermit, QosScheduler, QosStats, WorkloadClass,
+};
 pub use tls::{TlsConfig, TlsConnector, TlsAcceptor};
 pub use tls_tcp::TlsTcpTransport;
 pub use transport::{Transport, Connection, Listener};

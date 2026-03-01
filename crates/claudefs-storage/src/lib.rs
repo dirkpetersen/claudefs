@@ -18,7 +18,9 @@ pub mod fdp;
 pub mod flush;
 pub mod io_uring_bridge;
 pub mod recovery;
+pub mod hot_swap;
 pub mod segment;
+pub mod s3_tier;
 pub mod superblock;
 pub mod zns;
 
@@ -40,6 +42,14 @@ pub use recovery::{
     JOURNAL_CHECKPOINT_MAGIC, AllocatorBitmap, JournalCheckpoint,
 };
 pub use segment::{SegmentPacker, SegmentPackerConfig, PackedSegment, SegmentHeader, SegmentEntry, SegmentPackerStats, SEGMENT_SIZE};
+pub use hot_swap::{
+    HotSwapManager, HotSwapStats, HotSwapEvent, HotSwapError,
+    DeviceState, DrainProgress, BlockMigration, MigrationState,
+};
+pub use s3_tier::{
+    ObjectStoreBackend, MockObjectStore, MockObjectStoreStats,
+    TieringEngine, TieringConfig, TieringMode, TieringStats, S3KeyBuilder,
+};
 pub use superblock::{Superblock, DeviceRoleCode, SUPERBLOCK_MAGIC, SUPERBLOCK_VERSION};
 
 #[cfg(feature = "uring")]
