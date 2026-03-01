@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Phase 1 Continued: Transport & Infrastructure
+
+#### 2026-03-01 (A4 Session — Connection Multiplexer)
+
+##### A4: Transport — Connection Multiplexer (8 new tests, 975 total)
+
+**New Module: Connection Multiplexing (`mux.rs`):**
+- `StreamId` type alias for `u64` (matches protocol request_id)
+- `StreamState` enum: Active, Complete, TimedOut, Cancelled
+- `MuxConfig` struct: max_concurrent_streams (256), stream_timeout (30s)
+- `StreamHandle` struct: RAII stream handle with `recv()` for response
+- `Multiplexer` struct: manages concurrent streams over a single connection
+  - `open_stream()`: register new in-flight request, returns StreamHandle
+  - `dispatch_response()`: route response Frame to waiting caller
+  - `cancel_stream()`: remove stream and notify waiter
+  - `active_streams()`: current concurrent stream count
+- Full re-exports in lib.rs: `Multiplexer, MuxConfig, StreamHandle, StreamState`
+- 8 unit tests all passing
+
+**Also Fixed:**
+- Removed duplicate `[target.'cfg(unix)'.dependencies]` section in storage Cargo.toml
+- Fixed workspace dependency references (libc, io-uring, proptest direct versions)
+- Resolved Cargo.lock merge conflicts from parallel agent commits
+
+**Test Status:** 975 tests passing total (up from 967)
+
+---
+
 ### Phase 1: Infrastructure & CI Setup
 
 #### 2026-03-01 (A11 Session — GitHub Actions CI/CD)
