@@ -2,21 +2,37 @@
 
 use thiserror::Error;
 
+/// NFSv3 status: OK (success)
 pub const NFS3_OK: u32 = 0;
+/// NFSv3 status: not owner
 pub const NFS3ERR_PERM: u32 = 1;
+/// NFSv3 status: no such file or directory
 pub const NFS3ERR_NOENT: u32 = 2;
+/// NFSv3 status: I/O error
 pub const NFS3ERR_IO: u32 = 5;
+/// NFSv3 status: permission denied
 pub const NFS3ERR_ACCES: u32 = 13;
+/// NFSv3 status: file exists
 pub const NFS3ERR_EXIST: u32 = 17;
+/// NFSv3 status: not a directory
 pub const NFS3ERR_NOTDIR: u32 = 20;
+/// NFSv3 status: is a directory
 pub const NFS3ERR_ISDIR: u32 = 21;
+/// NFSv3 status: invalid argument
 pub const NFS3ERR_INVAL: u32 = 22;
+/// NFSv3 status: file too large
 pub const NFS3ERR_FBIG: u32 = 27;
+/// NFSv3 status: no space left on device
 pub const NFS3ERR_NOSPC: u32 = 28;
+/// NFSv3 status: read-only filesystem
 pub const NFS3ERR_ROFS: u32 = 30;
+/// NFSv3 status: stale file handle
 pub const NFS3ERR_STALE: u32 = 70;
+/// NFSv3 status: illegal file handle
 pub const NFS3ERR_BADHANDLE: u32 = 10001;
+/// NFSv3 status: operation not supported
 pub const NFS3ERR_NOTSUPP: u32 = 10004;
+/// NFSv3 status: server fault
 pub const NFS3ERR_SERVERFAULT: u32 = 10006;
 
 #[derive(Error, Debug)]

@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 2 Complete
+
+#### 2026-03-01 (A5 — FUSE Client: Phase 1+2 Foundation)
+
+##### A5: FUSE Client — Phase 1+2 (114 tests, 9 modules, 3477 lines)
+
+**Phase 1: Foundation (53 tests, 5 modules):**
+1. `error.rs` — FuseError with thiserror: 13 variants (Io, MountFailed, NotFound, PermissionDenied, NotDirectory, IsDirectory, NotEmpty, AlreadyExists, InvalidArgument, PassthroughUnsupported, KernelVersionTooOld, CacheOverflow, NotSupported), `to_errno()` for libc mapping (11 tests)
+2. `inode.rs` — InodeTable with InodeEntry, InodeKind, ROOT_INODE=1, alloc/get/get_mut/lookup_child/remove/add_lookup/forget with POSIX nlink semantics (9 tests)
+3. `attr.rs` — FileAttr, FileType, `file_attr_to_fuser()`, `inode_kind_to_fuser_type()`, `new_file/new_dir/new_symlink` constructors, `from_inode` conversion (6 tests)
+4. `cache.rs` — MetadataCache with LRU eviction, TTL expiry, negative cache, `CacheStats` tracking hits/misses/evictions (9 tests)
+5. `operations.rs` — POSIX helpers: `apply_mode_umask()`, `check_access()` with owner/group/other/root logic, `mode_to_fuser_type()`, `blocks_for_size()`, `SetAttrRequest`, `CreateRequest`, `MkdirRequest`, `RenameRequest`, `DirEntry`, `StatfsReply` (19 tests)
+
+**Phase 2: Core FUSE Daemon (61 tests, 4 new modules):**
+1. `filesystem.rs` — `ClaudeFsFilesystem` implementing `fuser::Filesystem` trait with in-memory InodeTable backend: init, lookup, forget, getattr, setattr, mkdir, rmdir, create, unlink, read, write, open, release, opendir, readdir, releasedir, rename, statfs, access, flush — `ClaudeFsConfig` with attr_timeout, entry_timeout, allow_other, direct_io (20 tests)
+2. `passthrough.rs` — FUSE passthrough mode support: `PassthroughConfig`, `PassthroughStatus` (Enabled/DisabledKernelTooOld/DisabledByConfig), `check_kernel_version()`, `detect_kernel_version()` via /proc/version, `PassthroughState` with fd_table management (8 tests)
+3. `server.rs` — `FuseServer`, `FuseServerConfig`, `ServerState`, `build_mount_options()` for fuser::MountOption conversion, `validate_config()` (8 tests)
+4. `mount.rs` — `MountOptions`, `MountError`, `MountHandle` RAII wrapper, `validate_mountpoint()`, `parse_mount_options()` for comma-separated option strings, `options_to_fuser()` (10 tests)
+
+**MILESTONE: 1484 tests passing across the workspace, zero clippy errors (non-docs)**
+
+---
+
 ### A6: Replication — Phase 2 Complete
 
 #### 2026-03-01 (A6 — Replication: Phase 2 Conduit and Sync)

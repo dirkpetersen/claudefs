@@ -3,11 +3,16 @@
 use crate::rpc::{MOUNT_PROGRAM, MOUNT_VERSION, NFS_PROGRAM, NFS_VERSION};
 use std::sync::{Arc, Mutex};
 
+/// Default portmapper/rpcbind port
 pub const PORTMAP_PORT: u16 = 111;
+/// Default NFS server port
 pub const NFS_PORT: u16 = 2049;
+/// Default MOUNT daemon port
 pub const MOUNT_PORT: u16 = 20048;
 
+/// IP protocol number: TCP
 pub const IPPROTO_TCP: u32 = 6;
+/// IP protocol number: UDP
 pub const IPPROTO_UDP: u32 = 17;
 
 #[derive(Debug, Clone)]

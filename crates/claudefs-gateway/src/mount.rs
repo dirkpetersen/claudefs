@@ -1,26 +1,41 @@
 //! MOUNT protocol v3 (RFC 1813 Appendix I)
 
-use crate::error::Result;
 use crate::protocol::FileHandle3;
-use crate::xdr::{XdrDecoder, XdrEncoder};
+use crate::xdr::XdrEncoder;
 use std::sync::{Arc, Mutex};
 
+/// MOUNT status: OK (success)
 pub const MNT_OK: u32 = 0;
+/// MOUNT status: not owner
 pub const MNT_ERR_PERM: u32 = 1;
+/// MOUNT status: no such file or directory
 pub const MNT_ERR_NOENT: u32 = 2;
+/// MOUNT status: I/O error
 pub const MNT_ERR_IO: u32 = 5;
+/// MOUNT status: permission denied
 pub const MNT_ERR_ACCESS: u32 = 13;
+/// MOUNT status: not a directory
 pub const MNT_ERR_NOTDIR: u32 = 20;
+/// MOUNT status: invalid argument
 pub const MNT_ERR_INVAL: u32 = 22;
+/// MOUNT status: filename too long
 pub const MNT_ERR_NAMETOOLONG: u32 = 63;
+/// MOUNT status: operation not supported
 pub const MNT_ERR_NOTSUPP: u32 = 10004;
+/// MOUNT status: server fault
 pub const MNT_ERR_SERVERFAULT: u32 = 10006;
 
+/// MOUNTv3 procedure: NULL
 pub const MNT3_NULL: u32 = 0;
+/// MOUNTv3 procedure: MNT (mount)
 pub const MNT3_MNT: u32 = 1;
+/// MOUNTv3 procedure: DUMP
 pub const MNT3_DUMP: u32 = 2;
+/// MOUNTv3 procedure: UMNT (unmount)
 pub const MNT3_UMNT: u32 = 3;
+/// MOUNTv3 procedure: UMNTALL (unmount all)
 pub const MNT3_UMNTALL: u32 = 4;
+/// MOUNTv3 procedure: EXPORT (list exports)
 pub const MNT3_EXPORT: u32 = 5;
 
 #[derive(Debug, Clone)]

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::error::{GatewayError, Result, NFS3ERR_NOENT, NFS3_OK};
+use crate::error::{GatewayError, Result};
 use crate::protocol::{
     Entry3, Fattr3, FileHandle3, FsInfoResult, FsStatResult, Ftype3, LookupResult, Nfstime3,
     PathConfResult, ReadDirResult,
@@ -55,7 +55,7 @@ pub struct InodeEntry {
 }
 
 impl InodeEntry {
-    fn new_dir(inode: u64) -> Self {
+    fn new_dir(_inode: u64) -> Self {
         let now = Nfstime3::now();
         Self {
             ftype: Ftype3::Dir,
@@ -73,7 +73,7 @@ impl InodeEntry {
         }
     }
 
-    fn new_file(inode: u64) -> Self {
+    fn new_file(_inode: u64) -> Self {
         let now = Nfstime3::now();
         Self {
             ftype: Ftype3::Reg,
@@ -221,7 +221,7 @@ impl VfsBackend for MockVfsBackend {
         }
 
         let mut entries = Vec::new();
-        let mut cookie_val = cookie;
+        let _cookie = cookie;
 
         let all_entries = vec![(".".to_string(), dir_inode), ("..".to_string(), 1)]
             .into_iter()
@@ -368,7 +368,7 @@ impl VfsBackend for MockVfsBackend {
         {
             let to_dir_entry = inodes.get_mut(&to_inode).ok_or(GatewayError::Nfs3NoEnt)?;
             if to_dir_entry.ftype != Ftype3::Dir {
-                drop(to_dir_entry);
+                let _ = to_dir_entry;
                 let mut inodes = self.inodes.write().map_err(|_| GatewayError::Nfs3Io)?;
                 let from_dir_entry = inodes.get_mut(&from_inode).ok_or(GatewayError::Nfs3NoEnt)?;
                 from_dir_entry
@@ -377,7 +377,7 @@ impl VfsBackend for MockVfsBackend {
                 return Err(GatewayError::Nfs3NotDir);
             }
             if to_dir_entry.children.contains_key(to_name) {
-                drop(to_dir_entry);
+                let _ = to_dir_entry;
                 let mut inodes = self.inodes.write().map_err(|_| GatewayError::Nfs3Io)?;
                 let from_dir_entry = inodes.get_mut(&from_inode).ok_or(GatewayError::Nfs3NoEnt)?;
                 from_dir_entry
@@ -449,8 +449,7 @@ impl VfsBackend for MockVfsBackend {
     }
 
     fn fsstat(&self, _fh: &FileHandle3) -> Result<FsStatResult> {
-        let inodes = self.inodes.read().map_err(|_| GatewayError::Nfs3Io)?;
-        let count = inodes.len() as u64;
+        let _inodes = self.inodes.read().map_err(|_| GatewayError::Nfs3Io)?;
         Ok(FsStatResult {
             tbytes: 1_000_000_000_000,
             fbytes: 800_000_000_000,
@@ -590,6 +589,7 @@ pub enum Nfs3SymLinkResult {
 
 pub struct Nfs3Handler<B: VfsBackend> {
     backend: Arc<B>,
+    #[allow(dead_code)]
     fsid: u64,
 }
 
