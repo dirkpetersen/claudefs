@@ -30,3 +30,4 @@ pub mod recv_ratelimit;
 pub mod journal_gc;
 pub mod repl_qos;
 pub mod repl_audit;
+pub mod split_brain;
