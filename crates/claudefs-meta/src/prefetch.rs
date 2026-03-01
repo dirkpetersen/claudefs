@@ -260,6 +260,8 @@ mod tests {
             content_hash: None,
             repl_state: ReplicationState::Local,
             vector_clock: VectorClock::new(1, 0),
+            generation: 1,
+            symlink_target: None,
         }
     }
 
