@@ -5,8 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
+use crate::kvstore::KvStore;
 use crate::types::*;
 
 /// Quota target — identifies what entity the quota applies to.
@@ -132,6 +133,8 @@ impl QuotaEntry {
 pub struct QuotaManager {
     /// Quota entries indexed by target.
     quotas: RwLock<HashMap<QuotaTarget, QuotaEntry>>,
+    /// Optional KV store for persistence.
+    kv: Option<Arc<dyn KvStore>>,
 }
 
 impl QuotaManager {
@@ -139,7 +142,60 @@ impl QuotaManager {
     pub fn new() -> Self {
         Self {
             quotas: RwLock::new(HashMap::new()),
+            kv: None,
         }
+    }
+
+    /// Creates a QuotaManager backed by a KvStore for persistence.
+    pub fn with_store(kv: Arc<dyn KvStore>) -> Self {
+        Self {
+            quotas: RwLock::new(HashMap::new()),
+            kv: Some(kv),
+        }
+    }
+
+    /// Loads all persisted quotas from the KvStore into memory.
+    pub fn load_from_store(&self) -> Result<usize, MetaError> {
+        let kv = self
+            .kv
+            .as_ref()
+            .ok_or(MetaError::KvError("No KV store configured".to_string()))?;
+
+        let entries = kv.scan_prefix(b"quota:")?;
+        let count = entries.len();
+
+        let mut quotas = self.quotas.write().unwrap();
+        for (_, value) in entries {
+            if let Ok(entry) = bincode::deserialize::<QuotaEntry>(&value) {
+                quotas.insert(entry.target.clone(), entry);
+            }
+        }
+
+        Ok(count)
+    }
+
+    fn quota_key(target: &QuotaTarget) -> Vec<u8> {
+        match target {
+            QuotaTarget::User(uid) => format!("quota:user:{}", uid).into_bytes(),
+            QuotaTarget::Group(gid) => format!("quota:group:{}", gid).into_bytes(),
+        }
+    }
+
+    fn persist_entry(&self, target: &QuotaTarget, entry: &QuotaEntry) -> Result<(), MetaError> {
+        if let Some(kv) = &self.kv {
+            let key = Self::quota_key(target);
+            let value = bincode::serialize(entry).map_err(|e| MetaError::KvError(e.to_string()))?;
+            kv.put(key, value)?;
+        }
+        Ok(())
+    }
+
+    fn delete_persisted(&self, target: &QuotaTarget) -> Result<(), MetaError> {
+        if let Some(kv) = &self.kv {
+            let key = Self::quota_key(target);
+            let _ = kv.delete(&key);
+        }
+        Ok(())
     }
 
     /// Sets or updates the quota for a target.
@@ -154,6 +210,12 @@ impl QuotaManager {
             .or_insert_with(|| QuotaEntry::new(target.clone(), limit.clone()));
         entry.limit = limit.clone();
         tracing::debug!("Set quota for {:?}: {:?}", target, limit);
+
+        if let Err(e) = self.persist_entry(&target, entry) {
+            tracing::warn!("Failed to persist quota: {}", e);
+        } else {
+            tracing::debug!("Persisted quota for {:?}", target);
+        }
     }
 
     /// Removes a quota for a target.
@@ -168,6 +230,9 @@ impl QuotaManager {
         let removed = quotas.remove(target).is_some();
         if removed {
             tracing::debug!("Removed quota for {:?}", target);
+            if let Err(e) = self.delete_persisted(target) {
+                tracing::warn!("Failed to delete persisted quota: {}", e);
+            }
         }
         removed
     }
@@ -283,11 +348,17 @@ impl QuotaManager {
         let user_target = QuotaTarget::User(uid);
         if let Some(entry) = quotas.get_mut(&user_target) {
             entry.usage.add(bytes_delta, inodes_delta);
+            if let Err(e) = self.persist_entry(&user_target, entry) {
+                tracing::warn!("Failed to persist user quota usage: {}", e);
+            }
         }
 
         let group_target = QuotaTarget::Group(gid);
         if let Some(entry) = quotas.get_mut(&group_target) {
             entry.usage.add(bytes_delta, inodes_delta);
+            if let Err(e) = self.persist_entry(&group_target, entry) {
+                tracing::warn!("Failed to persist group quota usage: {}", e);
+            }
         }
     }
 
@@ -335,6 +406,7 @@ impl Default for QuotaManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kvstore::MemoryKvStore;
 
     #[test]
     fn test_set_and_get_quota() {
@@ -454,5 +526,106 @@ mod tests {
         mgr.set_quota(QuotaTarget::User(1000), limit);
         let result = mgr.check_quota(1000, 0, u64::MAX as i64, u64::MAX as i64);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_with_store_persist_and_load() {
+        let store = Arc::new(MemoryKvStore::new());
+        let mgr = QuotaManager::with_store(store.clone());
+
+        mgr.set_quota(QuotaTarget::User(1000), QuotaLimit::new(1_000_000, 1000));
+        mgr.set_quota(QuotaTarget::Group(500), QuotaLimit::new(2_000_000, 200));
+
+        let mgr2 = QuotaManager::with_store(store);
+        let count = mgr2.load_from_store().unwrap();
+        assert_eq!(count, 2);
+
+        let entry = mgr2.get_quota(&QuotaTarget::User(1000)).unwrap();
+        assert_eq!(entry.limit.max_bytes, 1_000_000);
+        let entry = mgr2.get_quota(&QuotaTarget::Group(500)).unwrap();
+        assert_eq!(entry.limit.max_inodes, 200);
+    }
+
+    #[test]
+    fn test_load_from_store() {
+        let store = Arc::new(MemoryKvStore::new());
+
+        let entry1 = QuotaEntry::new(QuotaTarget::User(1000), QuotaLimit::new(1_000_000, 100));
+        let entry2 = QuotaEntry::new(QuotaTarget::Group(500), QuotaLimit::new(2_000_000, 200));
+
+        store
+            .put(
+                b"quota:user:1000".to_vec(),
+                bincode::serialize(&entry1).unwrap(),
+            )
+            .unwrap();
+        store
+            .put(
+                b"quota:group:500".to_vec(),
+                bincode::serialize(&entry2).unwrap(),
+            )
+            .unwrap();
+
+        let mgr = QuotaManager::with_store(store);
+        let count = mgr.load_from_store().unwrap();
+        assert_eq!(count, 2);
+
+        let entry = mgr.get_quota(&QuotaTarget::User(1000)).unwrap();
+        assert_eq!(entry.limit.max_bytes, 1_000_000);
+    }
+
+    #[test]
+    fn test_persist_on_set_quota() {
+        let store = Arc::new(MemoryKvStore::new());
+        let mgr = QuotaManager::with_store(store.clone());
+
+        mgr.set_quota(QuotaTarget::User(1000), QuotaLimit::new(1_000_000, 1000));
+
+        let stored = store.get(b"quota:user:1000").unwrap();
+        assert!(stored.is_some());
+        let stored_entry: QuotaEntry = bincode::deserialize(&stored.unwrap()).unwrap();
+        assert_eq!(stored_entry.limit.max_bytes, 1_000_000);
+    }
+
+    #[test]
+    fn test_persist_on_remove_quota() {
+        let store = Arc::new(MemoryKvStore::new());
+        let mgr = QuotaManager::with_store(store.clone());
+
+        mgr.set_quota(QuotaTarget::User(1000), QuotaLimit::new(1_000_000, 1000));
+
+        let stored_before = store.get(b"quota:user:1000").unwrap();
+        assert!(stored_before.is_some());
+
+        mgr.remove_quota(&QuotaTarget::User(1000));
+
+        let stored_after = store.get(b"quota:user:1000").unwrap();
+        assert!(stored_after.is_none());
+    }
+
+    #[test]
+    fn test_persist_on_update_usage() {
+        let store = Arc::new(MemoryKvStore::new());
+        let mgr = QuotaManager::with_store(store.clone());
+
+        mgr.set_quota(QuotaTarget::User(1000), QuotaLimit::new(1_000_000, 1000));
+        mgr.update_usage(1000, 0, 500, 10);
+
+        let stored = store.get(b"quota:user:1000").unwrap();
+        assert!(stored.is_some());
+        let stored_entry: QuotaEntry = bincode::deserialize(&stored.unwrap()).unwrap();
+        assert_eq!(stored_entry.usage.bytes_used, 500);
+        assert_eq!(stored_entry.usage.inodes_used, 10);
+    }
+
+    #[test]
+    fn test_no_store_backward_compat() {
+        let mgr = QuotaManager::new();
+        assert!(mgr.kv.is_none());
+
+        mgr.set_quota(QuotaTarget::User(1000), QuotaLimit::new(1_000_000, 1000));
+
+        let entry = mgr.get_quota(&QuotaTarget::User(1000)).unwrap();
+        assert_eq!(entry.limit.max_bytes, 1_000_000);
     }
 }
