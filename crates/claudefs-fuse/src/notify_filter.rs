@@ -18,7 +18,7 @@ pub enum FilterAction {
     Throttle,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct NotifyFilterStats {
     pub matched_count: AtomicU64,
     pub suppressed_count: AtomicU64,
@@ -59,7 +59,7 @@ impl NotifyFilterStats {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct NotifyFilter {
     pub filter_type: FilterType,
     pub action: FilterAction,
