@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Phase 1 Continued: Transport & Infrastructure
 
+#### 2026-03-01 (A4 Session — Rate Limiter + CI Workflows)
+
+##### A4: Transport — Rate Limiting Module (9 new tests, 984 total)
+
+**New Module: Token Bucket Rate Limiter (`ratelimit.rs`):**
+- `RateLimitConfig`: requests_per_second (10k), burst_size (1k default)
+- `RateLimiter`: lock-free atomic token bucket with time-based refill
+- `RateLimitResult`: Allowed or Limited{retry_after_ms}
+- `CompositeRateLimiter`: per-connection + global limits
+- 9 tests including concurrent acquire test
+
+**A11: Infrastructure — GitHub Actions CI/CD (`.github/workflows/`):**
+- `ci.yml`: build+test+clippy+fmt-check; security-audit; MSRV (Rust 1.80)
+- `release.yml`: release builds on version/phase tags
+- Push blocked by Issue #12 (token needs workflow scope)
+
+**Test Status:** 984 tests passing (143 transport, 495 meta, 90 storage, 126 reduce, 16 routing, 13 integration, 4 operations)
+
+---
+
 #### 2026-03-01 (A4 Session — Connection Multiplexer)
 
 ##### A4: Transport — Connection Multiplexer (8 new tests, 975 total)
