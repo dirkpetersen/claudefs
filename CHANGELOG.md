@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 4 MILESTONE
+
+#### 2026-03-01 (A9 — Phase 4: Transport, Distributed, Fuzz Tests)
+
+##### A9: Test & Validation — Phase 4 (589 total tests, 21 modules)
+
+**Phase 4 (121 new tests, 3 modules):**
+1. `transport_tests.rs` — Transport integration tests (57 tests): CircuitBreaker state transitions, RateLimiter tokens, ConsistentHashRing key mapping, TransportMetrics, FrameHeader encoding, ProtocolVersion comparison
+2. `distributed_tests.rs` — Distributed system simulation (30 tests): TwoPhaseCommitSim, QuorumVote (majority/strong), RaftElectionSim, PartitionScenario (partition/heal/majority-detection)
+3. `fuzz_helpers.rs` — Fuzzing infrastructure (34 tests): StructuredFuzzer (deterministic), RpcFuzzer (empty/truncated/oversized/malformed frames), PathFuzzer (absolute/dots/unicode/null), FuzzCorpus seed corpus
+
+**GitHub Issues created:**
+- #14: Jepsen cluster dependency on A11 (multi-node cluster needed)
+- #15: A5 fuse borrow checker error in filesystem.rs (blocks workspace tests)
+- #16: A7 gateway OpaqueAuth type missing (blocks workspace tests)
+
+**MILESTONE: 589 claudefs-tests tests, 21 modules**
+
+---
+
 ### A5: FUSE Client — Phase 6 MILESTONE COMPLETE
 
 #### 2026-03-01 (A5 — FUSE: Phase 6 Production Readiness)
