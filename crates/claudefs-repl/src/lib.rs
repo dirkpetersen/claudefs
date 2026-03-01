@@ -22,3 +22,7 @@ pub mod throttle;
 pub mod topology;
 pub mod uidmap;
 pub mod wal;
+pub mod tls_policy;
+pub mod site_registry;
+pub mod recv_ratelimit;
+pub mod journal_gc;

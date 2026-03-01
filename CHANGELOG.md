@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 7 Security Hardening COMPLETE
+
+#### 2026-03-01 (A6 — Replication: Phase 7 Security Hardening & Lifecycle)
+
+##### A6: Replication — 510 tests, 24 modules
+
+**Phase 7 (79 new tests, 4 new modules) — addresses A10 security audit findings:**
+
+1. `tls_policy.rs` (22 tests): TLS enforcement policy addressing FINDING-05
+   - `TlsMode`: Required / TestOnly / Disabled
+   - `TlsValidator`: validates `Option<TlsConfigRef>` against the current mode
+   - `TlsPolicyBuilder`: fluent construction with `.mode()` / `.build()`
+   - `validate_tls_config()`: verifies non-empty PEM fields and "-----BEGIN" prefix
+   - In `Required` mode: rejects None (PlaintextNotAllowed) and empty/malformed certs
+
+2. `site_registry.rs` (18 tests): Peer site identity registry addressing FINDING-06
+   - `SiteRecord`: site_id, display_name, tls_fingerprint: Option<[u8;32]>, addresses, timestamps
+   - `SiteRegistry`: register/unregister/lookup/verify_source_id/update_last_seen
+   - `verify_source_id()`: validates claimed site_id against stored TLS fingerprint
+   - `SiteRegistryError`: AlreadyRegistered / NotFound / FingerprintMismatch
+
+3. `recv_ratelimit.rs` (18 tests): Receive-path rate limiting addressing FINDING-09
+   - `RateLimitConfig`: max_batches_per_sec, max_entries_per_sec, burst_factor, window_ms
+   - `RateLimitDecision`: Allow / Throttle{delay_ms} / Reject{reason}
+   - `RecvRateLimiter`: sliding-window token bucket, check_batch(entry_count, now_ms)
+   - `RateLimiterStats`: tracks allowed/throttled/rejected batches+entries, window resets
+
+4. `journal_gc.rs` (21 tests): Journal garbage collection lifecycle management
+   - `GcPolicy`: RetainAll / RetainByAge{max_age_us} / RetainByCount{max_entries} / RetainByAck
+   - `JournalGcState`: per-site ack tracking, min_acked_seq(), all_sites_acked()
+   - `JournalGcScheduler`: run_gc() returns GcCandidates to collect, tracks GcStats
+   - `AckRecord`: site_id, acked_through_seq, acked_at_us
+
+**MILESTONE: 510 replication tests, 24 modules, zero errors, 2 pre-existing clippy warnings**
+
+---
+
 ### A5: FUSE Client — Phase 4 Advanced Features COMPLETE (MILESTONE)
 
 #### 2026-03-01 (A5 — FUSE Client: Phase 4 Advanced Features)
