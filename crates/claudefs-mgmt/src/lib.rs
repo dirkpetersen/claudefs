@@ -26,3 +26,13 @@ pub use indexer::MetadataIndexer;
 pub use metrics::ClusterMetrics;
 pub use quota::QuotaRegistry;
 pub use scraper::ScraperPool;
+
+pub mod drain;
+pub mod health;
+pub mod snapshot;
+pub mod tiering;
+
+pub use drain::DrainManager;
+pub use health::HealthAggregator;
+pub use snapshot::SnapshotCatalog;
+pub use tiering::TieringManager;
