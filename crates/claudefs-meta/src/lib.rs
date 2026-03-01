@@ -26,6 +26,8 @@ pub mod fingerprint;
 pub mod inode;
 /// Metadata journal for replication
 pub mod journal;
+/// Journal tailing API for cross-site replication
+pub mod journal_tailer;
 /// Embedded key-value store
 pub mod kvstore;
 /// Lease-based metadata caching
@@ -87,12 +89,14 @@ pub use cross_shard::{CrossShardCoordinator, CrossShardResult};
 pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
 pub use fingerprint::FingerprintIndex;
+pub use journal_tailer::{JournalTailer, ReplicationBatch, TailerConfig, TailerCursor};
 pub use kvstore::{KvStore, MemoryKvStore};
 pub use lease::{LeaseManager, LeaseType};
 pub use locking::{LockManager, LockType};
+pub use membership::{MemberInfo, MembershipEvent, MembershipManager, NodeState};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use multiraft::MultiRaftManager;
-pub use node::{MetadataNode, MetadataNodeConfig, StatFs};
+pub use node::{ClusterStatus, MetadataNode, MetadataNodeConfig, StatFs};
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
 pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
