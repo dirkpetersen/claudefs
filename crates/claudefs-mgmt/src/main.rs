@@ -1,17 +1,19 @@
 #![warn(missing_docs)]
 
-//! ClaudeFS management server
-
+use anyhow::Result;
+use clap::Parser;
+use claudefs_mgmt::cli::Cli;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
         .init();
 
-    tracing::info!("ClaudeFS management server starting...");
+    tracing::info!("ClaudeFS management CLI starting...");
 
-    Ok(())
+    let cli = Cli::parse();
+    cli.run().await
 }
