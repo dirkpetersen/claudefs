@@ -2,61 +2,94 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use tracing::{info, warn};
 
+/// A monotonic token used for fencing in split-brain scenarios.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct FencingToken(pub u64);
+pub struct FencingToken(
+    /// The monotonic counter value.
+    pub u64,
+);
 
 impl FencingToken {
+    /// Creates a new fencing token with the given value.
     pub fn new(v: u64) -> Self {
         Self(v)
     }
 
+    /// Returns the next token in sequence (increments counter).
     pub fn next(&self) -> Self {
         Self(self.0 + 1)
     }
 
+    /// Returns the underlying counter value.
     pub fn value(&self) -> u64 {
         self.0
     }
 }
 
+/// States in split-brain detection and recovery.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SplitBrainState {
+    /// Normal operation, no partition detected.
     Normal,
+    /// Partition suspected between two sites.
     PartitionSuspected {
+        /// Timestamp when partition was suspected.
         since_ns: u64,
+        /// ID of the remote site that became unresponsive.
         site_id: u64,
     },
+    /// Split-brain confirmed with divergent journal sequences.
     Confirmed {
+        /// First site ID.
         site_a: u64,
+        /// Second site ID.
         site_b: u64,
+        /// Journal sequence where divergence occurred.
         diverged_at_seq: u64,
     },
+    /// Resolving split-brain by fencing one site.
     Resolving {
+        /// The site being fenced (rendered inactive).
         fenced_site: u64,
+        /// The site remaining active.
         active_site: u64,
+        /// Token used for fencing operations.
         fence_token: FencingToken,
     },
+    /// Split-brain has been successfully healed.
     Healed {
+        /// Timestamp when healing completed.
         at_ns: u64,
     },
 }
 
+/// Evidence of a split-brain scenario.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SplitBrainEvidence {
+    /// Last journal sequence at site A.
     pub site_a_last_seq: u64,
+    /// Last journal sequence at site B.
     pub site_b_last_seq: u64,
+    /// Journal sequence where site A diverged.
     pub site_a_diverge_seq: u64,
+    /// Timestamp when evidence was detected.
     pub detected_at_ns: u64,
 }
 
+/// Statistics for split-brain detection and recovery.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SplitBrainStats {
+    /// Total partitions detected.
     pub partitions_detected: u64,
+    /// Total split-brains confirmed.
     pub split_brains_confirmed: u64,
+    /// Total resolutions completed.
     pub resolutions_completed: u64,
+    /// Total fencing tokens issued.
     pub fencing_tokens_issued: u64,
 }
 
+/// Detector for split-brain scenarios in replication.
 pub struct SplitBrainDetector {
     local_site: u64,
     current_state: SplitBrainState,
@@ -71,6 +104,7 @@ fn initial_fence_token() -> FencingToken {
 }
 
 impl SplitBrainDetector {
+    /// Creates a new split-brain detector for the given local site.
     pub fn new(local_site: u64) -> Self {
         Self {
             local_site,
@@ -80,6 +114,7 @@ impl SplitBrainDetector {
         }
     }
 
+    /// Reports a suspected partition between sites.
     pub fn report_partition(&mut self, remote_site: u64, at_ns: u64) -> SplitBrainState {
         self.stats.partitions_detected += 1;
         self.current_state = SplitBrainState::PartitionSuspected {
@@ -93,6 +128,7 @@ impl SplitBrainDetector {
         self.current_state.clone()
     }
 
+    /// Confirms a split-brain with evidence.
     pub fn confirm_split_brain(
         &mut self,
         evidence: SplitBrainEvidence,
@@ -123,6 +159,7 @@ impl SplitBrainDetector {
         self.current_state.clone()
     }
 
+    /// Issues a fencing token to prevent writes from fenced site.
     pub fn issue_fence(&mut self, site_to_fence: u64, active_site: u64) -> FencingToken {
         if !matches!(self.current_state, SplitBrainState::Confirmed { .. }) {
             warn!("Cannot issue fence from state: {:?}", self.current_state);
@@ -146,10 +183,12 @@ impl SplitBrainDetector {
         token
     }
 
+    /// Validates a fencing token (must be >= current token).
     pub fn validate_token(&self, token: FencingToken) -> bool {
         token.0 >= self.current_fence_token.0
     }
 
+    /// Marks the split-brain as healed after partition heals.
     pub fn mark_healed(&mut self, at_ns: u64) -> SplitBrainState {
         match &self.current_state {
             SplitBrainState::Resolving { .. } => {
@@ -168,14 +207,17 @@ impl SplitBrainDetector {
         self.current_state.clone()
     }
 
+    /// Returns the current split-brain detection state.
     pub fn state(&self) -> &SplitBrainState {
         &self.current_state
     }
 
+    /// Returns the current fencing token.
     pub fn current_token(&self) -> FencingToken {
         self.current_fence_token
     }
 
+    /// Returns detection and resolution statistics.
     pub fn stats(&self) -> &SplitBrainStats {
         &self.stats
     }
