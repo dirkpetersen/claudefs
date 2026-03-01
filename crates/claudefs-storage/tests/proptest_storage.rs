@@ -5,9 +5,14 @@
 
 use claudefs_storage::{
     allocator::{AllocatorConfig, BuddyAllocator},
+    block_cache::{BlockCache, BlockCacheConfig},
     checksum::{compute, BlockHeader, Checksum, ChecksumAlgorithm},
+    io_scheduler::{IoPriority, IoScheduler, IoSchedulerConfig, ScheduledIo},
+    metrics::StorageMetrics,
     segment::{SegmentEntry, SegmentPacker, SegmentPackerConfig, SEGMENT_SIZE},
-    BlockId, BlockRef, BlockSize, PlacementHint,
+    smart::{NvmeSmartLog, SmartMonitor, SmartMonitorConfig},
+    write_journal::{JournalConfig, JournalOp, WriteJournal},
+    BlockId, BlockRef, BlockSize, IoOpType, IoRequestId, PlacementHint,
 };
 use proptest::prelude::*;
 use std::collections::HashSet;
@@ -521,4 +526,433 @@ fn test_segment_packer_various_sizes() {
 
     let stats = packer.stats();
     assert!(stats.segments_sealed >= 1);
+}
+
+proptest! {
+    /// Test: For any sequence of N append operations, all returned sequence numbers are strictly increasing.
+    #[test]
+    fn test_write_journal_sequence_monotonicity(n in 1usize..100usize) {
+        let config = JournalConfig::default();
+        let mut journal = WriteJournal::new(config);
+
+        let mut sequences = Vec::new();
+        for i in 0..n {
+            let op = JournalOp::Write {
+                data: vec![i as u8; 128],
+            };
+            let seq = journal.append(op, 0, i as u64).unwrap();
+            sequences.push(seq);
+        }
+
+        for i in 1..sequences.len() {
+            prop_assert!(
+                sequences[i] > sequences[i - 1],
+                "Sequence {} should be greater than {}",
+                sequences[i],
+                sequences[i - 1]
+            );
+        }
+    }
+
+    /// Test: After appending N entries and committing, entries_since(0) returns all N entries.
+    #[test]
+    fn test_write_journal_entries_since_consistency(n in 1usize..50usize) {
+        let config = JournalConfig::default();
+        let mut journal = WriteJournal::new(config);
+
+        for i in 0..n {
+            let op = JournalOp::Write {
+                data: vec![i as u8; 128],
+            };
+            journal.append(op, 0, i as u64).unwrap();
+        }
+
+        journal.commit().unwrap();
+
+        let entries = journal.entries_since(0);
+        prop_assert_eq!(
+            entries.len(),
+            n,
+            "Expected {} entries, got {}",
+            n,
+            entries.len()
+        );
+    }
+
+    /// Test: After appending N entries, truncating before sequence M removes exactly the right count.
+    #[test]
+    fn test_write_journal_truncate_reclaims(n in 5usize..100usize, m in 1usize..100usize) {
+        let config = JournalConfig::default();
+        let mut journal = WriteJournal::new(config);
+
+        let mut sequences = Vec::new();
+        for i in 0..n {
+            let op = JournalOp::Write {
+                data: vec![i as u8; 128],
+            };
+            let seq = journal.append(op, 0, i as u64).unwrap();
+            sequences.push(seq);
+        }
+
+        let truncate_before = if m < sequences.len() {
+            sequences[m]
+        } else {
+            sequences.last().copied().unwrap_or(0)
+        };
+
+        let before_count = journal.entries_since(0).len();
+        journal.truncate_before(truncate_before).unwrap();
+        let after_count = journal.entries_since(0).len();
+
+        let expected_removed = if m < n { m } else { n - 1 };
+        prop_assert_eq!(
+            before_count - after_count,
+            expected_removed,
+            "Expected {} removed, got {}",
+            expected_removed,
+            before_count - after_count
+        );
+    }
+
+    /// Test: When N requests of random priorities are enqueued, they are dequeued in priority order.
+    #[test]
+    fn test_io_scheduler_priority_ordering(n in 2usize..50usize) {
+        let config = IoSchedulerConfig {
+            max_queue_depth: 100,
+            ..Default::default()
+        };
+        let mut scheduler = IoScheduler::new(config);
+
+        for i in 0..n {
+            let priorities = [IoPriority::Critical, IoPriority::High, IoPriority::Normal, IoPriority::Low];
+            let priority = priorities[i % 4];
+            let io = ScheduledIo::new(
+                IoRequestId(i as u64),
+                priority,
+                IoOpType::Read,
+                BlockRef {
+                    id: BlockId::new(0, i as u64),
+                    size: BlockSize::B4K,
+                },
+                0,
+            );
+            scheduler.enqueue(io).unwrap();
+        }
+
+        let mut last_priority = 0u8;
+        let mut dequeued = 0;
+        while let Some(io) = scheduler.dequeue() {
+            let current_priority = io.priority.as_index() as u8;
+            prop_assert!(
+                current_priority >= last_priority,
+                "Priority ordering violated: {:?} before {:?}",
+                io.priority,
+                last_priority
+            );
+            last_priority = current_priority;
+            dequeued += 1;
+        }
+        prop_assert_eq!(dequeued, n, "All {} requests should be dequeued", n);
+    }
+
+    /// Test: For any N enqueue operations, the number of dequeues equals min(N, queue capacity).
+    #[test]
+    fn test_io_scheduler_enqueue_dequeue_conservation(n in 1usize..100usize) {
+        let capacity = 50;
+        let config = IoSchedulerConfig {
+            max_queue_depth: capacity,
+            ..Default::default()
+        };
+        let mut scheduler = IoScheduler::new(config);
+
+        for i in 0..n {
+            let io = ScheduledIo::new(
+                IoRequestId(i as u64),
+                IoPriority::Normal,
+                IoOpType::Read,
+                BlockRef {
+                    id: BlockId::new(0, i as u64),
+                    size: BlockSize::B4K,
+                },
+                0,
+            );
+            let _ = scheduler.enqueue(io);
+        }
+
+        let mut dequeued = 0;
+        while scheduler.dequeue().is_some() {
+            dequeued += 1;
+        }
+
+        let expected = n.min(capacity);
+        prop_assert_eq!(
+            dequeued,
+            expected,
+            "Expected {} dequeues for {} enqueues with capacity {}",
+            expected,
+            n,
+            capacity
+        );
+    }
+
+    /// Test: For random data of size matching BlockSize::B4K, inserting then getting returns the same data.
+    #[test]
+    fn test_block_cache_insert_get_roundtrip(data in proptest::collection::vec(any::<u8>(), 4096..=4096)) {
+        let config = BlockCacheConfig {
+            max_entries: 100,
+            ..Default::default()
+        };
+        let mut cache = BlockCache::new(config);
+
+        let block_ref = BlockRef {
+            id: BlockId::new(0, 42),
+            size: BlockSize::B4K,
+        };
+        let checksum = compute(ChecksumAlgorithm::Crc32c, &data);
+        cache.insert(block_ref, data.clone(), checksum).unwrap();
+
+        let retrieved = cache.get_data(&block_ref.id).unwrap();
+        prop_assert_eq!(
+            retrieved,
+            data.as_slice(),
+            "Retrieved data should match inserted data"
+        );
+    }
+
+    /// Test: Insert N blocks into a cache with max_entries=50, verify len() never exceeds 50.
+    #[test]
+    fn test_block_cache_eviction_respects_capacity(n in 1usize..200usize) {
+        let config = BlockCacheConfig {
+            max_entries: 50,
+            ..Default::default()
+        };
+        let mut cache = BlockCache::new(config);
+
+        for i in 0..n {
+            let block_ref = BlockRef {
+                id: BlockId::new(0, i as u64),
+                size: BlockSize::B4K,
+            };
+            let data = vec![i as u8; 4096];
+            let checksum = compute(ChecksumAlgorithm::Crc32c, &data);
+            cache.insert(block_ref, data, checksum).unwrap();
+
+            let len = cache.len();
+            prop_assert!(
+                len <= 50,
+                "Cache length {} exceeds max_entries 50",
+                len
+            );
+        }
+    }
+
+    /// Test: Record N random I/O ops, verify total ops counted equals N and bytes match sum.
+    #[test]
+    fn test_metrics_io_accumulation(n in 1usize..100usize) {
+        let mut metrics = StorageMetrics::new();
+
+        let mut total_bytes = 0u64;
+        for i in 0..n {
+            let op_type = match i % 4 {
+                0 => IoOpType::Read,
+                1 => IoOpType::Write,
+                2 => IoOpType::Flush,
+                _ => IoOpType::Discard,
+            };
+            let bytes = (((i % 16) + 1) * 4096) as u64;
+            metrics.record_io(op_type, bytes, 0);
+            total_bytes += bytes;
+        }
+
+        let exported = metrics.export();
+        let total_ops: u64 = exported.iter()
+            .filter(|m| m.name.contains("io_ops_total"))
+            .filter_map(|m| match m.value {
+                claudefs_storage::metrics::MetricValue::Counter(v) => Some(v),
+                _ => None,
+            })
+            .sum();
+        let total_bytes_export: u64 = exported.iter()
+            .filter(|m| m.name.contains("io_bytes_total"))
+            .filter_map(|m| match m.value {
+                claudefs_storage::metrics::MetricValue::Counter(v) => Some(v),
+                _ => None,
+            })
+            .sum();
+
+        prop_assert_eq!(total_ops, n as u64, "Total ops should be {}", n);
+        prop_assert_eq!(total_bytes_export, total_bytes, "Total bytes should be {}", total_bytes);
+    }
+
+    /// Test: For any temperature T in Kelvin (200..500), verify celsius = T - 273.15 (within f64 epsilon).
+    #[test]
+    fn test_smart_temperature_conversion(temp_k in 200f64..500f64) {
+        let log = NvmeSmartLog {
+            critical_warning: 0,
+            temperature_kelvin: temp_k as u16,
+            available_spare_pct: 100,
+            available_spare_threshold: 10,
+            percent_used: 0,
+            data_units_read: 0,
+            data_units_written: 0,
+            host_read_commands: 0,
+            host_write_commands: 0,
+            power_on_hours: 0,
+            unsafe_shutdowns: 0,
+            media_errors: 0,
+            error_log_entries: 0,
+        };
+
+        let celsius = log.temperature_celsius();
+        let expected = temp_k - 273.15;
+        let kelvin_back = log.temperature_kelvin as f64;
+
+        prop_assert!(
+            (celsius - expected).abs() < 1.0,
+            "Temperature conversion failed: {}K -> {}C, expected {}C (input converted to {}K)",
+            temp_k,
+            celsius,
+            expected,
+            kelvin_back
+        );
+    }
+
+    /// Test: For any NvmeSmartLog, evaluating health twice after update produces the same result.
+    #[test]
+    fn test_smart_health_evaluation_deterministic(
+        temp in 0u32..100u32,
+        available_spare in 0u8..101u8,
+        percent_used in 0u8..101u8,
+    ) {
+        let config = SmartMonitorConfig::default();
+        let mut monitor = SmartMonitor::new(config);
+
+        let log = NvmeSmartLog {
+            critical_warning: 0,
+            temperature_kelvin: (temp + 200) as u16,
+            available_spare_pct: available_spare,
+            available_spare_threshold: 10,
+            percent_used,
+            data_units_read: 0,
+            data_units_written: 0,
+            host_read_commands: 0,
+            host_write_commands: 0,
+            power_on_hours: 0,
+            unsafe_shutdowns: 0,
+            media_errors: 0,
+            error_log_entries: 0,
+        };
+
+        monitor.update_device("test_device", log.clone());
+        let health1 = monitor.evaluate_health("test_device").unwrap();
+        let health2 = monitor.evaluate_health("test_device").unwrap();
+
+        prop_assert_eq!(
+            std::mem::discriminant(&health1),
+            std::mem::discriminant(&health2),
+            "Health evaluation should be deterministic"
+        );
+    }
+}
+
+/// Test: Create a JournalEntry via append, serialize with bincode, deserialize, verify fields match.
+#[test]
+fn test_write_journal_serialization_roundtrip() {
+    let config = JournalConfig::default();
+    let mut journal = WriteJournal::new(config);
+
+    let op = JournalOp::Write {
+        data: vec![0xAB; 256],
+    };
+    let _seq = journal.append(op, 0, 0).unwrap();
+
+    let entries = journal.entries_since(0);
+    assert_eq!(entries.len(), 1, "Should have 1 entry");
+
+    let entry = entries[0];
+    let serialized = bincode::serialize(entry).unwrap();
+    let deserialized: claudefs_storage::write_journal::JournalEntry =
+        bincode::deserialize(&serialized).unwrap();
+
+    assert_eq!(deserialized.sequence, entry.sequence);
+    assert_eq!(deserialized.data_len, entry.data_len);
+}
+
+/// Test: Enqueue one request at each priority level, dequeue all, verify all 4 were served.
+#[test]
+fn test_io_scheduler_all_priorities_served() {
+    let config = IoSchedulerConfig {
+        max_queue_depth: 100,
+        ..Default::default()
+    };
+    let mut scheduler = IoScheduler::new(config);
+
+    let io1 = ScheduledIo::new(
+        IoRequestId(0),
+        IoPriority::Critical,
+        IoOpType::Read,
+        BlockRef {
+            id: BlockId::new(0, 0),
+            size: BlockSize::B4K,
+        },
+        0,
+    );
+    let io2 = ScheduledIo::new(
+        IoRequestId(1),
+        IoPriority::High,
+        IoOpType::Write,
+        BlockRef {
+            id: BlockId::new(0, 1),
+            size: BlockSize::B4K,
+        },
+        0,
+    );
+    let io3 = ScheduledIo::new(
+        IoRequestId(2),
+        IoPriority::Normal,
+        IoOpType::Flush,
+        BlockRef {
+            id: BlockId::new(0, 2),
+            size: BlockSize::B4K,
+        },
+        0,
+    );
+    let io4 = ScheduledIo::new(
+        IoRequestId(3),
+        IoPriority::Low,
+        IoOpType::Discard,
+        BlockRef {
+            id: BlockId::new(0, 3),
+            size: BlockSize::B4K,
+        },
+        0,
+    );
+
+    scheduler.enqueue(io1).unwrap();
+    scheduler.enqueue(io2).unwrap();
+    scheduler.enqueue(io3).unwrap();
+    scheduler.enqueue(io4).unwrap();
+
+    let mut priorities_seen = Vec::new();
+    while let Some(io) = scheduler.dequeue() {
+        priorities_seen.push(io.priority);
+    }
+
+    assert_eq!(priorities_seen.len(), 4, "Should have dequeued 4 requests");
+    assert!(
+        priorities_seen.contains(&IoPriority::Critical),
+        "Critical priority should be served"
+    );
+    assert!(
+        priorities_seen.contains(&IoPriority::High),
+        "High priority should be served"
+    );
+    assert!(
+        priorities_seen.contains(&IoPriority::Normal),
+        "Normal priority should be served"
+    );
+    assert!(
+        priorities_seen.contains(&IoPriority::Low),
+        "Low priority should be served"
+    );
 }

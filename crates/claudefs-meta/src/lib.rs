@@ -46,12 +46,16 @@ pub mod membership;
 pub mod metrics;
 /// Multi-Raft group manager
 pub mod multiraft;
+/// Negative lookup cache
+pub mod neg_cache;
 /// Unified metadata server node
 pub mod node;
 /// MetadataNode snapshot and restore for disaster recovery
 pub mod node_snapshot;
 /// Speculative path resolution with caching
 pub mod pathres;
+/// Prefetch engine for metadata
+pub mod prefetch;
 /// QoS (Quality of Service) and traffic shaping for metadata operations
 pub mod qos;
 /// Per-user/group quota management
@@ -109,6 +113,7 @@ pub use locking::{LockManager, LockType};
 pub use membership::{MemberInfo, MembershipEvent, MembershipManager, NodeState};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use multiraft::MultiRaftManager;
+pub use neg_cache::{NegCacheConfig, NegativeCache};
 pub use node::{ClusterStatus, DirEntryPlus, MetadataNode, MetadataNodeConfig, StatFs};
 pub use node_snapshot::NodeSnapshot;
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
