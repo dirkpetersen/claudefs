@@ -229,7 +229,7 @@ pub fn stress_test_mutex_map(threads: u32, ops_per_thread: u32) -> ConcurrentTes
     }
 }
 
-pub fn test_arc_mutex_under_load(threads: u32) -> ConcurrentTestResult {
+pub fn run_arc_mutex_under_load(threads: u32) -> ConcurrentTestResult {
     let start = Instant::now();
     let counter = Arc::new(Mutex::new(0u64));
     let mut handles = vec![];
@@ -267,7 +267,7 @@ pub fn test_arc_mutex_under_load(threads: u32) -> ConcurrentTestResult {
     }
 }
 
-pub fn test_rwlock_read_concurrency(readers: u32) -> ConcurrentTestResult {
+pub fn run_rwlock_read_concurrency(readers: u32) -> ConcurrentTestResult {
     let start = Instant::now();
     let data = Arc::new(RwLock::new(vec![1u8; 1000]));
     let mut handles = vec![];
@@ -298,7 +298,7 @@ pub fn test_rwlock_read_concurrency(readers: u32) -> ConcurrentTestResult {
     }
 }
 
-pub fn test_rwlock_write_concurrency(writers: u32) -> ConcurrentTestResult {
+pub fn run_rwlock_write_concurrency(writers: u32) -> ConcurrentTestResult {
     let start = Instant::now();
     let data = Arc::new(RwLock::new(0u64));
     let mut handles = vec![];
@@ -419,28 +419,28 @@ fn test_stress_test_mutex_map_many_threads() {
 
 #[test]
 fn test_arc_mutex_under_load() {
-    let result = test_arc_mutex_under_load(8);
+    let result = run_arc_mutex_under_load(8);
     assert!(result.is_success());
     assert_eq!(result.ops_succeeded, 8000);
 }
 
 #[test]
 fn test_arc_mutex_under_load_single_thread() {
-    let result = test_arc_mutex_under_load(1);
+    let result = run_arc_mutex_under_load(1);
     assert!(result.is_success());
     assert_eq!(result.ops_succeeded, 1000);
 }
 
 #[test]
 fn test_rwlock_read_concurrency() {
-    let result = test_rwlock_read_concurrency(4);
+    let result = run_rwlock_read_concurrency(4);
     assert!(result.is_success());
     assert_eq!(result.ops_succeeded, 4);
 }
 
 #[test]
 fn test_rwlock_write_concurrency() {
-    let result = test_rwlock_write_concurrency(4);
+    let result = run_rwlock_write_concurrency(4);
     assert!(result.is_success());
     assert_eq!(result.ops_succeeded, 4);
 }
@@ -558,19 +558,18 @@ fn test_multiple_threads_different_operations() {
 }
 
 #[test]
-fn test_arc_rc_concurrent() {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use std::sync::Arc;
+fn test_arc_atomic_concurrent() {
+    use std::sync::atomic::{AtomicU64, Ordering};
 
-    let data = Arc::new(RefCell::new(0u64));
+    let counter = Arc::new(AtomicU64::new(0));
     let mut handles = vec![];
 
     for _ in 0..4 {
-        let data = Arc::clone(&data);
+        let counter = Arc::clone(&counter);
         let handle = thread::spawn(move || {
-            let mut guard = data.borrow_mut();
-            *guard += 1;
+            for _ in 0..250 {
+                counter.fetch_add(1, Ordering::Relaxed);
+            }
         });
         handles.push(handle);
     }
@@ -579,7 +578,7 @@ fn test_arc_rc_concurrent() {
         handle.join().unwrap();
     }
 
-    assert_eq!(*data.borrow(), 4);
+    assert_eq!(counter.load(Ordering::Relaxed), 1000);
 }
 
 #[test]
