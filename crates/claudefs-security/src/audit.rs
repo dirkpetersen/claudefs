@@ -1,3 +1,4 @@
+// FILE: audit.rs
 //! Audit finding types for tracking security issues across the codebase.
 
 use serde::{Deserialize, Serialize};
@@ -34,6 +35,8 @@ pub enum FindingCategory {
     DoS,
     /// Information disclosure
     InfoLeak,
+    /// Input validation failures
+    InputValidation,
     /// Dependency vulnerabilities
     Dependency,
 }

@@ -2,9 +2,10 @@
 //! successfully replicated to each remote site.
 
 use serde::{Deserialize, Serialize};
+use std::hash::Hash;
 
 /// A site+sequence position representing how far replication has advanced.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ReplicationCursor {
     /// Remote site we are replicating TO.
     pub site_id: u64,

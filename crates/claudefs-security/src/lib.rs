@@ -1,3 +1,4 @@
+// FILE: lib.rs
 #![warn(missing_docs)]
 
 //! ClaudeFS security audit crate: fuzzing harnesses, crypto property tests,
@@ -27,3 +28,11 @@ pub mod gateway_auth_tests;
 pub mod transport_tests;
 #[cfg(test)]
 pub mod unsafe_review_tests;
+#[cfg(test)]
+pub mod crypto_deep_tests;
+#[cfg(test)]
+pub mod dependency_audit_tests;
+#[cfg(test)]
+pub mod pentest_full_tests;
+#[cfg(test)]
+pub mod final_unsafe_tests;
