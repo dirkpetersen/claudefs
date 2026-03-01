@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::fingerprint::FingerprintIndex;
 use crate::kvstore::{KvStore, MemoryKvStore};
+use crate::membership::{MembershipManager, NodeState};
 use crate::raft_log::RaftLogStore;
 use crate::service::MetadataServiceConfig;
 use crate::*;
@@ -66,6 +67,21 @@ pub struct StatFs {
     pub max_name_len: u32,
 }
 
+/// Cluster membership status.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ClusterStatus {
+    /// Total number of known nodes.
+    pub total_nodes: u32,
+    /// Number of alive nodes.
+    pub alive_nodes: u32,
+    /// Number of suspected nodes.
+    pub suspect_nodes: u32,
+    /// Number of confirmed dead nodes.
+    pub dead_nodes: u32,
+    /// This node's ID.
+    pub this_node: NodeId,
+}
+
 /// Unified metadata server node.
 ///
 /// Combines KV store, inode operations, directory operations, Raft consensus,
@@ -89,6 +105,7 @@ pub struct MetadataNode {
     worm_mgr: WormManager,
     cdc_stream: CdcStream,
     raft_log: RaftLogStore,
+    membership: MembershipManager,
     inode_counter: AtomicU64,
 }
 
@@ -116,6 +133,9 @@ impl MetadataNode {
         service.init_root()?;
 
         let raft_log = RaftLogStore::new(kv.clone());
+
+        let membership = MembershipManager::new(config.node_id);
+        let _ = membership.join(config.node_id, format!("node-{}", config.node_id.as_u64()));
 
         let shard_router = ShardRouter::new(config.num_shards);
 
@@ -163,6 +183,7 @@ impl MetadataNode {
             worm_mgr,
             cdc_stream,
             raft_log,
+            membership,
             inode_counter,
         })
     }
@@ -861,8 +882,30 @@ impl MetadataNode {
     }
 
     /// Returns whether the node is healthy.
+    /// A node is healthy if it is the only node or if it has at least one alive peer.
     pub fn is_healthy(&self) -> bool {
-        true
+        let status = self.cluster_status();
+        status.alive_nodes > 0
+    }
+
+    /// Returns a reference to the membership tracker for cluster management.
+    pub fn membership(&self) -> &MembershipManager {
+        &self.membership
+    }
+
+    /// Returns cluster status: number of alive, suspect, and dead nodes.
+    pub fn cluster_status(&self) -> ClusterStatus {
+        let all = self.membership.all_members();
+        let alive = all.iter().filter(|m| m.state == NodeState::Alive).count() as u32;
+        let suspect = all.iter().filter(|m| m.state == NodeState::Suspect).count() as u32;
+        let dead = all.iter().filter(|m| m.state == NodeState::Dead).count() as u32;
+        ClusterStatus {
+            total_nodes: all.len() as u32,
+            alive_nodes: alive,
+            suspect_nodes: suspect,
+            dead_nodes: dead,
+            this_node: self.config.node_id,
+        }
     }
 }
 
@@ -1131,5 +1174,24 @@ mod tests {
         assert_eq!(stats.max_name_len, 255);
         assert!(stats.total_inodes > 0);
         assert!(stats.free_inodes <= stats.total_inodes);
+    }
+
+    #[test]
+    fn test_cluster_status() {
+        let node = make_node_memory();
+        let status = node.cluster_status();
+        assert_eq!(status.total_nodes, 1);
+        assert_eq!(status.alive_nodes, 1);
+        assert_eq!(status.suspect_nodes, 0);
+        assert_eq!(status.dead_nodes, 0);
+        assert_eq!(status.this_node, NodeId::new(1));
+    }
+
+    #[test]
+    fn test_membership_access() {
+        let node = make_node_memory();
+        let members = node.membership().all_members();
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].node_id, NodeId::new(1));
     }
 }
