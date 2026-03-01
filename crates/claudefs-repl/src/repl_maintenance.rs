@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
-use tracing::{info, warn};
+use tracing::info;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 enum MaintenanceState {
