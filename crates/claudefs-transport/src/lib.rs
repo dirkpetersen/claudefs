@@ -15,6 +15,7 @@ pub mod circuitbreaker;
 pub mod client;
 pub mod connection;
 pub mod deadline;
+pub mod discovery;
 pub mod drain;
 pub mod error;
 pub use drain::{DrainConfig, DrainController, DrainGuard, DrainListener, DrainState, DrainStats};
@@ -46,6 +47,7 @@ pub use batch::{
 pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
 pub use client::{TransportClient, TransportClientConfig};
 pub use deadline::{Deadline, DeadlineContext, encode_deadline, decode_deadline};
+pub use discovery::{DiscoveryConfig, DiscoveryStats, MemberInfo, MembershipEvent, MembershipList, NodeState};
 pub use error::{TransportError, Result};
 pub use flowcontrol::{
     FlowControlConfig, FlowControlState, FlowController, FlowPermit, WindowController,
