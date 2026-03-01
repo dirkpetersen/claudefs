@@ -1,46 +1,71 @@
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
+/// Role of a site in active-active replication.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SiteRole {
+    /// Primary site accepts writes first and breaks ties.
     Primary,
+    /// Secondary site accepts writes in parallel.
     Secondary,
 }
 
+/// Status of inter-site replication link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LinkStatus {
+    /// Link is operational and responsive.
     Up,
+    /// Link is degraded (high latency or error rate).
     Degraded,
+    /// Link is down (timeout or connection refused).
     Down,
 }
 
+/// A metadata write forwarded from one site to another.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForwardedWrite {
+    /// ID of the site that originated the write.
     pub origin_site_id: String,
+    /// Logical timestamp for causality tracking.
     pub logical_time: u64,
+    /// Metadata key being written.
     pub key: Vec<u8>,
+    /// Metadata value.
     pub value: Vec<u8>,
 }
 
+/// A write conflict detected during active-active replication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WriteConflict {
+    /// Key on which the conflict occurred.
     pub key: Vec<u8>,
+    /// Local write timestamp.
     pub local_time: u64,
+    /// Remote write timestamp.
     pub remote_time: u64,
+    /// Winner of the conflict (determined by last-write-wins or site ID).
     pub winner: SiteRole,
 }
 
+/// Statistics for active-active replication controller.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ActiveActiveStats {
+    /// Number of writes forwarded to peer sites.
     pub writes_forwarded: u64,
+    /// Number of conflicts detected and resolved.
     pub conflicts_resolved: u64,
+    /// Number of link status transitions.
     pub link_flaps: u64,
 }
 
+/// Coordinator for active-active replication between two sites.
 #[derive(Debug)]
 pub struct ActiveActiveController {
+    /// ID of this site.
     pub site_id: String,
+    /// Role of this site (Primary or Secondary).
     pub role: SiteRole,
+    /// Current status of the link to peer site.
     pub link_status: LinkStatus,
     logical_time: u64,
     pending_forwards: Vec<ForwardedWrite>,
@@ -48,6 +73,7 @@ pub struct ActiveActiveController {
 }
 
 impl ActiveActiveController {
+    /// Creates a new active-active controller for the given site.
     pub fn new(site_id: String, role: SiteRole) -> Self {
         Self {
             site_id,
@@ -59,6 +85,7 @@ impl ActiveActiveController {
         }
     }
 
+    /// Records a local write and returns the forwarded write event.
     pub fn local_write(&mut self, key: Vec<u8>, value: Vec<u8>) -> ForwardedWrite {
         self.logical_time += 1;
         let fw = ForwardedWrite {
@@ -76,6 +103,7 @@ impl ActiveActiveController {
         fw
     }
 
+    /// Applies a remote write, returning a conflict if timestamps match.
     pub fn apply_remote_write(&mut self, fw: ForwardedWrite) -> Option<WriteConflict> {
         if fw.logical_time == self.logical_time {
             let winner = if self.site_id < fw.origin_site_id {
@@ -99,6 +127,7 @@ impl ActiveActiveController {
         None
     }
 
+    /// Updates the link status and tracks flaps.
     pub fn set_link_status(&mut self, status: LinkStatus) {
         let old_status = self.link_status;
         if status == LinkStatus::Up && old_status != LinkStatus::Up {
@@ -111,10 +140,12 @@ impl ActiveActiveController {
         self.link_status = status;
     }
 
+    /// Returns current replication statistics.
     pub fn stats(&self) -> &ActiveActiveStats {
         &self.stats
     }
 
+    /// Drains all pending forwarded writes and clears the queue.
     pub fn drain_pending(&mut self) -> Vec<ForwardedWrite> {
         let pending = std::mem::take(&mut self.pending_forwards);
         info!(
