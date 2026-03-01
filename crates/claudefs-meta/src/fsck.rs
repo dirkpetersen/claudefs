@@ -4,14 +4,19 @@ use crate::types::InodeId;
 #[cfg(test)]
 use std::collections::{HashMap, HashSet, VecDeque};
 
+/// Severity level for a filesystem check finding.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum FsckSeverity {
+    /// Error severity — indicates data corruption.
     Error,
+    /// Warning severity — indicates potential issue.
     Warning,
+    /// Info severity — informational note.
     Info,
 }
 
 impl FsckSeverity {
+    /// Returns true if this severity is Error.
     pub fn is_error(&self) -> bool {
         matches!(self, FsckSeverity::Error)
     }
@@ -27,28 +32,46 @@ impl std::fmt::Display for FsckSeverity {
     }
 }
 
+/// Types of filesystem integrity issues.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FsckIssue {
+    /// An inode with no directory entry pointing to it.
     OrphanInode {
+        /// The orphaned inode.
         inode: InodeId,
     },
+    /// Inode link count does not match actual references.
     LinkCountMismatch {
+        /// The inode with incorrect link count.
         inode: InodeId,
+        /// The correct link count.
         expected: u32,
+        /// The stored link count.
         actual: u32,
     },
+    /// Directory entry points to non-existent inode.
     DanglingEntry {
+        /// Parent directory inode.
         parent: InodeId,
+        /// Entry name.
         name: String,
+        /// Target inode that does not exist.
         child: InodeId,
     },
+    /// Duplicate entry names in same directory.
     DuplicateEntry {
+        /// Parent directory inode.
         parent: InodeId,
+        /// The duplicate name.
         name: String,
+        /// First inode with this name.
         inode1: InodeId,
+        /// Second inode with this name.
         inode2: InodeId,
     },
+    /// Subtree not connected to root.
     DisconnectedSubtree {
+        /// Root of the disconnected subtree.
         root: InodeId,
     },
 }
@@ -100,10 +123,14 @@ impl std::fmt::Display for FsckIssue {
     }
 }
 
+/// A single finding from the filesystem checker.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FsckFinding {
+    /// Severity of this finding.
     pub severity: FsckSeverity,
+    /// The detected issue.
     pub issue: FsckIssue,
+    /// Whether the issue was repaired.
     pub repaired: bool,
 }
 
@@ -117,14 +144,22 @@ impl std::fmt::Display for FsckFinding {
     }
 }
 
+/// Configuration for filesystem check.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FsckConfig {
+    /// Check for orphan inodes.
     pub check_orphans: bool,
+    /// Check link count consistency.
     pub check_links: bool,
+    /// Check for dangling directory entries.
     pub check_dangling: bool,
+    /// Check for duplicate entries.
     pub check_duplicates: bool,
+    /// Check tree connectivity.
     pub check_connectivity: bool,
+    /// Automatically repair found issues.
     pub repair: bool,
+    /// Maximum errors before stopping.
     pub max_errors: usize,
 }
 
@@ -142,27 +177,51 @@ impl Default for FsckConfig {
     }
 }
 
+/// Report of filesystem check results.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FsckReport {
+    /// All findings from the check.
     pub findings: Vec<FsckFinding>,
+    /// Count of error-severity findings.
     pub errors: u64,
+    /// Count of warning-severity findings.
     pub warnings: u64,
+    /// Count of repaired issues.
     pub repaired: u64,
 }
 
 impl FsckReport {
+    /// Returns true if no errors were found.
     pub fn is_clean(&self) -> bool {
         self.errors == 0
     }
 }
 
+/// Action to repair an issue.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FsckRepairAction {
-    RemoveEntry { parent: InodeId, name: String },
-    RemoveInode { inode: InodeId },
-    UpdateLinkCount { inode: InodeId, nlink: u32 },
+    /// Remove a directory entry.
+    RemoveEntry {
+        /// Parent directory inode.
+        parent: InodeId,
+        /// Entry name to remove.
+        name: String,
+    },
+    /// Remove an inode entirely.
+    RemoveInode {
+        /// Inode to remove.
+        inode: InodeId,
+    },
+    /// Update inode link count.
+    UpdateLinkCount {
+        /// Inode to update.
+        inode: InodeId,
+        /// New link count.
+        nlink: u32,
+    },
 }
 
+/// Suggests repair actions for an issue.
 pub fn suggest_repair(issue: &FsckIssue, repair: bool) -> Vec<FsckRepairAction> {
     if !repair {
         return vec![];
