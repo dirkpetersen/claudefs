@@ -78,8 +78,31 @@ impl WormReducer {
     }
 
     /// Registers a chunk with a retention policy.
-    pub fn register(&mut self, hash: u64, policy: RetentionPolicy, size: u64) {
-        self.records.insert(hash, (policy, size));
+    pub fn register(
+        &mut self,
+        hash: u64,
+        new_policy: RetentionPolicy,
+        size: u64,
+    ) -> Result<(), crate::error::ReduceError> {
+        if let Some((existing_policy, _)) = self.records.get(&hash) {
+            let existing_strength = Self::policy_strength(&existing_policy.mode);
+            let new_strength = Self::policy_strength(&new_policy.mode);
+
+            if new_strength < existing_strength {
+                return Err(crate::error::ReduceError::PolicyDowngradeAttempted);
+            }
+        }
+
+        self.records.insert(hash, (new_policy, size));
+        Ok(())
+    }
+
+    fn policy_strength(mode: &WormMode) -> u32 {
+        match mode {
+            WormMode::LegalHold => 2,
+            WormMode::Immutable => 1,
+            WormMode::None => 0,
+        }
     }
 
     /// Gets the retention policy and size for a chunk.
@@ -156,11 +179,17 @@ mod tests {
         let mut reducer = WormReducer::new();
 
         // Hash 1 - legal hold, never expires, counts as active
-        reducer.register(make_hash(1), RetentionPolicy::legal_hold(), 0);
+        reducer
+            .register(make_hash(1), RetentionPolicy::legal_hold(), 0)
+            .unwrap();
         // Hash 2 - still active at 750 (retain_until > 750)
-        reducer.register(make_hash(2), RetentionPolicy::immutable_until(1000), 0);
+        reducer
+            .register(make_hash(2), RetentionPolicy::immutable_until(1000), 0)
+            .unwrap();
         // Immutable active (expires after the test assertion at 750)
-        reducer.register(make_hash(3), RetentionPolicy::immutable_until(1000), 0);
+        reducer
+            .register(make_hash(3), RetentionPolicy::immutable_until(1000), 0)
+            .unwrap();
 
         // 3 is still active at 750
         assert_eq!(reducer.active_count(750), 3);
@@ -171,11 +200,17 @@ mod tests {
         let mut reducer = WormReducer::new();
 
         // Hash 1 - legal hold, never expires, counts as active
-        reducer.register(make_hash(1), RetentionPolicy::legal_hold(), 0);
+        reducer
+            .register(make_hash(1), RetentionPolicy::legal_hold(), 0)
+            .unwrap();
         // Hash 2 - still active at 750 (retain_until > 750)
-        reducer.register(make_hash(2), RetentionPolicy::immutable_until(1000), 0);
+        reducer
+            .register(make_hash(2), RetentionPolicy::immutable_until(1000), 0)
+            .unwrap();
         // 3 (still active at 750)
-        reducer.register(make_hash(3), RetentionPolicy::immutable_until(1000), 0);
+        reducer
+            .register(make_hash(3), RetentionPolicy::immutable_until(1000), 0)
+            .unwrap();
 
         assert_eq!(reducer.active_count(750), 3);
     }
@@ -185,8 +220,12 @@ mod tests {
         let mut reducer = WormReducer::new();
 
         // No None-mode registration — testing time-based expiry only
-        reducer.register(make_hash(2), RetentionPolicy::immutable_until(500), 0);
-        reducer.register(make_hash(3), RetentionPolicy::immutable_until(1000), 0);
+        reducer
+            .register(make_hash(2), RetentionPolicy::immutable_until(500), 0)
+            .unwrap();
+        reducer
+            .register(make_hash(3), RetentionPolicy::immutable_until(1000), 0)
+            .unwrap();
         reducer.register(make_hash(4), RetentionPolicy::legal_hold(), 0);
 
         let removed = reducer.gc_expired(600);
