@@ -81,3 +81,6 @@ pub use rebalance::{RebalanceScheduler, RebalanceJob, RebalanceJobId, JobState};
 pub use maintenance::{
     MaintenanceError, MaintenanceMode, MaintenanceWindow, UpgradeCoordinator, UpgradePhase,
 };
+
+pub use cluster_bootstrap::{BootstrapConfig, BootstrapError, BootstrapManager, BootstrapState, NodeSpec};
+pub use compliance::{ComplianceError, ComplianceRegistry, RetentionPolicy, RetentionRecord, RetentionStatus};
