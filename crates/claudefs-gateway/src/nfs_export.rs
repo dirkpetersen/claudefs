@@ -1,18 +1,12 @@
 //! NFSv3 export configuration with security options
 
 use crate::auth::SquashPolicy;
-use std::net::IpAddr;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum ExportAccess {
+    #[default]
     ReadOnly,
     ReadWrite,
-}
-
-impl Default for ExportAccess {
-    fn default() -> Self {
-        ExportAccess::ReadOnly
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

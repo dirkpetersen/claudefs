@@ -109,7 +109,7 @@ impl OtelSpanBuilder {
     }
 
     pub fn build(self, end_unix_ns: u64) -> OtelSpan {
-        let trace_id = self.trace_id.unwrap_or_else(|| TraceId(0));
+        let trace_id = self.trace_id.unwrap_or(TraceId(0));
         let parent_span_id = self.parent_span_id;
 
         let span_id = {
@@ -143,7 +143,7 @@ pub struct OtelExportBuffer {
 impl OtelExportBuffer {
     pub fn new(capacity: usize) -> Self {
         Self {
-            capacity: capacity.max(1).min(10_000),
+            capacity: capacity.clamp(1, 10_000),
             spans: Vec::new(),
         }
     }

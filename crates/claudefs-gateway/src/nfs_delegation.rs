@@ -1,6 +1,5 @@
 //! NFSv4 file delegation management
 
-use rand::rngs::OsRng;
 use rand::thread_rng;
 use rand::RngCore;
 use std::collections::HashMap;
@@ -104,21 +103,12 @@ impl DelegationManager {
         client_id: u64,
         delegation_type: DelegationType,
     ) -> Result<DelegationId, DelegationError> {
-        if matches!(delegation_type, DelegationType::Write) {
-            for del in self.delegations.values() {
-                if del.file_id == file_id && del.is_active() {
-                    if matches!(del.delegation_type, DelegationType::Write) {
-                        return Err(DelegationError::WriteConflict(file_id));
-                    }
-                }
-            }
-        } else {
-            for del in self.delegations.values() {
-                if del.file_id == file_id && del.is_active() {
-                    if matches!(del.delegation_type, DelegationType::Write) {
-                        return Err(DelegationError::WriteConflict(file_id));
-                    }
-                }
+        for del in self.delegations.values() {
+            if del.file_id == file_id
+                && del.is_active()
+                && matches!(del.delegation_type, DelegationType::Write)
+            {
+                return Err(DelegationError::WriteConflict(file_id));
             }
         }
 

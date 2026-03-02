@@ -145,8 +145,7 @@ impl CrashRecovery {
         if !matches!(self.state, RecoveryState::Idle) {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "begin_scan only allowed in Idle state".to_string(),
-            }
-            .into());
+            });
         }
 
         self.state = RecoveryState::Scanning;
@@ -157,15 +156,13 @@ impl CrashRecovery {
         if !matches!(self.state, RecoveryState::Scanning) {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "record_open_file only allowed in Scanning state".to_string(),
-            }
-            .into());
+            });
         }
 
         if self.journal.open_file_count() >= self.config.max_open_files {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "max_open_files exceeded".to_string(),
-            }
-            .into());
+            });
         }
 
         self.journal.add_open_file(record);
@@ -176,8 +173,7 @@ impl CrashRecovery {
         if !matches!(self.state, RecoveryState::Scanning) {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "record_pending_write only allowed in Scanning state".to_string(),
-            }
-            .into());
+            });
         }
 
         self.journal.add_pending_write(write);
@@ -188,8 +184,7 @@ impl CrashRecovery {
         if !matches!(self.state, RecoveryState::Scanning) {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "begin_replay only allowed in Scanning state".to_string(),
-            }
-            .into());
+            });
         }
 
         self.state = RecoveryState::Replaying { replayed: 0, total };
@@ -206,8 +201,7 @@ impl CrashRecovery {
         if !matches!(self.state, RecoveryState::Replaying { .. }) {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "complete only allowed in Replaying state".to_string(),
-            }
-            .into());
+            });
         }
 
         let replayed = match self.state {

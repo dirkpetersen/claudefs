@@ -402,7 +402,7 @@ mod tests {
     fn test_delegations_for_ino_returns_active_only() {
         let mut mgr = DelegationManager::new(300);
 
-        let id = mgr.grant(1, DelegType::Read, 100, 1000).unwrap();
+        let _id = mgr.grant(1, DelegType::Read, 100, 1000).unwrap();
         mgr.recall_for_ino(1, 1500);
 
         let delegs = mgr.delegations_for_ino(1);

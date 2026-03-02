@@ -47,7 +47,7 @@ impl ImmutabilityMode {
         self.is_write_blocked(now_secs)
     }
 
-    pub fn is_append_allowed(&self, now_secs: u64) -> bool {
+    pub fn is_append_allowed(&self, _now_secs: u64) -> bool {
         match self {
             ImmutabilityMode::None => true,
             ImmutabilityMode::AppendOnly => true,
@@ -179,6 +179,12 @@ pub struct WormRegistry {
     pre_hold_modes: HashMap<u64, ImmutabilityMode>,
 }
 
+impl Default for WormRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WormRegistry {
     pub fn new() -> Self {
         Self {
@@ -203,6 +209,10 @@ impl WormRegistry {
 
     pub fn len(&self) -> usize {
         self.records.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
     }
 
     pub fn check_write(&self, ino: u64, now_secs: u64) -> std::result::Result<(), WormViolation> {
@@ -250,7 +260,7 @@ impl WormRegistry {
             }
         }
 
-        let mut hold_inos = inos.clone();
+        let hold_inos = inos.clone();
         for ino in inos {
             self.records.insert(
                 ino,

@@ -8,17 +8,16 @@ use std::time::Instant;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Circuit breaker state representing the current fault tolerance mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CircuitState {
+    /// Normal operation - requests pass through normally
+    #[default]
     Closed,
+    /// Fault detected - requests are rejected
     Open,
+    /// Testing recovery - allows limited requests to test backend recovery
     HalfOpen,
-}
-
-impl Default for CircuitState {
-    fn default() -> Self {
-        Self::Closed
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

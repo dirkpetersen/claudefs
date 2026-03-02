@@ -50,7 +50,7 @@ impl WriteBuf {
             return false;
         }
 
-        let ranges = self.dirty.entry(ino).or_insert_with(Vec::new);
+        let ranges = self.dirty.entry(ino).or_default();
 
         let data_vec = data.to_vec();
         let size = data_vec.len();

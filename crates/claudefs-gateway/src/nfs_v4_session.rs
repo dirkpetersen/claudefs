@@ -5,7 +5,7 @@
 //! Sessions track per-slot sequence numbers to detect and handle replayed requests.
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 

@@ -61,6 +61,12 @@ pub struct FlockRegistry {
     by_inode: HashMap<InodeId, Vec<(u64, InodeId)>>,
 }
 
+impl Default for FlockRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FlockRegistry {
     pub fn new() -> Self {
         Self {
@@ -164,7 +170,7 @@ impl FlockRegistry {
         self.locks.insert(key, entry);
         self.by_inode
             .entry(handle.ino)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(key);
 
         FlockConflict::None

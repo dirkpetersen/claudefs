@@ -313,7 +313,7 @@ impl AdaptiveTuner {
         let profile = self
             .profiles
             .entry(inode)
-            .or_insert_with(AccessProfile::new);
+            .or_default();
         profile.record_read(bytes, is_sequential);
     }
 
@@ -322,7 +322,7 @@ impl AdaptiveTuner {
         let profile = self
             .profiles
             .entry(inode)
-            .or_insert_with(AccessProfile::new);
+            .or_default();
         profile.record_write(bytes);
     }
 

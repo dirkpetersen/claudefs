@@ -508,7 +508,7 @@ pub struct SecurityProfile {
 }
 
 impl SecurityProfile {
-    pub fn default() -> Self {
+    pub fn default_profile() -> Self {
         Self {
             capabilities: CapabilitySet::new(),
             syscall_policy: SyscallPolicy::new(),
@@ -573,7 +573,7 @@ impl SecurityProfile {
 
 impl Default for SecurityProfile {
     fn default() -> Self {
-        Self::default()
+        Self::default_profile()
     }
 }
 
@@ -787,13 +787,17 @@ mod tests {
     #[test]
     fn test_mount_namespace_age() {
         let ns = MountNamespace::new(1, 1);
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        assert!(ns.age_secs() >= 0);
+        let created = ns.created_at_secs;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert!(now >= created);
     }
 
     #[test]
     fn test_security_profile_default() {
-        let profile = SecurityProfile::default();
+        let profile = SecurityProfile::default_profile();
         assert!(profile.required_capabilities().is_empty());
         assert!(!profile.enforce_no_new_privs());
     }
@@ -837,7 +841,7 @@ mod tests {
 
     #[test]
     fn test_policy_enforcer_new() {
-        let profile = SecurityProfile::default();
+        let profile = SecurityProfile::default_profile();
         let enforcer = PolicyEnforcer::new(profile);
         assert_eq!(enforcer.violation_count(), 0);
         assert!(!enforcer.is_over_limit());
@@ -860,7 +864,7 @@ mod tests {
 
     #[test]
     fn test_policy_enforcer_record_violation() {
-        let profile = SecurityProfile::default();
+        let profile = SecurityProfile::default_profile();
         let mut enforcer = PolicyEnforcer::new(profile);
         enforcer.record_violation(
             ViolationType::CapabilityEscalation("CAP_SYS_ADMIN".to_string()),
@@ -871,7 +875,7 @@ mod tests {
 
     #[test]
     fn test_policy_enforcer_recent_violations() {
-        let profile = SecurityProfile::default();
+        let profile = SecurityProfile::default_profile();
         let mut enforcer = PolicyEnforcer::new(profile);
         for i in 0..5 {
             enforcer.record_violation(
@@ -885,7 +889,7 @@ mod tests {
 
     #[test]
     fn test_policy_enforcer_is_over_limit() {
-        let profile = SecurityProfile::default();
+        let profile = SecurityProfile::default_profile();
         let mut enforcer = PolicyEnforcer::new(profile).with_max_violations(3);
         for i in 0..5 {
             enforcer.record_violation(
@@ -898,7 +902,7 @@ mod tests {
 
     #[test]
     fn test_policy_enforcer_clear_violations() {
-        let profile = SecurityProfile::default();
+        let profile = SecurityProfile::default_profile();
         let mut enforcer = PolicyEnforcer::new(profile);
         enforcer.record_violation(
             ViolationType::UnauthorizedMount("/evil".to_string()),
@@ -912,7 +916,7 @@ mod tests {
     #[test]
     fn test_security_profile_with_mount_namespace() {
         let ns = MountNamespace::new(123, 456);
-        let profile = SecurityProfile::default().with_mount_namespace(ns);
+        let profile = SecurityProfile::default_profile().with_mount_namespace(ns);
         assert!(profile.mount_ns().is_some());
     }
 }

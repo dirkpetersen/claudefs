@@ -44,6 +44,7 @@ pub mod s3_xml;
 pub mod server;
 pub mod session;
 pub mod smb;
+/// SMB multi-channel support for high-throughput connections.
 pub mod smb_multichannel;
 pub mod stats;
 pub mod token_auth;
