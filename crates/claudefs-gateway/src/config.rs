@@ -5,9 +5,12 @@ use serde::{Deserialize, Serialize};
 use crate::error::{GatewayError, Result};
 use crate::mount::ExportEntry;
 
+/// Bind address for a network service
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BindAddr {
+    /// IP address or hostname
     pub addr: String,
+    /// Port number
     pub port: u16,
 }
 
@@ -51,13 +54,20 @@ impl Default for BindAddr {
     }
 }
 
+/// NFS export configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportConfig {
+    /// Filesystem path to export
     pub path: String,
+    /// Allowed client hosts/networks
     pub allowed_clients: Vec<String>,
+    /// Read-only export
     pub read_only: bool,
+    /// Map root UID/GID to anonymous
     pub root_squash: bool,
+    /// Anonymous UID for squashed users
     pub anon_uid: u32,
+    /// Anonymous GID for squashed users
     pub anon_gid: u32,
 }
 
@@ -92,12 +102,18 @@ impl ExportConfig {
     }
 }
 
+/// S3 gateway configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct S3Config {
+    /// Bind address for S3 server
     pub bind: BindAddr,
+    /// AWS region for S3 operations
     pub region: String,
+    /// Maximum object size in bytes
     pub max_object_size: u64,
+    /// Minimum multipart chunk size
     pub multipart_chunk_min: u64,
+    /// Enable S3 versioning
     pub enable_versioning: bool,
 }
 
@@ -119,15 +135,24 @@ impl Default for S3Config {
     }
 }
 
+/// NFS server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NfsConfig {
+    /// NFS server bind address
     pub bind: BindAddr,
+    /// MOUNT protocol bind address
     pub mount_bind: BindAddr,
+    /// List of exports
     pub exports: Vec<ExportConfig>,
+    /// Filesystem ID for exports
     pub fsid: u64,
+    /// Maximum read size
     pub max_read_size: u32,
+    /// Maximum write size
     pub max_write_size: u32,
+    /// Enable pNFS layout server
     pub enable_pnfs: bool,
+    /// pNFS data server addresses
     pub pnfs_data_servers: Vec<String>,
 }
 
@@ -152,13 +177,20 @@ impl Default for NfsConfig {
     }
 }
 
+/// Complete gateway configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayConfig {
+    /// NFS server configuration
     pub nfs: NfsConfig,
+    /// S3 gateway configuration
     pub s3: S3Config,
+    /// Enable NFS protocol
     pub enable_nfs: bool,
+    /// Enable S3 protocol
     pub enable_s3: bool,
+    /// Enable SMB protocol
     pub enable_smb: bool,
+    /// Logging level (debug, info, warn, error)
     pub log_level: String,
 }
 

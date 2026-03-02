@@ -44,43 +44,75 @@ pub const REJECT_RPC_MISMATCH: u32 = 0;
 /// RPC reject status: authentication error
 pub const REJECT_AUTH_ERROR: u32 = 1;
 
+/// NFSv3 procedure: NULL (no-op)
 pub const NFS3_NULL: u32 = 0;
+/// NFSv3 procedure: GETATTR (get file attributes)
 pub const NFS3_GETATTR: u32 = 1;
+/// NFSv3 procedure: SETATTR (set file attributes)
 pub const NFS3_SETATTR: u32 = 2;
+/// NFSv3 procedure: LOOKUP (lookup filename)
 pub const NFS3_LOOKUP: u32 = 3;
+/// NFSv3 procedure: ACCESS (check access permission)
 pub const NFS3_ACCESS: u32 = 4;
+/// NFSv3 procedure: READLINK (read symbolic link)
 pub const NFS3_READLINK: u32 = 5;
+/// NFSv3 procedure: READ (read file)
 pub const NFS3_READ: u32 = 6;
+/// NFSv3 procedure: WRITE (write file)
 pub const NFS3_WRITE: u32 = 7;
+/// NFSv3 procedure: CREATE (create regular file)
 pub const NFS3_CREATE: u32 = 8;
+/// NFSv3 procedure: MKDIR (create directory)
 pub const NFS3_MKDIR: u32 = 9;
+/// NFSv3 procedure: SYMLINK (create symbolic link)
 pub const NFS3_SYMLINK: u32 = 10;
+/// NFSv3 procedure: MKNOD (create special device)
 pub const NFS3_MKNOD: u32 = 11;
+/// NFSv3 procedure: REMOVE (remove file)
 pub const NFS3_REMOVE: u32 = 12;
+/// NFSv3 procedure: RMDIR (remove directory)
 pub const NFS3_RMDIR: u32 = 13;
+/// NFSv3 procedure: RENAME (rename file/directory)
 pub const NFS3_RENAME: u32 = 14;
+/// NFSv3 procedure: LINK (create hard link)
 pub const NFS3_LINK: u32 = 15;
+/// NFSv3 procedure: READDIR (read directory)
 pub const NFS3_READDIR: u32 = 16;
+/// NFSv3 procedure: READDIRPLUS (read directory with attributes)
 pub const NFS3_READDIRPLUS: u32 = 17;
+/// NFSv3 procedure: FSSTAT (get filesystem statistics)
 pub const NFS3_FSSTAT: u32 = 18;
+/// NFSv3 procedure: FSINFO (get filesystem info)
 pub const NFS3_FSINFO: u32 = 19;
+/// NFSv3 procedure: PATHCONF (get path configuration)
 pub const NFS3_PATHCONF: u32 = 20;
+/// NFSv3 procedure: COMMIT (commit writes to stable storage)
 pub const NFS3_COMMIT: u32 = 21;
 
+/// MOUNTv3 procedure: NULL (no-op)
 pub const MNT3_NULL: u32 = 0;
+/// MOUNTv3 procedure: MNT (mount)
 pub const MNT3_MNT: u32 = 1;
+/// MOUNTv3 procedure: DUMP (show mounts)
 pub const MNT3_DUMP: u32 = 2;
+/// MOUNTv3 procedure: UMNT (unmount)
 pub const MNT3_UMNT: u32 = 3;
+/// MOUNTv3 procedure: UMNTALL (unmount all)
 pub const MNT3_UMNTALL: u32 = 4;
+/// MOUNTv3 procedure: EXPORT (list exports)
 pub const MNT3_EXPORT: u32 = 5;
 
+/// RPC authentication credential (OPAQUE AUTH).
 #[derive(Debug, Clone)]
 pub struct OpaqueAuth {
+    /// Authentication flavor (AUTH_NONE, AUTH_SYS, AUTH_GSS)
     pub flavor: u32,
+    /// Authentication data (flavor-specific)
     pub body: Vec<u8>,
 }
 
 impl OpaqueAuth {
+    /// Creates an AUTH_NONE credential with empty body.
     pub fn none() -> Self {
         Self {
             flavor: AUTH_NONE,
@@ -88,11 +120,13 @@ impl OpaqueAuth {
         }
     }
 
+    /// Encodes this authentication as XDR.
     pub fn encode_xdr(&self, enc: &mut XdrEncoder) {
         enc.encode_u32(self.flavor);
         enc.encode_opaque_variable(&self.body);
     }
 
+    /// Decodes an OpaqueAuth from XDR.
     pub fn decode_xdr(dec: &mut XdrDecoder) -> Result<Self> {
         let flavor = dec.decode_u32()?;
         let body = dec.decode_opaque_variable()?;
@@ -100,19 +134,29 @@ impl OpaqueAuth {
     }
 }
 
+/// RPC CALL message (incoming request).
 #[derive(Debug, Clone)]
 pub struct RpcCall {
+    /// Transaction ID (client-generated, echoed in reply)
     pub xid: u32,
+    /// RPC protocol version (must be 2)
     pub rpcvers: u32,
+    /// Program number (e.g., NFS_PROGRAM)
     pub prog: u32,
+    /// Program version (e.g., NFS_VERSION = 3)
     pub vers: u32,
+    /// Procedure number within the program
     pub proc: u32,
+    /// Client credentials
     pub cred: OpaqueAuth,
+    /// Client verifier
     pub verf: OpaqueAuth,
+    /// Raw procedure arguments (after credential/verifier)
     pub args_bytes: Vec<u8>,
 }
 
 impl RpcCall {
+    /// Decodes an RPC CALL message from wire format.
     pub fn decode(data: &[u8]) -> Result<Self> {
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::copy_from_slice(data));
 
@@ -148,14 +192,19 @@ impl RpcCall {
     }
 }
 
+/// RPC REPLY message (response to a call).
 #[derive(Debug)]
 pub struct RpcReply {
+    /// Transaction ID (echoed from the call)
     pub xid: u32,
+    /// Server verifier
     pub verf: OpaqueAuth,
+    /// Raw procedure result data
     pub result_bytes: Vec<u8>,
 }
 
 impl RpcReply {
+    /// Encodes a successful RPC reply with the given result.
     pub fn encode_success(xid: u32, result: &[u8]) -> Vec<u8> {
         let mut enc = XdrEncoder::new();
         enc.encode_u32(xid);
@@ -166,6 +215,7 @@ impl RpcReply {
         enc.finish().to_vec()
     }
 
+    /// Encodes a PROC_UNAVAIL reply (procedure not available).
     pub fn encode_proc_unavail(xid: u32) -> Vec<u8> {
         let mut enc = XdrEncoder::new();
         enc.encode_u32(xid);
@@ -175,6 +225,7 @@ impl RpcReply {
         enc.finish().to_vec()
     }
 
+    /// Encodes a PROG_MISMATCH reply (program version not supported).
     pub fn encode_prog_mismatch(xid: u32, low: u32, high: u32) -> Vec<u8> {
         let mut enc = XdrEncoder::new();
         enc.encode_u32(xid);
@@ -185,6 +236,7 @@ impl RpcReply {
         enc.finish().to_vec()
     }
 
+    /// Encodes an AUTH_ERROR reply (authentication failed).
     pub fn encode_auth_error(xid: u32, stat: u32) -> Vec<u8> {
         let mut enc = XdrEncoder::new();
         enc.encode_u32(xid);
@@ -194,6 +246,7 @@ impl RpcReply {
         enc.finish().to_vec()
     }
 
+    /// Encodes a GARBAGE_ARGS reply (arguments could not be decoded).
     pub fn encode_garbage_args(xid: u32) -> Vec<u8> {
         let mut enc = XdrEncoder::new();
         enc.encode_u32(xid);
@@ -204,9 +257,12 @@ impl RpcReply {
     }
 }
 
+/// TCP record marking (fragment header) utilities for RPC over TCP.
 pub struct TcpRecordMark;
 
 impl TcpRecordMark {
+    /// Encodes data with a TCP record mark fragment header.
+    /// Sets the high bit to indicate this is the last fragment.
     pub fn encode(data: &[u8]) -> Vec<u8> {
         let mut result = Vec::with_capacity(4 + data.len());
         let fragment_len = data.len() as u32 | 0x80000000;
@@ -215,6 +271,8 @@ impl TcpRecordMark {
         result
     }
 
+    /// Decodes a TCP record mark header.
+    /// Returns (is_last_fragment, fragment_length).
     pub fn decode(header: [u8; 4]) -> (bool, u32) {
         let val = u32::from_be_bytes(header);
         let is_last = (val & 0x80000000) != 0;

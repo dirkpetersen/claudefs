@@ -35,59 +35,109 @@ pub const NFS3ERR_NOTSUPP: u32 = 10004;
 /// NFSv3 status: server fault
 pub const NFS3ERR_SERVERFAULT: u32 = 10006;
 
+/// Error types for NFS, S3, and protocol-level failures in the gateway.
 #[derive(Error, Debug)]
 pub enum GatewayError {
+    /// NFS: no such file or directory
     #[error("NFS: no such file or directory")]
     Nfs3NoEnt,
+    /// NFS: I/O error
     #[error("NFS: I/O error")]
     Nfs3Io,
+    /// NFS: permission denied
     #[error("NFS: permission denied")]
     Nfs3Acces,
+    /// NFS: already exists
     #[error("NFS: already exists")]
     Nfs3Exist,
+    /// NFS: not a directory
     #[error("NFS: not a directory")]
     Nfs3NotDir,
+    /// NFS: is a directory
     #[error("NFS: is a directory")]
     Nfs3IsDir,
+    /// NFS: invalid argument
     #[error("NFS: invalid argument")]
     Nfs3Inval,
+    /// NFS: file too large
     #[error("NFS: file too large")]
     Nfs3FBig,
+    /// NFS: no space left
     #[error("NFS: no space left")]
     Nfs3NoSpc,
+    /// NFS: read-only filesystem
     #[error("NFS: read-only filesystem")]
     Nfs3ROfs,
+    /// NFS: stale file handle
     #[error("NFS: stale file handle")]
     Nfs3Stale,
+    /// NFS: bad handle
     #[error("NFS: bad handle")]
     Nfs3BadHandle,
+    /// NFS: operation not supported
     #[error("NFS: not supported")]
     Nfs3NotSupp,
+    /// NFS: server fault
     #[error("NFS: server fault")]
     Nfs3ServerFault,
+    /// S3: bucket not found
     #[error("S3: bucket not found: {bucket}")]
-    S3BucketNotFound { bucket: String },
+    S3BucketNotFound {
+        /// The bucket name that was not found
+        bucket: String,
+    },
+    /// S3: object not found
     #[error("S3: object not found: {key}")]
-    S3ObjectNotFound { key: String },
+    S3ObjectNotFound {
+        /// The object key that was not found
+        key: String,
+    },
+    /// S3: invalid bucket name
     #[error("S3: invalid bucket name: {name}")]
-    S3InvalidBucketName { name: String },
+    S3InvalidBucketName {
+        /// The invalid bucket name
+        name: String,
+    },
+    /// S3: access denied
     #[error("S3: access denied")]
     S3AccessDenied,
+    /// XDR decode error
     #[error("XDR decode error: {reason}")]
-    XdrDecodeError { reason: String },
+    XdrDecodeError {
+        /// The reason for the decode error
+        reason: String,
+    },
+    /// XDR encode error
     #[error("XDR encode error: {reason}")]
-    XdrEncodeError { reason: String },
+    XdrEncodeError {
+        /// The reason for the encode error
+        reason: String,
+    },
+    /// Protocol error
     #[error("Protocol error: {reason}")]
-    ProtocolError { reason: String },
+    ProtocolError {
+        /// The protocol error details
+        reason: String,
+    },
+    /// Backend storage error
     #[error("Backend error: {reason}")]
-    BackendError { reason: String },
+    BackendError {
+        /// The backend error details
+        reason: String,
+    },
+    /// Feature not implemented
     #[error("Not implemented: {feature}")]
-    NotImplemented { feature: String },
+    NotImplemented {
+        /// The unimplemented feature name
+        feature: String,
+    },
+    /// IO error
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 }
 
 impl GatewayError {
+    /// Converts the error to an NFSv3 status code for protocol responses.
     pub fn nfs3_status(&self) -> u32 {
         match self {
             GatewayError::Nfs3NoEnt => NFS3ERR_NOENT,
@@ -124,6 +174,7 @@ impl GatewayError {
     }
 }
 
+/// Result type alias using GatewayError as the error type.
 pub type Result<T> = std::result::Result<T, GatewayError>;
 
 #[cfg(test)]

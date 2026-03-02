@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-/// Quota subject type
+/// Quota subject - identifies what the quota applies to
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum QuotaSubject {
-    /// Per-user quota
+    /// Per-user quota (by UID)
     User(u32),
-    /// Per-group quota
+    /// Per-group quota (by GID)
     Group(u32),
     /// Per-export-path quota
     Export,
@@ -104,18 +104,18 @@ impl QuotaUsage {
     }
 }
 
-/// Quota violation type
+/// Quota violation status
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuotaViolation {
-    /// Usage exceeds hard limit
+    /// Hard limit exceeded - operation denied
     HardLimitExceeded,
-    /// Usage exceeds soft limit (grace period may apply)
+    /// Soft limit exceeded - warn but allow
     SoftLimitExceeded,
-    /// Within limits
+    /// Within limits - no violation
     None,
 }
 
-/// Quota manager — tracks usage and enforces limits
+/// Quota manager - tracks usage and enforces limits
 pub struct QuotaManager {
     limits: Mutex<HashMap<QuotaSubject, QuotaLimits>>,
     usage: Mutex<HashMap<QuotaSubject, QuotaUsage>>,

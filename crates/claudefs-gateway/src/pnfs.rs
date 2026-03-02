@@ -3,35 +3,53 @@
 use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
+/// pNFS layout type - defines how data is striped across servers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum LayoutType {
+    /// Block/scsi layout
     Nfs4Block = 2,
+    /// Object layout
     ObjLayout = 3,
+    /// Files layout (traditional NFS data server)
     Files = 1,
 }
 
+/// pNFS data server location
 #[derive(Debug, Clone)]
 pub struct DataServerLocation {
+    /// Server address (host:port)
     pub address: String,
+    /// Device ID for block layouts
     pub device_id: [u8; 16],
 }
 
+/// A layout segment describing a stripe region
 #[derive(Debug, Clone)]
 pub struct LayoutSegment {
+    /// Type of layout
     pub layout_type: LayoutType,
+    /// Offset in bytes
     pub offset: u64,
+    /// Length in bytes
     pub length: u64,
+    /// I/O mode (read/write)
     pub iomode: IoMode,
+    /// Data servers for this segment
     pub data_servers: Vec<DataServerLocation>,
+    /// Stripe unit size in bytes
     pub stripe_unit: u64,
 }
 
+/// pNFS I/O mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u32)]
 pub enum IoMode {
+    /// Read-only access
     Read = 1,
+    /// Read-write access
     ReadWrite = 2,
+    /// Any access mode
     Any = 3,
 }
 
@@ -46,13 +64,18 @@ impl IoMode {
     }
 }
 
+/// Result of a layout get operation
 #[derive(Debug, Clone)]
 pub struct LayoutGetResult {
+    /// Layout type returned
     pub layout_type: LayoutType,
+    /// Layout segments
     pub segments: Vec<LayoutSegment>,
+    /// State ID for layout state
     pub stateid: [u8; 16],
 }
 
+/// pNFS layout server - manages data server locations and layout allocation
 pub struct PnfsLayoutServer {
     data_servers: RwLock<Vec<DataServerLocation>>,
     #[allow(dead_code)]

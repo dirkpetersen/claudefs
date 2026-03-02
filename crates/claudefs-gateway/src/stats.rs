@@ -6,10 +6,15 @@ use std::time::Instant;
 /// Per-protocol statistics counters
 #[derive(Debug, Default)]
 pub struct ProtocolStats {
+    /// Total request count
     pub requests: AtomicU64,
+    /// Total error count
     pub errors: AtomicU64,
+    /// Total bytes received
     pub bytes_in: AtomicU64,
+    /// Total bytes sent
     pub bytes_out: AtomicU64,
+    /// Sum of all request latencies in microseconds
     pub latency_us_total: AtomicU64,
 }
 
@@ -67,11 +72,15 @@ impl ProtocolStats {
     }
 }
 
-/// Gateway-wide statistics
+/// Gateway-wide aggregated statistics
 pub struct GatewayStats {
+    /// NFSv3 protocol stats
     pub nfs3: ProtocolStats,
+    /// S3 protocol stats
     pub s3: ProtocolStats,
+    /// SMB3 protocol stats
     pub smb3: ProtocolStats,
+    /// Server start time
     pub uptime_start: Instant,
 }
 

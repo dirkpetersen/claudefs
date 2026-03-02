@@ -12,11 +12,15 @@ const NOBODY_GID: u32 = 65534;
 
 const AUTH_SYS_MAX_MACHINENAME_LEN: usize = 255;
 
+/// Squash policy for root user mapping
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum SquashPolicy {
+    /// Map root to nobody (default)
     #[default]
     RootSquash,
+    /// Map all users to nobody
     AllSquash,
+    /// No squashing - preserve all UIDs
     None,
 }
 
@@ -115,10 +119,14 @@ impl AuthNone {
     }
 }
 
+/// Authentication credential - parsed from RPC auth flavor
 #[derive(Debug, Clone)]
 pub enum AuthCred {
+    /// No authentication (AUTH_NONE)
     None,
+    /// AUTH_SYS credential with UID/GID/GIDs
     Sys(AuthSysCred),
+    /// Unsupported auth flavor
     Unknown(u32),
 }
 

@@ -9,6 +9,8 @@ use crate::protocol::{
     PathConfResult, ReadDirResult,
 };
 
+/// Virtual filesystem backend trait for NFS operations.
+/// Provides an abstraction layer for different filesystem implementations.
 pub trait VfsBackend: Send + Sync {
     fn getattr(&self, fh: &FileHandle3) -> Result<Fattr3>;
     fn lookup(&self, dir_fh: &FileHandle3, name: &str) -> Result<LookupResult>;
@@ -38,19 +40,32 @@ pub trait VfsBackend: Send + Sync {
     fn access(&self, fh: &FileHandle3, uid: u32, gid: u32, access_bits: u32) -> Result<u32>;
 }
 
+/// In-memory inode entry representing a file or directory in the virtual filesystem.
 #[derive(Debug, Clone)]
 pub struct InodeEntry {
+    /// File type (regular file, directory, symbolic link, etc.)
     pub ftype: Ftype3,
+    /// Unix permission bits (mode)
     pub mode: u32,
+    /// File size in bytes
     pub size: u64,
+    /// File data content (for regular files)
     pub data: Vec<u8>,
+    /// Child entries (for directories) mapping name to inode number
     pub children: HashMap<String, u64>,
+    /// Target path for symbolic links
     pub link_target: Option<String>,
+    /// Owner user ID
     pub uid: u32,
+    /// Owner group ID
     pub gid: u32,
+    /// Last access time
     pub atime: Nfstime3,
+    /// Last modification time
     pub mtime: Nfstime3,
+    /// Last metadata change time
     pub ctime: Nfstime3,
+    /// Number of hard links to this inode
     pub nlink: u32,
 }
 
@@ -115,13 +130,18 @@ impl InodeEntry {
     }
 }
 
+/// Mock in-memory VFS backend for testing NFS operations.
 pub struct MockVfsBackend {
+    /// In-memory inode storage
     inodes: Arc<RwLock<HashMap<u64, InodeEntry>>>,
+    /// Atomic counter for allocating new inode numbers
     next_inode: std::sync::atomic::AtomicU64,
+    /// Filesystem ID for this VFS instance
     fsid: u64,
 }
 
 impl MockVfsBackend {
+    /// Creates a new mock VFS backend with a root directory.
     pub fn new(fsid: u64) -> Self {
         let inodes: HashMap<u64, InodeEntry> = [(1, InodeEntry::new_dir(1))].into();
         Self {
@@ -512,92 +532,142 @@ impl VfsBackend for MockVfsBackend {
     }
 }
 
+/// Result of NFS GETATTR operation.
 pub enum Nfs3GetAttrResult {
+    /// Success - returns file attributes
     Ok(Fattr3),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS LOOKUP operation.
 pub enum Nfs3LookupResult {
+    /// Success - returns file handle and attributes
     Ok(LookupResult),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS READ operation.
 pub enum Nfs3ReadResult {
+    /// Success - returns data buffer and EOF flag
     Ok(Vec<u8>, bool),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS WRITE operation.
 pub enum Nfs3WriteResult {
+    /// Success - returns bytes written and stable flag
     Ok(u32, u32),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS CREATE/MKDIR/SYMLINK operation.
 pub enum Nfs3CreateResult {
+    /// Success - returns new file handle and attributes
     Ok(FileHandle3, Fattr3),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS MKDIR operation.
 pub enum Nfs3MkdirResult {
+    /// Success - returns new directory handle and attributes
     Ok(FileHandle3, Fattr3),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS REMOVE operation.
 pub enum Nfs3RemoveResult {
+    /// Success
     Ok,
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS RENAME operation.
 pub enum Nfs3RenameResult {
+    /// Success
     Ok,
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS READDIR operation.
 pub enum Nfs3ReadDirResult {
+    /// Success - returns directory entries
     Ok(ReadDirResult),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS FSSTAT operation.
 pub enum Nfs3FsStatResult {
+    /// Success - returns filesystem statistics
     Ok(FsStatResult),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS FSINFO operation.
 pub enum Nfs3FsInfoResult {
+    /// Success - returns filesystem information
     Ok(FsInfoResult),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS PATHCONF operation.
 pub enum Nfs3PathConfResult {
+    /// Success - returns path configuration
     Ok(PathConfResult),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS ACCESS operation.
 pub enum Nfs3AccessResult {
+    /// Success - returns granted access bits
     Ok(u32),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS READLINK operation.
 pub enum Nfs3ReadLinkResult {
+    /// Success - returns symlink target path
     Ok(String),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// Result of NFS SYMLINK operation.
 pub enum Nfs3SymLinkResult {
+    /// Success - returns new symlink handle and attributes
     Ok(FileHandle3, Fattr3),
+    /// Error - returns NFS error code
     Err(u32),
 }
 
+/// NFSv3 protocol handler dispatching operations to a VFS backend.
 pub struct Nfs3Handler<B: VfsBackend> {
+    /// VFS backend for file operations
     backend: Arc<B>,
+    /// Filesystem ID
     #[allow(dead_code)]
     fsid: u64,
 }
 
 impl<B: VfsBackend> Nfs3Handler<B> {
+    /// Creates a new NFSv3 handler with the given VFS backend.
     pub fn new(backend: Arc<B>, fsid: u64) -> Self {
         Self { backend, fsid }
     }
 
+    /// Handles NFS GETATTR - retrieves file attributes.
     pub fn handle_getattr(&self, fh: &FileHandle3) -> Nfs3GetAttrResult {
         match self.backend.getattr(fh) {
             Ok(attr) => Nfs3GetAttrResult::Ok(attr),
@@ -605,6 +675,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS LOOKUP - resolves a filename in a directory to a file handle.
     pub fn handle_lookup(&self, dir_fh: &FileHandle3, name: &str) -> Nfs3LookupResult {
         match self.backend.lookup(dir_fh, name) {
             Ok(result) => Nfs3LookupResult::Ok(result),
@@ -612,6 +683,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS READ - reads data from a file.
     pub fn handle_read(&self, fh: &FileHandle3, offset: u64, count: u32) -> Nfs3ReadResult {
         match self.backend.read(fh, offset, count) {
             Ok((data, eof)) => Nfs3ReadResult::Ok(data, eof),
@@ -619,6 +691,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS WRITE - writes data to a file.
     pub fn handle_write(
         &self,
         fh: &FileHandle3,
@@ -632,6 +705,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS CREATE - creates a new regular file.
     pub fn handle_create(&self, dir_fh: &FileHandle3, name: &str, mode: u32) -> Nfs3CreateResult {
         match self.backend.create(dir_fh, name, mode) {
             Ok((fh, attr)) => Nfs3CreateResult::Ok(fh, attr),
@@ -639,6 +713,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS MKDIR - creates a new directory.
     pub fn handle_mkdir(&self, dir_fh: &FileHandle3, name: &str, mode: u32) -> Nfs3MkdirResult {
         match self.backend.mkdir(dir_fh, name, mode) {
             Ok((fh, attr)) => Nfs3MkdirResult::Ok(fh, attr),
@@ -646,6 +721,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS REMOVE - removes a file or empty directory.
     pub fn handle_remove(&self, dir_fh: &FileHandle3, name: &str) -> Nfs3RemoveResult {
         match self.backend.remove(dir_fh, name) {
             Ok(()) => Nfs3RemoveResult::Ok,
@@ -653,6 +729,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS RENAME - renames or moves a file or directory.
     pub fn handle_rename(
         &self,
         from_dir: &FileHandle3,
@@ -666,6 +743,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS READDIR - lists directory entries.
     pub fn handle_readdir(
         &self,
         dir_fh: &FileHandle3,
@@ -679,6 +757,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS FSSTAT - retrieves filesystem statistics.
     pub fn handle_fsstat(&self, fh: &FileHandle3) -> Nfs3FsStatResult {
         match self.backend.fsstat(fh) {
             Ok(result) => Nfs3FsStatResult::Ok(result),
@@ -686,6 +765,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS FSINFO - retrieves filesystem capabilities and limits.
     pub fn handle_fsinfo(&self, fh: &FileHandle3) -> Nfs3FsInfoResult {
         match self.backend.fsinfo(fh) {
             Ok(result) => Nfs3FsInfoResult::Ok(result),
@@ -693,6 +773,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS PATHCONF - retrieves path-related configuration limits.
     pub fn handle_pathconf(&self, fh: &FileHandle3) -> Nfs3PathConfResult {
         match self.backend.pathconf(fh) {
             Ok(result) => Nfs3PathConfResult::Ok(result),
@@ -700,6 +781,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS ACCESS - checks file access permissions.
     pub fn handle_access(
         &self,
         fh: &FileHandle3,
@@ -713,6 +795,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS READLINK - reads the target of a symbolic link.
     pub fn handle_readlink(&self, fh: &FileHandle3) -> Nfs3ReadLinkResult {
         match self.backend.readlink(fh) {
             Ok(target) => Nfs3ReadLinkResult::Ok(target),
@@ -720,6 +803,7 @@ impl<B: VfsBackend> Nfs3Handler<B> {
         }
     }
 
+    /// Handles NFS SYMLINK - creates a symbolic link.
     pub fn handle_symlink(
         &self,
         dir_fh: &FileHandle3,

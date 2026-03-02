@@ -7,103 +7,173 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{GatewayError, Result};
 
+/// S3 bucket metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bucket {
+    /// Bucket name
     pub name: String,
+    /// Bucket creation date (ISO 8601)
     pub creation_date: String,
 }
 
+/// S3 object metadata (without the object data).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectMeta {
+    /// Object key
     pub key: String,
+    /// Object size in bytes
     pub size: u64,
+    /// ETag (content hash)
     pub etag: String,
+    /// Last modified timestamp (ISO 8601)
     pub last_modified: String,
+    /// Content type (e.g., "application/octet-stream")
     pub content_type: String,
 }
 
+/// Result of ListBuckets API call.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListBucketsResult {
+    /// List of buckets
     pub buckets: Vec<Bucket>,
+    /// Owner ID
     pub owner_id: String,
+    /// Owner display name
     pub owner_display_name: String,
 }
 
+/// Result of ListObjects/ListObjectsV2 API call.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListObjectsResult {
+    /// Bucket name
     pub bucket: String,
+    /// Prefix filter
     pub prefix: String,
+    /// Delimiter for hierarchical listing
     pub delimiter: Option<String>,
+    /// List of objects
     pub objects: Vec<ObjectMeta>,
+    /// Common prefixes (for delimiter-based listing)
     pub common_prefixes: Vec<String>,
+    /// Whether there are more results
     pub is_truncated: bool,
+    /// Token for pagination (ListObjectsV2)
     pub next_continuation_token: Option<String>,
+    /// Maximum keys requested
     pub max_keys: u32,
 }
 
+/// S3 operation type for routing and auditing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum S3Operation {
+    /// List all buckets (ListBuckets API)
     ListBuckets,
+    /// Create a new bucket (CreateBucket API)
     CreateBucket {
+        /// Bucket name
         bucket: String,
     },
+    /// Delete a bucket (DeleteBucket API)
     DeleteBucket {
+        /// Bucket name
         bucket: String,
     },
+    /// Check bucket existence (HeadBucket API)
     HeadBucket {
+        /// Bucket name
         bucket: String,
     },
+    /// List objects in a bucket (ListObjects API)
     ListObjects {
+        /// Bucket name
         bucket: String,
+        /// Prefix filter
         prefix: String,
+        /// Delimiter for hierarchical listing
         delimiter: Option<String>,
+        /// Maximum keys to return
         max_keys: u32,
     },
+    /// Get an object (GetObject API)
     GetObject {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
     },
+    /// Put an object (PutObject API)
     PutObject {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
+        /// Content type
         content_type: String,
     },
+    /// Delete an object (DeleteObject API)
     DeleteObject {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
     },
+    /// Get object metadata (HeadObject API)
     HeadObject {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
     },
+    /// Copy an object (CopyObject API)
     CopyObject {
+        /// Source bucket
         src_bucket: String,
+        /// Source key
         src_key: String,
+        /// Destination bucket
         dst_bucket: String,
+        /// Destination key
         dst_key: String,
     },
+    /// Initiate multipart upload (CreateMultipartUpload API)
     CreateMultipartUpload {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
     },
+    /// Upload a part (UploadPart API)
     UploadPart {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
+        /// Upload ID from CreateMultipartUpload
         upload_id: String,
+        /// Part number (1-based)
         part_number: u32,
     },
+    /// Complete multipart upload (CompleteMultipartUpload API)
     CompleteMultipartUpload {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
+        /// Upload ID from CreateMultipartUpload
         upload_id: String,
     },
+    /// Abort multipart upload (AbortMultipartUpload API)
     AbortMultipartUpload {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
+        /// Upload ID from CreateMultipartUpload
         upload_id: String,
     },
 }
 
+/// Internal object storage (metadata + data).
 #[derive(Debug)]
 struct ObjectData {
     meta: ObjectMeta,
@@ -147,11 +217,13 @@ fn rand_simple() -> u64 {
     nanos.wrapping_mul(1103515245).wrapping_add(12345)
 }
 
+/// S3 API request handler - manages buckets and objects.
 pub struct S3Handler {
     buckets: Arc<RwLock<HashMap<String, BucketState>>>,
 }
 
 impl S3Handler {
+    /// Creates a new S3Handler with no buckets.
     pub fn new() -> Self {
         Self {
             buckets: Arc::new(RwLock::new(HashMap::new())),
@@ -194,6 +266,7 @@ impl S3Handler {
         Ok(())
     }
 
+    /// Lists all buckets owned by the user.
     pub fn list_buckets(&self) -> Result<ListBucketsResult> {
         let buckets = self.buckets.read().map_err(|_| GatewayError::Nfs3Io)?;
         let bucket_list: Vec<Bucket> = buckets
@@ -210,6 +283,7 @@ impl S3Handler {
         })
     }
 
+    /// Creates a new bucket with the given name.
     pub fn create_bucket(&self, bucket: &str) -> Result<()> {
         self.validate_bucket_name(bucket)?;
         let mut buckets = self.buckets.write().map_err(|_| GatewayError::Nfs3Io)?;
@@ -222,6 +296,7 @@ impl S3Handler {
         Ok(())
     }
 
+    /// Deletes a bucket (must be empty).
     pub fn delete_bucket(&self, bucket: &str) -> Result<()> {
         let mut buckets = self.buckets.write().map_err(|_| GatewayError::Nfs3Io)?;
         if let Some(bs) = buckets.remove(bucket) {
@@ -239,6 +314,7 @@ impl S3Handler {
         }
     }
 
+    /// Checks if a bucket exists.
     pub fn head_bucket(&self, bucket: &str) -> Result<()> {
         let buckets = self.buckets.read().map_err(|_| GatewayError::Nfs3Io)?;
         if buckets.contains_key(bucket) {
@@ -250,6 +326,7 @@ impl S3Handler {
         }
     }
 
+    /// Lists objects in a bucket with optional prefix and delimiter.
     pub fn list_objects(
         &self,
         bucket: &str,
@@ -310,6 +387,7 @@ impl S3Handler {
         })
     }
 
+    /// Gets an object's metadata and data.
     pub fn get_object(&self, bucket: &str, key: &str) -> Result<(ObjectMeta, Vec<u8>)> {
         let buckets = self.buckets.read().map_err(|_| GatewayError::Nfs3Io)?;
         let bs = buckets.get(bucket).ok_or(GatewayError::S3BucketNotFound {
@@ -321,6 +399,7 @@ impl S3Handler {
         Ok((obj.meta.clone(), obj.data.clone()))
     }
 
+    /// Stores an object in a bucket.
     pub fn put_object(
         &self,
         bucket: &str,
@@ -358,6 +437,7 @@ impl S3Handler {
         Ok(meta)
     }
 
+    /// Deletes an object from a bucket.
     pub fn delete_object(&self, bucket: &str, key: &str) -> Result<()> {
         let mut buckets = self.buckets.write().map_err(|_| GatewayError::Nfs3Io)?;
         let bs = buckets
@@ -375,6 +455,7 @@ impl S3Handler {
         }
     }
 
+    /// Gets object metadata without the data.
     pub fn head_object(&self, bucket: &str, key: &str) -> Result<ObjectMeta> {
         let buckets = self.buckets.read().map_err(|_| GatewayError::Nfs3Io)?;
         let bs = buckets.get(bucket).ok_or(GatewayError::S3BucketNotFound {
@@ -388,6 +469,7 @@ impl S3Handler {
             })
     }
 
+    /// Copies an object from one location to another.
     pub fn copy_object(
         &self,
         src_bucket: &str,
@@ -399,6 +481,7 @@ impl S3Handler {
         self.put_object(dst_bucket, dst_key, &meta.content_type, data)
     }
 
+    /// Returns the number of objects in a bucket.
     pub fn object_count(&self, bucket: &str) -> Result<usize> {
         let buckets = self.buckets.read().map_err(|_| GatewayError::Nfs3Io)?;
         let bs = buckets.get(bucket).ok_or(GatewayError::S3BucketNotFound {
@@ -407,6 +490,7 @@ impl S3Handler {
         Ok(bs.objects.len())
     }
 
+    /// Returns the total size of all objects in a bucket (in bytes).
     pub fn bucket_size(&self, bucket: &str) -> Result<u64> {
         let buckets = self.buckets.read().map_err(|_| GatewayError::Nfs3Io)?;
         let bs = buckets.get(bucket).ok_or(GatewayError::S3BucketNotFound {
