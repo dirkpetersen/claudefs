@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 //! NFS/S3 access logging with structured events
 
 use serde::{Deserialize, Serialize};

@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 //! Manual S3 XML response serialization
 
 use crate::s3::{ListBucketsResult, ListObjectsResult};

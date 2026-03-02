@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 //! Bearer token authentication for S3
 
 use std::collections::HashMap;
