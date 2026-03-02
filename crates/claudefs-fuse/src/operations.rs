@@ -88,6 +88,10 @@ pub struct DirEntry {
     pub name: String,
 }
 
+/// Applies umask to file mode bits.
+///
+/// Strips permissions from the given mode using the process umask.
+/// Preserves file type bits (e.g., 0o040000 for directories).
 pub fn apply_mode_umask(mode: u32, umask: u32) -> u32 {
     let file_type_bits = mode & 0o170000;
     let perm_bits = mode & 0o777;
@@ -95,6 +99,10 @@ pub fn apply_mode_umask(mode: u32, umask: u32) -> u32 {
     file_type_bits | effective_perm
 }
 
+/// Checks if a user can access a file with given permissions.
+///
+/// Implements POSIX permission checking for owner, group, and others.
+/// Root (uid=0) bypasses most checks but still requires execute bits on directories.
 pub fn check_access(
     mode: u32,
     uid: u32,
@@ -120,6 +128,9 @@ pub fn check_access(
     }
 }
 
+/// Extracts file type from mode bits.
+///
+/// Maps the file type bits (S_IFMT) from a mode value to the FUSE file type enum.
 pub fn mode_to_fuser_type(mode: u32) -> fuser::FileType {
     match mode & 0o170000 {
         0o100000 => fuser::FileType::RegularFile,
@@ -133,6 +144,9 @@ pub fn mode_to_fuser_type(mode: u32) -> fuser::FileType {
     }
 }
 
+/// Calculates the number of 512-byte blocks for a given size.
+///
+/// Rounds up to the nearest block boundary, following POSIX convention.
 pub fn blocks_for_size(size: u64) -> u64 {
     size.div_ceil(512)
 }
