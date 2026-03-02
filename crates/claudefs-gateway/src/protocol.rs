@@ -277,56 +277,91 @@ pub struct LookupResult {
     pub dir_attributes: Option<Fattr3>,
 }
 
+/// Single directory entry in NFSv3 READDIR response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entry3 {
+    /// Inode number of the entry
     pub fileid: u64,
+    /// Name of the entry
     pub name: String,
+    /// Opaque cookie for continuing readdir
     pub cookie: u64,
 }
 
+/// Result of NFSv3 READDIR operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResult {
+    /// Attributes of the directory
     pub dir_attributes: Option<Fattr3>,
+    /// Opaque verifier for cookie consistency
     pub cookieverf: u64,
+    /// List of directory entries
     pub entries: Vec<Entry3>,
+    /// True if end of directory reached
     pub eof: bool,
 }
 
+/// Directory entry with attributes for NFSv3 READDIRPLUS.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entryplus3 {
+    /// Inode number of the entry
     pub fileid: u64,
+    /// Name of the entry
     pub name: String,
+    /// Opaque cookie for continuing readdirplus
     pub cookie: u64,
+    /// Attributes of the entry
     pub name_attributes: Option<Fattr3>,
+    /// File handle of the entry
     pub name_handle: Option<FileHandle3>,
 }
 
+/// Filesystem statistics result from NFSv3 FSSTAT.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FsStatResult {
+    /// Total bytes on filesystem
     pub tbytes: u64,
+    /// Free bytes available to client
     pub fbytes: u64,
+    /// Free bytes on filesystem
     pub abytes: u64,
+    /// Total files on filesystem
     pub tfiles: u64,
+    /// Free files available to client
     pub ffiles: u64,
+    /// Free files on filesystem
     pub afiles: u32,
+    /// Interval seconds for dynamic storage
     pub invarsec: u32,
 }
 
+/// Filesystem info result from NFSv3 FSINFO.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FsInfoResult {
+    /// Maximum read size
     pub rtmax: u32,
+    /// Preferred read size
     pub rtpref: u32,
+    /// Recommended read multiple
     pub rtmult: u32,
+    /// Maximum write size
     pub wtmax: u32,
+    /// Preferred write size
     pub wtpref: u32,
+    /// Recommended write multiple
     pub wtmult: u32,
+    /// Preferred directory read size
     pub dtpref: u32,
+    /// Maximum file size
     pub maxfilesize: u64,
+    /// Time granularity for timestamps
     pub time_delta: Nfstime3,
+    /// FS capability flags
     pub properties: u32,
 }
 
 impl FsInfoResult {
+    /// Creates default filesystem info suitable for ClaudeFS.
     pub fn defaults() -> Self {
         Self {
             rtmax: 1048576,
@@ -343,17 +378,25 @@ impl FsInfoResult {
     }
 }
 
+/// Path configuration info from NFSv3 PATHCONF.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct PathConfResult {
+    /// Maximum hard links per entry
     pub linkmax: u32,
+    /// Maximum file name length
     pub name_max: u32,
+    /// Whether long names are rejected (not truncated)
     pub no_trunc: bool,
+    /// Whether chown is restricted to root
     pub chown_restricted: bool,
+    /// Whether file names are case insensitive
     pub case_insensitive: bool,
+    /// Whether file name case is preserved
     pub case_preserving: bool,
 }
 
 impl PathConfResult {
+    /// Creates default path configuration for POSIX-like filesystems.
     pub fn defaults() -> Self {
         Self {
             linkmax: 255,

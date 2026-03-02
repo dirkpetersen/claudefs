@@ -9,10 +9,12 @@ use std::sync::RwLock;
 pub struct SessionId(pub u64);
 
 impl SessionId {
+    /// Creates a new session ID from a raw u64 value.
     pub fn new(id: u64) -> Self {
         Self(id)
     }
 
+    /// Returns the underlying u64 value.
     pub fn as_u64(self) -> u64 {
         self.0
     }
@@ -55,6 +57,7 @@ pub struct ClientSession {
 }
 
 impl ClientSession {
+    /// Creates a new client session with the given parameters.
     pub fn new(
         id: SessionId,
         protocol: SessionProtocol,
@@ -77,26 +80,31 @@ impl ClientSession {
         }
     }
 
+    /// Updates the last activity timestamp to the current time.
     pub fn touch(&mut self, now: u64) {
         self.last_active = now;
     }
 
+    /// Records an operation execution, updating activity time and counters.
     pub fn record_op(&mut self, now: u64, bytes: u64) {
         self.last_active = now;
         self.op_count += 1;
         self.bytes_transferred += bytes;
     }
 
+    /// Adds a mounted path to the session if not already present.
     pub fn add_mount(&mut self, path: &str) {
         if !self.mounts.contains(&path.to_string()) {
             self.mounts.push(path.to_string());
         }
     }
 
+    /// Removes a mounted path from the session.
     pub fn remove_mount(&mut self, path: &str) {
         self.mounts.retain(|p| p != path);
     }
 
+    /// Returns true if the session has been idle longer than the specified timeout.
     pub fn is_idle(&self, now: u64, timeout_secs: u64) -> bool {
         now.saturating_sub(self.last_active) > timeout_secs
     }
@@ -109,6 +117,7 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
+    /// Creates a new session manager with empty session tracking.
     pub fn new() -> Self {
         Self {
             sessions: RwLock::new(HashMap::new()),
@@ -116,6 +125,7 @@ impl SessionManager {
         }
     }
 
+    /// Creates a new client session and returns its ID.
     pub fn create_session(
         &self,
         protocol: SessionProtocol,
@@ -134,10 +144,12 @@ impl SessionManager {
         id
     }
 
+    /// Retrieves a session by ID, if it exists.
     pub fn get_session(&self, id: SessionId) -> Option<ClientSession> {
         self.sessions.read().ok()?.get(&id).cloned()
     }
 
+    /// Updates the last activity time for a session.
     pub fn touch_session(&self, id: SessionId, now: u64) {
         if let Ok(mut sessions) = self.sessions.write() {
             if let Some(session) = sessions.get_mut(&id) {
@@ -146,6 +158,7 @@ impl SessionManager {
         }
     }
 
+    /// Records an operation for a session.
     pub fn record_op(&self, id: SessionId, now: u64, bytes: u64) {
         if let Ok(mut sessions) = self.sessions.write() {
             if let Some(session) = sessions.get_mut(&id) {
@@ -154,6 +167,7 @@ impl SessionManager {
         }
     }
 
+    /// Adds a mount path to a session.
     pub fn add_mount(&self, id: SessionId, path: &str) {
         if let Ok(mut sessions) = self.sessions.write() {
             if let Some(session) = sessions.get_mut(&id) {
@@ -162,6 +176,7 @@ impl SessionManager {
         }
     }
 
+    /// Removes a mount path from a session.
     pub fn remove_mount(&self, id: SessionId, path: &str) {
         if let Ok(mut sessions) = self.sessions.write() {
             if let Some(session) = sessions.get_mut(&id) {
@@ -170,6 +185,7 @@ impl SessionManager {
         }
     }
 
+    /// Ends and removes a session, returning true if it existed.
     pub fn end_session(&self, id: SessionId) -> bool {
         if let Ok(mut sessions) = self.sessions.write() {
             sessions.remove(&id).is_some()
@@ -178,6 +194,7 @@ impl SessionManager {
         }
     }
 
+    /// Returns all active sessions.
     pub fn list_sessions(&self) -> Vec<ClientSession> {
         self.sessions
             .read()
@@ -186,6 +203,7 @@ impl SessionManager {
             .unwrap_or_default()
     }
 
+    /// Returns all sessions for a specific protocol.
     pub fn sessions_for_protocol(&self, protocol: SessionProtocol) -> Vec<ClientSession> {
         self.sessions
             .read()
@@ -199,6 +217,7 @@ impl SessionManager {
             .unwrap_or_default()
     }
 
+    /// Removes all idle sessions older than the timeout. Returns count of expired sessions.
     pub fn expire_idle(&self, now: u64, timeout_secs: u64) -> usize {
         if let Ok(mut sessions) = self.sessions.write() {
             let count_before = sessions.len();
@@ -209,10 +228,12 @@ impl SessionManager {
         }
     }
 
+    /// Returns the total number of active sessions.
     pub fn count(&self) -> usize {
         self.sessions.read().ok().map(|s| s.len()).unwrap_or(0)
     }
 
+    /// Returns the total number of operations across all sessions.
     pub fn total_ops(&self) -> u64 {
         self.sessions
             .read()
@@ -221,6 +242,7 @@ impl SessionManager {
             .unwrap_or(0)
     }
 
+    /// Returns the total bytes transferred across all sessions.
     pub fn total_bytes(&self) -> u64 {
         self.sessions
             .read()

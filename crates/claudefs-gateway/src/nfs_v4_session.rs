@@ -47,8 +47,11 @@ impl SessionId {
 /// NFSv4.1 session state
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionState {
+    /// Session is active and can handle requests
     Active,
+    /// Session is draining (no new requests, waiting for completion)
     Draining,
+    /// Session has been destroyed
     Destroyed,
 }
 
@@ -65,13 +68,18 @@ impl std::fmt::Display for SessionState {
 /// A slot in the NFSv4.1 session slot table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Slot {
+    /// Unique slot identifier
     pub slot_id: u32,
+    /// Last sequence number processed by this slot
     pub sequence_id: u32,
+    /// Whether the slot is currently processing a request
     pub in_use: bool,
+    /// Cached reply for replay detection
     pub cached_reply: Option<Vec<u8>>,
 }
 
 impl Slot {
+    /// Create a new slot with the given ID
     pub fn new(slot_id: u32) -> Self {
         Slot {
             slot_id,
@@ -81,6 +89,7 @@ impl Slot {
         }
     }
 
+    /// Returns true if the slot is not currently processing a request
     pub fn is_available(&self) -> bool {
         !self.in_use
     }
@@ -116,26 +125,44 @@ impl Slot {
 /// Result of slot sequence validation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SlotResult {
+    /// New request with expected next sequence number
     NewRequest,
+    /// Replayed request with same sequence number
     Replay,
-    InvalidSequence { expected: u32, got: u32 },
+    /// Invalid sequence number
+    InvalidSequence {
+        /// Expected sequence number
+        expected: u32,
+        /// Received sequence number
+        got: u32,
+    },
 }
 
 /// NFSv4.1 session — manages a slot table and session state
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NfsSession {
+    /// Unique session identifier
     pub session_id: SessionId,
+    /// Client that owns this session
     pub client_id: ClientId,
+    /// Current session state
     pub state: SessionState,
+    /// Fore channel slots (client-to-server requests)
     pub fore_channel_slots: Vec<Slot>,
+    /// Back channel slots (server-to-client callbacks)
     pub back_channel_slots: Vec<Slot>,
+    /// Maximum concurrent requests
     pub max_requests: u32,
+    /// Maximum response size in bytes
     pub max_response_size: u32,
+    /// Session creation timestamp (seconds since epoch)
     pub created_at_secs: u64,
+    /// Last activity timestamp (seconds since epoch)
     pub last_used_secs: u64,
 }
 
 impl NfsSession {
+    /// Create a new NFSv4.1 session
     pub fn new(
         session_id: SessionId,
         client_id: ClientId,
@@ -167,14 +194,17 @@ impl NfsSession {
         }
     }
 
+    /// Returns true if the session is active
     pub fn is_active(&self) -> bool {
         self.state == SessionState::Active
     }
 
+    /// Returns true if the session has been destroyed
     pub fn is_destroyed(&self) -> bool {
         self.state == SessionState::Destroyed
     }
 
+    /// Get a reference to a fore channel slot by ID
     pub fn fore_slot(&self, slot_id: u32) -> Option<&Slot> {
         if (slot_id as usize) < self.fore_channel_slots.len() {
             self.fore_channel_slots.get(slot_id as usize)
@@ -183,6 +213,7 @@ impl NfsSession {
         }
     }
 
+    /// Get a mutable reference to a fore channel slot by ID
     pub fn fore_slot_mut(&mut self, slot_id: u32) -> Option<&mut Slot> {
         if (slot_id as usize) < self.fore_channel_slots.len() {
             self.fore_channel_slots.get_mut(slot_id as usize)
@@ -191,14 +222,17 @@ impl NfsSession {
         }
     }
 
+    /// Calculate idle time in seconds since last use
     pub fn idle_secs(&self, now_secs: u64) -> u64 {
         now_secs.saturating_sub(self.last_used_secs)
     }
 
+    /// Update the last used timestamp
     pub fn update_last_used(&mut self, now_secs: u64) {
         self.last_used_secs = now_secs;
     }
 
+    /// Start draining the session (no new requests accepted)
     pub fn start_drain(&mut self) {
         if self.state == SessionState::Active {
             self.state = SessionState::Draining;
@@ -206,6 +240,7 @@ impl NfsSession {
         }
     }
 
+    /// Destroy the session and release all resources
     pub fn destroy(&mut self) {
         self.state = SessionState::Destroyed;
         self.fore_channel_slots.clear();
@@ -217,16 +252,24 @@ impl NfsSession {
 /// NFSv4 client record
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NfsClient {
+    /// Client ID assigned by the server
     pub client_id: ClientId,
+    /// Client verifier (8 bytes from EXCHANGE_ID)
     pub verifier: [u8; 8],
+    /// Client owner identifier
     pub owner_id: Vec<u8>,
+    /// Whether the client has been confirmed via SETCLIENTID_CONFIRM
     pub confirmed: bool,
+    /// Next sequence ID for client operations
     pub sequence_id: u32,
+    /// Active sessions for this client
     pub sessions: Vec<SessionId>,
+    /// Lease expiration timestamp (seconds since epoch)
     pub lease_expiry_secs: u64,
 }
 
 impl NfsClient {
+    /// Create a new NFS client record
     pub fn new(
         client_id: ClientId,
         verifier: [u8; 8],
@@ -245,14 +288,17 @@ impl NfsClient {
         }
     }
 
+    /// Check if the client lease has expired
     pub fn is_lease_expired(&self, now_secs: u64) -> bool {
         now_secs >= self.lease_expiry_secs
     }
 
+    /// Renew the client lease
     pub fn renew_lease(&mut self, now_secs: u64, lease_duration_secs: u64) {
         self.lease_expiry_secs = now_secs + lease_duration_secs;
     }
 
+    /// Confirm the client (via SETCLIENTID_CONFIRM)
     pub fn confirm(&mut self) {
         self.confirmed = true;
     }
@@ -268,6 +314,7 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
+    /// Create a new session manager with the specified lease duration
     pub fn new(lease_duration_secs: u64) -> Self {
         SessionManager {
             clients: HashMap::new(),
@@ -299,10 +346,12 @@ impl SessionManager {
         client_id
     }
 
+    /// Get a client by ID
     pub fn get_client(&self, client_id: u64) -> Option<&NfsClient> {
         self.clients.get(&client_id)
     }
 
+    /// Confirm a client (called after SETCLIENTID_CONFIRM)
     pub fn confirm_client(&mut self, client_id: u64) -> Result<(), SessionError> {
         match self.clients.get_mut(&client_id) {
             Some(client) => {
@@ -361,14 +410,17 @@ impl SessionManager {
         Ok(session_id)
     }
 
+    /// Get a session by ID
     pub fn get_session(&self, session_id: &[u8; 16]) -> Option<&NfsSession> {
         self.sessions.get(session_id)
     }
 
+    /// Get a mutable session by ID
     pub fn get_session_mut(&mut self, session_id: &[u8; 16]) -> Option<&mut NfsSession> {
         self.sessions.get_mut(session_id)
     }
 
+    /// Destroy a session
     pub fn destroy_session(&mut self, session_id: &[u8; 16]) -> Result<(), SessionError> {
         let session = self
             .sessions
@@ -394,10 +446,12 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Get the count of active sessions
     pub fn active_session_count(&self) -> usize {
         self.sessions.values().filter(|s| s.is_active()).count()
     }
 
+    /// Expire clients with stale leases and return their IDs
     pub fn expire_stale_clients(&mut self, now_secs: u64) -> Vec<ClientId> {
         let mut expired = Vec::new();
         let mut session_ids_to_remove = Vec::new();
@@ -444,16 +498,22 @@ fn rand_simple(seed: u64) -> u32 {
 /// Session errors
 #[derive(Debug, Error)]
 pub enum SessionError {
+    /// Client ID not found
     #[error("client {0} not found")]
     ClientNotFound(u64),
+    /// Client not confirmed (SETCLIENTID_CONFIRM not received)
     #[error("client {0} not confirmed")]
     ClientNotConfirmed(u64),
+    /// Session ID not found
     #[error("session not found")]
     SessionNotFound,
+    /// Session exists but is not in active state
     #[error("session is not active (state: {0})")]
     SessionNotActive(String),
+    /// Too many sessions for a single client (max 64)
     #[error("too many sessions for client {0}")]
     TooManySessions(u64),
+    /// Slot ID is out of range
     #[error("slot {0} out of range (max {1})")]
     SlotOutOfRange(u32, u32),
 }

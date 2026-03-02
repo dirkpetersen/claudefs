@@ -1,36 +1,74 @@
 use crate::inode::{InodeEntry, InodeKind};
 use std::time::SystemTime;
 
+/// File attributes in POSIX format.
+///
+/// Represents the metadata for a file or directory in the ClaudeFS filesystem.
+/// Maps to the `stat(2)` structure on Unix systems.
 #[derive(Clone, Debug)]
 pub struct FileAttr {
+    /// Inode number (unique within the filesystem)
     pub ino: u64,
+    /// File size in bytes
     pub size: u64,
+    /// Number of 512-byte blocks allocated
     pub blocks: u64,
+    /// Last access time
     pub atime: SystemTime,
+    /// Last modification time
     pub mtime: SystemTime,
+    /// Change (metadata modification) time
     pub ctime: SystemTime,
+    /// File type (regular file, directory, symlink, device, etc.)
     pub kind: FileType,
+    /// Permission bits (mode & 0o777)
     pub perm: u16,
+    /// Hard link count
     pub nlink: u32,
+    /// User ID (owner)
     pub uid: u32,
+    /// Group ID (owner group)
     pub gid: u32,
+    /// Device ID (for device files)
     pub rdev: u32,
+    /// Preferred I/O block size (typically 4096)
     pub blksize: u32,
+    /// File flags (platform-specific)
     pub flags: u32,
 }
 
+/// File type classification for POSIX filesystem.
+///
+/// Represents the different types of files that can exist in a filesystem.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileType {
+    /// Regular file
     RegularFile,
+    /// Directory
     Directory,
+    /// Symbolic link
     Symlink,
+    /// Block device
     BlockDevice,
+    /// Character device
     CharDevice,
+    /// Named pipe (FIFO)
     NamedPipe,
+    /// Unix domain socket
     Socket,
 }
 
 impl FileAttr {
+    /// Creates attributes for a new regular file.
+    ///
+    /// Initializes all timestamps to the current time and calculates block count from the given size.
+    ///
+    /// # Arguments
+    /// * `ino` - Inode number to assign
+    /// * `size` - File size in bytes
+    /// * `perm` - Permission bits (e.g., 0o644)
+    /// * `uid` - Owner user ID
+    /// * `gid` - Owner group ID
     pub fn new_file(ino: u64, size: u64, perm: u16, uid: u32, gid: u32) -> Self {
         let now = SystemTime::now();
         let blocks = blocks_for_size(size);
@@ -52,6 +90,16 @@ impl FileAttr {
         }
     }
 
+    /// Creates attributes for a new directory.
+    ///
+    /// Initializes size to 4096 bytes and nlink to 2 (for "." and ".." entries).
+    /// All timestamps are set to the current time.
+    ///
+    /// # Arguments
+    /// * `ino` - Inode number to assign
+    /// * `perm` - Permission bits (e.g., 0o755)
+    /// * `uid` - Owner user ID
+    /// * `gid` - Owner group ID
     pub fn new_dir(ino: u64, perm: u16, uid: u32, gid: u32) -> Self {
         let now = SystemTime::now();
         FileAttr {
@@ -72,6 +120,16 @@ impl FileAttr {
         }
     }
 
+    /// Creates attributes for a new symbolic link.
+    ///
+    /// Initializes size to the target path length and sets permissions to 0o777.
+    /// All timestamps are set to the current time.
+    ///
+    /// # Arguments
+    /// * `ino` - Inode number to assign
+    /// * `target_len` - Length of the symlink target path
+    /// * `uid` - Owner user ID
+    /// * `gid` - Owner group ID
     pub fn new_symlink(ino: u64, target_len: u64, uid: u32, gid: u32) -> Self {
         let now = SystemTime::now();
         let blocks = blocks_for_size(target_len);
@@ -93,6 +151,13 @@ impl FileAttr {
         }
     }
 
+    /// Converts metadata from an in-memory `InodeEntry` to POSIX `FileAttr`.
+    ///
+    /// Maps internal inode representation to the standard POSIX attributes structure.
+    /// Converts timestamp fields from seconds/nanoseconds to `SystemTime`.
+    ///
+    /// # Arguments
+    /// * `entry` - Reference to the inode entry to convert
     pub fn from_inode(entry: &InodeEntry) -> Self {
         let kind = inode_kind_to_file_type(&entry.kind);
         let perm = (entry.mode & 0o777) as u16;
@@ -126,6 +191,10 @@ impl FileAttr {
     }
 }
 
+/// Calculates the number of 512-byte blocks needed for a given size.
+///
+/// Rounds up to the nearest block boundary, following standard POSIX convention
+/// where `st_blocks` counts 512-byte units.
 fn blocks_for_size(size: u64) -> u64 {
     size.div_ceil(512)
 }
@@ -136,6 +205,9 @@ impl From<&InodeEntry> for FileAttr {
     }
 }
 
+/// Converts internal inode kind to POSIX file type.
+///
+/// Maps `InodeKind` enum to the public `FileType` enum used in POSIX attributes.
 pub fn inode_kind_to_file_type(kind: &InodeKind) -> FileType {
     match kind {
         InodeKind::File => FileType::RegularFile,
@@ -148,6 +220,10 @@ pub fn inode_kind_to_file_type(kind: &InodeKind) -> FileType {
     }
 }
 
+/// Converts internal inode kind to FUSE library file type.
+///
+/// Maps `InodeKind` enum to the `fuser` crate's `FileType` enum
+/// for use with the FUSE protocol.
 pub fn inode_kind_to_fuser_type(kind: &InodeKind) -> fuser::FileType {
     match kind {
         InodeKind::File => fuser::FileType::RegularFile,
@@ -160,6 +236,14 @@ pub fn inode_kind_to_fuser_type(kind: &InodeKind) -> fuser::FileType {
     }
 }
 
+/// Converts ClaudeFS file attributes to FUSE library format.
+///
+/// Adapts our internal `FileAttr` structure to the `fuser` crate's `FileAttr` structure
+/// for transmission to the kernel FUSE interface.
+///
+/// # Arguments
+/// * `attr` - ClaudeFS file attributes
+/// * `kind` - FUSE file type (pre-converted via `inode_kind_to_fuser_type`)
 pub fn file_attr_to_fuser(attr: &FileAttr, kind: fuser::FileType) -> fuser::FileAttr {
     fuser::FileAttr {
         ino: attr.ino,
