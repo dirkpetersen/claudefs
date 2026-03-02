@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
 
-/// Session ID type
+/// Session identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SessionId(pub u64);
 
@@ -18,26 +18,39 @@ impl SessionId {
     }
 }
 
-/// Protocol type
+/// Session protocol type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionProtocol {
+    /// NFSv3 protocol
     Nfs3,
+    /// S3 protocol
     S3,
+    /// SMB3 protocol
     Smb3,
 }
 
-/// Client session
+/// Client session state
 #[derive(Debug, Clone)]
 pub struct ClientSession {
+    /// Session ID
     pub id: SessionId,
+    /// Protocol type
     pub protocol: SessionProtocol,
+    /// Client IP address
     pub client_ip: String,
+    /// Effective UID
     pub uid: u32,
+    /// Effective GID
     pub gid: u32,
+    /// Creation timestamp
     pub created_at: u64,
+    /// Last activity timestamp
     pub last_active: u64,
+    /// Operation count
     pub op_count: u64,
+    /// Total bytes transferred
     pub bytes_transferred: u64,
+    /// Mounted paths
     pub mounts: Vec<String>,
 }
 
@@ -89,7 +102,7 @@ impl ClientSession {
     }
 }
 
-/// Session manager
+/// Session manager - tracks client sessions across all protocols
 pub struct SessionManager {
     sessions: RwLock<HashMap<SessionId, ClientSession>>,
     next_id: AtomicU64,

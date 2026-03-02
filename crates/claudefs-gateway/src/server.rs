@@ -14,12 +14,19 @@ use crate::rpc::{
 use crate::xdr::{XdrDecoder, XdrEncoder};
 use std::sync::Arc;
 
+/// NFS server configuration
 pub struct NfsServerConfig {
+    /// NFS TCP port
     pub tcp_port: u16,
+    /// MOUNT protocol port
     pub mount_port: u16,
+    /// Maximum read size in bytes
     pub max_read_size: u32,
+    /// Maximum write size in bytes
     pub max_write_size: u32,
+    /// Filesystem ID
     pub fsid: u64,
+    /// Exports to serve
     pub exports: Vec<ExportEntry>,
 }
 
@@ -39,6 +46,7 @@ impl NfsServerConfig {
     }
 }
 
+/// RPC dispatcher for NFSv3/MOUNT protocols
 pub struct RpcDispatcher<B: VfsBackend> {
     nfs_handler: Nfs3Handler<B>,
     mount_handler: MountHandler,

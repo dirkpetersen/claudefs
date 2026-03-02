@@ -6,14 +6,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::error::{GatewayError, Result};
 use crate::xdr::{XdrDecoder, XdrEncoder};
 
+/// Maximum size of an NFSv3 file handle in bytes.
 pub const NFS3_FHSIZE: usize = 64;
 
+/// NFSv3 file handle - an opaque identifier for a file or directory.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FileHandle3 {
+    /// Raw file handle data
     pub data: Vec<u8>,
 }
 
 impl FileHandle3 {
+    /// Creates a new file handle with the given data.
     pub fn new(data: Vec<u8>) -> Result<Self> {
         if data.is_empty() {
             return Err(GatewayError::ProtocolError {
@@ -28,6 +32,7 @@ impl FileHandle3 {
         Ok(Self { data })
     }
 
+    /// Creates a file handle from an inode number (8-byte little-endian encoding).
     pub fn from_inode(inode: u64) -> Self {
         let bytes = inode.to_le_bytes();
         Self {
@@ -35,6 +40,7 @@ impl FileHandle3 {
         }
     }
 
+    /// Extracts an inode number from the file handle (if 8 bytes).
     pub fn as_inode(&self) -> Option<u64> {
         if self.data.len() != 8 {
             return None;
@@ -44,23 +50,29 @@ impl FileHandle3 {
         Some(u64::from_le_bytes(bytes))
     }
 
+    /// Encodes the file handle to XDR format.
     pub fn encode_xdr(&self, enc: &mut XdrEncoder) {
         enc.encode_opaque_variable(&self.data);
     }
 
+    /// Decodes a file handle from XDR format.
     pub fn decode_xdr(dec: &mut XdrDecoder) -> Result<Self> {
         let data = dec.decode_opaque_variable()?;
         Self::new(data)
     }
 }
 
+/// NFSv3 timestamp with seconds and nanoseconds precision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nfstime3 {
+    /// Seconds since Unix epoch
     pub seconds: u32,
+    /// Nanoseconds component
     pub nseconds: u32,
 }
 
 impl Nfstime3 {
+    /// Creates a timestamp representing the current time.
     pub fn now() -> Self {
         let duration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -71,6 +83,7 @@ impl Nfstime3 {
         }
     }
 
+    /// Creates a zero timestamp (Unix epoch).
     pub fn zero() -> Self {
         Self {
             seconds: 0,
@@ -78,11 +91,13 @@ impl Nfstime3 {
         }
     }
 
+    /// Encodes the timestamp to XDR format.
     pub fn encode_xdr(&self, enc: &mut XdrEncoder) {
         enc.encode_u32(self.seconds);
         enc.encode_u32(self.nseconds);
     }
 
+    /// Decodes a timestamp from XDR format.
     pub fn decode_xdr(dec: &mut XdrDecoder) -> Result<Self> {
         Ok(Self {
             seconds: dec.decode_u32()?,
@@ -91,19 +106,28 @@ impl Nfstime3 {
     }
 }
 
+/// NFSv3 file type enumeration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u32)]
 pub enum Ftype3 {
+    /// Regular file
     Reg = 1,
+    /// Directory
     Dir = 2,
+    /// Block device
     Blk = 3,
+    /// Character device
     Chr = 4,
+    /// Symbolic link
     Lnk = 5,
+    /// Unix domain socket
     Sock = 6,
+    /// Named pipe (FIFO)
     Fifo = 7,
 }
 
 impl Ftype3 {
+    /// Creates a file type from a raw u32 value.
     pub fn from_u32(v: u32) -> Result<Self> {
         match v {
             1 => Ok(Ftype3::Reg),
@@ -119,34 +143,51 @@ impl Ftype3 {
         }
     }
 
+    /// Encodes the file type to XDR format.
     pub fn encode_xdr(&self, enc: &mut XdrEncoder) {
         enc.encode_u32(*self as u32);
     }
 
+    /// Decodes a file type from XDR format.
     pub fn decode_xdr(dec: &mut XdrDecoder) -> Result<Self> {
         let v = dec.decode_u32()?;
         Self::from_u32(v)
     }
 }
 
+/// NFSv3 file attributes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fattr3 {
+    /// File type
     pub ftype: Ftype3,
+    /// Unix permission bits
     pub mode: u32,
+    /// Number of hard links
     pub nlink: u32,
+    /// Owner user ID
     pub uid: u32,
+    /// Owner group ID
     pub gid: u32,
+    /// File size in bytes
     pub size: u64,
+    /// Bytes allocated on disk
     pub used: u64,
+    /// Device number (for block/char devices)
     pub rdev: (u32, u32),
+    /// Filesystem ID
     pub fsid: u64,
+    /// Inode number
     pub fileid: u64,
+    /// Last access time
     pub atime: Nfstime3,
+    /// Last modification time
     pub mtime: Nfstime3,
+    /// Last metadata change time
     pub ctime: Nfstime3,
 }
 
 impl Fattr3 {
+    /// Encodes file attributes to XDR format.
     pub fn encode_xdr(&self, enc: &mut XdrEncoder) {
         self.ftype.encode_xdr(enc);
         enc.encode_u32(self.mode);
@@ -164,6 +205,7 @@ impl Fattr3 {
         self.ctime.encode_xdr(enc);
     }
 
+    /// Decodes file attributes from XDR format.
     pub fn decode_xdr(dec: &mut XdrDecoder) -> Result<Self> {
         Ok(Self {
             ftype: Ftype3::decode_xdr(dec)?,
@@ -182,6 +224,7 @@ impl Fattr3 {
         })
     }
 
+    /// Creates default attributes for a directory.
     pub fn default_dir(inode: u64, fsid: u64) -> Self {
         let now = Nfstime3::now();
         Self {
@@ -201,6 +244,7 @@ impl Fattr3 {
         }
     }
 
+    /// Creates default attributes for a regular file.
     pub fn default_file(inode: u64, size: u64, fsid: u64) -> Self {
         let now = Nfstime3::now();
         let used = size.div_ceil(4096) * 4096;
@@ -222,10 +266,14 @@ impl Fattr3 {
     }
 }
 
+/// Result of NFS LOOKUP operation - contains the resolved file handle and attributes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LookupResult {
+    /// File handle of the resolved file or directory
     pub object: FileHandle3,
+    /// Attributes of the resolved object
     pub obj_attributes: Option<Fattr3>,
+    /// Attributes of the parent directory
     pub dir_attributes: Option<Fattr3>,
 }
 

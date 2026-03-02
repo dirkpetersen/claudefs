@@ -2,35 +2,52 @@
 
 use crate::error::{GatewayError, Result};
 
+/// SMB session identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmbSessionId(pub u64);
 
+/// SMB tree connection identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmbTreeId(pub u32);
 
+/// SMB file handle identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmbFileId(pub u64);
 
+/// SMB authentication information for a session.
 #[derive(Debug, Clone)]
 pub struct SmbAuthInfo {
+    /// Session identifier
     pub session_id: SmbSessionId,
+    /// Effective user ID
     pub uid: u32,
+    /// Effective group ID
     pub gid: u32,
+    /// Supplementary group IDs
     pub supplementary_gids: Vec<u32>,
+    /// Username
     pub username: String,
+    /// Domain name
     pub domain: String,
 }
 
+/// Flags for opening a file.
 #[derive(Debug, Clone, Copy)]
 pub struct OpenFlags {
+    /// Open for reading
     pub read: bool,
+    /// Open for writing
     pub write: bool,
+    /// Create if doesn't exist
     pub create: bool,
+    /// Truncate to zero length
     pub truncate: bool,
+    /// Exclusive create
     pub exclusive: bool,
 }
 
 impl OpenFlags {
+    /// Creates new OpenFlags with the given values.
     pub fn new(read: bool, write: bool, create: bool, truncate: bool, exclusive: bool) -> Self {
         Self {
             read,

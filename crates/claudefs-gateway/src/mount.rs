@@ -38,25 +38,36 @@ pub const MNT3_UMNTALL: u32 = 4;
 /// MOUNTv3 procedure: EXPORT (list exports)
 pub const MNT3_EXPORT: u32 = 5;
 
+/// Active mount record
 #[derive(Debug, Clone)]
 pub struct MountEntry {
+    /// Client hostname/IP
     pub hostname: String,
+    /// Exported path
     pub dirpath: String,
 }
 
+/// Export entry for MOUNT protocol
 #[derive(Debug, Clone)]
 pub struct ExportEntry {
+    /// Directory path
     pub dirpath: String,
+    /// Allowed client groups
     pub groups: Vec<String>,
 }
 
+/// MOUNT protocol MNT procedure result
 #[derive(Debug, Clone)]
 pub struct MntResult {
+    /// Status code (0 = success)
     pub status: u32,
+    /// File handle if successful
     pub filehandle: Option<FileHandle3>,
+    /// Supported auth flavors
     pub auth_flavors: Vec<u32>,
 }
 
+/// MOUNT protocol v3 handler
 pub struct MountHandler {
     exports: Vec<ExportEntry>,
     mounts: Arc<Mutex<Vec<MountEntry>>>,

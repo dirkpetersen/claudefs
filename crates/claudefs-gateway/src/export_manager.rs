@@ -6,24 +6,29 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
 
-/// Export status
+/// Export runtime status
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportStatus {
-    /// Export is active and serving clients
+    /// Active and serving clients
     Active,
-    /// Export is being removed (waiting for clients to disconnect)
+    /// Being removed, waiting for client disconnects
     Draining,
-    /// Export is disabled
+    /// Disabled (not currently used)
     Disabled,
 }
 
-/// An active export with runtime state
+/// Active export with runtime state
 #[derive(Debug, Clone)]
 pub struct ActiveExport {
+    /// Export configuration
     pub config: ExportConfig,
+    /// Current status
     pub status: ExportStatus,
+    /// Number of connected clients
     pub client_count: u32,
+    /// Root file handle
     pub root_fh: FileHandle3,
+    /// Root inode number
     pub root_inode: u64,
 }
 
@@ -47,7 +52,7 @@ impl ActiveExport {
     }
 }
 
-/// Dynamic NFS export manager
+/// Dynamic NFS export manager - tracks exports and client counts
 pub struct ExportManager {
     exports: RwLock<HashMap<String, ActiveExport>>,
     next_inode: AtomicU64,

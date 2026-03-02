@@ -2,16 +2,16 @@
 
 use std::sync::Mutex;
 
-/// Health status
+/// Overall health status
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HealthStatus {
-    /// All systems go
+    /// All systems operational
     Healthy,
-    /// Some degradation but functional
+    /// Degraded but functional
     Degraded,
-    /// Not functioning
+    /// Not functioning correctly
     Unhealthy,
-    /// Starting up, not yet ready
+    /// Starting up, not ready
     Starting,
 }
 
@@ -30,12 +30,16 @@ impl HealthStatus {
     }
 }
 
-/// A single health check result
+/// Result of a single health check
 #[derive(Debug, Clone)]
 pub struct CheckResult {
+    /// Check name/identifier
     pub name: String,
+    /// Check status
     pub status: HealthStatus,
+    /// Optional message/details
     pub message: String,
+    /// Check duration in milliseconds
     pub duration_ms: u64,
 }
 
@@ -68,11 +72,14 @@ impl CheckResult {
     }
 }
 
-/// Composite health check result
+/// Composite health report from all checks
 #[derive(Debug, Clone)]
 pub struct HealthReport {
+    /// Overall aggregated status
     pub overall: HealthStatus,
+    /// Individual check results
     pub checks: Vec<CheckResult>,
+    /// Report timestamp (unix epoch)
     pub timestamp: u64,
 }
 
@@ -119,7 +126,7 @@ impl HealthReport {
     }
 }
 
-/// Registry of health checks
+/// Health check registry and aggregator
 pub struct HealthChecker {
     results: Mutex<Vec<CheckResult>>,
 }
