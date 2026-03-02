@@ -6,9 +6,13 @@ use thiserror::Error;
 /// S3 notification event types
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NotificationEvent {
+    /// Object was created (PUT, POST, COPY)
     ObjectCreated,
+    /// Object was deleted (DELETE)
     ObjectRemoved,
+    /// Object was restored from Glacier
     ObjectRestored,
+    /// Object with reduced redundancy was lost
     ReducedRedundancyLostObject,
 }
 
@@ -27,18 +31,31 @@ impl NotificationEvent {
 /// Notification destination type
 #[derive(Debug, Clone)]
 pub enum NotificationDestination {
-    Webhook { url: String, secret: Option<String> },
-    InProcess { queue_name: String },
+    /// Send event via HTTP POST to a webhook URL
+    Webhook {
+        /// Target URL to POST notifications to
+        url: String,
+        /// Optional HMAC secret for signing requests
+        secret: Option<String>,
+    },
+    /// Queue event to an in-process channel
+    InProcess {
+        /// Name of the queue/channel
+        queue_name: String,
+    },
 }
 
 /// A notification filter — matches by key prefix/suffix
 #[derive(Debug, Clone, Default)]
 pub struct NotificationFilter {
+    /// Match keys starting with this prefix
     pub prefix: Option<String>,
+    /// Match keys ending with this suffix
     pub suffix: Option<String>,
 }
 
 impl NotificationFilter {
+    /// Creates a new empty filter
     pub fn new() -> Self {
         Self {
             prefix: None,
@@ -46,11 +63,13 @@ impl NotificationFilter {
         }
     }
 
+    /// Sets the prefix filter
     pub fn with_prefix(mut self, prefix: &str) -> Self {
         self.prefix = Some(prefix.to_string());
         self
     }
 
+    /// Sets the suffix filter
     pub fn with_suffix(mut self, suffix: &str) -> Self {
         self.suffix = Some(suffix.to_string());
         self
@@ -74,14 +93,20 @@ impl NotificationFilter {
 
 /// A notification configuration (one subscription)
 pub struct NotificationConfig {
+    /// Unique identifier for this config
     pub id: String,
+    /// Event types to subscribe to
     pub events: Vec<NotificationEvent>,
+    /// Key filter for this subscription
     pub filter: NotificationFilter,
+    /// Where to send notifications
     pub destination: NotificationDestination,
+    /// Whether this config is active
     pub enabled: bool,
 }
 
 impl NotificationConfig {
+    /// Creates a new notification config
     pub fn new(
         id: &str,
         events: Vec<NotificationEvent>,
@@ -97,10 +122,12 @@ impl NotificationConfig {
         }
     }
 
+    /// Disables this notification config
     pub fn disable(&mut self) {
         self.enabled = false;
     }
 
+    /// Enables this notification config
     pub fn enable(&mut self) {
         self.enabled = true;
     }
@@ -108,10 +135,15 @@ impl NotificationConfig {
 
 /// An event that was triggered
 pub struct NotificationRecord {
+    /// The event type
     pub event: NotificationEvent,
+    /// Bucket name
     pub bucket: String,
+    /// Object key
     pub key: String,
+    /// Object size in bytes
     pub size_bytes: u64,
+    /// Object ETag
     pub etag: Option<String>,
 }
 
@@ -201,8 +233,10 @@ impl NotificationManager {
 /// Error type
 #[derive(Debug, Error)]
 pub enum NotificationError {
+    /// Config ID was not found
     #[error("config not found: {0}")]
     NotFound(String),
+    /// Bucket has no notification configs registered
     #[error("bucket has no notification configs: {0}")]
     NoBucketConfig(String),
 }

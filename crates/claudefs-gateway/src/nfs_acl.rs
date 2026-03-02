@@ -19,15 +19,19 @@ pub enum AclTag {
     Other,
 }
 
-/// ACL permission bits
+/// ACL permission bits (rwx format)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct AclPerms {
+    /// Read permission
     pub read: bool,
+    /// Write permission
     pub write: bool,
+    /// Execute permission
     pub execute: bool,
 }
 
 impl AclPerms {
+    /// Create new permissions with explicit values
     pub fn new(read: bool, write: bool, execute: bool) -> Self {
         Self {
             read,
@@ -36,6 +40,7 @@ impl AclPerms {
         }
     }
 
+    /// Create read+write+execute permissions (rwx = 7)
     pub fn rwx() -> Self {
         Self {
             read: true,
@@ -44,6 +49,7 @@ impl AclPerms {
         }
     }
 
+    /// Create read+write permissions (rw = 6)
     pub fn rw() -> Self {
         Self {
             read: true,
@@ -52,6 +58,7 @@ impl AclPerms {
         }
     }
 
+    /// Create read+execute permissions (rx = 5)
     pub fn rx() -> Self {
         Self {
             read: true,
@@ -60,6 +67,7 @@ impl AclPerms {
         }
     }
 
+    /// Create read-only permissions (r = 4)
     pub fn r_only() -> Self {
         Self {
             read: true,
@@ -68,6 +76,7 @@ impl AclPerms {
         }
     }
 
+    /// Create no permissions (0)
     pub fn none() -> Self {
         Self {
             read: false,
@@ -76,6 +85,7 @@ impl AclPerms {
         }
     }
 
+    /// Convert to numeric bits (r=4, w=2, x=1)
     pub fn to_bits(&self) -> u8 {
         let mut bits = 0u8;
         if self.read {
@@ -90,6 +100,7 @@ impl AclPerms {
         bits
     }
 
+    /// Create from numeric bits
     pub fn from_bits(bits: u8) -> Self {
         Self {
             read: (bits & 4) != 0,
@@ -102,12 +113,16 @@ impl AclPerms {
 /// A single ACL entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AclEntry {
+    /// ACL tag identifying the entry type
     pub tag: AclTag,
+    /// Optional UID/GID for named users/groups
     pub qualifier: Option<u32>,
+    /// Permission bits
     pub perms: AclPerms,
 }
 
 impl AclEntry {
+    /// Create entry for file owner
     pub fn new_user_obj(perms: AclPerms) -> Self {
         Self {
             tag: AclTag::UserObj,
@@ -116,6 +131,7 @@ impl AclEntry {
         }
     }
 
+    /// Create entry for specific user
     pub fn new_user(uid: u32, perms: AclPerms) -> Self {
         Self {
             tag: AclTag::User,
@@ -124,6 +140,7 @@ impl AclEntry {
         }
     }
 
+    /// Create entry for owning group
     pub fn new_group_obj(perms: AclPerms) -> Self {
         Self {
             tag: AclTag::GroupObj,
@@ -132,6 +149,7 @@ impl AclEntry {
         }
     }
 
+    /// Create entry for specific group
     pub fn new_group(gid: u32, perms: AclPerms) -> Self {
         Self {
             tag: AclTag::Group,
@@ -140,6 +158,7 @@ impl AclEntry {
         }
     }
 
+    /// Create mask entry (limits group/named entries)
     pub fn new_mask(perms: AclPerms) -> Self {
         Self {
             tag: AclTag::Mask,
@@ -148,6 +167,7 @@ impl AclEntry {
         }
     }
 
+    /// Create other entry (fallback for everyone else)
     pub fn new_other(perms: AclPerms) -> Self {
         Self {
             tag: AclTag::Other,
@@ -156,6 +176,7 @@ impl AclEntry {
         }
     }
 
+    /// Check if this entry applies to the given user/group
     pub fn applies_to(&self, uid: u32, gid: u32) -> bool {
         match self.tag {
             AclTag::UserObj => true,
@@ -171,26 +192,31 @@ impl AclEntry {
 /// A POSIX ACL (set of entries)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PosixAcl {
+    /// ACL entries
     pub entries: Vec<AclEntry>,
 }
 
 impl PosixAcl {
+    /// Create an empty ACL
     pub fn new() -> Self {
         Self {
             entries: Vec::new(),
         }
     }
 
+    /// Add an entry to the ACL
     pub fn add(&mut self, entry: AclEntry) {
         self.entries.push(entry);
     }
 
+    /// Remove all entries with the given tag
     pub fn remove_tag(&mut self, tag: AclTag) -> usize {
         let initial_len = self.entries.len();
         self.entries.retain(|e| e.tag != tag);
         initial_len - self.entries.len()
     }
 
+    /// Check if the given user/group has read/write/execute access
     pub fn check_access(&self, uid: u32, gid: u32) -> (bool, bool, bool) {
         let mut can_read = false;
         let mut can_write = false;
@@ -228,6 +254,7 @@ impl PosixAcl {
         (can_read, can_write, can_execute)
     }
 
+    /// Validate the ACL structure
     pub fn is_valid(&self) -> bool {
         let has_user_obj = self.entries.iter().any(|e| e.tag == AclTag::UserObj);
         let has_group_obj = self.entries.iter().any(|e| e.tag == AclTag::GroupObj);
@@ -246,18 +273,22 @@ impl PosixAcl {
         has_user_obj && has_group_obj && has_other
     }
 
+    /// Number of entries
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Check if ACL is empty
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// Get all entries with the given tag
     pub fn by_tag(&self, tag: AclTag) -> Vec<&AclEntry> {
         self.entries.iter().filter(|e| e.tag == tag).collect()
     }
 
+    /// Convert to traditional Unix mode bits
     pub fn to_mode_bits(&self) -> u32 {
         let user_perms = self
             .entries
@@ -294,29 +325,42 @@ impl Default for PosixAcl {
 /// NFSv4 ACE type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Nfs4AceType {
+    /// Grant access
     Allow,
+    /// Deny access
     Deny,
+    /// Log successful access
     Audit,
+    /// Log access failure
     Alarm,
 }
 
 /// NFSv4 ACE flags
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Nfs4AceFlags {
+    /// Entry is inherited by new files
     pub file_inherit: bool,
+    /// Entry is inherited by new directories
     pub dir_inherit: bool,
+    /// Child directories don't inherit
     pub no_propagate: bool,
+    /// Only applies to inherited entries
     pub inherit_only: bool,
+    /// Log successful access
     pub successful_access: bool,
+    /// Log failed access
     pub failed_access: bool,
+    /// Who is a group
     pub group: bool,
 }
 
 impl Nfs4AceFlags {
+    /// Create empty flags
     pub fn none() -> Self {
         Self::default()
     }
 
+    /// Create flags for file inheritance only
     pub fn file_inherit_only() -> Self {
         Self {
             file_inherit: true,
@@ -329,20 +373,32 @@ impl Nfs4AceFlags {
 /// NFSv4 access mask bits
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Nfs4AccessMask {
+    /// Read file data
     pub read_data: bool,
+    /// Write file data
     pub write_data: bool,
+    /// Execute file
     pub execute: bool,
+    /// Append to file
     pub append_data: bool,
+    /// Read named attributes
     pub read_named_attrs: bool,
+    /// Write named attributes
     pub write_named_attrs: bool,
+    /// Delete file
     pub delete: bool,
+    /// Read ACL
     pub read_acl: bool,
+    /// Write ACL
     pub write_acl: bool,
+    /// Read basic attributes
     pub read_attributes: bool,
+    /// Write basic attributes
     pub write_attributes: bool,
 }
 
 impl Nfs4AccessMask {
+    /// Create read-only access mask
     pub fn read_only() -> Self {
         Self {
             read_data: true,
@@ -353,6 +409,7 @@ impl Nfs4AccessMask {
         }
     }
 
+    /// Create read-write access mask
     pub fn read_write() -> Self {
         Self {
             read_data: true,
@@ -367,6 +424,7 @@ impl Nfs4AccessMask {
         }
     }
 
+    /// Create full control access mask
     pub fn full_control() -> Self {
         Self {
             read_data: true,
@@ -383,6 +441,7 @@ impl Nfs4AccessMask {
         }
     }
 
+    /// Convert to 32-bit NFSv4 access mask
     pub fn to_u32(&self) -> u32 {
         let mut bits = 0u32;
         if self.read_data {
@@ -421,6 +480,7 @@ impl Nfs4AccessMask {
         bits
     }
 
+    /// Create from 32-bit NFSv4 access mask
     pub fn from_u32(v: u32) -> Self {
         Self {
             read_data: (v & (1 << 0)) != 0,
@@ -441,13 +501,18 @@ impl Nfs4AccessMask {
 /// NFSv4 ACE (Access Control Entry)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Nfs4Ace {
+    /// ACE type (allow/deny/audit/alarm)
     pub ace_type: Nfs4AceType,
+    /// ACE flags
     pub flags: Nfs4AceFlags,
+    /// Access mask
     pub access_mask: Nfs4AccessMask,
+    /// Principal (user@domain or special owner)
     pub who: String,
 }
 
 impl Nfs4Ace {
+    /// Create allow ACE for file owner
     pub fn allow_owner(mask: Nfs4AccessMask) -> Self {
         Self {
             ace_type: Nfs4AceType::Allow,
@@ -457,6 +522,7 @@ impl Nfs4Ace {
         }
     }
 
+    /// Create allow ACE for everyone
     pub fn allow_everyone(mask: Nfs4AccessMask) -> Self {
         Self {
             ace_type: Nfs4AceType::Allow,
@@ -466,6 +532,7 @@ impl Nfs4Ace {
         }
     }
 
+    /// Create deny ACE for everyone
     pub fn deny_everyone(mask: Nfs4AccessMask) -> Self {
         Self {
             ace_type: Nfs4AceType::Deny,

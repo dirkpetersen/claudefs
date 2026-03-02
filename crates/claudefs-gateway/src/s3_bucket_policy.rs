@@ -4,26 +4,36 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::RwLock;
 
-/// Effect of a policy statement
+/// Effect of a policy statement - Allow or Deny.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PolicyEffect {
+    /// Allow the action
     Allow,
+    /// Deny the action
     Deny,
 }
 
-/// S3 action
+/// S3 action that can be allowed or denied by a policy.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum S3Action {
+    /// Get object (read)
     GetObject,
+    /// Put object (write)
     PutObject,
+    /// Delete object
     DeleteObject,
+    /// List bucket contents
     ListBucket,
+    /// Delete bucket
     DeleteBucket,
+    /// Create bucket
     CreateBucket,
+    /// All actions
     All,
 }
 
 impl S3Action {
+    /// Parses an S3 action from an AWS-style action string.
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "s3:GetObject" => Some(S3Action::GetObject),
@@ -37,6 +47,7 @@ impl S3Action {
         }
     }
 
+    /// Returns the AWS-style action string.
     pub fn to_str(&self) -> &'static str {
         match self {
             S3Action::GetObject => "s3:GetObject",

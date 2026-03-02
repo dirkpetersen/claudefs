@@ -173,17 +173,23 @@ pub enum S3Operation {
     },
 }
 
-/// Internal object storage (metadata + data).
+/// Internal object storage combining metadata and data.
 #[derive(Debug)]
 struct ObjectData {
+    /// Object metadata
     meta: ObjectMeta,
+    /// Object data content
     data: Vec<u8>,
 }
 
+/// Internal bucket state with metadata and objects.
 #[derive(Debug)]
 struct BucketState {
+    /// Bucket name
     name: String,
+    /// Creation timestamp
     creation_date: String,
+    /// Objects in this bucket
     objects: HashMap<String, ObjectData>,
 }
 

@@ -10,40 +10,59 @@ use std::str::FromStr;
 use thiserror::Error;
 use tracing::{debug, warn};
 
+/// HTTP header for server-side encryption algorithm
 pub const HEADER_SSE: &str = "x-amz-server-side-encryption";
+/// HTTP header for KMS key ID
 pub const HEADER_SSE_KMS_KEY_ID: &str = "x-amz-server-side-encryption-aws-kms-key-id";
+/// HTTP header for KMS encryption context
 pub const HEADER_SSE_KMS_CONTEXT: &str = "x-amz-server-side-encryption-context";
+/// HTTP header for bucket key enabled flag
 pub const HEADER_SSE_BUCKET_KEY_ENABLED: &str = "x-amz-server-side-encryption-bucket-key-enabled";
+/// HTTP header for customer-provided algorithm (SSE-C)
 pub const HEADER_SSE_CUSTOMER_ALGORITHM: &str = "x-amz-server-side-encryption-customer-algorithm";
+/// HTTP header for customer-provided key (SSE-C)
 pub const HEADER_SSE_CUSTOMER_KEY: &str = "x-amz-server-side-encryption-customer-key";
+/// HTTP header for customer key MD5 (SSE-C)
 pub const HEADER_SSE_CUSTOMER_KEY_MD5: &str = "x-amz-server-side-encryption-customer-key-md5";
 
+/// Errors from SSE operations.
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum SseError {
+    /// Invalid SSE algorithm specified
     #[error("Invalid SSE algorithm: {0}")]
     InvalidAlgorithm(String),
+    /// KMS key required but not provided
     #[error("KMS key is required for this bucket")]
     KmsKeyRequired,
+    /// Encryption required but not enabled
     #[error("Encryption is required for this bucket")]
     EncryptionRequired,
+    /// Invalid KMS key ID format
     #[error("Invalid KMS key ID: {0}")]
     InvalidKeyId(String),
+    /// Invalid encryption context format
     #[error("Invalid encryption context: {0}")]
     InvalidEncryptionContext(String),
 }
 
+/// Server-side encryption algorithm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SseAlgorithm {
+    /// No encryption
     None,
+    /// AES-256-CBC encryption (SSE-S3)
     #[serde(rename = "AES256")]
     AesCbc256,
+    /// AWS Key Management Service (SSE-KMS)
     #[serde(rename = "aws:kms")]
     AwsKms,
+    /// Double encryption with KMS (DSSE)
     #[serde(rename = "aws:kms:dsse")]
     AwsKmsDsse,
 }
 
 impl SseAlgorithm {
+    /// Returns true if this algorithm uses AWS KMS.
     pub fn is_kms(&self) -> bool {
         matches!(self, SseAlgorithm::AwsKms | SseAlgorithm::AwsKmsDsse)
     }
@@ -74,11 +93,16 @@ impl std::fmt::Display for SseAlgorithm {
     }
 }
 
+/// Server-side encryption context for an object or bucket.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SseContext {
+    /// Encryption algorithm
     pub algorithm: SseAlgorithm,
+    /// KMS key ID (for SSE-KMS)
     pub key_id: Option<String>,
+    /// KMS encryption context key-value pairs
     pub encryption_context: HashMap<String, String>,
+    /// Whether bucket key is enabled
     pub bucket_key_enabled: bool,
 }
 

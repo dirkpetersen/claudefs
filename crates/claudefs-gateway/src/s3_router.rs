@@ -6,16 +6,23 @@ use crate::error::{GatewayError, Result};
 use crate::s3::{S3Handler, S3Operation};
 use crate::s3_xml;
 
+/// Represents an incoming HTTP request with S3 semantics.
 #[derive(Debug, Clone)]
 pub struct HttpRequest {
+    /// HTTP method (GET, PUT, DELETE, HEAD, POST).
     pub method: String,
+    /// Request path (e.g., "/bucket/key").
     pub path: String,
+    /// Query string parameters.
     pub query: HashMap<String, String>,
+    /// HTTP headers (keys are lowercase).
     pub headers: HashMap<String, String>,
+    /// Request body bytes.
     pub body: Vec<u8>,
 }
 
 impl HttpRequest {
+    /// Creates a new HttpRequest with the given method and path.
     pub fn new(method: &str, path: &str) -> Self {
         Self {
             method: method.to_string(),
@@ -26,29 +33,35 @@ impl HttpRequest {
         }
     }
 
+    /// Adds a query string parameter.
     pub fn with_query(mut self, key: &str, value: &str) -> Self {
         self.query.insert(key.to_string(), value.to_string());
         self
     }
 
+    /// Adds a header (key is lowercased internally).
     pub fn with_header(mut self, key: &str, value: &str) -> Self {
         self.headers.insert(key.to_lowercase(), value.to_string());
         self
     }
 
+    /// Sets the request body.
     pub fn with_body(mut self, body: Vec<u8>) -> Self {
         self.body = body;
         self
     }
 
+    /// Gets a query parameter by key.
     pub fn query_param(&self, key: &str) -> Option<&str> {
         self.query.get(key).map(|s| s.as_str())
     }
 
+    /// Gets a header by key (case-insensitive).
     pub fn header(&self, key: &str) -> Option<&str> {
         self.headers.get(&key.to_lowercase()).map(|s| s.as_str())
     }
 
+    /// Parses the path into (bucket, key) components.
     pub fn parse_path(&self) -> (String, String) {
         let path = self.path.trim_start_matches('/');
         if path.is_empty() {
@@ -62,6 +75,7 @@ impl HttpRequest {
     }
 }
 
+/// Routes an HTTP request to an S3 operation.
 pub fn route_s3_request(req: &HttpRequest) -> Result<S3Operation> {
     let (bucket, key) = req.parse_path();
     let method = req.method.as_str();
@@ -181,14 +195,19 @@ pub fn route_s3_request(req: &HttpRequest) -> Result<S3Operation> {
     }
 }
 
+/// Represents an HTTP response with S3 semantics.
 #[derive(Debug)]
 pub struct HttpResponse {
+    /// HTTP status code.
     pub status: u16,
+    /// Response headers.
     pub headers: Vec<(String, String)>,
+    /// Response body bytes.
     pub body: Vec<u8>,
 }
 
 impl HttpResponse {
+    /// Creates a new response with the given status code.
     pub fn new(status: u16) -> Self {
         Self {
             status,
@@ -197,16 +216,19 @@ impl HttpResponse {
         }
     }
 
+    /// Adds a header to the response.
     pub fn with_header(mut self, key: &str, value: &str) -> Self {
         self.headers.push((key.to_string(), value.to_string()));
         self
     }
 
+    /// Sets the response body.
     pub fn with_body(mut self, body: Vec<u8>) -> Self {
         self.body = body;
         self
     }
 
+    /// Sets the response body as XML with appropriate Content-Type.
     pub fn with_xml_body(mut self, xml: String) -> Self {
         self.body = xml.into_bytes();
         if !self
@@ -220,6 +242,7 @@ impl HttpResponse {
         self
     }
 
+    /// Converts the response to raw HTTP bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
         let status_line = match self.status {
             200 => "HTTP/1.1 200 OK",
@@ -248,18 +271,22 @@ impl HttpResponse {
         result
     }
 
+    /// Creates a 200 OK response.
     pub fn ok() -> Self {
         Self::new(200)
     }
 
+    /// Creates a 201 Created response.
     pub fn created() -> Self {
         Self::new(201)
     }
 
+    /// Creates a 204 No Content response.
     pub fn no_content() -> Self {
         Self::new(204)
     }
 
+    /// Creates a 404 Not Found response for the given resource.
     pub fn not_found(resource: &str) -> Self {
         let xml = s3_xml::error_xml(
             "NoSuchResource",
@@ -270,22 +297,26 @@ impl HttpResponse {
         Self::new(404).with_xml_body(xml)
     }
 
+    /// Creates a 403 Forbidden response.
     pub fn forbidden() -> Self {
         let xml = s3_xml::error_xml("AccessDenied", "Access Denied", "", "unknown");
         Self::new(403).with_xml_body(xml)
     }
 
+    /// Creates a 500 Internal Server Error response.
     pub fn internal_error(msg: &str) -> Self {
         let xml = s3_xml::error_xml("InternalError", msg, "", "unknown");
         Self::new(500).with_xml_body(xml)
     }
 
+    /// Creates a 409 Conflict response.
     pub fn conflict(msg: &str) -> Self {
         let xml = s3_xml::error_xml("Conflict", msg, "", "unknown");
         Self::new(409).with_xml_body(xml)
     }
 }
 
+/// Handles an S3 request and returns an HTTP response.
 pub fn handle_s3_request(req: &HttpRequest, handler: &S3Handler) -> HttpResponse {
     let operation = match route_s3_request(req) {
         Ok(op) => op,
