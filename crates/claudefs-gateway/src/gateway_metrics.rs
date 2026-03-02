@@ -337,7 +337,7 @@ impl GatewayMetrics {
         success: bool,
     ) {
         let key = Self::key(&protocol, &op);
-        let metrics = self.ops.entry(key).or_insert_with(OperationMetrics::new);
+        let metrics = self.ops.entry(key).or_default();
 
         if success {
             metrics.record_success(latency_us, bytes_read, bytes_written);
@@ -470,9 +470,11 @@ impl Default for GatewayMetrics {
 /// Metrics errors
 #[derive(Debug, Error)]
 pub enum MetricsError {
+    /// Requested operation metrics not found
     #[error("Operation not found: {0}")]
     OperationNotFound(String),
 
+    /// Invalid metric value or format
     #[error("Invalid metric: {0}")]
     InvalidMetric(String),
 }

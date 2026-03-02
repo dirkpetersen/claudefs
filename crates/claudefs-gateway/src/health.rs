@@ -16,10 +16,12 @@ pub enum HealthStatus {
 }
 
 impl HealthStatus {
+    /// Returns true if the status indicates the system is functional (Healthy or Degraded).
     pub fn is_ok(&self) -> bool {
         matches!(self, HealthStatus::Healthy | HealthStatus::Degraded)
     }
 
+    /// Returns a string representation of the health status.
     pub fn to_str(&self) -> &'static str {
         match self {
             HealthStatus::Healthy => "healthy",
@@ -44,6 +46,11 @@ pub struct CheckResult {
 }
 
 impl CheckResult {
+    /// Creates a successful (healthy) check result.
+    ///
+    /// # Arguments
+    /// * `name` - Identifier for the health check
+    /// * `duration_ms` - How long the check took in milliseconds
     pub fn ok(name: &str, duration_ms: u64) -> Self {
         Self {
             name: name.to_string(),
@@ -53,6 +60,12 @@ impl CheckResult {
         }
     }
 
+    /// Creates a degraded check result - functional but with issues.
+    ///
+    /// # Arguments
+    /// * `name` - Identifier for the health check
+    /// * `message` - Description of the degradation
+    /// * `duration_ms` - How long the check took in milliseconds
     pub fn degraded(name: &str, message: &str, duration_ms: u64) -> Self {
         Self {
             name: name.to_string(),
@@ -62,6 +75,12 @@ impl CheckResult {
         }
     }
 
+    /// Creates an unhealthy check result - the check failed.
+    ///
+    /// # Arguments
+    /// * `name` - Identifier for the health check
+    /// * `message` - Description of the failure
+    /// * `duration_ms` - How long the check took in milliseconds
     pub fn unhealthy(name: &str, message: &str, duration_ms: u64) -> Self {
         Self {
             name: name.to_string(),
@@ -84,6 +103,17 @@ pub struct HealthReport {
 }
 
 impl HealthReport {
+    /// Creates a new health report by aggregating individual check results.
+    ///
+    /// The overall status is determined by:
+    /// - Unhealthy if any check is unhealthy
+    /// - Degraded if any check is degraded but none unhealthy
+    /// - Healthy if all checks are healthy
+    /// - Starting if no checks have been run yet
+    ///
+    /// # Arguments
+    /// * `checks` - Vector of individual check results
+    /// * `timestamp` - Unix timestamp when the report was generated
     pub fn new(checks: Vec<CheckResult>, timestamp: u64) -> Self {
         let overall = if checks.is_empty() {
             HealthStatus::Starting
@@ -107,10 +137,12 @@ impl HealthReport {
         }
     }
 
+    /// Returns true if the system is ready to serve traffic (overall status is ok).
     pub fn is_ready(&self) -> bool {
         self.overall.is_ok()
     }
 
+    /// Returns the count of checks that passed (Healthy status).
     pub fn passed_count(&self) -> usize {
         self.checks
             .iter()
@@ -118,6 +150,7 @@ impl HealthReport {
             .count()
     }
 
+    /// Returns the count of checks that failed (Unhealthy or Starting status).
     pub fn failed_count(&self) -> usize {
         self.checks
             .iter()
@@ -132,12 +165,20 @@ pub struct HealthChecker {
 }
 
 impl HealthChecker {
+    /// Creates a new health checker with no registered checks.
     pub fn new() -> Self {
         Self {
             results: Mutex::new(Vec::new()),
         }
     }
 
+    /// Registers or updates a health check result.
+    ///
+    /// If a check with the same name already exists, it will be updated;
+    /// otherwise, a new check will be added.
+    ///
+    /// # Arguments
+    /// * `result` - The check result to register
     pub fn register_result(&self, result: CheckResult) {
         let mut results = self.results.lock().unwrap();
         if let Some(existing) = results.iter_mut().find(|r| r.name == result.name) {
@@ -147,6 +188,14 @@ impl HealthChecker {
         }
     }
 
+    /// Updates the status and message of an existing health check.
+    ///
+    /// Returns true if the check was found and updated, false otherwise.
+    ///
+    /// # Arguments
+    /// * `name` - Name of the check to update
+    /// * `status` - New health status
+    /// * `message` - New message/details
     pub fn update_result(&self, name: &str, status: HealthStatus, message: &str) -> bool {
         let mut results = self.results.lock().unwrap();
         if let Some(existing) = results.iter_mut().find(|r| r.name == name) {
@@ -158,11 +207,18 @@ impl HealthChecker {
         }
     }
 
+    /// Generates a health report from all registered checks.
+    ///
+    /// # Arguments
+    /// * `timestamp` - Unix timestamp for the report
     pub fn report(&self, timestamp: u64) -> HealthReport {
         let results = self.results.lock().unwrap();
         HealthReport::new(results.clone(), timestamp)
     }
 
+    /// Returns true if all registered checks are healthy or degraded.
+    ///
+    /// Returns false if no checks are registered or any check is unhealthy.
     pub fn is_healthy(&self) -> bool {
         let results = self.results.lock().unwrap();
         !results.is_empty()
@@ -171,6 +227,10 @@ impl HealthChecker {
                 .all(|r| r.status == HealthStatus::Healthy || r.status == HealthStatus::Degraded)
     }
 
+    /// Returns true if the system is ready to serve traffic.
+    ///
+    /// Requires at least one check to be registered, and no checks
+    /// may be in Unhealthy or Starting status.
     pub fn is_ready(&self) -> bool {
         let results = self.results.lock().unwrap();
         !results.is_empty()
@@ -179,10 +239,17 @@ impl HealthChecker {
                 .all(|r| r.status != HealthStatus::Unhealthy && r.status != HealthStatus::Starting)
     }
 
+    /// Returns the number of registered health checks.
     pub fn check_count(&self) -> usize {
         self.results.lock().unwrap().len()
     }
 
+    /// Removes a health check by name.
+    ///
+    /// Returns true if the check was found and removed, false otherwise.
+    ///
+    /// # Arguments
+    /// * `name` - Name of the check to remove
     pub fn remove_check(&self, name: &str) -> bool {
         let mut results = self.results.lock().unwrap();
         let initial_len = results.len();
@@ -190,6 +257,7 @@ impl HealthChecker {
         results.len() < initial_len
     }
 
+    /// Removes all registered health checks.
     pub fn clear(&self) {
         self.results.lock().unwrap().clear();
     }

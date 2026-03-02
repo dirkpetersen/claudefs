@@ -33,6 +33,7 @@ pub struct ActiveExport {
 }
 
 impl ActiveExport {
+    /// Creates a new active export with the given config and root handle.
     pub fn new(config: ExportConfig, root_fh: FileHandle3, root_inode: u64) -> Self {
         Self {
             config,
@@ -43,10 +44,12 @@ impl ActiveExport {
         }
     }
 
+    /// Returns true if the export is in Active state.
     pub fn is_active(&self) -> bool {
         self.status == ExportStatus::Active
     }
 
+    /// Returns true if the export can be safely removed (draining with no clients).
     pub fn can_remove(&self) -> bool {
         self.status == ExportStatus::Draining && self.client_count == 0
     }
@@ -59,6 +62,7 @@ pub struct ExportManager {
 }
 
 impl ExportManager {
+    /// Creates a new empty export manager.
     pub fn new() -> Self {
         Self {
             exports: RwLock::new(HashMap::new()),
@@ -66,6 +70,7 @@ impl ExportManager {
         }
     }
 
+    /// Adds a new export with the given config and returns its root file handle.
     pub fn add_export(
         &self,
         config: ExportConfig,
@@ -102,6 +107,8 @@ impl ExportManager {
         Ok(root_fh)
     }
 
+    /// Removes an export by path. Returns true if export was found.
+    /// If clients are connected, sets status to Draining instead of removing.
     pub fn remove_export(&self, path: &str) -> bool {
         let mut exports = match self.exports.write() {
             Ok(e) => e,
@@ -121,6 +128,7 @@ impl ExportManager {
         }
     }
 
+    /// Force removes an export regardless of connected clients.
     pub fn force_remove_export(&self, path: &str) -> bool {
         let mut exports = match self.exports.write() {
             Ok(e) => e,
@@ -135,6 +143,7 @@ impl ExportManager {
         }
     }
 
+    /// Gets an export by path.
     pub fn get_export(&self, path: &str) -> Option<ActiveExport> {
         let exports = match self.exports.read() {
             Ok(e) => e,
@@ -144,6 +153,7 @@ impl ExportManager {
         exports.get(path).cloned()
     }
 
+    /// Returns all active exports.
     pub fn list_exports(&self) -> Vec<ActiveExport> {
         let exports = match self.exports.read() {
             Ok(e) => e,
@@ -153,6 +163,7 @@ impl ExportManager {
         exports.values().cloned().collect()
     }
 
+    /// Returns all export paths.
     pub fn export_paths(&self) -> Vec<String> {
         let exports = match self.exports.read() {
             Ok(e) => e,
@@ -162,6 +173,7 @@ impl ExportManager {
         exports.keys().cloned().collect()
     }
 
+    /// Returns true if the path has an active export.
     pub fn is_exported(&self, path: &str) -> bool {
         let exports = match self.exports.read() {
             Ok(e) => e,
@@ -171,6 +183,7 @@ impl ExportManager {
         exports.get(path).map(|e| e.is_active()).unwrap_or(false)
     }
 
+    /// Increments the client count for an export. Returns true if export exists.
     pub fn increment_clients(&self, path: &str) -> bool {
         let mut exports = match self.exports.write() {
             Ok(e) => e,
@@ -185,6 +198,7 @@ impl ExportManager {
         }
     }
 
+    /// Decrements the client count for an export. Returns true if export exists.
     pub fn decrement_clients(&self, path: &str) -> bool {
         let mut exports = match self.exports.write() {
             Ok(e) => e,
@@ -201,6 +215,7 @@ impl ExportManager {
         }
     }
 
+    /// Gets the root file handle for an export.
     pub fn root_fh(&self, path: &str) -> Option<FileHandle3> {
         let exports = match self.exports.read() {
             Ok(e) => e,
@@ -210,6 +225,7 @@ impl ExportManager {
         exports.get(path).map(|e| e.root_fh.clone())
     }
 
+    /// Reloads exports from configs, adding new ones and removing old ones.
     pub fn reload(&self, configs: Vec<ExportConfig>) {
         let current_paths: Vec<String> = {
             let exports = match self.exports.read() {
@@ -243,6 +259,7 @@ impl ExportManager {
         }
     }
 
+    /// Returns the number of exports.
     pub fn count(&self) -> usize {
         let exports = match self.exports.read() {
             Ok(e) => e,
@@ -252,6 +269,7 @@ impl ExportManager {
         exports.len()
     }
 
+    /// Returns the total number of connected clients across all exports.
     pub fn total_clients(&self) -> u32 {
         let exports = match self.exports.read() {
             Ok(e) => e,
