@@ -75,6 +75,7 @@ pub struct MountHandler {
 }
 
 impl MountHandler {
+    /// Creates a new MOUNT protocol handler with the given exports and root file handle.
     pub fn new(exports: Vec<ExportEntry>, root_fh: FileHandle3) -> Self {
         Self {
             exports,
@@ -83,8 +84,10 @@ impl MountHandler {
         }
     }
 
+    /// Handles the NULL procedure (ping/keepalive).
     pub fn null(&self) {}
 
+    /// Handles the MNT procedure - mounts a path and returns a file handle.
     pub fn mnt(&self, path: &str, client_host: &str) -> MntResult {
         let export = match self.is_exported(path) {
             Some(e) => e,
@@ -121,30 +124,36 @@ impl MountHandler {
         }
     }
 
+    /// Handles the DUMP procedure - returns list of active mounts.
     pub fn dump(&self) -> Vec<MountEntry> {
         self.mounts.lock().map(|m| m.clone()).unwrap_or_default()
     }
 
+    /// Handles the UMNT procedure - unmounts a specific path.
     pub fn umnt(&self, path: &str) {
         if let Ok(mut mounts) = self.mounts.lock() {
             mounts.retain(|m| m.dirpath != path);
         }
     }
 
+    /// Handles the UMNTALL procedure - unmounts all paths for this server.
     pub fn umntall(&self) {
         if let Ok(mut mounts) = self.mounts.lock() {
             mounts.clear();
         }
     }
 
+    /// Handles the EXPORT procedure - returns list of exported paths.
     pub fn export(&self) -> Vec<ExportEntry> {
         self.exports.clone()
     }
 
+    /// Checks if a path is exported and returns the export entry if so.
     pub fn is_exported(&self, path: &str) -> Option<&ExportEntry> {
         self.exports.iter().find(|e| e.dirpath == path)
     }
 
+    /// Checks if a client host is allowed access to an export.
     pub fn is_allowed(&self, export: &ExportEntry, client_host: &str) -> bool {
         if export.groups.is_empty() {
             return true;
@@ -155,6 +164,7 @@ impl MountHandler {
         export.groups.iter().any(|g| g == client_host || g == "*")
     }
 
+    /// Encodes an MNT result into XDR format for wire transmission.
     pub fn encode_mnt_result(result: &MntResult, enc: &mut XdrEncoder) {
         enc.encode_u32(result.status);
 
@@ -174,6 +184,7 @@ impl MountHandler {
         }
     }
 
+    /// Returns the current number of active mounts.
     pub fn mount_count(&self) -> usize {
         self.mounts.lock().map(|m| m.len()).unwrap_or(0)
     }

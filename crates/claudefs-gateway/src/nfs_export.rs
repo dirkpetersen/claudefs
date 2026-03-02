@@ -76,60 +76,75 @@ impl ExportConfig {
             hidden: false,
         }
     }
+    /// Adds a client specification to the allowed clients list.
     pub fn with_client(mut self, spec: ClientSpec) -> Self {
         self.clients.push(spec);
         self
     }
+    /// Sets the access mode for this export.
     pub fn with_access(mut self, access: ExportAccess) -> Self {
         self.access = access;
         self
     }
+    /// Sets the root squash policy for this export.
     pub fn with_squash(mut self, squash: SquashPolicy) -> Self {
         self.squash = squash;
         self
     }
+    /// Convenience method to enable read-write access.
     pub fn read_write(mut self) -> Self {
         self.access = ExportAccess::ReadWrite;
         self
     }
+    /// Convenience method to disable root squash (preserve uid/gid).
     pub fn no_squash(mut self) -> Self {
         self.squash = SquashPolicy::None;
         self
     }
+    /// Checks if the given IP address is allowed to access this export.
     pub fn allows_client(&self, ip: &str) -> bool {
         if self.clients.is_empty() {
             return false;
         }
         self.clients.iter().any(|c| c.allows(ip))
     }
+    /// Returns true if this export is read-only.
     pub fn is_read_only(&self) -> bool {
         self.access == ExportAccess::ReadOnly
     }
+    /// Returns true if this export allows read-write access.
     pub fn is_read_write(&self) -> bool {
         self.access == ExportAccess::ReadWrite
     }
 }
 
+/// Registry for managing NFS export configurations.
 pub struct ExportRegistry {
     exports: Vec<ExportConfig>,
 }
 
 impl ExportRegistry {
+    /// Creates a new empty export registry.
     pub fn new() -> Self {
         Self { exports: vec![] }
     }
+    /// Adds an export configuration to the registry.
     pub fn add(&mut self, export: ExportConfig) {
         self.exports.push(export);
     }
+    /// Finds an export by its export path.
     pub fn find(&self, export_path: &str) -> Option<&ExportConfig> {
         self.exports.iter().find(|e| e.export_path == export_path)
     }
+    /// Returns all non-hidden exports.
     pub fn list_visible(&self) -> Vec<&ExportConfig> {
         self.exports.iter().filter(|e| !e.hidden).collect()
     }
+    /// Returns the number of registered exports.
     pub fn count(&self) -> usize {
         self.exports.len()
     }
+    /// Removes an export by its export path. Returns true if an export was removed.
     pub fn remove(&mut self, export_path: &str) -> bool {
         let before = self.exports.len();
         self.exports.retain(|e| e.export_path != export_path);

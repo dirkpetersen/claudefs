@@ -49,6 +49,7 @@ pub struct MultipartUpload {
 }
 
 impl MultipartUpload {
+    /// Create a new multipart upload session
     pub fn new(upload_id: &str, bucket: &str, key: &str, content_type: &str) -> Self {
         Self {
             upload_id: upload_id.to_string(),
@@ -172,6 +173,7 @@ pub struct MultipartManager {
 }
 
 impl MultipartManager {
+    /// Create a new multipart upload manager
     pub fn new() -> Self {
         Self {
             uploads: Mutex::new(HashMap::new()),

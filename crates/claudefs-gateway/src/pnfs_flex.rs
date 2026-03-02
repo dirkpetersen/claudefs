@@ -21,7 +21,9 @@ pub struct FlexFileDataServer {
 /// Protocol used to access the data server
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FlexFileProtocol {
+    /// TCP transport
     Tcp,
+    /// RDMA transport (InfiniBand/RoCE)
     Rdma,
 }
 
@@ -37,6 +39,7 @@ pub struct FlexFileMirror {
 }
 
 impl FlexFileMirror {
+    /// Create a new mirror with the given data servers and stripe unit
     pub fn new(servers: Vec<FlexFileDataServer>, stripe_unit: u64) -> Self {
         Self {
             data_servers: servers,
@@ -45,6 +48,7 @@ impl FlexFileMirror {
         }
     }
 
+    /// Check if a stripe unit is valid (power of 2 and >= 4096)
     pub fn is_valid_stripe_unit(stripe_unit: u64) -> bool {
         stripe_unit >= 4096 && stripe_unit.is_power_of_two()
     }
@@ -69,6 +73,7 @@ pub struct FlexFileSegment {
 }
 
 impl FlexFileSegment {
+    /// Create a new segment with the given offset, length, I/O mode, and mirrors
     pub fn new(offset: u64, length: u64, iomode: IoMode, mirrors: Vec<FlexFileMirror>) -> Self {
         Self {
             offset,
@@ -107,6 +112,7 @@ pub struct FlexFileLayout {
 }
 
 impl FlexFileLayout {
+    /// Create a new layout for the given inode
     pub fn new(inode: u64) -> Self {
         Self {
             inode,
@@ -161,6 +167,7 @@ pub struct FlexFileLayoutServer {
 }
 
 impl FlexFileLayoutServer {
+    /// Create a new layout server with the given data servers, stripe unit, and mirror count
     pub fn new(
         data_servers: Vec<FlexFileDataServer>,
         stripe_unit: u64,

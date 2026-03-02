@@ -248,18 +248,25 @@ impl PerfConfigValidator {
 /// Performance configuration errors
 #[derive(Debug, Error)]
 pub enum PerfConfigError {
+    /// Maximum connections must be greater than zero
     #[error("max_connections must be > 0")]
     ZeroMaxConnections,
+    /// Maximum connections per client must be greater than zero
     #[error("max_per_client must be > 0")]
     ZeroMaxPerClient,
+    /// Per-client connection limit exceeds total max connections
     #[error("max_per_client ({0}) must be <= max_connections ({1})")]
     PerClientExceedsMax(usize, usize),
+    /// Buffer size must be greater than zero
     #[error("buffer size must be > 0")]
     ZeroBufferSize,
+    /// Timeout value must be greater than zero
     #[error("timeout must be > 0")]
     ZeroTimeout,
+    /// Target CPU percentage exceeds 100
     #[error("target_cpu_percent must be <= 100, got {0}")]
     InvalidCpuTarget(u8),
+    /// Measurement window must be greater than zero seconds
     #[error("measurement_window_secs must be > 0")]
     ZeroMeasurementWindow,
 }

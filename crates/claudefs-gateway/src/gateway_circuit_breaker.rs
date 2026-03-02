@@ -79,13 +79,21 @@ impl Default for CircuitBreakerMetrics {
 pub enum CircuitBreakerError {
     /// Circuit is open and rejecting requests
     #[error("Circuit '{name}' is open, request rejected")]
-    CircuitOpen { name: String },
+    CircuitOpen {
+        /// Name of the circuit breaker
+        name: String,
+    },
     /// Operation failed with an error
     #[error("Operation failed: {0}")]
     OperationFailed(String),
     /// Operation exceeded timeout threshold
     #[error("Operation timed out for '{name}' after {ms}ms")]
-    Timeout { name: String, ms: u64 },
+    Timeout {
+        /// Name of the circuit breaker
+        name: String,
+        /// Elapsed time in milliseconds
+        ms: u64,
+    },
 }
 
 /// Circuit breaker for preventing cascading failures in backend connections.
@@ -100,6 +108,7 @@ pub struct CircuitBreaker {
 }
 
 impl CircuitBreaker {
+    /// Creates a new circuit breaker with the given name and configuration.
     pub fn new(name: String, config: CircuitBreakerConfig) -> Self {
         Self {
             name,
@@ -112,6 +121,10 @@ impl CircuitBreaker {
         }
     }
 
+    /// Executes an operation through the circuit breaker.
+    ///
+    /// The circuit breaker tracks failures and successes, transitioning between
+    /// states (Closed, Open, HalfOpen) based on the configured thresholds.
     pub fn call<F, R>(&mut self, f: F) -> Result<R, CircuitBreakerError>
     where
         F: FnOnce() -> Result<R, CircuitBreakerError>,
@@ -179,6 +192,9 @@ impl CircuitBreaker {
         }
     }
 
+    /// Records a successful operation, updating internal state and metrics.
+    ///
+    /// In HalfOpen state, consecutive successes transition the circuit to Closed.
     pub fn record_success(&mut self) {
         self.metrics.successful_calls += 1;
 
@@ -207,6 +223,10 @@ impl CircuitBreaker {
         );
     }
 
+    /// Records a failed operation, updating internal state and metrics.
+    ///
+    /// In Closed state, consecutive failures open the circuit.
+    /// In HalfOpen state, any failure reopens the circuit.
     pub fn record_failure(&mut self) {
         self.metrics.failed_calls += 1;
 
@@ -240,6 +260,7 @@ impl CircuitBreaker {
         );
     }
 
+    /// Resets the circuit breaker to the Closed state, clearing all failure/success counts.
     pub fn reset(&mut self) {
         self.state = CircuitState::Closed;
         self.failure_count = 0;
@@ -250,6 +271,7 @@ impl CircuitBreaker {
         info!("Circuit '{}' reset to Closed", self.name);
     }
 
+    /// Forces the circuit to the Open state, typically used for manual intervention.
     pub fn trip(&mut self) {
         self.transition_to(CircuitState::Open);
         self.opened_at = Some(Instant::now());
@@ -258,22 +280,27 @@ impl CircuitBreaker {
         warn!("Circuit '{}' tripped to Open", self.name);
     }
 
+    /// Returns the current state of the circuit breaker.
     pub fn state(&self) -> CircuitState {
         self.state
     }
 
+    /// Returns the current consecutive failure count.
     pub fn failure_count(&self) -> u32 {
         self.failure_count
     }
 
+    /// Returns the current consecutive success count (in HalfOpen state).
     pub fn success_count(&self) -> u32 {
         self.success_count
     }
 
+    /// Returns the name of this circuit breaker.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns a clone of the current metrics.
     pub fn metrics(&self) -> CircuitBreakerMetrics {
         self.metrics.clone()
     }
@@ -284,17 +311,20 @@ impl CircuitBreaker {
     }
 }
 
+/// Registry for managing multiple circuit breakers by name.
 pub struct CircuitBreakerRegistry {
     breakers: HashMap<String, CircuitBreaker>,
 }
 
 impl CircuitBreakerRegistry {
+    /// Creates a new empty circuit breaker registry.
     pub fn new() -> Self {
         Self {
             breakers: HashMap::new(),
         }
     }
 
+    /// Gets an existing circuit breaker or creates a new one with the given config.
     pub fn get_or_create(
         &mut self,
         name: &str,
@@ -305,14 +335,17 @@ impl CircuitBreakerRegistry {
             .or_insert_with(|| CircuitBreaker::new(name.to_string(), config))
     }
 
+    /// Returns a reference to a circuit breaker by name, if it exists.
     pub fn get(&self, name: &str) -> Option<&CircuitBreaker> {
         self.breakers.get(name)
     }
 
+    /// Returns a mutable reference to a circuit breaker by name, if it exists.
     pub fn get_mut(&mut self, name: &str) -> Option<&mut CircuitBreaker> {
         self.breakers.get_mut(name)
     }
 
+    /// Returns metrics for all registered circuit breakers.
     pub fn all_metrics(&self) -> Vec<(&str, CircuitBreakerMetrics)> {
         self.breakers
             .iter()
@@ -320,12 +353,14 @@ impl CircuitBreakerRegistry {
             .collect()
     }
 
+    /// Resets all circuit breakers to the Closed state.
     pub fn reset_all(&mut self) {
         for breaker in self.breakers.values_mut() {
             breaker.reset();
         }
     }
 
+    /// Returns the number of circuit breakers in the registry.
     pub fn count(&self) -> usize {
         self.breakers.len()
     }

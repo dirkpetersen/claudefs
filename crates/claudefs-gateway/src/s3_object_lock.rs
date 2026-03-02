@@ -87,21 +87,29 @@ impl ObjectRetention {
 /// Legal Hold status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LegalHoldStatus {
+    /// Legal hold is active, object cannot be deleted
     On,
+    /// Legal hold is not active
     Off,
 }
 
 /// Object Lock information for a specific object version
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectLockInfo {
+    /// Bucket name
     pub bucket: String,
+    /// Object key
     pub key: String,
+    /// Object version ID
     pub version_id: String,
+    /// Retention settings (if any)
     pub retention: Option<ObjectRetention>,
+    /// Legal hold status
     pub legal_hold: LegalHoldStatus,
 }
 
 impl ObjectLockInfo {
+    /// Returns true if the object has active (non-expired) retention
     pub fn has_active_retention(&self) -> bool {
         match &self.retention {
             Some(r) => !r.is_expired(),
@@ -113,24 +121,43 @@ impl ObjectLockInfo {
 /// Object Lock errors
 #[derive(Debug, Error)]
 pub enum ObjectLockError {
+    /// Bucket does not have Object Lock enabled
     #[error("Bucket lock not enabled: {0}")]
     BucketLockNotEnabled(String),
+    /// Retention period has not elapsed yet
     #[error(
         "Retention period not elapsed for {}/{}. Retention active until {until:?}",
         bucket,
         key
     )]
     RetentionPeriodNotElapsed {
+        /// Bucket name
         bucket: String,
+        /// Object key
         key: String,
+        /// Time until which retention is active
         until: SystemTime,
     },
+    /// Legal hold is active on the object
     #[error("Legal hold active on {}/{}. Cannot delete or overwrite", bucket, key)]
-    LegalHoldActive { bucket: String, key: String },
+    LegalHoldActive {
+        /// Bucket name
+        bucket: String,
+        /// Object key
+        key: String,
+    },
+    /// Compliance mode retention cannot be bypassed
     #[error("Compliance mode cannot be bypassed for {}/{}", bucket, key)]
-    ComplianceModeCannotBypass { bucket: String, key: String },
+    ComplianceModeCannotBypass {
+        /// Bucket name
+        bucket: String,
+        /// Object key
+        key: String,
+    },
+    /// Retention date is in the past
     #[error("Invalid retention date: retain_until is in the past")]
     InvalidRetentionDate,
+    /// Bucket already has Object Lock configured
     #[error("Bucket {0} already has object lock configured")]
     BucketAlreadyConfigured(String),
 }
@@ -143,6 +170,7 @@ pub struct ObjectLockRegistry {
 }
 
 impl ObjectLockRegistry {
+    /// Creates a new empty Object Lock Registry
     pub fn new() -> Self {
         Self {
             bucket_configs: HashMap::new(),

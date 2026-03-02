@@ -118,6 +118,7 @@ impl Default for SseContext {
 }
 
 impl SseContext {
+    /// Creates a new SSE context with the given algorithm.
     pub fn new(algorithm: SseAlgorithm) -> Self {
         Self {
             algorithm,
@@ -127,31 +128,40 @@ impl SseContext {
         }
     }
 
+    /// Sets the KMS key ID for this context.
     pub fn with_key_id(mut self, key_id: String) -> Self {
         self.key_id = Some(key_id);
         self
     }
 
+    /// Sets the KMS encryption context for this context.
     pub fn with_encryption_context(mut self, context: HashMap<String, String>) -> Self {
         self.encryption_context = context;
         self
     }
 
+    /// Sets whether bucket key is enabled.
     pub fn with_bucket_key_enabled(mut self, enabled: bool) -> Self {
         self.bucket_key_enabled = enabled;
         self
     }
 }
 
+/// Bucket-level SSE configuration settings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SseBucketConfig {
+    /// Bucket name
     pub bucket: String,
+    /// Default encryption algorithm for objects in this bucket
     pub default_algorithm: SseAlgorithm,
+    /// Default KMS key ID (for SSE-KMS)
     pub default_key_id: Option<String>,
+    /// Whether encryption is required for all uploads
     pub enforce_encryption: bool,
 }
 
 impl SseBucketConfig {
+    /// Creates a new bucket configuration with default values.
     pub fn new(bucket: String) -> Self {
         Self {
             bucket,
@@ -161,27 +171,35 @@ impl SseBucketConfig {
         }
     }
 
+    /// Sets the default encryption algorithm for this bucket.
     pub fn with_default_algorithm(mut self, algorithm: SseAlgorithm) -> Self {
         self.default_algorithm = algorithm;
         self
     }
 
+    /// Sets the default KMS key ID for this bucket.
     pub fn with_default_key_id(mut self, key_id: String) -> Self {
         self.default_key_id = Some(key_id);
         self
     }
 
+    /// Sets whether encryption is required for uploads to this bucket.
     pub fn with_enforce_encryption(mut self, enforce: bool) -> Self {
         self.enforce_encryption = enforce;
         self
     }
 }
 
+/// Object-level SSE metadata for uploaded objects.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SseObjectMetadata {
+    /// Encryption algorithm used for this object
     pub algorithm: SseAlgorithm,
+    /// KMS key ID used (for SSE-KMS)
     pub key_id: Option<String>,
+    /// MD5 hash of the encryption key (for SSE-C)
     pub key_md5: Option<String>,
+    /// Whether bucket key is enabled for this object
     pub bucket_key_enabled: bool,
 }
 
@@ -197,6 +215,7 @@ impl Default for SseObjectMetadata {
 }
 
 impl SseObjectMetadata {
+    /// Creates a new SSE object metadata with the given algorithm.
     pub fn new(algorithm: SseAlgorithm) -> Self {
         Self {
             algorithm,
@@ -206,27 +225,35 @@ impl SseObjectMetadata {
         }
     }
 
+    /// Sets the KMS key ID for this object.
     pub fn with_key_id(mut self, key_id: String) -> Self {
         self.key_id = Some(key_id);
         self
     }
 
+    /// Sets the MD5 hash of the customer-provided key (for SSE-C).
     pub fn with_key_md5(mut self, md5: String) -> Self {
         self.key_md5 = Some(md5);
         self
     }
 
+    /// Sets whether bucket key is enabled for this object.
     pub fn with_bucket_key_enabled(mut self, enabled: bool) -> Self {
         self.bucket_key_enabled = enabled;
         self
     }
 }
 
+/// Response format for bucket SSE configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SseBucketConfigResponse {
+    /// Bucket name
     pub bucket: String,
+    /// Default encryption algorithm as string
     pub default_algorithm: String,
+    /// Default KMS key ID
     pub default_key_id: Option<String>,
+    /// Whether encryption is required
     pub enforce_encryption: bool,
 }
 
@@ -241,6 +268,7 @@ impl From<&SseBucketConfig> for SseBucketConfigResponse {
     }
 }
 
+/// Manages SSE configuration for buckets and resolves encryption for uploads.
 pub struct SseManager {
     bucket_configs: HashMap<String, SseBucketConfig>,
 }
@@ -252,12 +280,14 @@ impl Default for SseManager {
 }
 
 impl SseManager {
+    /// Creates a new SSE manager with no bucket configurations.
     pub fn new() -> Self {
         Self {
             bucket_configs: HashMap::new(),
         }
     }
 
+    /// Configures SSE for a bucket with the given settings.
     pub fn configure_bucket(&mut self, config: SseBucketConfig) {
         debug!(
             bucket = %config.bucket,
@@ -268,18 +298,22 @@ impl SseManager {
         self.bucket_configs.insert(config.bucket.clone(), config);
     }
 
+    /// Gets the SSE configuration for a bucket, if configured.
     pub fn get_bucket_config(&self, bucket: &str) -> Option<&SseBucketConfig> {
         self.bucket_configs.get(bucket)
     }
 
+    /// Removes SSE configuration for a bucket.
     pub fn remove_bucket(&mut self, bucket: &str) -> Option<SseBucketConfig> {
         self.bucket_configs.remove(bucket)
     }
 
+    /// Lists all buckets with configured SSE.
     pub fn list_buckets(&self) -> Vec<&String> {
         self.bucket_configs.keys().collect()
     }
 
+    /// Resolves the SSE metadata for an object upload, considering request and bucket defaults.
     pub fn resolve_sse_for_upload(
         &self,
         bucket: &str,
@@ -345,6 +379,7 @@ impl SseManager {
         })
     }
 
+    /// Validates SSE headers from an S3 request and returns the context.
     pub fn validate_sse_headers(
         &self,
         bucket: &str,
@@ -407,6 +442,7 @@ impl SseManager {
         })
     }
 
+    /// Generates SSE response headers to include in PUT responses.
     pub fn generate_response_headers(
         &self,
         metadata: &SseObjectMetadata,
@@ -435,6 +471,7 @@ impl SseManager {
         headers
     }
 
+    /// Validates that a KMS key ID has a valid ARN or alias format.
     pub fn validate_kms_key_id(&self, key_id: &str) -> Result<(), SseError> {
         if key_id.is_empty() {
             return Err(SseError::InvalidKeyId("empty key ID".to_string()));

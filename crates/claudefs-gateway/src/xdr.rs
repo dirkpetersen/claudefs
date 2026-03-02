@@ -92,16 +92,19 @@ impl XdrDecoder {
         Ok(result)
     }
 
+    /// Decodes a 32-bit unsigned integer.
     pub fn decode_u32(&mut self) -> super::error::Result<u32> {
         let bytes = self.read_bytes(4)?;
         Ok(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
     }
 
+    /// Decodes a 32-bit signed integer.
     pub fn decode_i32(&mut self) -> super::error::Result<i32> {
         let bytes = self.read_bytes(4)?;
         Ok(i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
     }
 
+    /// Decodes a 64-bit unsigned integer.
     pub fn decode_u64(&mut self) -> super::error::Result<u64> {
         let bytes = self.read_bytes(8)?;
         Ok(u64::from_be_bytes([
@@ -109,6 +112,7 @@ impl XdrDecoder {
         ]))
     }
 
+    /// Decodes a 64-bit signed integer.
     pub fn decode_i64(&mut self) -> super::error::Result<i64> {
         let bytes = self.read_bytes(8)?;
         Ok(i64::from_be_bytes([
@@ -116,11 +120,13 @@ impl XdrDecoder {
         ]))
     }
 
+    /// Decodes a boolean (0 = false, non-zero = true).
     pub fn decode_bool(&mut self) -> super::error::Result<bool> {
         let v = self.decode_u32()?;
         Ok(v != 0)
     }
 
+    /// Decodes fixed-length opaque data (strips padding).
     pub fn decode_opaque_fixed(&mut self, len: usize) -> super::error::Result<Vec<u8>> {
         let padding = (4 - (len % 4)) % 4;
         let total_len = len + padding;
@@ -128,11 +134,13 @@ impl XdrDecoder {
         Ok(result[..len].to_vec())
     }
 
+    /// Decodes variable-length opaque data (length prefix + padded data).
     pub fn decode_opaque_variable(&mut self) -> super::error::Result<Vec<u8>> {
         let len = self.decode_u32()? as usize;
         self.decode_opaque_fixed(len)
     }
 
+    /// Decodes a string (length-prefixed opaque data as UTF-8).
     pub fn decode_string(&mut self) -> super::error::Result<String> {
         let data = self.decode_opaque_variable()?;
         String::from_utf8(data).map_err(|e| super::error::GatewayError::XdrDecodeError {
@@ -140,10 +148,12 @@ impl XdrDecoder {
         })
     }
 
+    /// Returns the number of remaining bytes to decode.
     pub fn remaining(&self) -> usize {
         self.buf.len() - self.pos
     }
 
+    /// Returns all remaining bytes as a vector.
     pub fn remaining_bytes(&self) -> Vec<u8> {
         self.buf[self.pos..].to_vec()
     }

@@ -31,6 +31,7 @@ pub struct NfsServerConfig {
 }
 
 impl NfsServerConfig {
+    /// Creates a default NFS server config with a single export for the given path.
     pub fn default_with_export(path: &str) -> Self {
         Self {
             tcp_port: 2049,
@@ -55,6 +56,7 @@ pub struct RpcDispatcher<B: VfsBackend> {
 }
 
 impl<B: VfsBackend> RpcDispatcher<B> {
+    /// Creates a new RPC dispatcher with the given backend and handlers.
     pub fn new(backend: Arc<B>, mount_handler: MountHandler, config: NfsServerConfig) -> Self {
         Self {
             nfs_handler: Nfs3Handler::new(backend, config.fsid),
@@ -63,6 +65,7 @@ impl<B: VfsBackend> RpcDispatcher<B> {
         }
     }
 
+    /// Dispatches an RPC call to the appropriate NFS or MOUNT handler.
     pub fn dispatch(&self, call: &RpcCall) -> Vec<u8> {
         let auth = AuthCred::from_opaque_auth(&call.cred);
 
@@ -324,6 +327,7 @@ impl<B: VfsBackend> RpcDispatcher<B> {
         }
     }
 
+    /// Processes a TCP record-framed RPC message and returns the response.
     pub fn process_tcp(&self, data: &[u8]) -> Vec<u8> {
         if data.len() < 4 {
             return vec![];
