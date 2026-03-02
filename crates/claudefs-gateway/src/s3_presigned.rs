@@ -5,16 +5,23 @@ use std::collections::HashMap;
 
 const PRESIGNED_URL_ALGO: &str = "CFSV1-HMAC-SHA256";
 
+/// Request parameters for generating a presigned URL.
 #[derive(Debug, Clone)]
 pub struct PresignedRequest {
+    /// HTTP method (GET, PUT, etc.)
     pub method: String,
+    /// S3 bucket name
     pub bucket: String,
+    /// Object key within the bucket
     pub key: String,
+    /// Expiration time in seconds (capped at 604800)
     pub expires_in: u32,
+    /// Additional query parameters to include in the signed URL
     pub extra_params: HashMap<String, String>,
 }
 
 impl PresignedRequest {
+    /// Creates a new presigned request with the given parameters.
     pub fn new(method: &str, bucket: &str, key: &str, expires_in: u32) -> Self {
         Self {
             method: method.to_uppercase(),
@@ -24,36 +31,50 @@ impl PresignedRequest {
             extra_params: HashMap::new(),
         }
     }
+
+    /// Creates a GET request for downloading an object.
     pub fn get(bucket: &str, key: &str, expires_in: u32) -> Self {
         Self::new("GET", bucket, key, expires_in)
     }
+
+    /// Creates a PUT request for uploading an object.
     pub fn put(bucket: &str, key: &str, expires_in: u32) -> Self {
         Self::new("PUT", bucket, key, expires_in)
     }
 }
 
+/// A generated presigned URL with all signature components.
 #[derive(Debug, Clone)]
 pub struct PresignedUrl {
+    /// The full URL path with query parameters
     pub url_path: String,
+    /// Access key ID used for signing
     pub access_key_id: String,
+    /// Unix timestamp when the URL was created
     pub created_at: u64,
+    /// Unix timestamp when the URL expires
     pub expires_at: u64,
+    /// HMAC-SHA256 signature
     pub signature: String,
+    /// The canonical string that was signed
     pub canonical_string: String,
 }
 
 impl PresignedUrl {
+    /// Returns true if the URL is expired at the given time.
     pub fn is_expired(&self, now: u64) -> bool {
         now > self.expires_at
     }
 }
 
+/// Signs and validates presigned URL requests.
 pub struct PresignedSigner {
     access_key_id: String,
     secret_access_key: String,
 }
 
 impl PresignedSigner {
+    /// Creates a new signer with the given credentials.
     pub fn new(access_key_id: &str, secret_access_key: &str) -> Self {
         Self {
             access_key_id: access_key_id.to_string(),
@@ -80,6 +101,7 @@ impl PresignedSigner {
         )
     }
 
+    /// Signs a presigned request and returns the generated URL.
     pub fn sign_request(&self, req: &PresignedRequest, now: u64) -> PresignedUrl {
         let expires_at = now + req.expires_in as u64;
         let canonical = Self::canonical_string(
@@ -106,6 +128,7 @@ impl PresignedSigner {
         }
     }
 
+    /// Validates a presigned URL signature and checks expiration.
     pub fn validate_url(
         &self,
         method: &str,
@@ -127,11 +150,13 @@ impl PresignedSigner {
         Ok(())
     }
 
+    /// Returns the access key ID.
     pub fn access_key_id(&self) -> &str {
         &self.access_key_id
     }
 }
 
+/// Extracts presigned URL parameters from a URL path query string.
 pub fn parse_presigned_params(url_path: &str) -> HashMap<String, String> {
     let mut params = HashMap::new();
     if let Some(query) = url_path.split('?').nth(1) {

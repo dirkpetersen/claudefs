@@ -2,63 +2,76 @@
 
 use prost::bytes::{Bytes, BytesMut};
 
+/// XDR encoder for NFS protocol messages.
 pub struct XdrEncoder {
     buf: BytesMut,
 }
 
 impl XdrEncoder {
+    /// Creates a new XdrEncoder.
     pub fn new() -> Self {
         Self {
             buf: BytesMut::new(),
         }
     }
 
+    /// Encodes a 32-bit unsigned integer.
     pub fn encode_u32(&mut self, v: u32) {
         self.buf.extend_from_slice(&v.to_be_bytes());
     }
 
+    /// Encodes a 32-bit signed integer.
     pub fn encode_i32(&mut self, v: i32) {
         self.buf.extend_from_slice(&v.to_be_bytes());
     }
 
+    /// Encodes a 64-bit unsigned integer.
     pub fn encode_u64(&mut self, v: u64) {
         self.buf.extend_from_slice(&v.to_be_bytes());
     }
 
+    /// Encodes a 64-bit signed integer.
     pub fn encode_i64(&mut self, v: i64) {
         self.buf.extend_from_slice(&v.to_be_bytes());
     }
 
+    /// Encodes a boolean as a 32-bit integer (0 or 1).
     pub fn encode_bool(&mut self, v: bool) {
         self.encode_u32(if v { 1 } else { 0 });
     }
 
+    /// Encodes fixed-length opaque data (padded to 4-byte boundary).
     pub fn encode_opaque_fixed(&mut self, data: &[u8]) {
         let padding = (4 - (data.len() % 4)) % 4;
         self.buf.extend_from_slice(data);
         self.buf.extend(vec![0u8; padding]);
     }
 
+    /// Encodes variable-length opaque data (length prefix + padded data).
     pub fn encode_opaque_variable(&mut self, data: &[u8]) {
         self.encode_u32(data.len() as u32);
         self.encode_opaque_fixed(data);
     }
 
+    /// Encodes a string as length-prefixed opaque data.
     pub fn encode_string(&mut self, s: &str) {
         self.encode_opaque_variable(s.as_bytes());
     }
 
+    /// Consumes the encoder and returns the encoded bytes.
     pub fn finish(self) -> Bytes {
         self.buf.freeze()
     }
 }
 
+/// XDR decoder for NFS protocol messages.
 pub struct XdrDecoder {
     buf: Bytes,
     pos: usize,
 }
 
 impl XdrDecoder {
+    /// Creates a new XdrDecoder from encoded bytes.
     pub fn new(buf: Bytes) -> Self {
         Self { buf, pos: 0 }
     }

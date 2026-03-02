@@ -4,32 +4,49 @@ use std::time::SystemTime;
 use thiserror::Error;
 use tracing::{debug, info};
 
+/// Role of a channel in SMB multichannel configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MultichannelRole {
+    /// Primary channel - main connection for SMB traffic
     Primary,
+    /// Secondary channel - additional connection for load balancing
     Secondary,
+    /// Standby channel - backup connection activated on failure
     Standby,
 }
 
+/// Network interface capabilities for SMB multichannel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct InterfaceCapabilities {
+    /// Remote Direct Memory Access support for zero-copy transfers
     pub rdma: bool,
+    /// Receive Side Scaling for multi-queue network cards
     pub rss: bool,
+    /// TCP Segmentation Offload for large send performance
     pub tso: bool,
+    /// Hardware checksum offload for CPU reduction
     pub checksum_offload: bool,
 }
 
+/// Network interface capabilities and configuration for SMB multichannel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NicCapabilities {
+    /// Network interface name (e.g., eth0)
     pub interface_name: String,
+    /// IP address of the interface
     pub ip_address: String,
+    /// SMB port (default 445)
     pub port: u16,
+    /// Link speed in megabits per second
     pub link_speed_mbps: u64,
+    /// Hardware capabilities
     pub capabilities: InterfaceCapabilities,
+    /// Whether this interface is enabled for multichannel
     pub enabled: bool,
 }
 
 impl NicCapabilities {
+    /// Creates a new NIC capabilities entry with default values.
     pub fn new(interface_name: String, ip_address: String) -> Self {
         Self {
             interface_name,
@@ -41,58 +58,77 @@ impl NicCapabilities {
         }
     }
 
+    /// Sets the link speed in Mbps.
     pub fn with_speed(mut self, speed_mbps: u64) -> Self {
         self.link_speed_mbps = speed_mbps;
         self
     }
 
+    /// Sets the TCP port for SMB.
     pub fn with_port(mut self, port: u16) -> Self {
         self.port = port;
         self
     }
 
+    /// Enables RDMA capability.
     pub fn with_rdma(mut self) -> Self {
         self.capabilities.rdma = true;
         self
     }
 
+    /// Enables RSS capability.
     pub fn with_rss(mut self) -> Self {
         self.capabilities.rss = true;
         self
     }
 
+    /// Enables TSO capability.
     pub fn with_tso(mut self) -> Self {
         self.capabilities.tso = true;
         self
     }
 
+    /// Enables checksum offload capability.
     pub fn with_checksum_offload(mut self) -> Self {
         self.capabilities.checksum_offload = true;
         self
     }
 
+    /// Sets whether the interface is enabled.
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 }
 
+/// Policy for selecting network interfaces for multichannel clients.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ChannelSelectionPolicy {
+    /// Distribute connections across interfaces in round-robin fashion
     #[default]
     RoundRobin,
+    /// Select fastest interfaces based on link speed
     WeightedBySpeed,
+    /// Prefer interfaces with RDMA capability
     PreferRdma,
+    /// Pin to a specific interface by name
     PinToInterface(String),
 }
 
+/// Configuration for SMB multichannel support.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultichannelConfig {
+    /// Whether multichannel is enabled
     pub enabled: bool,
+    /// Maximum number of channels per session
     pub max_channels: u32,
+    /// Minimum number of channels required
     pub min_channels: u32,
+    /// Whether to prefer RDMA-capable interfaces
     pub prefer_rdma: bool,
+    /// Available network interfaces
     pub interfaces: Vec<NicCapabilities>,
+    /// Policy for selecting interfaces
     pub channel_selection: ChannelSelectionPolicy,
 }
 
@@ -110,61 +146,82 @@ impl Default for MultichannelConfig {
 }
 
 impl MultichannelConfig {
+    /// Creates a new default configuration.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets whether multichannel is enabled.
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// Sets the maximum number of channels.
     pub fn with_max_channels(mut self, max: u32) -> Self {
         self.max_channels = max;
         self
     }
 
+    /// Sets the minimum number of channels.
     pub fn with_min_channels(mut self, min: u32) -> Self {
         self.min_channels = min;
         self
     }
 
+    /// Sets whether to prefer RDMA interfaces.
     pub fn with_prefer_rdma(mut self, prefer: bool) -> Self {
         self.prefer_rdma = prefer;
         self
     }
 
+    /// Sets the channel selection policy.
     pub fn with_channel_selection(mut self, policy: ChannelSelectionPolicy) -> Self {
         self.channel_selection = policy;
         self
     }
 
+    /// Adds a network interface to the configuration.
     pub fn with_interface(mut self, nic: NicCapabilities) -> Self {
         self.interfaces.push(nic);
         self
     }
 }
 
+/// Information about an active multichannel connection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChannelInfo {
+    /// Unique channel identifier
     pub channel_id: u32,
+    /// Network interface name
     pub interface: String,
+    /// Role of this channel
     pub role: MultichannelRole,
+    /// Whether this channel is currently active
     pub is_active: bool,
+    /// Total bytes sent on this channel
     pub bytes_sent: u64,
+    /// Total bytes received on this channel
     pub bytes_received: u64,
 }
 
+/// Represents a multichannel SMB session with multiple network connections.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultichannelSession {
+    /// Unique session identifier
     pub session_id: u64,
+    /// Active channels in this session
     pub channels: Vec<ChannelInfo>,
+    /// When the session was created
     pub created_at: SystemTime,
+    /// Total bytes sent across all channels
     pub total_bytes_sent: u64,
+    /// Total bytes received across all channels
     pub total_bytes_received: u64,
 }
 
 impl MultichannelSession {
+    /// Creates a new multichannel session.
     pub fn new(session_id: u64) -> Self {
         Self {
             session_id,
@@ -175,10 +232,12 @@ impl MultichannelSession {
         }
     }
 
+    /// Adds a new channel to this session.
     pub fn add_channel(&mut self, channel: ChannelInfo) {
         self.channels.push(channel);
     }
 
+    /// Updates transfer statistics for a channel.
     pub fn update_stats(&mut self, channel_id: u32, sent: u64, received: u64) {
         if let Some(ch) = self
             .channels
@@ -193,21 +252,30 @@ impl MultichannelSession {
     }
 }
 
+/// Errors that can occur in SMB multichannel operations.
 #[derive(Debug, Error)]
 pub enum MultichannelError {
+    /// Multichannel feature is disabled
     #[error("multichannel is not enabled in config")]
     Disabled,
+    /// Interface already registered with the same name
     #[error("interface already registered: {0}")]
     DuplicateInterface(String),
+    /// Invalid configuration parameter
     #[error("invalid configuration: {0}")]
     InvalidConfig(String),
+    /// No network interfaces available
     #[error("no enabled interfaces available")]
     NoInterfacesAvailable,
 }
 
+/// Manages SMB multichannel sessions and network interface selection.
 pub struct MultichannelManager {
+    /// Current configuration
     config: MultichannelConfig,
+    /// Active multichannel sessions
     sessions: HashMap<u64, MultichannelSession>,
+    /// Round-robin selection index
     round_robin_index: usize,
 }
 

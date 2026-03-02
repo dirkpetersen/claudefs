@@ -5,14 +5,19 @@ use std::collections::HashMap;
 use thiserror::Error;
 use tracing::debug;
 
+/// Target server for NFSv4.1 referral.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReferralTarget {
+    /// Server hostname or IP address.
     pub server: String,
+    /// NFS port number (typically 2049).
     pub port: u16,
+    /// Export path on the target server.
     pub export_path: String,
 }
 
 impl ReferralTarget {
+    /// Creates a new referral target.
     pub fn new(server: String, port: u16, export_path: String) -> Self {
         ReferralTarget {
             server,
@@ -21,6 +26,7 @@ impl ReferralTarget {
         }
     }
 
+    /// Validates the referral target configuration.
     pub fn validate(&self) -> Result<(), ReferralError> {
         if self.server.is_empty() {
             return Err(ReferralError::InvalidTarget(
@@ -43,24 +49,34 @@ impl ReferralTarget {
     }
 }
 
+/// Type of NFSv4.1 referral operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ReferralType {
+    /// Standard NFSv4.1 referral - client redirected to another server.
     #[default]
     Referral,
+    /// Client-initiated migration to new server.
     Migration,
+    /// Read-only replication for load balancing.
     Replication,
 }
 
+/// A referral entry mapping a local path to target servers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReferralEntry {
+    /// Local path that triggers the referral.
     pub local_path: String,
+    /// Target servers to refer clients to.
     pub targets: Vec<ReferralTarget>,
+    /// Whether the referral is currently active.
     pub enabled: bool,
+    /// Type of referral operation.
     pub referral_type: ReferralType,
 }
 
 impl ReferralEntry {
+    /// Creates a new referral entry.
     pub fn new(
         local_path: String,
         targets: Vec<ReferralTarget>,
@@ -74,6 +90,7 @@ impl ReferralEntry {
         }
     }
 
+    /// Validates the referral entry configuration.
     pub fn validate(&self) -> Result<(), ReferralError> {
         if !self.local_path.starts_with('/') {
             return Err(ReferralError::InvalidPath(format!(
@@ -97,61 +114,81 @@ impl ReferralEntry {
     }
 }
 
+/// Errors that can occur when managing referrals.
 #[derive(Debug, Error)]
 pub enum ReferralError {
+    /// A referral already exists for this path.
     #[error("referral already exists for path: {0}")]
     DuplicatePath(String),
+    /// The path format is invalid.
     #[error("invalid path: {0}")]
     InvalidPath(String),
+    /// No target servers specified.
     #[error("referral must have at least one target")]
     EmptyTargets,
+    /// The target server configuration is invalid.
     #[error("invalid target: {0}")]
     InvalidTarget(String),
 }
 
+/// Server information for fs_locations attribute.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FsServer {
+    /// Server hostname or IP.
     pub server: String,
+    /// Port number.
     pub port: u16,
 }
 
 impl FsServer {
+    /// Creates a new fs_server.
     pub fn new(server: String, port: u16) -> Self {
         FsServer { server, port }
     }
 }
 
+/// Location information for fs_locations attribute.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FsLocation {
+    /// Servers hosting this location.
     pub servers: Vec<FsServer>,
+    /// Root path components.
     pub rootpath: Vec<String>,
 }
 
 impl FsLocation {
+    /// Creates a new fs_location.
     pub fn new(servers: Vec<FsServer>, rootpath: Vec<String>) -> Self {
         FsLocation { servers, rootpath }
     }
 }
 
+/// NFSv4.1 fs_locations attribute structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FsLocations {
+    /// Root path components.
     pub root: Vec<String>,
+    /// Available locations.
     pub locations: Vec<FsLocation>,
 }
 
 impl FsLocations {
+    /// Creates a new fs_locations structure.
     pub fn new(root: Vec<String>, locations: Vec<FsLocation>) -> Self {
         FsLocations { root, locations }
     }
 }
 
+/// Serializes referral entries to NFSv4.1 fs_locations format.
 pub struct ReferralSerializer;
 
 impl ReferralSerializer {
+    /// Creates a new referral serializer.
     pub fn new() -> Self {
         ReferralSerializer
     }
 
+    /// Converts a referral entry to fs_locations format.
     pub fn to_fs_locations(&self, entry: &ReferralEntry) -> FsLocations {
         let root: Vec<String> = entry
             .local_path
@@ -185,17 +222,20 @@ impl Default for ReferralSerializer {
     }
 }
 
+/// Database storing referral configurations.
 pub struct ReferralDatabase {
     entries: HashMap<String, ReferralEntry>,
 }
 
 impl ReferralDatabase {
+    /// Creates a new empty referral database.
     pub fn new() -> Self {
         ReferralDatabase {
             entries: HashMap::new(),
         }
     }
 
+    /// Adds a referral entry to the database.
     pub fn add_referral(&mut self, entry: ReferralEntry) -> Result<(), ReferralError> {
         entry.validate()?;
 
@@ -207,15 +247,18 @@ impl ReferralDatabase {
         Ok(())
     }
 
+    /// Removes a referral by path.
     pub fn remove_referral(&mut self, path: &str) -> bool {
         self.entries.remove(path).is_some()
     }
 
+    /// Looks up a referral by exact path match.
     pub fn lookup(&self, path: &str) -> Option<&ReferralEntry> {
         debug!("Looking up referral for path: {}", path);
         self.entries.get(path)
     }
 
+    /// Looks up a referral by longest prefix match.
     pub fn lookup_by_prefix(&self, path: &str) -> Option<&ReferralEntry> {
         debug!("Looking up referral by prefix for path: {}", path);
 
@@ -239,10 +282,12 @@ impl ReferralDatabase {
         best_match.map(|(_, entry)| entry)
     }
 
+    /// Returns all referral entries.
     pub fn list_referrals(&self) -> Vec<&ReferralEntry> {
         self.entries.values().collect()
     }
 
+    /// Enables a referral by path.
     pub fn enable_referral(&mut self, path: &str) -> bool {
         if let Some(entry) = self.entries.get_mut(path) {
             entry.enabled = true;
@@ -252,6 +297,7 @@ impl ReferralDatabase {
         }
     }
 
+    /// Disables a referral by path.
     pub fn disable_referral(&mut self, path: &str) -> bool {
         if let Some(entry) = self.entries.get_mut(path) {
             entry.enabled = false;
@@ -261,6 +307,7 @@ impl ReferralDatabase {
         }
     }
 
+    /// Returns the number of referrals in the database.
     pub fn referral_count(&self) -> usize {
         self.entries.len()
     }

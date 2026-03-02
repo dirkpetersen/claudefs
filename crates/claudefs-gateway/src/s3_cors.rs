@@ -7,14 +7,20 @@ use std::sync::RwLock;
 /// CORS rule for an S3 bucket
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CorsRule {
+    /// Origins allowed to make requests (supports "*" wildcard)
     pub allowed_origins: Vec<String>,
+    /// HTTP methods allowed (GET, PUT, POST, DELETE, HEAD, etc.)
     pub allowed_methods: Vec<String>,
+    /// Headers allowed in requests (supports "*" wildcard)
     pub allowed_headers: Vec<String>,
+    /// Headers exposed to the browser
     pub expose_headers: Vec<String>,
+    /// How long browsers should cache preflight results (seconds)
     pub max_age_seconds: u32,
 }
 
 impl CorsRule {
+    /// Creates a new empty CORS rule with default max_age of 3600 seconds.
     pub fn new() -> Self {
         Self {
             allowed_origins: Vec::new(),
@@ -25,6 +31,7 @@ impl CorsRule {
         }
     }
 
+    /// Creates a permissive CORS rule that allows all origins, methods, and headers.
     pub fn allow_all() -> Self {
         Self {
             allowed_origins: vec!["*".to_string()],
@@ -41,10 +48,12 @@ impl CorsRule {
         }
     }
 
+    /// Checks if the given origin is allowed by this rule.
     pub fn matches_origin(&self, origin: &str) -> bool {
         self.allowed_origins.iter().any(|o| o == "*" || o == origin)
     }
 
+    /// Checks if the given HTTP method is allowed by this rule.
     pub fn allows_method(&self, method: &str) -> bool {
         let method_upper = method.to_uppercase();
         self.allowed_methods
@@ -52,6 +61,7 @@ impl CorsRule {
             .any(|m| m.to_uppercase() == method_upper)
     }
 
+    /// Checks if all given headers are allowed by this rule.
     pub fn allows_headers(&self, headers: &[&str]) -> bool {
         if self.allowed_headers.iter().any(|h| h == "*") {
             return true;
@@ -63,6 +73,7 @@ impl CorsRule {
         })
     }
 
+    /// Returns true if the rule has at least one origin and one method configured.
     pub fn is_valid(&self) -> bool {
         !self.allowed_origins.is_empty() && !self.allowed_methods.is_empty()
     }
@@ -77,28 +88,34 @@ impl Default for CorsRule {
 /// CORS configuration for a bucket
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CorsConfig {
+    /// CORS rules applied to this configuration
     pub rules: Vec<CorsRule>,
 }
 
 impl CorsConfig {
+    /// Creates a new empty CORS configuration.
     pub fn new() -> Self {
         Self { rules: Vec::new() }
     }
 
+    /// Adds a CORS rule to this configuration.
     pub fn add_rule(&mut self, rule: CorsRule) {
         self.rules.push(rule);
     }
 
+    /// Finds the first rule that matches the given origin and method.
     pub fn matching_rule(&self, origin: &str, method: &str) -> Option<&CorsRule> {
         self.rules
             .iter()
             .find(|r| r.matches_origin(origin) && r.allows_method(method))
     }
 
+    /// Returns true if this configuration has no rules.
     pub fn is_empty(&self) -> bool {
         self.rules.is_empty()
     }
 
+    /// Returns the number of rules in this configuration.
     pub fn rule_count(&self) -> usize {
         self.rules.len()
     }
@@ -113,22 +130,32 @@ impl Default for CorsConfig {
 /// CORS preflight request
 #[derive(Debug, Clone)]
 pub struct PreflightRequest {
+    /// Origin header from the request
     pub origin: String,
+    /// HTTP method being requested
     pub method: String,
+    /// Headers being requested
     pub headers: Vec<String>,
 }
 
 /// CORS preflight response
 #[derive(Debug, Clone)]
 pub struct PreflightResponse {
+    /// Allowed origin to include in response (None if denied)
     pub allowed_origin: Option<String>,
+    /// Methods allowed for the request
     pub allowed_methods: Vec<String>,
+    /// Headers allowed for the request
     pub allowed_headers: Vec<String>,
+    /// Headers exposed to the browser
     pub expose_headers: Vec<String>,
+    /// Cache duration for preflight response
     pub max_age: u32,
+    /// Whether the preflight request is allowed
     pub allowed: bool,
 }
 
+/// Handles a CORS preflight request by checking against the configuration.
 pub fn handle_preflight(config: &CorsConfig, req: &PreflightRequest) -> PreflightResponse {
     if let Some(rule) = config.matching_rule(&req.origin, &req.method) {
         let allowed_headers: Vec<String> = if rule.allowed_headers.iter().any(|h| h == "*") {
@@ -169,6 +196,7 @@ pub fn handle_preflight(config: &CorsConfig, req: &PreflightRequest) -> Prefligh
     }
 }
 
+/// Generates CORS response headers for a request based on the configuration.
 pub fn cors_response_headers(
     config: &CorsConfig,
     origin: &str,
@@ -200,12 +228,14 @@ pub struct CorsRegistry {
 }
 
 impl CorsRegistry {
+    /// Creates a new empty CORS registry.
     pub fn new() -> Self {
         Self {
             configs: RwLock::new(HashMap::new()),
         }
     }
 
+    /// Sets the CORS configuration for a bucket.
     pub fn set_config(&self, bucket: &str, config: CorsConfig) {
         self.configs
             .write()
@@ -213,14 +243,17 @@ impl CorsRegistry {
             .insert(bucket.to_string(), config);
     }
 
+    /// Gets the CORS configuration for a bucket, if one exists.
     pub fn get_config(&self, bucket: &str) -> Option<CorsConfig> {
         self.configs.read().unwrap().get(bucket).cloned()
     }
 
+    /// Removes the CORS configuration for a bucket. Returns true if config existed.
     pub fn remove_config(&self, bucket: &str) -> bool {
         self.configs.write().unwrap().remove(bucket).is_some()
     }
 
+    /// Handles a preflight request for a specific bucket.
     pub fn handle_preflight(&self, bucket: &str, req: &PreflightRequest) -> PreflightResponse {
         if let Some(config) = self.get_config(bucket) {
             handle_preflight(&config, req)

@@ -3,9 +3,12 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+/// Configuration for token bucket rate limiting.
 #[derive(Debug, Clone, Copy)]
 pub struct RateLimitConfig {
+    /// Maximum sustained requests per second allowed.
     pub requests_per_second: u32,
+    /// Maximum burst capacity (initial tokens available).
     pub burst_capacity: u32,
 }
 
@@ -19,18 +22,21 @@ impl Default for RateLimitConfig {
 }
 
 impl RateLimitConfig {
+    /// Creates a new rate limit config with specified parameters.
     pub fn new(requests_per_second: u32, burst_capacity: u32) -> Self {
         Self {
             requests_per_second,
             burst_capacity,
         }
     }
+    /// Conservative settings for low-throughput scenarios.
     pub fn conservative() -> Self {
         Self {
             requests_per_second: 100,
             burst_capacity: 500,
         }
     }
+    /// Generous settings for high-throughput scenarios.
     pub fn generous() -> Self {
         Self {
             requests_per_second: 10000,
@@ -74,20 +80,27 @@ impl TokenBucket {
     }
 }
 
+/// Statistics for a token's rate limiting behavior.
 #[derive(Debug, Clone)]
 pub struct RateLimiterStats {
+    /// Total requests attempted.
     pub total_requests: u64,
+    /// Requests rejected due to rate limiting.
     pub rejected_requests: u64,
+    /// Current available tokens in the bucket.
     pub current_tokens: f64,
+    /// Ratio of rejected to total requests (0.0 to 1.0).
     pub rejection_rate: f64,
 }
 
+/// Per-token S3 API rate limiter using token bucket algorithm.
 pub struct S3RateLimiter {
     buckets: Mutex<HashMap<String, TokenBucket>>,
     config: RateLimitConfig,
 }
 
 impl S3RateLimiter {
+    /// Creates a new rate limiter with the given config.
     pub fn new(config: RateLimitConfig) -> Self {
         Self {
             buckets: Mutex::new(HashMap::new()),
@@ -95,6 +108,7 @@ impl S3RateLimiter {
         }
     }
 
+    /// Attempts to consume a token for the given token hash. Returns true if allowed.
     pub fn try_request(&self, token_hash: &str, now: f64) -> bool {
         let mut buckets = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
         let bucket = buckets
@@ -103,6 +117,7 @@ impl S3RateLimiter {
         bucket.try_consume(now, &self.config)
     }
 
+    /// Returns statistics for the given token, or None if not tracked.
     pub fn stats(&self, token_hash: &str) -> Option<RateLimiterStats> {
         let buckets = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
         buckets.get(token_hash).map(|b| RateLimiterStats {
@@ -117,6 +132,7 @@ impl S3RateLimiter {
         })
     }
 
+    /// Removes stale token buckets idle for longer than max_idle_seconds. Returns count removed.
     pub fn evict_stale(&self, now: f64, max_idle_seconds: f64) -> usize {
         let mut buckets = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
         let before = buckets.len();
@@ -124,10 +140,12 @@ impl S3RateLimiter {
         before - buckets.len()
     }
 
+    /// Returns the number of currently tracked token buckets.
     pub fn tracked_count(&self) -> usize {
         self.buckets.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
+    /// Returns a reference to the rate limit configuration.
     pub fn config(&self) -> &RateLimitConfig {
         &self.config
     }

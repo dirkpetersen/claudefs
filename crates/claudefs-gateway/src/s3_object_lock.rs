@@ -25,14 +25,17 @@ pub enum ObjectLockStatus {
     Disabled,
 }
 
-/// Retention period specification
+/// Retention period specification (in days or years).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RetentionPeriod {
+    /// Retention period in days
     Days(u32),
+    /// Retention period in years
     Years(u32),
 }
 
 impl RetentionPeriod {
+    /// Converts the retention period to a Duration.
     pub fn to_duration(&self) -> Duration {
         match self {
             RetentionPeriod::Days(days) => Duration::from_secs(60 * 60 * 24 * *days as u64),

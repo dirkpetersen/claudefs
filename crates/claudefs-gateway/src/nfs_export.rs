@@ -2,29 +2,37 @@
 
 use crate::auth::SquashPolicy;
 
+/// Access mode for an NFS export.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum ExportAccess {
+    /// Only allow read operations
     #[default]
     ReadOnly,
+    /// Allow both read and write operations
     ReadWrite,
 }
 
+/// Client specification for export access control.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientSpec {
+    /// CIDR notation (e.g., "192.168.1.0/24" or "*" for any)
     pub cidr: String,
 }
 
 impl ClientSpec {
+    /// Creates a ClientSpec that matches any IP address.
     pub fn any() -> Self {
         Self {
             cidr: "*".to_string(),
         }
     }
+    /// Creates a ClientSpec from a CIDR string.
     pub fn from_cidr(cidr: &str) -> Self {
         Self {
             cidr: cidr.to_string(),
         }
     }
+    /// Checks if the given IP address is allowed by this client spec.
     pub fn allows(&self, ip: &str) -> bool {
         if self.cidr == "*" {
             return true;
@@ -33,19 +41,29 @@ impl ClientSpec {
     }
 }
 
+/// NFS export configuration.
 #[derive(Debug, Clone)]
 pub struct ExportConfig {
+    /// Actual filesystem path being exported
     pub path: String,
+    /// Export path as seen by NFS clients
     pub export_path: String,
+    /// List of allowed clients
     pub clients: Vec<ClientSpec>,
+    /// Access mode (read-only or read-write)
     pub access: ExportAccess,
+    /// Root squash policy
     pub squash: SquashPolicy,
+    /// UID to map remote root to (nobody)
     pub squash_uid: u32,
+    /// GID to map remote root to (nobody)
     pub squash_gid: u32,
+    /// Whether this export is hidden from clients
     pub hidden: bool,
 }
 
 impl ExportConfig {
+    /// Creates a new ExportConfig with the given paths.
     pub fn new(path: &str, export_path: &str) -> Self {
         Self {
             path: path.to_string(),

@@ -19,10 +19,12 @@ pub struct ProtocolStats {
 }
 
 impl ProtocolStats {
+    /// Creates a new ProtocolStats instance with zeroed counters.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Records a successful request, updating all counters.
     pub fn record_request(&self, bytes_in: u64, bytes_out: u64, latency_us: u64) {
         self.requests.fetch_add(1, Ordering::Relaxed);
         self.bytes_in.fetch_add(bytes_in, Ordering::Relaxed);
@@ -31,28 +33,34 @@ impl ProtocolStats {
             .fetch_add(latency_us, Ordering::Relaxed);
     }
 
+    /// Records a failed request.
     pub fn record_error(&self, latency_us: u64) {
         self.errors.fetch_add(1, Ordering::Relaxed);
         self.latency_us_total
             .fetch_add(latency_us, Ordering::Relaxed);
     }
 
+    /// Returns the total number of requests.
     pub fn requests(&self) -> u64 {
         self.requests.load(Ordering::Relaxed)
     }
 
+    /// Returns the total number of errors.
     pub fn errors(&self) -> u64 {
         self.errors.load(Ordering::Relaxed)
     }
 
+    /// Returns the total bytes received.
     pub fn bytes_in(&self) -> u64 {
         self.bytes_in.load(Ordering::Relaxed)
     }
 
+    /// Returns the total bytes sent.
     pub fn bytes_out(&self) -> u64 {
         self.bytes_out.load(Ordering::Relaxed)
     }
 
+    /// Returns the average latency in microseconds.
     pub fn avg_latency_us(&self) -> u64 {
         let reqs = self.requests.load(Ordering::Relaxed);
         if reqs == 0 {
@@ -62,6 +70,7 @@ impl ProtocolStats {
         total / reqs
     }
 
+    /// Returns the error rate as a fraction (0.0 to 1.0).
     pub fn error_rate(&self) -> f64 {
         let reqs = self.requests.load(Ordering::Relaxed);
         if reqs == 0 {
@@ -72,7 +81,7 @@ impl ProtocolStats {
     }
 }
 
-/// Gateway-wide aggregated statistics
+/// Gateway-wide aggregated statistics for all protocols.
 pub struct GatewayStats {
     /// NFSv3 protocol stats
     pub nfs3: ProtocolStats,
@@ -85,6 +94,7 @@ pub struct GatewayStats {
 }
 
 impl GatewayStats {
+    /// Creates a new GatewayStats instance with zeroed protocol counters.
     pub fn new() -> Self {
         Self {
             nfs3: ProtocolStats::new(),
@@ -94,26 +104,32 @@ impl GatewayStats {
         }
     }
 
+    /// Returns the server uptime in seconds.
     pub fn uptime_secs(&self) -> u64 {
         self.uptime_start.elapsed().as_secs()
     }
 
+    /// Returns the total requests across all protocols.
     pub fn total_requests(&self) -> u64 {
         self.nfs3.requests() + self.s3.requests() + self.smb3.requests()
     }
 
+    /// Returns the total errors across all protocols.
     pub fn total_errors(&self) -> u64 {
         self.nfs3.errors() + self.s3.errors() + self.smb3.errors()
     }
 
+    /// Returns the total bytes received across all protocols.
     pub fn total_bytes_in(&self) -> u64 {
         self.nfs3.bytes_in() + self.s3.bytes_in() + self.smb3.bytes_in()
     }
 
+    /// Returns the total bytes sent across all protocols.
     pub fn total_bytes_out(&self) -> u64 {
         self.nfs3.bytes_out() + self.s3.bytes_out() + self.smb3.bytes_out()
     }
 
+    /// Returns the overall error rate across all protocols.
     pub fn overall_error_rate(&self) -> f64 {
         let total = self.total_requests();
         if total == 0 {
@@ -122,6 +138,7 @@ impl GatewayStats {
         self.total_errors() as f64 / total as f64
     }
 
+    /// Returns Prometheus exposition format string for all metrics.
     pub fn to_prometheus(&self) -> String {
         let mut output = String::new();
 

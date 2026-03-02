@@ -5,7 +5,7 @@ use rand::RngCore;
 use std::collections::HashMap;
 use thiserror::Error;
 
-/// Delegation type
+/// Delegation type - specifies what operations are delegated to the client.
 pub enum DelegationType {
     /// Read delegation allows caching for read operations
     Read,
@@ -13,39 +13,54 @@ pub enum DelegationType {
     Write,
 }
 
-/// Delegation state
+/// Delegation state - current status of the delegation.
 pub enum DelegationState {
+    /// Delegation has been granted to the client
     Granted,
+    /// Client has been asked to recall the delegation
     RecallPending,
+    /// Delegation has been returned to the server
     Returned,
+    /// Delegation has been revoked by the server
     Revoked,
 }
 
+/// Unique identifier for a delegation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DelegationId(pub [u8; 16]);
 
 impl DelegationId {
+    /// Generates a new random delegation ID.
     pub fn generate() -> Self {
         let mut bytes = [0u8; 16];
         thread_rng().fill_bytes(&mut bytes);
         DelegationId(bytes)
     }
 
+    /// Returns the delegation ID as a hex string.
     pub fn as_hex(&self) -> String {
         self.0.iter().map(|b| format!("{:02x}", b)).collect()
     }
 }
 
+/// NFSv4 delegation - grants a client the right to cache file data.
 pub struct Delegation {
+    /// Unique delegation identifier
     pub id: DelegationId,
+    /// File inode number
     pub file_id: u64,
+    /// Client identifier
     pub client_id: u64,
+    /// Type of delegation (read or write)
     pub delegation_type: DelegationType,
+    /// Current state of the delegation
     pub state: DelegationState,
+    /// Timestamp when delegation was granted (milliseconds since epoch)
     pub granted_at_ms: u64,
 }
 
 impl Delegation {
+    /// Creates a new delegation with the given parameters.
     pub fn new(file_id: u64, client_id: u64, delegation_type: DelegationType) -> Self {
         Delegation {
             id: DelegationId::generate(),
@@ -57,6 +72,7 @@ impl Delegation {
         }
     }
 
+    /// Returns true if the delegation is currently active (granted).
     pub fn is_active(&self) -> bool {
         matches!(self.state, DelegationState::Granted)
     }

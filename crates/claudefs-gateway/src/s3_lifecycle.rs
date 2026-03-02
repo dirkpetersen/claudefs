@@ -12,13 +12,21 @@ use tracing::{debug, warn};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StorageClass {
+    /// Standard storage class - frequent access
     Standard,
+    /// Intelligent-Tiering - auto-optimizes based on access patterns
     IntelligentTiering,
+    /// Standard-Infrequent Access - for rarely accessed data
     StandardIa,
+    /// Glacier Instant Retrieval - quick access archive
     GlacierIr,
+    /// Glacier - long-term archive, retrieval in minutes
     Glacier,
+    /// Glacier Deep Archive - cheapest, retrieval in hours
     DeepArchive,
+    /// ClaudeFS flash tier - NVMe storage
     CfsFlash,
+    /// ClaudeFS capacity tier - S3 object storage
     CfsCapacity,
 }
 
@@ -26,13 +34,18 @@ pub enum StorageClass {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleFilter {
+    /// Object key prefix filter - matches objects starting with this prefix
     pub prefix: Option<String>,
+    /// Tag filter - matches objects with this exact tag key/value pair
     pub tag: Option<(String, String)>,
+    /// Minimum object size in bytes - only matches objects larger than this
     pub object_size_greater_than: Option<u64>,
+    /// Maximum object size in bytes - only matches objects smaller than this
     pub object_size_less_than: Option<u64>,
 }
 
 impl LifecycleFilter {
+    /// Creates a new filter that matches all objects
     pub fn new() -> Self {
         Self {
             prefix: None,
@@ -42,6 +55,7 @@ impl LifecycleFilter {
         }
     }
 
+    /// Creates a new filter that matches objects with the given key prefix
     pub fn with_prefix(prefix: impl Into<String>) -> Self {
         Self {
             prefix: Some(prefix.into()),
@@ -51,6 +65,7 @@ impl LifecycleFilter {
         }
     }
 
+    /// Tests if this filter matches the given object
     pub fn matches(&self, key: &str, size: u64, tags: &[(String, String)]) -> bool {
         if let Some(ref prefix) = self.prefix {
             if !key.starts_with(prefix) {
@@ -104,7 +119,9 @@ impl Default for LifecycleFilter {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransitionAction {
+    /// Number of days after creation before transitioning
     pub days: u32,
+    /// Target storage class for the transition
     pub storage_class: StorageClass,
 }
 
@@ -112,11 +129,14 @@ pub struct TransitionAction {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpirationAction {
+    /// Number of days after creation before expiration
     pub days: u32,
+    /// Whether to also expire delete markers for objects without version IDs
     pub expire_object_delete_markers: bool,
 }
 
 impl ExpirationAction {
+    /// Creates a new expiration action for the given number of days
     pub fn new(days: u32) -> Self {
         Self {
             days,
@@ -124,6 +144,7 @@ impl ExpirationAction {
         }
     }
 
+    /// Sets whether to expire delete markers
     pub fn with_delete_markers(mut self, expire: bool) -> Self {
         self.expire_object_delete_markers = expire;
         self
@@ -134,7 +155,9 @@ impl ExpirationAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RuleStatus {
+    /// Rule is active and will be applied
     Enabled,
+    /// Rule is inactive and will be ignored
     Disabled,
 }
 
@@ -142,14 +165,20 @@ pub enum RuleStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleRule {
+    /// Unique identifier for this rule within the configuration
     pub id: String,
+    /// Filter that determines which objects this rule applies to
     pub filter: LifecycleFilter,
+    /// Whether the rule is enabled or disabled
     pub status: RuleStatus,
+    /// Ordered list of storage class transitions to apply
     pub transitions: Vec<TransitionAction>,
+    /// Optional expiration action for deleting objects
     pub expiration: Option<ExpirationAction>,
 }
 
 impl LifecycleRule {
+    /// Creates a new lifecycle rule with the given ID
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),
@@ -160,10 +189,12 @@ impl LifecycleRule {
         }
     }
 
+    /// Returns true if this rule is currently enabled
     pub fn is_enabled(&self) -> bool {
         self.status == RuleStatus::Enabled
     }
 
+    /// Returns the next transition action that should be applied based on object age
     pub fn next_transition(&self, days_old: u32) -> Option<&TransitionAction> {
         self.transitions
             .iter()
@@ -171,6 +202,7 @@ impl LifecycleRule {
             .max_by_key(|t| t.days)
     }
 
+    /// Returns true if the object should be expired based on its age
     pub fn is_expired(&self, days_old: u32) -> bool {
         match self.expiration {
             Some(exp) => days_old >= exp.days,
@@ -183,14 +215,17 @@ impl LifecycleRule {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleConfiguration {
+    /// List of lifecycle rules for this configuration
     pub rules: Vec<LifecycleRule>,
 }
 
 impl LifecycleConfiguration {
+    /// Creates a new empty lifecycle configuration
     pub fn new() -> Self {
         Self { rules: Vec::new() }
     }
 
+    /// Adds a rule to this configuration
     pub fn add_rule(&mut self, rule: LifecycleRule) -> Result<(), LifecycleError> {
         if self.rules.len() >= 1000 {
             warn!("too many lifecycle rules: {}", self.rules.len() + 1);
@@ -218,6 +253,7 @@ impl LifecycleConfiguration {
         Ok(())
     }
 
+    /// Removes a rule by ID, returns true if a rule was removed
     pub fn remove_rule(&mut self, id: &str) -> bool {
         let len_before = self.rules.len();
         self.rules.retain(|r| r.id != id);
@@ -228,14 +264,17 @@ impl LifecycleConfiguration {
         removed
     }
 
+    /// Gets a rule by ID
     pub fn get_rule(&self, id: &str) -> Option<&LifecycleRule> {
         self.rules.iter().find(|r| r.id == id)
     }
 
+    /// Returns an iterator over all enabled rules
     pub fn enabled_rules(&self) -> impl Iterator<Item = &LifecycleRule> {
         self.rules.iter().filter(|r| r.is_enabled())
     }
 
+    /// Returns all applicable transition actions for an object based on its attributes and age
     pub fn applicable_transitions(
         &self,
         key: &str,
@@ -254,6 +293,7 @@ impl LifecycleConfiguration {
             .collect()
     }
 
+    /// Returns true if the object should be expired based on applicable rules
     pub fn is_object_expired(
         &self,
         key: &str,
@@ -273,21 +313,25 @@ pub struct LifecycleRegistry {
 }
 
 impl LifecycleRegistry {
+    /// Creates a new empty lifecycle registry
     pub fn new() -> Self {
         Self {
             configs: HashMap::new(),
         }
     }
 
+    /// Sets the lifecycle configuration for a bucket
     pub fn set_config(&mut self, bucket: &str, config: LifecycleConfiguration) {
         debug!("setting lifecycle config for bucket: {}", bucket);
         self.configs.insert(bucket.to_string(), config);
     }
 
+    /// Gets the lifecycle configuration for a bucket
     pub fn get_config(&self, bucket: &str) -> Option<&LifecycleConfiguration> {
         self.configs.get(bucket)
     }
 
+    /// Deletes the lifecycle configuration for a bucket
     pub fn delete_config(&mut self, bucket: &str) -> bool {
         let removed = self.configs.remove(bucket).is_some();
         if removed {
@@ -296,6 +340,7 @@ impl LifecycleRegistry {
         removed
     }
 
+    /// Returns the number of buckets with lifecycle configurations
     pub fn bucket_count(&self) -> usize {
         self.configs.len()
     }
@@ -304,12 +349,16 @@ impl LifecycleRegistry {
 /// Errors for lifecycle operations
 #[derive(Debug, thiserror::Error)]
 pub enum LifecycleError {
+    /// Tried to add more than 1000 rules to a configuration
     #[error("too many rules: maximum 1000, got {0}")]
     TooManyRules(usize),
+    /// A rule with this ID already exists in the configuration
     #[error("duplicate rule id: {0}")]
     DuplicateRuleId(String),
+    /// Rule has neither transitions nor expiration defined
     #[error("rule {0} has no actions (needs at least one transition or expiration)")]
     NoActions(String),
+    /// Transition days value must be greater than zero
     #[error("invalid transition: days must be > 0, got {0}")]
     InvalidDays(u32),
 }

@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::debug;
 
 /// S3 storage classes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
