@@ -1,47 +1,87 @@
 use crate::error::{FuseError, Result};
 use std::collections::HashMap;
 
+/// Type alias for inode identifiers (inode numbers).
 pub type InodeId = u64;
+
+/// The root inode number in a POSIX filesystem.
 pub const ROOT_INODE: InodeId = 1;
 
+/// Type of inode (file classification).
+///
+/// Corresponds to S_ISREG, S_ISDIR, S_ISLNK, etc. in POSIX.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InodeKind {
+    /// Regular file
     File,
+    /// Directory
     Directory,
+    /// Symbolic link
     Symlink,
+    /// Block device
     BlockDevice,
+    /// Character device
     CharDevice,
+    /// First-in-first-out (named pipe)
     Fifo,
+    /// Unix domain socket
     Socket,
 }
 
+/// In-memory representation of an inode and its metadata.
+///
+/// Stores all POSIX attributes plus internal tracking for directory hierarchy
+/// and reference counting.
 #[derive(Debug, Clone)]
 pub struct InodeEntry {
+    /// Inode number (unique within filesystem)
     pub ino: InodeId,
+    /// Parent directory inode number
     pub parent: InodeId,
+    /// Name of this entry in the parent directory
     pub name: String,
+    /// Type of inode
     pub kind: InodeKind,
+    /// File size in bytes
     pub size: u64,
+    /// Hard link count
     pub nlink: u32,
+    /// Owner user ID
     pub uid: u32,
+    /// Owner group ID
     pub gid: u32,
+    /// File mode (permissions and type bits combined)
     pub mode: u32,
+    /// Access time (seconds since epoch)
     pub atime_secs: i64,
+    /// Access time (nanoseconds component)
     pub atime_nsecs: u32,
+    /// Modification time (seconds since epoch)
     pub mtime_secs: i64,
+    /// Modification time (nanoseconds component)
     pub mtime_nsecs: u32,
+    /// Change time (seconds since epoch)
     pub ctime_secs: i64,
+    /// Change time (nanoseconds component)
     pub ctime_nsecs: u32,
+    /// List of child inode numbers (for directories)
     pub children: Vec<InodeId>,
+    /// Lookup reference count for kernel cache management
     pub lookup_count: u64,
 }
 
+/// In-memory table managing all inode entries.
+///
+/// Handles inode allocation, hierarchy management, and reference counting.
 pub struct InodeTable {
+    /// Mapping from inode number to inode entry
     pub(crate) entries: HashMap<InodeId, InodeEntry>,
+    /// Next inode number to allocate
     next_ino: InodeId,
 }
 
 impl InodeTable {
+    /// Creates a new inode table with the root directory pre-populated.
     pub fn new() -> Self {
         let mut table = InodeTable {
             entries: HashMap::new(),
@@ -51,6 +91,7 @@ impl InodeTable {
         table
     }
 
+    /// Creates the root directory inode (inode 1) with standard attributes.
     fn create_root(&mut self) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -77,6 +118,10 @@ impl InodeTable {
         self.entries.insert(ROOT_INODE, entry);
     }
 
+    /// Allocates a new inode and adds it to the table.
+    ///
+    /// Automatically updates the parent directory's children list and handles
+    /// nlink updates for directory entries.
     pub fn alloc(
         &mut self,
         parent: InodeId,
@@ -133,14 +178,19 @@ impl InodeTable {
         Ok(ino)
     }
 
+    /// Looks up an inode by number.
     pub fn get(&self, ino: InodeId) -> Option<&InodeEntry> {
         self.entries.get(&ino)
     }
 
+    /// Looks up an inode by number for mutable access.
     pub fn get_mut(&mut self, ino: InodeId) -> Option<&mut InodeEntry> {
         self.entries.get_mut(&ino)
     }
 
+    /// Looks up a child entry by name in a directory.
+    ///
+    /// Returns the child inode number if found, None otherwise.
     pub fn lookup_child(&self, parent: InodeId, name: &str) -> Option<InodeId> {
         self.entries.get(&parent).and_then(|p| {
             if !matches!(p.kind, InodeKind::Directory) {
@@ -157,6 +207,10 @@ impl InodeTable {
         })
     }
 
+    /// Removes an inode from the table.
+    ///
+    /// Fails if the inode is a non-empty directory.
+    /// Updates parent directory's children list and nlink.
     pub fn remove(&mut self, ino: InodeId) -> Result<()> {
         let entry = self.entries.get(&ino).ok_or(FuseError::NotFound { ino })?;
 
@@ -174,12 +228,14 @@ impl InodeTable {
         Ok(())
     }
 
+    /// Increments the kernel cache lookup count for an inode.
     pub fn add_lookup(&mut self, ino: InodeId) {
         if let Some(entry) = self.entries.get_mut(&ino) {
             entry.lookup_count += 1;
         }
     }
 
+    /// Decrements the kernel cache lookup count and removes inode if count reaches zero.
     pub fn forget(&mut self, ino: InodeId, n: u64) {
         let should_remove = if let Some(entry) = self.entries.get_mut(&ino) {
             entry.lookup_count = entry.lookup_count.saturating_sub(n);
@@ -192,20 +248,24 @@ impl InodeTable {
         }
     }
 
+    /// Returns the number of inodes in the table.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Returns true if the table is empty.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// Increments the hard link count of an inode.
     pub fn inc_nlink(&mut self, ino: InodeId) {
         if let Some(entry) = self.entries.get_mut(&ino) {
             entry.nlink += 1;
         }
     }
 
+    /// Adds a child to a directory's children list.
     pub fn add_child(&mut self, parent: InodeId, child: InodeId) {
         if let Some(parent_entry) = self.entries.get_mut(&parent) {
             if matches!(parent_entry.kind, InodeKind::Directory) {
@@ -214,6 +274,10 @@ impl InodeTable {
         }
     }
 
+    /// Creates a hard link to an existing inode in a new directory.
+    ///
+    /// Fails if the inode is a directory or if the new parent is not a directory.
+    /// Updates both the inode's nlink and the parent's children list.
     pub fn link_to(&mut self, ino: InodeId, newparent: InodeId, name: &str) -> Result<()> {
         let entry = self.entries.get(&ino).ok_or(FuseError::NotFound { ino })?;
 
