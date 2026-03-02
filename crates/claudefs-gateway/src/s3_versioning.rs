@@ -362,15 +362,19 @@ impl Default for VersioningRegistry {
 /// Errors for versioning operations
 #[derive(Debug, Error)]
 pub enum VersioningError {
+    /// The specified bucket does not exist
     #[error("bucket {0} does not exist")]
     BucketNotFound(String),
 
+    /// The specified version was not found for the given key
     #[error("version {0} not found for key {1}")]
     VersionNotFound(String, String),
 
+    /// MFA delete is enabled but MFA token was not provided
     #[error("MFA delete required but not provided")]
     MfaDeleteRequired,
 
+    /// Cannot modify versioning because bucket has existing versioned objects
     #[error("cannot modify versioning: bucket has existing versions")]
     BucketHasVersions,
 }

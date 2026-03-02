@@ -19,10 +19,15 @@ pub enum WriteStability {
 /// A pending write operation
 #[derive(Debug, Clone)]
 pub struct PendingWrite {
+    /// File handle key identifying the file
     pub fh_key: Vec<u8>,
+    /// Byte offset where write starts
     pub offset: u64,
+    /// Number of bytes written
     pub count: u32,
+    /// Stability level of the write
     pub stability: WriteStability,
+    /// Write verifier for this operation
     pub verf: u64,
 }
 
@@ -34,6 +39,7 @@ pub struct WriteTracker {
 }
 
 impl WriteTracker {
+    /// Creates a new WriteTracker with the given verifier.
     pub fn new(verf: u64) -> Self {
         Self {
             pending: Mutex::new(HashMap::new()),
@@ -42,6 +48,7 @@ impl WriteTracker {
         }
     }
 
+    /// Records a pending write operation for tracking.
     pub fn record_write(
         &self,
         fh_key: Vec<u8>,
@@ -63,11 +70,13 @@ impl WriteTracker {
         self.total_pending.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Returns all pending writes for a given file handle.
     pub fn pending_writes(&self, fh_key: &[u8]) -> Vec<PendingWrite> {
         let pending = self.pending.lock().unwrap();
         pending.get(fh_key).cloned().unwrap_or_default()
     }
 
+    /// Commits all pending writes for a file handle and returns the verifier.
     pub fn commit(&self, fh_key: &[u8]) -> u64 {
         let mut pending = self.pending.lock().unwrap();
         let count = pending.remove(fh_key).map(|v| v.len()).unwrap_or(0);
@@ -76,6 +85,7 @@ impl WriteTracker {
         self.write_verf
     }
 
+    /// Commits all pending writes across all files and returns the verifier.
     pub fn commit_all(&self) -> u64 {
         let mut pending = self.pending.lock().unwrap();
         let _count: usize = pending.values().map(|v| v.len()).sum();
@@ -84,24 +94,29 @@ impl WriteTracker {
         self.write_verf
     }
 
+    /// Returns true if there are any pending writes for the given file handle.
     pub fn has_pending_writes(&self, fh_key: &[u8]) -> bool {
         let pending = self.pending.lock().unwrap();
         pending.get(fh_key).map(|v| !v.is_empty()).unwrap_or(false)
     }
 
+    /// Returns the number of pending writes for a given file handle.
     pub fn pending_count(&self, fh_key: &[u8]) -> usize {
         let pending = self.pending.lock().unwrap();
         pending.get(fh_key).map(|v| v.len()).unwrap_or(0)
     }
 
+    /// Returns the total number of pending writes across all files.
     pub fn total_pending(&self) -> u64 {
         self.total_pending.load(Ordering::Relaxed)
     }
 
+    /// Returns the write verifier used by this tracker.
     pub fn write_verf(&self) -> u64 {
         self.write_verf
     }
 
+    /// Removes all pending writes for a given file handle.
     pub fn remove_file(&self, fh_key: &[u8]) {
         let mut pending = self.pending.lock().unwrap();
         let count = pending.remove(fh_key).map(|v| v.len()).unwrap_or(0);

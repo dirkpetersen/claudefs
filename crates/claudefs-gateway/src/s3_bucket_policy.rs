@@ -64,20 +64,27 @@ impl S3Action {
 /// A principal that can be granted access
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Principal {
+    /// Allow access from any principal
     Any,
+    /// Allow access from a specific user ID
     User(u32),
+    /// Allow access from any user in a specific group ID
     Group(u32),
+    /// Allow access from a specific AWS account ID
     AccountId(String),
 }
 
 /// A resource pattern (e.g., "mybucket/*" or "mybucket/prefix/*")
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resource {
+    /// The bucket name, or "*" for all buckets
     pub bucket: String,
+    /// The key pattern (e.g., "*" or "prefix/*")
     pub key_pattern: String,
 }
 
 impl Resource {
+    /// Creates a new resource with the given bucket and key pattern.
     pub fn new(bucket: &str, key_pattern: &str) -> Self {
         Self {
             bucket: bucket.to_string(),
@@ -85,6 +92,7 @@ impl Resource {
         }
     }
 
+    /// Creates a resource that matches all keys in a bucket.
     pub fn bucket_only(bucket: &str) -> Self {
         Self {
             bucket: bucket.to_string(),
@@ -92,6 +100,7 @@ impl Resource {
         }
     }
 
+    /// Creates a resource that matches all buckets and all keys.
     pub fn all_buckets() -> Self {
         Self {
             bucket: "*".to_string(),
@@ -99,6 +108,7 @@ impl Resource {
         }
     }
 
+    /// Checks if this resource matches the given bucket and key.
     pub fn matches(&self, bucket: &str, key: &str) -> bool {
         if self.bucket != "*" && self.bucket != bucket {
             return false;
@@ -121,14 +131,20 @@ impl Resource {
 /// A policy statement
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PolicyStatement {
+    /// Whether this statement allows or denies access
     pub effect: PolicyEffect,
+    /// The principals this statement applies to
     pub principals: Vec<Principal>,
+    /// The actions this statement allows or denies
     pub actions: Vec<S3Action>,
+    /// The resources this statement applies to
     pub resources: Vec<Resource>,
+    /// Optional condition expression (currently unused)
     pub condition: Option<String>,
 }
 
 impl PolicyStatement {
+    /// Creates a statement that allows public access to all resources.
     pub fn allow_all_public() -> Self {
         Self {
             effect: PolicyEffect::Allow,
@@ -139,6 +155,7 @@ impl PolicyStatement {
         }
     }
 
+    /// Creates a statement that denies all access.
     pub fn deny_all() -> Self {
         Self {
             effect: PolicyEffect::Deny,
@@ -149,6 +166,7 @@ impl PolicyStatement {
         }
     }
 
+    /// Creates a statement that allows a user to read from a bucket.
     pub fn allow_user_read(uid: u32, bucket: &str) -> Self {
         Self {
             effect: PolicyEffect::Allow,
@@ -159,6 +177,7 @@ impl PolicyStatement {
         }
     }
 
+    /// Creates a statement that allows a user to write to a bucket.
     pub fn allow_user_write(uid: u32, bucket: &str) -> Self {
         Self {
             effect: PolicyEffect::Allow,
@@ -169,6 +188,7 @@ impl PolicyStatement {
         }
     }
 
+    /// Checks if this statement applies to the given request.
     pub fn applies(&self, uid: u32, action: &S3Action, bucket: &str, key: &str) -> bool {
         let principal_matches = self.principals.iter().any(|p| match p {
             Principal::Any => true,
@@ -197,11 +217,14 @@ impl PolicyStatement {
 /// A bucket policy containing multiple statements
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BucketPolicy {
+    /// The policy version string
     pub version: String,
+    /// The list of policy statements
     pub statements: Vec<PolicyStatement>,
 }
 
 impl BucketPolicy {
+    /// Creates a new empty bucket policy.
     pub fn new() -> Self {
         Self {
             version: "2012-10-17".to_string(),
@@ -209,11 +232,13 @@ impl BucketPolicy {
         }
     }
 
+    /// Adds a statement to this policy and returns self for chaining.
     pub fn add_statement(&mut self, stmt: PolicyStatement) -> &mut Self {
         self.statements.push(stmt);
         self
     }
 
+    /// Checks if the given request is allowed by this policy.
     pub fn is_allowed(&self, uid: u32, action: &S3Action, bucket: &str, key: &str) -> bool {
         let mut has_deny = false;
 
@@ -237,6 +262,7 @@ impl BucketPolicy {
         false
     }
 
+    /// Serializes the policy to JSON format.
     pub fn to_json(&self) -> String {
         let mut json = String::from("{\"version\":\"");
         json.push_str(&self.version);
@@ -302,10 +328,12 @@ impl BucketPolicy {
         json
     }
 
+    /// Returns true if the policy has no statements.
     pub fn is_empty(&self) -> bool {
         self.statements.is_empty()
     }
 
+    /// Returns the number of statements in this policy.
     pub fn statement_count(&self) -> usize {
         self.statements.len()
     }
@@ -323,22 +351,26 @@ pub struct BucketPolicyRegistry {
 }
 
 impl BucketPolicyRegistry {
+    /// Creates a new empty bucket policy registry.
     pub fn new() -> Self {
         Self {
             policies: RwLock::new(HashMap::new()),
         }
     }
 
+    /// Sets the policy for a bucket.
     pub fn set_policy(&self, bucket: &str, policy: BucketPolicy) {
         if let Ok(mut policies) = self.policies.write() {
             policies.insert(bucket.to_string(), policy);
         }
     }
 
+    /// Gets the policy for a bucket, if one exists.
     pub fn get_policy(&self, bucket: &str) -> Option<BucketPolicy> {
         self.policies.read().ok()?.get(bucket).cloned()
     }
 
+    /// Removes and returns true if a policy existed for the bucket.
     pub fn remove_policy(&self, bucket: &str) -> bool {
         if let Ok(mut policies) = self.policies.write() {
             policies.remove(bucket).is_some()
@@ -347,6 +379,7 @@ impl BucketPolicyRegistry {
         }
     }
 
+    /// Checks if the given request is allowed for the bucket.
     pub fn is_allowed(&self, uid: u32, action: &S3Action, bucket: &str, key: &str) -> bool {
         if let Ok(policies) = self.policies.read() {
             if let Some(policy) = policies.get(bucket) {
@@ -356,6 +389,7 @@ impl BucketPolicyRegistry {
         true
     }
 
+    /// Returns the number of buckets with policies.
     pub fn bucket_count(&self) -> usize {
         self.policies.read().map(|p| p.len()).unwrap_or(0)
     }

@@ -77,42 +77,53 @@ impl Delegation {
         matches!(self.state, DelegationState::Granted)
     }
 
+    /// Initiates recall of this delegation, requesting the client to return it.
     pub fn initiate_recall(&mut self) {
         if matches!(self.state, DelegationState::Granted) {
             self.state = DelegationState::RecallPending;
         }
     }
 
+    /// Marks the delegation as returned by the client.
     pub fn mark_returned(&mut self) {
         self.state = DelegationState::Returned;
     }
 
+    /// Revokes the delegation from the client.
     pub fn revoke(&mut self) {
         self.state = DelegationState::Revoked;
     }
 }
 
+/// Errors that can occur when managing delegations.
 #[derive(Debug, Error)]
 pub enum DelegationError {
+    /// The requested delegation was not found.
     #[error("delegation not found")]
     NotFound,
+    /// A write delegation already exists for this file.
     #[error("write delegation conflict: file {0} already has a write delegation")]
     WriteConflict(u64),
+    /// The delegation has already been returned.
     #[error("delegation already returned")]
     AlreadyReturned,
 }
 
+/// Manages NFSv4 delegations for all files and clients.
 pub struct DelegationManager {
     delegations: HashMap<DelegationId, Delegation>,
 }
 
 impl DelegationManager {
+    /// Creates a new empty delegation manager.
     pub fn new() -> Self {
         DelegationManager {
             delegations: HashMap::new(),
         }
     }
 
+    /// Grants a delegation to a client for a file.
+    /// Returns the delegation ID on success, or an error if a write conflict exists.
     pub fn grant(
         &mut self,
         file_id: u64,
@@ -134,10 +145,12 @@ impl DelegationManager {
         Ok(id)
     }
 
+    /// Retrieves a delegation by its ID.
     pub fn get(&self, id: &DelegationId) -> Option<&Delegation> {
         self.delegations.get(id)
     }
 
+    /// Marks a delegation as returned by the client.
     pub fn return_delegation(&mut self, id: &DelegationId) -> Result<(), DelegationError> {
         let delegation = self
             .delegations
@@ -152,6 +165,7 @@ impl DelegationManager {
         Ok(())
     }
 
+    /// Recalls all delegations for a file, returning IDs of recalled delegations.
     pub fn recall_file(&mut self, file_id: u64) -> Vec<DelegationId> {
         let mut result = Vec::new();
         for (id, del) in self.delegations.iter_mut() {
@@ -163,6 +177,7 @@ impl DelegationManager {
         result
     }
 
+    /// Revokes all delegations held by a client, returning IDs of revoked delegations.
     pub fn revoke_client(&mut self, client_id: u64) -> Vec<DelegationId> {
         let mut result = Vec::new();
         for (id, del) in self.delegations.iter_mut() {
@@ -174,14 +189,17 @@ impl DelegationManager {
         result
     }
 
+    /// Returns the number of active (granted) delegations.
     pub fn active_count(&self) -> usize {
         self.delegations.values().filter(|d| d.is_active()).count()
     }
 
+    /// Returns the total number of delegations (including returned/revoked).
     pub fn total_count(&self) -> usize {
         self.delegations.len()
     }
 
+    /// Returns all delegations for a file (regardless of state).
     pub fn file_delegations(&self, file_id: u64) -> Vec<&Delegation> {
         self.delegations
             .values()

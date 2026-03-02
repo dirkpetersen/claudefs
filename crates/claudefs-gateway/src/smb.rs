@@ -59,36 +59,59 @@ impl OpenFlags {
     }
 }
 
+/// SMB file metadata.
 #[derive(Debug, Clone)]
 pub struct SmbFileStat {
+    /// File size in bytes.
     pub size: u64,
+    /// Owner user ID.
     pub uid: u32,
+    /// Owner group ID.
     pub gid: u32,
+    /// File mode/permissions.
     pub mode: u32,
+    /// Inode number.
     pub inode: u64,
+    /// Last access time in nanoseconds since epoch.
     pub atime_ns: u64,
+    /// Last modification time in nanoseconds since epoch.
     pub mtime_ns: u64,
+    /// Last metadata change time in nanoseconds since epoch.
     pub ctime_ns: u64,
 }
 
+/// Directory entry with name and metadata.
 #[derive(Debug, Clone)]
 pub struct SmbDirEntry {
+    /// File name.
     pub name: String,
+    /// File metadata.
     pub stat: SmbFileStat,
 }
 
+/// Virtual filesystem operations for SMB.
 pub trait SmbVfsOps: Send + Sync {
+    /// Opens a file.
     fn smb_open(&self, auth: &SmbAuthInfo, path: &str, flags: OpenFlags) -> Result<SmbFileId>;
+    /// Closes a file.
     fn smb_close(&self, file_id: SmbFileId) -> Result<()>;
+    /// Reads from a file.
     fn smb_read(&self, file_id: SmbFileId, offset: u64, len: u32) -> Result<Vec<u8>>;
+    /// Writes to a file.
     fn smb_write(&self, file_id: SmbFileId, offset: u64, data: &[u8]) -> Result<u32>;
+    /// Gets file metadata.
     fn smb_stat(&self, auth: &SmbAuthInfo, path: &str) -> Result<SmbFileStat>;
+    /// Creates a directory.
     fn smb_mkdir(&self, auth: &SmbAuthInfo, path: &str) -> Result<()>;
+    /// Removes a file.
     fn smb_unlink(&self, auth: &SmbAuthInfo, path: &str) -> Result<()>;
+    /// Renames a file.
     fn smb_rename(&self, auth: &SmbAuthInfo, from: &str, to: &str) -> Result<()>;
+    /// Lists directory contents.
     fn smb_readdir(&self, auth: &SmbAuthInfo, path: &str) -> Result<Vec<SmbDirEntry>>;
 }
 
+/// Stub implementation that returns NotImplemented errors.
 pub struct SmbVfsStub;
 
 impl SmbVfsOps for SmbVfsStub {

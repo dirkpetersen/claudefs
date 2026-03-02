@@ -54,6 +54,7 @@ pub enum IoMode {
 }
 
 impl IoMode {
+    /// Converts a u32 value to an IoMode, returning None for invalid values.
     pub fn from_u32(v: u32) -> Option<Self> {
         match v {
             1 => Some(IoMode::Read),
@@ -83,6 +84,7 @@ pub struct PnfsLayoutServer {
 }
 
 impl PnfsLayoutServer {
+    /// Creates a new pNFS layout server with the given data servers and filesystem ID.
     pub fn new(data_servers: Vec<DataServerLocation>, fsid: u64) -> Self {
         Self {
             data_servers: RwLock::new(data_servers),
@@ -90,6 +92,9 @@ impl PnfsLayoutServer {
         }
     }
 
+    /// Gets a layout for the given file range, returning data server assignments.
+    ///
+    /// The layout is computed by mapping the inode to a data server using modulo distribution.
     pub fn get_layout(
         &self,
         inode: u64,
@@ -129,14 +134,17 @@ impl PnfsLayoutServer {
         }
     }
 
+    /// Returns the number of registered data servers.
     pub fn server_count(&self) -> usize {
         self.data_servers.read().unwrap().len()
     }
 
+    /// Adds a data server to the layout server.
     pub fn add_server(&mut self, location: DataServerLocation) {
         self.data_servers.write().unwrap().push(location);
     }
 
+    /// Removes a data server by address, returns true if the server was found and removed.
     pub fn remove_server(&mut self, address: &str) -> bool {
         let mut servers = self.data_servers.write().unwrap();
         if let Some(pos) = servers.iter().position(|s| s.address == address) {

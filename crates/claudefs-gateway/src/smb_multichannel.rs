@@ -280,6 +280,7 @@ pub struct MultichannelManager {
 }
 
 impl MultichannelManager {
+    /// Creates a new multichannel manager with the given configuration.
     pub fn new(config: MultichannelConfig) -> Self {
         info!(
             "MultichannelManager created with enabled={}, max_channels={}, min_channels={}",
@@ -292,10 +293,14 @@ impl MultichannelManager {
         }
     }
 
+    /// Returns a reference to the current multichannel configuration.
     pub fn config(&self) -> &MultichannelConfig {
         &self.config
     }
 
+    /// Adds a network interface to the manager's configuration.
+    ///
+    /// Returns an error if an interface with the same name already exists.
     pub fn add_interface(&mut self, nic: NicCapabilities) -> Result<(), MultichannelError> {
         if self
             .config
@@ -314,6 +319,9 @@ impl MultichannelManager {
         Ok(())
     }
 
+    /// Removes a network interface by name.
+    ///
+    /// Returns `true` if the interface was found and removed.
     pub fn remove_interface(&mut self, name: &str) -> bool {
         let initial_len = self.config.interfaces.len();
         self.config.interfaces.retain(|i| i.interface_name != name);
@@ -324,6 +332,7 @@ impl MultichannelManager {
         removed
     }
 
+    /// Returns a list of enabled network interfaces.
     pub fn available_interfaces(&self) -> Vec<&NicCapabilities> {
         self.config
             .interfaces
@@ -332,6 +341,9 @@ impl MultichannelManager {
             .collect()
     }
 
+    /// Selects network interfaces for a client based on the channel selection policy.
+    ///
+    /// Returns up to `n` interfaces, or an empty list if multichannel is disabled or no interfaces are available.
     pub fn select_interfaces_for_client(&self, n: u32) -> Vec<&NicCapabilities> {
         if !self.config.enabled {
             return Vec::new();
@@ -378,6 +390,7 @@ impl MultichannelManager {
         }
     }
 
+    /// Creates a new multichannel session with the given ID.
     pub fn create_session(&mut self, session_id: u64) -> MultichannelSession {
         debug!("Creating multichannel session: {}", session_id);
         let session = MultichannelSession::new(session_id);
@@ -385,19 +398,25 @@ impl MultichannelManager {
         session
     }
 
+    /// Retrieves a multichannel session by ID.
     pub fn get_session(&self, session_id: u64) -> Option<&MultichannelSession> {
         self.sessions.get(&session_id)
     }
 
+    /// Removes a multichannel session by ID.
+    ///
+    /// Returns `true` if the session was found and removed.
     pub fn remove_session(&mut self, session_id: u64) -> bool {
         debug!("Removing multichannel session: {}", session_id);
         self.sessions.remove(&session_id).is_some()
     }
 
+    /// Returns the number of active multichannel sessions.
     pub fn session_count(&self) -> usize {
         self.sessions.len()
     }
 
+    /// Returns the total number of channels across all active sessions.
     pub fn total_channel_count(&self) -> usize {
         self.sessions.values().map(|s| s.channels.len()).sum()
     }
