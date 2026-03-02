@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 //! portmapper/rpcbind registration stubs
 
 use crate::rpc::{MOUNT_PROGRAM, MOUNT_VERSION, NFS_PROGRAM, NFS_VERSION};
