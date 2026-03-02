@@ -2,6 +2,43 @@
 //!
 //! Provides sliding window and token bucket based flow control for
 //! managing inflight requests and bytes to prevent overwhelming the system.
+//!
+//! # Architecture
+//!
+//! The flow control module provides two main components:
+//!
+//! 1. **[`FlowController`]**: Token bucket-based control for inflight requests/bytes
+//! 2. **[`WindowController`]**: Sliding window for sequence-based flow control
+//!
+//! # Backpressure States
+//!
+//! - **Open**: Below high watermark, normal operation
+//! - **Throttled**: Above high watermark, slowing down
+//! - **Blocked**: At capacity, cannot accept more
+//!
+//! # Example
+//!
+//! ```
+//! use claudefs_transport::flowcontrol::{FlowController, FlowControlConfig, FlowControlState};
+//!
+//! let config = FlowControlConfig::default();
+/// let controller = FlowController::new(config);
+/// 
+/// // Try to acquire capacity for a request
+/// if let Some(permit) = controller.try_acquire(1024) {
+///     println!("Acquired permit for 1024 bytes");
+///     println!("Inflight: {} requests, {} bytes", 
+///         controller.inflight_requests(), 
+///         controller.inflight_bytes());
+///     
+///     // Permit is automatically released when dropped
+/// }
+/// ```
+//!
+//! # See Also
+//! - [`FlowControlConfig`] - Configuration options
+//! - [`FlowPermit`] - RAII guard for acquired capacity
+/// - [`FlowControlState`] - Backpressure states
 
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
