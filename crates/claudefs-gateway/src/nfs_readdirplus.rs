@@ -87,12 +87,17 @@ pub fn encode_getattr_ok(attr: &Fattr3) -> Vec<u8> {
     enc.finish().to_vec()
 }
 
+/// Encodes an error GETATTR response.
 pub fn encode_getattr_err(status: u32) -> Vec<u8> {
     let mut enc = XdrEncoder::new();
     enc.encode_u32(status);
     enc.finish().to_vec()
 }
 
+/// Encodes a successful LOOKUP response (NFSv3 procedure 3).
+///
+/// Returns the file handle for the looked-up file, along with optional
+/// attributes for both the file and the parent directory.
 pub fn encode_lookup_ok(
     object_fh: &FileHandle3,
     obj_attr: Option<&Fattr3>,
@@ -126,6 +131,9 @@ pub fn encode_lookup_ok(
     enc.finish().to_vec()
 }
 
+/// Encodes a successful READ response (NFSv3 procedure 6).
+///
+/// Returns file data along with optional attributes and end-of-file marker.
 pub fn encode_read_ok(attr: Option<&Fattr3>, data: &[u8], eof: bool) -> Vec<u8> {
     let mut enc = XdrEncoder::new();
     enc.encode_u32(0);
@@ -147,6 +155,9 @@ pub fn encode_read_ok(attr: Option<&Fattr3>, data: &[u8], eof: bool) -> Vec<u8> 
     enc.finish().to_vec()
 }
 
+/// Encodes a successful WRITE response (NFSv3 procedure 7).
+///
+/// Returns the number of bytes written, stability level, and write verifier.
 pub fn encode_write_ok(count: u32, stable: u32, verf: u64) -> Vec<u8> {
     let mut enc = XdrEncoder::new();
     enc.encode_u32(0);
@@ -156,6 +167,9 @@ pub fn encode_write_ok(count: u32, stable: u32, verf: u64) -> Vec<u8> {
     enc.finish().to_vec()
 }
 
+/// Encodes a successful FSSTAT response (NFSv3 procedure 14).
+///
+/// Returns filesystem statistics including total/available bytes and file counts.
 pub fn encode_fsstat_ok(attr: Option<&Fattr3>, stat: &FsStatResult) -> Vec<u8> {
     let mut enc = XdrEncoder::new();
     enc.encode_u32(0);
@@ -181,6 +195,10 @@ pub fn encode_fsstat_ok(attr: Option<&Fattr3>, stat: &FsStatResult) -> Vec<u8> {
     enc.finish().to_vec()
 }
 
+/// Encodes a successful FSINFO response (NFSv3 procedure 15).
+///
+/// Returns filesystem capability information including read/write
+/// transfer sizes, preferred sizes, and server properties.
 pub fn encode_fsinfo_ok(attr: Option<&Fattr3>, info: &FsInfoResult) -> Vec<u8> {
     let mut enc = XdrEncoder::new();
     enc.encode_u32(0);
