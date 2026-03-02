@@ -36,9 +36,10 @@
 /// ```
 //!
 //! # See Also
+//!
 //! - [`FlowControlConfig`] - Configuration options
 //! - [`FlowPermit`] - RAII guard for acquired capacity
-/// - [`FlowControlState`] - Backpressure states
+//! - [`FlowControlState`] - Backpressure states
 
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
