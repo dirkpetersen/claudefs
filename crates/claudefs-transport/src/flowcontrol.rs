@@ -22,18 +22,18 @@
 //! use claudefs_transport::flowcontrol::{FlowController, FlowControlConfig, FlowControlState};
 //!
 //! let config = FlowControlConfig::default();
-/// let controller = FlowController::new(config);
-/// 
-/// // Try to acquire capacity for a request
-/// if let Some(permit) = controller.try_acquire(1024) {
-///     println!("Acquired permit for 1024 bytes");
-///     println!("Inflight: {} requests, {} bytes", 
-///         controller.inflight_requests(), 
-///         controller.inflight_bytes());
-///     
-///     // Permit is automatically released when dropped
-/// }
-/// ```
+//! let controller = FlowController::new(config);
+//!
+//! // Try to acquire capacity for a request
+//! if let Some(permit) = controller.try_acquire(1024) {
+//!     println!("Acquired permit for 1024 bytes");
+//!     println!("Inflight: {} requests, {} bytes",
+//!         controller.inflight_requests(),
+//!         controller.inflight_bytes());
+//!
+//!     // Permit is automatically released when dropped
+//! }
+//! ```
 //!
 //! # See Also
 //!
