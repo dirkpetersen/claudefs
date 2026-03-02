@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn test_passthrough_state_is_active_for_enabled_status() {
         let config = PassthroughConfig::default();
-        let state = PassthroughState::new(&config);
+        let _state = PassthroughState::new(&config);
 
         // This test depends on the actual kernel, but we can test the logic
         let (major, minor) = detect_kernel_version();
@@ -280,9 +280,10 @@ mod tests {
         let (major, minor) = detect_kernel_version();
 
         // Kernel version should be (0, 0) if detection fails,
-        // or actual values if detection succeeds
-        assert!(major >= 0);
-        assert!(minor >= 0);
+        // or actual values if detection succeeds.
+        // Reasonable kernel versions are 0-99
+        assert!(major < 100, "major version {} seems invalid", major);
+        assert!(minor < 100, "minor version {} seems invalid", minor);
     }
 
     #[test]

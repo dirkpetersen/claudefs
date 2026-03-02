@@ -227,10 +227,7 @@ impl VersioningRegistry {
 
     /// Set versioning state for a bucket
     pub fn set_versioning(&mut self, bucket: &str, state: VersioningState) {
-        let bucket_config = self
-            .buckets
-            .entry(bucket.to_string())
-            .or_insert_with(BucketVersioning::new);
+        let bucket_config = self.buckets.entry(bucket.to_string()).or_default();
         match state {
             VersioningState::Enabled => bucket_config.enable(),
             VersioningState::Suspended => bucket_config.suspend(),
@@ -258,14 +255,9 @@ impl VersioningRegistry {
     ) -> Result<(), VersioningError> {
         debug!("Putting version for bucket={}, key={}", bucket, key);
 
-        let bucket_versions = self
-            .versions
-            .entry(bucket.to_string())
-            .or_insert_with(HashMap::new);
+        let bucket_versions = self.versions.entry(bucket.to_string()).or_default();
 
-        let key_versions = bucket_versions
-            .entry(key.to_string())
-            .or_insert_with(ObjectVersionList::new);
+        let key_versions = bucket_versions.entry(key.to_string()).or_default();
 
         key_versions.add_version(entry);
 

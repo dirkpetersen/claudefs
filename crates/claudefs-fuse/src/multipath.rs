@@ -139,15 +139,13 @@ impl MultipathRouter {
         if self.paths.len() >= 16 {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "max paths (16) exceeded".to_string(),
-            }
-            .into());
+            });
         }
 
         if self.paths.iter().any(|p| p.id == info.id) {
             return Err(crate::error::FuseError::AlreadyExists {
                 name: format!("path {:?} already exists", info.id),
-            }
-            .into());
+            });
         }
 
         self.paths.push(info);
@@ -159,7 +157,7 @@ impl MultipathRouter {
             .paths
             .iter()
             .position(|p| p.id == id)
-            .ok_or_else(|| crate::error::FuseError::NotFound { ino: id.0 })?;
+            .ok_or(crate::error::FuseError::NotFound { ino: id.0 })?;
 
         self.paths.remove(pos);
         if self.round_robin_index >= self.paths.len() {
@@ -207,7 +205,7 @@ impl MultipathRouter {
             .paths
             .iter_mut()
             .find(|p| p.id == id)
-            .ok_or_else(|| crate::error::FuseError::NotFound { ino: id.0 })?;
+            .ok_or(crate::error::FuseError::NotFound { ino: id.0 })?;
 
         path.metrics.record_success(latency_us);
         Ok(())
@@ -218,7 +216,7 @@ impl MultipathRouter {
             .paths
             .iter_mut()
             .find(|p| p.id == id)
-            .ok_or_else(|| crate::error::FuseError::NotFound { ino: id.0 })?;
+            .ok_or(crate::error::FuseError::NotFound { ino: id.0 })?;
 
         path.metrics.record_error(now_secs);
 
@@ -236,7 +234,7 @@ impl MultipathRouter {
             .paths
             .iter_mut()
             .find(|p| p.id == id)
-            .ok_or_else(|| crate::error::FuseError::NotFound { ino: id.0 })?;
+            .ok_or(crate::error::FuseError::NotFound { ino: id.0 })?;
 
         path.state = PathState::Reconnecting;
         Ok(())
@@ -247,7 +245,7 @@ impl MultipathRouter {
             .paths
             .iter_mut()
             .find(|p| p.id == id)
-            .ok_or_else(|| crate::error::FuseError::NotFound { ino: id.0 })?;
+            .ok_or(crate::error::FuseError::NotFound { ino: id.0 })?;
 
         path.state = PathState::Active;
         path.metrics.error_count = 0;
@@ -363,7 +361,7 @@ mod tests {
         let mut p1 = PathInfo::new(PathId(1), "addr1".to_string(), 100);
         p1.state = PathState::Failed;
 
-        let mut p2 = PathInfo::new(PathId(2), "addr2".to_string(), 50);
+        let p2 = PathInfo::new(PathId(2), "addr2".to_string(), 50);
 
         router.add_path(p1).unwrap();
         router.add_path(p2).unwrap();

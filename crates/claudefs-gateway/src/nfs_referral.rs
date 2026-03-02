@@ -43,18 +43,13 @@ impl ReferralTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ReferralType {
+    #[default]
     Referral,
     Migration,
     Replication,
-}
-
-impl Default for ReferralType {
-    fn default() -> Self {
-        ReferralType::Referral
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

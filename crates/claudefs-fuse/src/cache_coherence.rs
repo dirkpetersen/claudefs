@@ -1,8 +1,6 @@
-use crate::{FuseError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use thiserror::Error;
 use tracing::{debug, trace, warn};
@@ -192,6 +190,10 @@ impl VersionVector {
     pub fn len(&self) -> usize {
         self.versions.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.versions.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
@@ -205,7 +207,7 @@ pub enum CoherenceProtocol {
 pub struct CoherenceManager {
     leases: HashMap<u64, CacheLease>,
     invalidations: Vec<CacheInvalidation>,
-    protocol: CoherenceProtocol,
+    _protocol: CoherenceProtocol,
     next_lease_id: u64,
     default_lease_duration: Duration,
 }
@@ -215,7 +217,7 @@ impl CoherenceManager {
         CoherenceManager {
             leases: HashMap::new(),
             invalidations: Vec::new(),
-            protocol,
+            _protocol: protocol,
             next_lease_id: 1,
             default_lease_duration: Duration::from_secs(30),
         }
@@ -332,7 +334,7 @@ mod tests {
         assert_eq!(lease.state, LeaseState::Revoked);
         assert!(!lease.is_valid());
 
-        let mut lease2 = CacheLease::new(LeaseId::new(2), 101, 1, Duration::ZERO);
+        let lease2 = CacheLease::new(LeaseId::new(2), 101, 1, Duration::ZERO);
         assert!(lease2.is_expired());
     }
 
@@ -484,7 +486,7 @@ mod tests {
         let mut manager = CoherenceManager::new(CoherenceProtocol::CloseToOpen);
 
         manager.grant_lease(100, 1);
-        let mut short_lease = CacheLease::new(LeaseId::new(999), 200, 1, Duration::ZERO);
+        let short_lease = CacheLease::new(LeaseId::new(999), 200, 1, Duration::ZERO);
         manager.leases.insert(200, short_lease);
 
         std::thread::sleep(Duration::from_millis(5));

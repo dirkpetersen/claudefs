@@ -308,7 +308,7 @@ mod tests {
         let mut table = OpenFileTable::new();
 
         let fh1 = table.open(1, OpenFlags::ReadWrite);
-        let fh2 = table.open(2, OpenFlags::ReadWrite);
+        let _fh2 = table.open(2, OpenFlags::ReadWrite);
 
         table.mark_dirty(fh1);
 

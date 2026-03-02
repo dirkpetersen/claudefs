@@ -69,7 +69,7 @@ pub struct ClientAuthManager {
     state: AuthState,
     cert: Option<CertRecord>,
     crl: Vec<RevokedCert>,
-    cert_dir: String,
+    _cert_dir: String,
 }
 
 impl ClientAuthManager {
@@ -78,7 +78,7 @@ impl ClientAuthManager {
             state: AuthState::Unenrolled,
             cert: None,
             crl: Vec::new(),
-            cert_dir: cert_dir.to_string(),
+            _cert_dir: cert_dir.to_string(),
         }
     }
 
@@ -114,7 +114,7 @@ impl ClientAuthManager {
     ) -> Result<()> {
         match &self.state {
             AuthState::Enrolling {
-                token,
+                token: _,
                 started_at_secs: _,
             } => {
                 let fingerprint = compute_fingerprint(cert_pem);
@@ -171,7 +171,7 @@ impl ClientAuthManager {
     pub fn complete_renewal(&mut self, cert_pem: &str, key_pem: &str, now_secs: u64) -> Result<()> {
         match &self.state {
             AuthState::Renewing {
-                old_fingerprint,
+                old_fingerprint: _,
                 started_at_secs: _,
             } => {
                 let fingerprint = compute_fingerprint(cert_pem);
@@ -201,7 +201,7 @@ impl ClientAuthManager {
 
     pub fn revoke(&mut self, reason: &str, now_secs: u64) {
         if let AuthState::Enrolled {
-            cert_fingerprint,
+            cert_fingerprint: _,
             expires_at_secs: _,
         } = &self.state
         {

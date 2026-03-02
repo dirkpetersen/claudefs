@@ -85,8 +85,8 @@ impl IoPriorityClassifier {
 
     pub fn classify_by_op(
         &self,
-        pid: u32,
-        uid: u32,
+        _pid: u32,
+        _uid: u32,
         op_size_bytes: u64,
         is_metadata: bool,
     ) -> WorkloadClass {
@@ -137,6 +137,12 @@ pub struct IoPriorityStats {
     pub by_class: HashMap<WorkloadClass, IoClassStats>,
 }
 
+impl Default for IoPriorityStats {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IoPriorityStats {
     pub fn new() -> Self {
         Self {
@@ -147,7 +153,7 @@ impl IoPriorityStats {
     pub fn record(&mut self, class: WorkloadClass, bytes: u64, latency_us: u64) {
         self.by_class
             .entry(class)
-            .or_insert_with(IoClassStats::default)
+            .or_default()
             .record_op(bytes, latency_us);
     }
 
@@ -183,13 +189,14 @@ pub struct PriorityBudget {
 
 impl PriorityBudget {
     pub fn new(window_ms: u64) -> Self {
-        let mut limits = HashMap::new();
-        limits.insert(WorkloadClass::Interactive, 1000);
-        limits.insert(WorkloadClass::Foreground, 500);
-        limits.insert(WorkloadClass::Background, 100);
-        limits.insert(WorkloadClass::Idle, 10);
+        let limits = HashMap::from([
+            (WorkloadClass::Interactive, 1000),
+            (WorkloadClass::Foreground, 500),
+            (WorkloadClass::Background, 100),
+            (WorkloadClass::Idle, 10),
+        ]);
 
-        let mut budgets = limits.clone();
+        let budgets = limits.clone();
 
         Self {
             budgets,

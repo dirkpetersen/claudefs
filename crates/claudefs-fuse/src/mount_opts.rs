@@ -81,11 +81,8 @@ impl MountOptions {
             args.push("direct_io".to_string());
         }
 
-        match self.read_only {
-            ReadWriteMode::ReadOnly => {
-                args.push("-r".to_string());
-            }
-            _ => {}
+        if self.read_only == ReadWriteMode::ReadOnly {
+            args.push("-r".to_string());
         }
 
         args

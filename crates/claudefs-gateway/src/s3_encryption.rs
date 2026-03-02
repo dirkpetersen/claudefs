@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
 use thiserror::Error;
 use tracing::{debug, warn};
 
@@ -43,7 +44,15 @@ pub enum SseAlgorithm {
 }
 
 impl SseAlgorithm {
-    pub fn from_str(s: &str) -> Result<Self, SseError> {
+    pub fn is_kms(&self) -> bool {
+        matches!(self, SseAlgorithm::AwsKms | SseAlgorithm::AwsKmsDsse)
+    }
+}
+
+impl std::str::FromStr for SseAlgorithm {
+    type Err = SseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "" | "NONE" => Ok(SseAlgorithm::None),
             "AES256" => Ok(SseAlgorithm::AesCbc256),
@@ -52,18 +61,16 @@ impl SseAlgorithm {
             _ => Err(SseError::InvalidAlgorithm(s.to_string())),
         }
     }
+}
 
-    pub fn to_string(&self) -> String {
+impl std::fmt::Display for SseAlgorithm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SseAlgorithm::None => "NONE".to_string(),
-            SseAlgorithm::AesCbc256 => "AES256".to_string(),
-            SseAlgorithm::AwsKms => "aws:kms".to_string(),
-            SseAlgorithm::AwsKmsDsse => "aws:kms:dsse".to_string(),
+            SseAlgorithm::None => write!(f, "NONE"),
+            SseAlgorithm::AesCbc256 => write!(f, "AES256"),
+            SseAlgorithm::AwsKms => write!(f, "aws:kms"),
+            SseAlgorithm::AwsKmsDsse => write!(f, "aws:kms:dsse"),
         }
-    }
-
-    pub fn is_kms(&self) -> bool {
-        matches!(self, SseAlgorithm::AwsKms | SseAlgorithm::AwsKmsDsse)
     }
 }
 
@@ -506,10 +513,8 @@ fn parse_simple_json(json_str: &str) -> Result<HashMap<String, String>, SseError
 fn find_string_end(s: &str) -> Option<usize> {
     let mut chars = s.chars().enumerate();
     while let Some((i, c)) = chars.next() {
-        if c == '\\' {
-            if chars.next().is_none() {
-                return None;
-            }
+        if c == '\\' && chars.next().is_none() {
+            return None;
         } else if c == '"' {
             return Some(i);
         }

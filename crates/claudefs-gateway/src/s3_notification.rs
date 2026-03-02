@@ -116,24 +116,23 @@ pub struct NotificationRecord {
 }
 
 /// Manages notification subscriptions per bucket
+#[derive(Default)]
 pub struct NotificationManager {
     configs: HashMap<String, Vec<NotificationConfig>>,
     delivered_count: u64,
 }
 
 impl NotificationManager {
+    /// Creates a new NotificationManager.
     pub fn new() -> Self {
-        Self {
-            configs: HashMap::new(),
-            delivered_count: 0,
-        }
+        Self::default()
     }
 
     /// Register a notification config for a bucket
     pub fn register(&mut self, bucket: &str, config: NotificationConfig) {
         self.configs
             .entry(bucket.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(config);
     }
 

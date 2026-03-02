@@ -11,23 +11,12 @@ pub enum MultichannelRole {
     Standby,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct InterfaceCapabilities {
     pub rdma: bool,
     pub rss: bool,
     pub tso: bool,
     pub checksum_offload: bool,
-}
-
-impl Default for InterfaceCapabilities {
-    fn default() -> Self {
-        Self {
-            rdma: false,
-            rss: false,
-            tso: false,
-            checksum_offload: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,18 +77,13 @@ impl NicCapabilities {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ChannelSelectionPolicy {
+    #[default]
     RoundRobin,
     WeightedBySpeed,
     PreferRdma,
     PinToInterface(String),
-}
-
-impl Default for ChannelSelectionPolicy {
-    fn default() -> Self {
-        Self::WeightedBySpeed
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

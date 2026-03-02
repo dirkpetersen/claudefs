@@ -41,22 +41,19 @@ impl IdMapper {
         if self.mode != IdMapMode::Table {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "add_uid_entry only supported in Table mode".to_string(),
-            }
-            .into());
+            });
         }
 
         if self.uid_table.len() >= 65_535 {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "max UID entries exceeded (65535)".to_string(),
-            }
-            .into());
+            });
         }
 
         if self.uid_table.contains_key(&entry.host_id) {
             return Err(crate::error::FuseError::AlreadyExists {
                 name: format!("duplicate host_id {} in UID table", entry.host_id),
-            }
-            .into());
+            });
         }
 
         self.uid_table.insert(entry.host_id, entry.local_id);
@@ -67,22 +64,19 @@ impl IdMapper {
         if self.mode != IdMapMode::Table {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "add_gid_entry only supported in Table mode".to_string(),
-            }
-            .into());
+            });
         }
 
         if self.gid_table.len() >= 65_535 {
             return Err(crate::error::FuseError::InvalidArgument {
                 msg: "max GID entries exceeded (65535)".to_string(),
-            }
-            .into());
+            });
         }
 
         if self.gid_table.contains_key(&entry.host_id) {
             return Err(crate::error::FuseError::AlreadyExists {
                 name: format!("duplicate host_id {} in GID table", entry.host_id),
-            }
-            .into());
+            });
         }
 
         self.gid_table.insert(entry.host_id, entry.local_id);

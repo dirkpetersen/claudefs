@@ -72,7 +72,7 @@ impl DirNotify {
         }
 
         self.watched.insert(dir_ino);
-        self.queues.entry(dir_ino).or_insert_with(VecDeque::new);
+        self.queues.entry(dir_ino).or_default();
 
         tracing::debug!("Watching directory: ino={}", dir_ino);
 
