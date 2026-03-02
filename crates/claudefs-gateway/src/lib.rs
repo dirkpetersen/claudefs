@@ -9,6 +9,7 @@ pub mod error;
 pub mod export_manager;
 pub mod gateway_audit;
 pub mod gateway_circuit_breaker;
+pub mod gateway_metrics;
 pub mod gateway_tls;
 pub mod health;
 pub mod mount;
