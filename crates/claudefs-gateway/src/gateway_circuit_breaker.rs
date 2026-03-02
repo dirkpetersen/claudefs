@@ -20,11 +20,16 @@ pub enum CircuitState {
     HalfOpen,
 }
 
+/// Configuration parameters for circuit breaker behavior.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CircuitBreakerConfig {
+    /// Number of consecutive failures before opening the circuit
     pub failure_threshold: u32,
+    /// Number of consecutive successes needed to close circuit from HalfOpen state
     pub success_threshold: u32,
+    /// Duration in milliseconds before circuit transitions from Open to HalfOpen
     pub open_duration_ms: u64,
+    /// Maximum allowed operation duration in milliseconds
     pub timeout_ms: u64,
 }
 
@@ -39,13 +44,20 @@ impl Default for CircuitBreakerConfig {
     }
 }
 
+/// Metrics tracking circuit breaker operation and health.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CircuitBreakerMetrics {
+    /// Total number of calls attempted
     pub total_calls: u64,
+    /// Number of successful calls
     pub successful_calls: u64,
+    /// Number of failed calls
     pub failed_calls: u64,
+    /// Number of calls rejected due to open circuit
     pub rejected_calls: u64,
+    /// Number of state transitions
     pub state_changes: u64,
+    /// Current circuit state
     pub current_state: CircuitState,
 }
 
@@ -62,16 +74,21 @@ impl Default for CircuitBreakerMetrics {
     }
 }
 
+/// Errors that can occur during circuit breaker operation.
 #[derive(Debug, Error)]
 pub enum CircuitBreakerError {
+    /// Circuit is open and rejecting requests
     #[error("Circuit '{name}' is open, request rejected")]
     CircuitOpen { name: String },
+    /// Operation failed with an error
     #[error("Operation failed: {0}")]
     OperationFailed(String),
+    /// Operation exceeded timeout threshold
     #[error("Operation timed out for '{name}' after {ms}ms")]
     Timeout { name: String, ms: u64 },
 }
 
+/// Circuit breaker for preventing cascading failures in backend connections.
 pub struct CircuitBreaker {
     name: String,
     config: CircuitBreakerConfig,
