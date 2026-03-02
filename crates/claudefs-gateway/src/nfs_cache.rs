@@ -8,12 +8,16 @@ use std::time::{Duration, Instant};
 /// A cached attribute entry with TTL
 #[derive(Debug, Clone)]
 pub struct CachedAttr {
+    /// The cached file attributes
     pub attr: Fattr3,
+    /// When the entry was cached
     pub cached_at: Instant,
+    /// Time-to-live duration
     pub ttl: Duration,
 }
 
 impl CachedAttr {
+    /// Create a new cached attribute entry with the given TTL
     pub fn new(attr: Fattr3, ttl: Duration) -> Self {
         Self {
             attr,
@@ -22,10 +26,12 @@ impl CachedAttr {
         }
     }
 
+    /// Check if the cache entry has expired
     pub fn is_expired(&self) -> bool {
         self.cached_at.elapsed() >= self.ttl
     }
 
+    /// Get the age of the cache entry in milliseconds
     pub fn age_ms(&self) -> u64 {
         self.cached_at.elapsed().as_millis() as u64
     }
@@ -138,6 +144,7 @@ impl AttrCache {
         self.entries.lock().unwrap().len()
     }
 
+    /// Returns true if the cache contains no entries
     pub fn is_empty(&self) -> bool {
         self.entries.lock().unwrap().is_empty()
     }

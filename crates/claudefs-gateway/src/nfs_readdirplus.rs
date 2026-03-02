@@ -3,6 +3,10 @@
 use crate::protocol::{Entryplus3, Fattr3, FileHandle3, FsInfoResult, FsStatResult};
 use crate::xdr::XdrEncoder;
 
+/// Encodes a successful READDIRPLUS response (NFSv3 procedure 20).
+///
+/// Encodes directory attributes, cookie verifier, and a list of directory entries
+/// with optional file attributes and file handles (for READDIRPLUS optimization).
 pub fn encode_readdirplus_ok(
     dir_attributes: Option<&Fattr3>,
     cookieverf: u64,
@@ -57,6 +61,7 @@ pub fn encode_readdirplus_ok(
     enc.finish().to_vec()
 }
 
+/// Encodes an error READDIRPLUS response with optional directory attributes.
 pub fn encode_readdirplus_err(status: u32, dir_attributes: Option<&Fattr3>) -> Vec<u8> {
     let mut enc = XdrEncoder::new();
     enc.encode_u32(status);
@@ -74,6 +79,7 @@ pub fn encode_readdirplus_err(status: u32, dir_attributes: Option<&Fattr3>) -> V
     enc.finish().to_vec()
 }
 
+/// Encodes a successful GETATTR response (NFSv3 procedure 1).
 pub fn encode_getattr_ok(attr: &Fattr3) -> Vec<u8> {
     let mut enc = XdrEncoder::new();
     enc.encode_u32(0);

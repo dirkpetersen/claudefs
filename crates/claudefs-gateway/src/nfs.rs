@@ -12,14 +12,23 @@ use crate::protocol::{
 /// Virtual filesystem backend trait for NFS operations.
 /// Provides an abstraction layer for different filesystem implementations.
 pub trait VfsBackend: Send + Sync {
+    /// Retrieves file attributes for the given file handle.
     fn getattr(&self, fh: &FileHandle3) -> Result<Fattr3>;
+    /// Looks up a name in a directory and returns the file handle and attributes.
     fn lookup(&self, dir_fh: &FileHandle3, name: &str) -> Result<LookupResult>;
+    /// Reads data from a file at the given offset.
     fn read(&self, fh: &FileHandle3, offset: u64, count: u32) -> Result<(Vec<u8>, bool)>;
+    /// Writes data to a file at the given offset.
     fn write(&self, fh: &FileHandle3, offset: u64, data: &[u8]) -> Result<u32>;
+    /// Lists directory entries starting at the given cookie.
     fn readdir(&self, dir_fh: &FileHandle3, cookie: u64, count: u32) -> Result<ReadDirResult>;
+    /// Creates a new directory.
     fn mkdir(&self, dir_fh: &FileHandle3, name: &str, mode: u32) -> Result<(FileHandle3, Fattr3)>;
+    /// Creates a new regular file.
     fn create(&self, dir_fh: &FileHandle3, name: &str, mode: u32) -> Result<(FileHandle3, Fattr3)>;
+    /// Removes a file or directory.
     fn remove(&self, dir_fh: &FileHandle3, name: &str) -> Result<()>;
+    /// Renames or moves a file or directory.
     fn rename(
         &self,
         from_dir: &FileHandle3,
@@ -27,16 +36,22 @@ pub trait VfsBackend: Send + Sync {
         to_dir: &FileHandle3,
         to_name: &str,
     ) -> Result<()>;
+    /// Reads the target of a symbolic link.
     fn readlink(&self, fh: &FileHandle3) -> Result<String>;
+    /// Creates a symbolic link.
     fn symlink(
         &self,
         dir_fh: &FileHandle3,
         name: &str,
         target: &str,
     ) -> Result<(FileHandle3, Fattr3)>;
+    /// Returns filesystem statistics.
     fn fsstat(&self, fh: &FileHandle3) -> Result<FsStatResult>;
+    /// Returns filesystem information and capabilities.
     fn fsinfo(&self, fh: &FileHandle3) -> Result<FsInfoResult>;
+    /// Returns path-related configuration limits.
     fn pathconf(&self, fh: &FileHandle3) -> Result<PathConfResult>;
+    /// Checks access permissions for a file.
     fn access(&self, fh: &FileHandle3, uid: u32, gid: u32, access_bits: u32) -> Result<u32>;
 }
 
