@@ -168,10 +168,7 @@ impl FlockRegistry {
             lock_type: new_type,
         };
         self.locks.insert(key, entry);
-        self.by_inode
-            .entry(handle.ino)
-            .or_default()
-            .push(key);
+        self.by_inode.entry(handle.ino).or_default().push(key);
 
         FlockConflict::None
     }

@@ -310,19 +310,13 @@ impl AdaptiveTuner {
 
     pub fn record_read(&mut self, inode: u64, bytes: u64, is_sequential: bool) {
         trace!(inode, bytes, is_sequential, "recording read");
-        let profile = self
-            .profiles
-            .entry(inode)
-            .or_default();
+        let profile = self.profiles.entry(inode).or_default();
         profile.record_read(bytes, is_sequential);
     }
 
     pub fn record_write(&mut self, inode: u64, bytes: u64) {
         trace!(inode, bytes, "recording write");
-        let profile = self
-            .profiles
-            .entry(inode)
-            .or_default();
+        let profile = self.profiles.entry(inode).or_default();
         profile.record_write(bytes);
     }
 
