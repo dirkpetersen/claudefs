@@ -24,16 +24,23 @@ pub enum SquashPolicy {
     None,
 }
 
+/// AUTH_SYS (AUTH_UNIX) credential containing Unix UID/GID information.
 #[derive(Debug, Clone)]
 pub struct AuthSysCred {
+    /// Timestamp for credential freshness
     pub stamp: u32,
+    /// Client machine name
     pub machinename: String,
+    /// Effective Unix user ID
     pub uid: u32,
+    /// Effective Unix group ID
     pub gid: u32,
+    /// Supplementary group IDs
     pub gids: Vec<u32>,
 }
 
 impl AuthSysCred {
+    /// Parse AUTH_SYS credential from an RPC OpaqueAuth.
     pub fn from_opaque_auth(auth: &OpaqueAuth) -> Result<Self> {
         if auth.flavor != AUTH_SYS {
             return Err(GatewayError::ProtocolError {
@@ -43,6 +50,7 @@ impl AuthSysCred {
         Self::decode_xdr(&auth.body)
     }
 
+    /// Decode AUTH_SYS credential from XDR-encoded bytes.
     pub fn decode_xdr(body: &[u8]) -> Result<Self> {
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::copy_from_slice(body));
 
@@ -81,6 +89,7 @@ impl AuthSysCred {
         })
     }
 
+    /// Encode this credential to XDR format.
     pub fn encode_xdr(&self) -> Vec<u8> {
         let mut enc = XdrEncoder::new();
         enc.encode_u32(self.stamp);
@@ -94,10 +103,12 @@ impl AuthSysCred {
         enc.finish().to_vec()
     }
 
+    /// Check if the credential has the given UID.
     pub fn has_uid(&self, uid: u32) -> bool {
         self.uid == uid
     }
 
+    /// Check if the credential has the given GID (primary or supplementary).
     pub fn has_gid(&self, gid: u32) -> bool {
         if self.gid == gid {
             return true;
@@ -105,15 +116,18 @@ impl AuthSysCred {
         self.gids.contains(&gid)
     }
 
+    /// Check if this credential represents root (UID 0).
     pub fn is_root(&self) -> bool {
         self.uid == 0
     }
 }
 
+/// AUTH_NONE credential - used when no authentication is required.
 #[derive(Debug, Clone, Copy)]
 pub struct AuthNone;
 
 impl AuthNone {
+    /// Convert to an OpaqueAuth for RPC use.
     pub fn to_opaque_auth() -> OpaqueAuth {
         OpaqueAuth::none()
     }
@@ -131,6 +145,7 @@ pub enum AuthCred {
 }
 
 impl AuthCred {
+    /// Parse authentication credential from an RPC OpaqueAuth.
     pub fn from_opaque_auth(auth: &OpaqueAuth) -> Self {
         match auth.flavor {
             AUTH_NONE => AuthCred::None,
@@ -142,6 +157,7 @@ impl AuthCred {
         }
     }
 
+    /// Get the effective UID, mapping unknown/none to nobody.
     pub fn uid(&self) -> u32 {
         match self {
             AuthCred::None => NOBODY_UID,
@@ -150,6 +166,7 @@ impl AuthCred {
         }
     }
 
+    /// Get the effective GID, mapping unknown/none to nobody.
     pub fn gid(&self) -> u32 {
         match self {
             AuthCred::None => NOBODY_GID,
@@ -158,6 +175,7 @@ impl AuthCred {
         }
     }
 
+    /// Check if this credential represents root.
     pub fn is_root(&self) -> bool {
         match self {
             AuthCred::Sys(cred) => cred.is_root(),
@@ -165,6 +183,7 @@ impl AuthCred {
         }
     }
 
+    /// Get the effective UID after applying the squash policy.
     pub fn effective_uid(&self, policy: SquashPolicy) -> u32 {
         let raw = self.uid();
         match policy {
@@ -180,6 +199,7 @@ impl AuthCred {
         }
     }
 
+    /// Get the effective GID after applying the squash policy.
     pub fn effective_gid(&self, policy: SquashPolicy) -> u32 {
         let raw = self.gid();
         match policy {

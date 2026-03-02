@@ -63,11 +63,14 @@ impl QuotaLimits {
 /// Current quota usage for a subject
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct QuotaUsage {
+    /// Number of bytes currently used
     pub bytes_used: u64,
+    /// Number of inodes/files currently used
     pub inodes_used: u64,
 }
 
 impl QuotaUsage {
+    /// Create new usage with specified values
     pub fn new(bytes_used: u64, inodes_used: u64) -> Self {
         Self {
             bytes_used,
@@ -75,6 +78,7 @@ impl QuotaUsage {
         }
     }
 
+    /// Add bytes to usage (saturating at u64::MAX)
     pub fn add_bytes(&self, bytes: u64) -> Self {
         Self {
             bytes_used: self.bytes_used.saturating_add(bytes),
@@ -82,6 +86,7 @@ impl QuotaUsage {
         }
     }
 
+    /// Subtract bytes from usage (saturating at 0)
     pub fn sub_bytes(&self, bytes: u64) -> Self {
         Self {
             bytes_used: self.bytes_used.saturating_sub(bytes),
@@ -89,6 +94,7 @@ impl QuotaUsage {
         }
     }
 
+    /// Add inodes to usage (saturating at u64::MAX)
     pub fn add_inodes(&self, n: u64) -> Self {
         Self {
             bytes_used: self.bytes_used,
@@ -96,6 +102,7 @@ impl QuotaUsage {
         }
     }
 
+    /// Subtract inodes from usage (saturating at 0)
     pub fn sub_inodes(&self, n: u64) -> Self {
         Self {
             bytes_used: self.bytes_used,
@@ -122,6 +129,7 @@ pub struct QuotaManager {
 }
 
 impl QuotaManager {
+    /// Create a new quota manager with empty limits and usage
     pub fn new() -> Self {
         Self {
             limits: Mutex::new(HashMap::new()),

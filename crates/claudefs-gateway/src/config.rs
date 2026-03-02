@@ -15,6 +15,7 @@ pub struct BindAddr {
 }
 
 impl BindAddr {
+    /// Creates a new bind address with the given IP/hostname and port.
     pub fn new(addr: &str, port: u16) -> Self {
         Self {
             addr: addr.to_string(),
@@ -22,6 +23,7 @@ impl BindAddr {
         }
     }
 
+    /// Returns the default NFS bind address (0.0.0.0:2049).
     pub fn nfs_default() -> Self {
         Self {
             addr: "0.0.0.0".to_string(),
@@ -29,6 +31,7 @@ impl BindAddr {
         }
     }
 
+    /// Returns the default MOUNT protocol bind address (0.0.0.0:20048).
     pub fn mount_default() -> Self {
         Self {
             addr: "0.0.0.0".to_string(),
@@ -36,6 +39,7 @@ impl BindAddr {
         }
     }
 
+    /// Returns the default S3 bind address (0.0.0.0:9000).
     pub fn s3_default() -> Self {
         Self {
             addr: "0.0.0.0".to_string(),
@@ -43,6 +47,7 @@ impl BindAddr {
         }
     }
 
+    /// Converts the bind address to a socket address string (e.g., "0.0.0.0:2049").
     pub fn to_socket_addr_string(&self) -> String {
         format!("{}:{}", self.addr, self.port)
     }
@@ -72,6 +77,7 @@ pub struct ExportConfig {
 }
 
 impl ExportConfig {
+    /// Creates a default read-write export configuration for the given path.
     pub fn default_rw(path: &str) -> Self {
         Self {
             path: path.to_string(),
@@ -83,6 +89,7 @@ impl ExportConfig {
         }
     }
 
+    /// Creates a default read-only export configuration for the given path.
     pub fn default_ro(path: &str) -> Self {
         Self {
             path: path.to_string(),
@@ -94,6 +101,7 @@ impl ExportConfig {
         }
     }
 
+    /// Converts this export config to an ExportEntry for the mount daemon.
     pub fn to_export_entry(&self) -> ExportEntry {
         ExportEntry {
             dirpath: self.path.clone(),
@@ -118,6 +126,7 @@ pub struct S3Config {
 }
 
 impl S3Config {
+    /// Creates a new S3 configuration with default values.
     pub fn new() -> Self {
         Self {
             bind: BindAddr::s3_default(),
@@ -157,6 +166,7 @@ pub struct NfsConfig {
 }
 
 impl NfsConfig {
+    /// Creates an NFS configuration with a default export for the given path.
     pub fn default_with_export(path: &str) -> Self {
         Self {
             bind: BindAddr::nfs_default(),
@@ -195,6 +205,7 @@ pub struct GatewayConfig {
 }
 
 impl GatewayConfig {
+    /// Creates a gateway configuration with default NFS and S3 settings, plus an export at the given path.
     pub fn default_with_export(path: &str) -> Self {
         Self {
             nfs: NfsConfig::default_with_export(path),
@@ -206,10 +217,12 @@ impl GatewayConfig {
         }
     }
 
+    /// Returns true if at least one protocol (NFS, S3, or SMB) is enabled.
     pub fn any_enabled(&self) -> bool {
         self.enable_nfs || self.enable_s3 || self.enable_smb
     }
 
+    /// Validates the gateway configuration for port conflicts and required settings.
     pub fn validate(&self) -> Result<()> {
         if !self.any_enabled() {
             return Err(GatewayError::ProtocolError {
