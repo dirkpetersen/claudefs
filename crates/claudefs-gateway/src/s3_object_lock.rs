@@ -21,7 +21,9 @@ pub enum RetentionMode {
 /// Object Lock status for a bucket
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ObjectLockStatus {
+    /// Object Lock is enabled for the bucket
     Enabled,
+    /// Object Lock is disabled for the bucket
     Disabled,
 }
 
@@ -49,26 +51,34 @@ impl RetentionPeriod {
 /// Default retention configuration for a bucket
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefaultRetention {
+    /// Retention mode (Governance or Compliance)
     pub mode: RetentionMode,
+    /// Retention period (days or years)
     pub retention_period: RetentionPeriod,
 }
 
 /// Bucket Object Lock configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BucketObjectLockConfig {
+    /// Bucket name
     pub bucket: String,
+    /// Object Lock status (Enabled/Disabled)
     pub status: ObjectLockStatus,
+    /// Default retention settings for new objects
     pub default_retention: Option<DefaultRetention>,
 }
 
 /// Object retention settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectRetention {
+    /// Retention mode (Governance or Compliance)
     pub mode: RetentionMode,
+    /// Time until which the object cannot be deleted or overwritten
     pub retain_until: SystemTime,
 }
 
 impl ObjectRetention {
+    /// Returns true if the retention period has expired
     pub fn is_expired(&self) -> bool {
         SystemTime::now() > self.retain_until
     }
