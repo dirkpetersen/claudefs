@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 2 Async Integration and Checksums (2026-03-03)
+
+#### Phase 2 Enhancements: Async Bridge + End-to-End Integrity
+
+**Status:** ✅ PHASE 2 ENHANCEMENTS — 187 tests passing (+21), 0 clippy warnings
+
+**Session Achievements:**
+
+1. **`async_meta_bridge.rs` — Async FingerprintStore for Tokio Integration (602 lines)**
+   - `AsyncFingerprintStore` trait with full async methods for Tokio-based A2 integration
+   - `AsyncLocalFingerprintStore` using `tokio::sync::RwLock` for async-safe access
+   - `AsyncNullFingerprintStore` no-op implementation for testing
+   - `AsyncIntegratedWritePath<F: AsyncFingerprintStore>` — async write pipeline
+   - 7 async tests including concurrent write test using `tokio::spawn`
+
+2. **`checksum.rs` — End-to-End Data Integrity (363 lines)**
+   - `ChecksumAlgorithm` enum: BLAKE3, CRC32C, xxHash64
+   - `DataChecksum` struct with algorithm-aware bytes
+   - `ChecksummedBlock` for data + checksum co-location
+   - CRC32C computed with Castagnoli polynomial table (const-time, no external deps)
+   - xxHash64 reference implementation using published constants
+   - `compute()` and `verify()` functions with `ReduceError::ChecksumMismatch` on failure
+   - 9 tests including proptest stability checks
+
+3. **`error.rs` — `ChecksumMismatch` and `Io` variants added**
+
+**Code Quality Metrics:**
+- Tests: 187 passing (up from 166, +21 new)
+- Clippy: 0 warnings
+- New modules: 2 (async_meta_bridge, checksum)
+
 ### A11: Infrastructure & CI — Phase 7 GitHub Actions Workflows (2026-03-03)
 
 #### CI/CD Pipeline Activation — 6 Production-Ready Workflows
