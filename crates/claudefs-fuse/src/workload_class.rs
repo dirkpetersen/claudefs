@@ -1,19 +1,29 @@
 use std::collections::HashMap;
 use tracing::{debug, trace};
 
+/// Classification of I/O workload types.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum WorkloadType {
+    /// AI training workloads: large sequential reads, high throughput.
     AiTraining,
+    /// AI inference workloads: low latency, small random reads.
     AiInference,
+    /// Web serving: high IOPS, mixed read/write.
     WebServing,
+    /// Database: random small I/O, transaction-oriented.
     Database,
+    /// Backup/restore: bulk sequential writes.
     Backup,
+    /// Interactive terminal/shell: minimal I/O, latency-sensitive.
     Interactive,
+    /// Streaming media: large sequential reads.
     Streaming,
+    /// Unknown or unclassified workload.
     Unknown,
 }
 
 impl WorkloadType {
+    /// Returns true if this workload type is latency-sensitive.
     pub fn is_latency_sensitive(&self) -> bool {
         matches!(
             self,
@@ -24,6 +34,7 @@ impl WorkloadType {
         )
     }
 
+    /// Returns true if this workload type is throughput-oriented.
     pub fn is_throughput_oriented(&self) -> bool {
         matches!(
             self,
@@ -31,6 +42,7 @@ impl WorkloadType {
         )
     }
 
+    /// Returns the suggested read-ahead size in KB for this workload type.
     pub fn suggested_read_ahead_kb(&self) -> u64 {
         match self {
             WorkloadType::AiTraining => 2048,
@@ -45,18 +57,27 @@ impl WorkloadType {
     }
 }
 
+/// Captures the access pattern statistics for a file or client.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AccessProfile {
+    /// Total bytes read.
     pub read_bytes: u64,
+    /// Total bytes written.
     pub write_bytes: u64,
+    /// Number of read operations.
     pub read_ops: u64,
+    /// Number of write operations.
     pub write_ops: u64,
+    /// Number of sequential read operations.
     pub sequential_reads: u64,
+    /// Number of random read operations.
     pub random_reads: u64,
+    /// Average size of read operations in bytes.
     pub avg_read_size_bytes: u64,
 }
 
 impl AccessProfile {
+    /// Creates a new empty access profile.
     pub fn new() -> Self {
         Self {
             read_bytes: 0,
@@ -69,6 +90,7 @@ impl AccessProfile {
         }
     }
 
+    /// Records a read operation.
     pub fn record_read(&mut self, bytes: u64, is_sequential: bool) {
         self.read_bytes += bytes;
         self.read_ops += 1;
@@ -82,11 +104,13 @@ impl AccessProfile {
         }
     }
 
+    /// Records a write operation.
     pub fn record_write(&mut self, bytes: u64) {
         self.write_bytes += bytes;
         self.write_ops += 1;
     }
 
+    /// Returns the ratio of reads to total I/O (0.0 = all writes, 1.0 = all reads).
     pub fn read_write_ratio(&self) -> f64 {
         let total = self.read_bytes + self.write_bytes;
         if total == 0 {
@@ -96,6 +120,7 @@ impl AccessProfile {
         }
     }
 
+    /// Returns the ratio of sequential to total reads (0.0 = all random, 1.0 = all sequential).
     pub fn sequential_ratio(&self) -> f64 {
         let total = self.sequential_reads + self.random_reads;
         if total == 0 {
@@ -105,10 +130,12 @@ impl AccessProfile {
         }
     }
 
+    /// Returns the total number of I/O operations.
     pub fn total_ops(&self) -> u64 {
         self.read_ops + self.write_ops
     }
 
+    /// Returns true if reads constitute more than 75% of I/O.
     pub fn is_read_heavy(&self) -> bool {
         if self.read_bytes == 0 && self.write_bytes == 0 {
             return false;
@@ -123,28 +150,44 @@ impl Default for AccessProfile {
     }
 }
 
+/// Tuning recommendation based on workload classification.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TuningHint {
+    /// Increase kernel read-ahead for this file.
     IncreaseReadAhead,
+    /// Decrease kernel read-ahead.
     DecreaseReadAhead,
+    /// Use direct I/O to bypass page cache.
     UseDirectIo,
+    /// Enable transparent compression.
     EnableCompression,
+    /// Disable transparent compression.
     DisableCompression,
+    /// Optimize for low latency over throughput.
     PrioritizeLatency,
+    /// Optimize for throughput over latency.
     PrioritizeThroughput,
+    /// Increase cache allocation for this file.
     IncreaseCache,
+    /// Reduce cache allocation for this file.
     ReduceCache,
 }
 
+/// Compact signature extracted from an access profile.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorkloadSignature {
+    /// Read-to-write ratio (0-1).
     pub read_write_ratio: f64,
+    /// Sequential-to-random ratio (0-1).
     pub sequential_ratio: f64,
+    /// Average I/O size in kilobytes.
     pub avg_io_size_kb: f64,
+    /// Operations per second.
     pub ops_per_second: f64,
 }
 
 impl WorkloadSignature {
+    /// Creates a signature from an access profile and observation window.
     pub fn from_profile(profile: &AccessProfile, elapsed_secs: f64) -> Self {
         let total_ops = profile.total_ops();
         let ops_per_second = if elapsed_secs > 0.0 {
@@ -168,27 +211,35 @@ impl WorkloadSignature {
         }
     }
 
+    /// Returns true if the signature matches AI training workloads.
     pub fn matches_ai_training(&self) -> bool {
         self.sequential_ratio > 0.8 && self.avg_io_size_kb >= 256.0
     }
 
+    /// Returns true if the signature matches database workloads.
     pub fn matches_database(&self) -> bool {
         self.sequential_ratio < 0.3 && self.avg_io_size_kb < 16.0 && self.ops_per_second < 500.0
     }
 
+    /// Returns true if the signature matches backup workloads.
     pub fn matches_backup(&self) -> bool {
         self.read_write_ratio < 0.1 && (self.sequential_ratio > 0.9 || self.sequential_ratio == 0.0)
     }
 }
 
+/// Result of workload classification with confidence and tuning hints.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClassificationResult {
+    /// The classified workload type.
     pub workload_type: WorkloadType,
+    /// Confidence score (0-1) of the classification.
     pub confidence: f64,
+    /// Recommended tuning hints for this workload.
     pub hints: Vec<TuningHint>,
 }
 
 impl ClassificationResult {
+    /// Creates a new classification result.
     pub fn new(workload_type: WorkloadType, confidence: f64) -> Self {
         Self {
             workload_type,
@@ -197,26 +248,31 @@ impl ClassificationResult {
         }
     }
 
+    /// Adds a tuning hint to the result.
     pub fn add_hint(&mut self, hint: TuningHint) {
         self.hints.push(hint);
     }
 
+    /// Returns true if confidence is >= 0.7.
     pub fn is_high_confidence(&self) -> bool {
         self.confidence >= 0.7
     }
 }
 
+/// Classifies I/O workloads based on access patterns.
 pub struct WorkloadClassifier {
     min_ops_for_classification: u64,
 }
 
 impl WorkloadClassifier {
+    /// Creates a new workload classifier with default settings.
     pub fn new() -> Self {
         Self {
             min_ops_for_classification: 100,
         }
     }
 
+    /// Classifies a workload based on its access profile.
     pub fn classify(&self, profile: &AccessProfile, elapsed_secs: f64) -> ClassificationResult {
         let total_ops = profile.total_ops();
         trace!(total_ops, elapsed_secs, "classifying workload");
@@ -291,6 +347,9 @@ impl Default for WorkloadClassifier {
     }
 }
 
+/// Adaptive tuner that tracks per-inode access patterns and recommends tuning.
+///
+/// Thread-safe: requires external synchronization for concurrent access.
 pub struct AdaptiveTuner {
     policies: HashMap<u64, ClassificationResult>,
     classifier: WorkloadClassifier,
@@ -299,6 +358,7 @@ pub struct AdaptiveTuner {
 }
 
 impl AdaptiveTuner {
+    /// Creates a new adaptive tuner.
     pub fn new() -> Self {
         Self {
             policies: HashMap::new(),
@@ -308,18 +368,21 @@ impl AdaptiveTuner {
         }
     }
 
+    /// Records a read operation for an inode.
     pub fn record_read(&mut self, inode: u64, bytes: u64, is_sequential: bool) {
         trace!(inode, bytes, is_sequential, "recording read");
         let profile = self.profiles.entry(inode).or_default();
         profile.record_read(bytes, is_sequential);
     }
 
+    /// Records a write operation for an inode.
     pub fn record_write(&mut self, inode: u64, bytes: u64) {
         trace!(inode, bytes, "recording write");
         let profile = self.profiles.entry(inode).or_default();
         profile.record_write(bytes);
     }
 
+    /// Classifies the workload for an inode and returns the result.
     pub fn classify_inode(&mut self, inode: u64) -> &ClassificationResult {
         let elapsed = self.window_start.elapsed().as_secs_f64();
         let profile = match self.profiles.get(&inode) {
@@ -335,6 +398,7 @@ impl AdaptiveTuner {
         self.policies.entry(inode).or_insert(result)
     }
 
+    /// Gets the suggested read-ahead size in KB for an inode.
     pub fn get_read_ahead_kb(&self, inode: u64) -> u64 {
         self.policies
             .get(&inode)
@@ -342,10 +406,12 @@ impl AdaptiveTuner {
             .unwrap_or(128)
     }
 
+    /// Returns the number of tracked inodes.
     pub fn tracked_inodes(&self) -> usize {
         self.profiles.len()
     }
 
+    /// Removes all profile and policy data for an inode.
     pub fn evict_inode(&mut self, inode: u64) {
         trace!(inode, "evicting inode");
         self.policies.remove(&inode);

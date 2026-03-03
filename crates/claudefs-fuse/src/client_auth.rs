@@ -9,62 +9,94 @@
 
 use thiserror::Error;
 
+/// Result type for authentication operations.
 pub type Result<T> = std::result::Result<T, AuthError>;
 
+/// Current authentication state of the client.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AuthState {
+    /// Client has not enrolled with the cluster.
     Unenrolled,
+    /// Enrollment in progress, waiting for certificate.
     Enrolling {
+        /// One-time enrollment token.
         token: String,
+        /// When enrollment started (Unix timestamp).
         started_at_secs: u64,
     },
+    /// Successfully enrolled with a valid certificate.
     Enrolled {
+        /// SHA-256 fingerprint of the certificate.
         cert_fingerprint: [u8; 32],
+        /// When the certificate expires (Unix timestamp).
         expires_at_secs: u64,
     },
+    /// Certificate renewal in progress.
     Renewing {
+        /// Fingerprint of the certificate being replaced.
         old_fingerprint: [u8; 32],
+        /// When renewal started (Unix timestamp).
         started_at_secs: u64,
     },
+    /// Client has been revoked and cannot re-enroll.
     Revoked {
+        /// Reason for revocation.
         reason: String,
+        /// When revocation occurred (Unix timestamp).
         revoked_at_secs: u64,
     },
 }
 
+/// Record of an enrolled certificate.
 #[derive(Debug, Clone)]
 pub struct CertRecord {
+    /// SHA-256 fingerprint of the certificate.
     pub fingerprint: [u8; 32],
+    /// Certificate subject (CN).
     pub subject: String,
+    /// When the certificate was issued (Unix timestamp).
     pub issued_at_secs: u64,
+    /// When the certificate expires (Unix timestamp).
     pub expires_at_secs: u64,
+    /// PEM-encoded certificate.
     pub cert_pem: String,
+    /// PEM-encoded private key.
     pub key_pem: String,
 }
 
 impl CertRecord {
+    /// Returns true if the certificate has expired.
     pub fn is_expired(&self, now_secs: u64) -> bool {
         now_secs >= self.expires_at_secs
     }
 
+    /// Returns true if the certificate should be renewed.
     pub fn needs_renewal(&self, now_secs: u64, renew_before_secs: u64) -> bool {
         let renewal_threshold = self.expires_at_secs.saturating_sub(renew_before_secs);
         now_secs >= renewal_threshold
     }
 
+    /// Returns the number of days until the certificate expires (negative if expired).
     pub fn days_until_expiry(&self, now_secs: u64) -> i64 {
         let secs_until = self.expires_at_secs as i64 - now_secs as i64;
         secs_until / 86400
     }
 }
 
+/// A revoked certificate entry in the CRL.
 #[derive(Debug, Clone)]
 pub struct RevokedCert {
+    /// SHA-256 fingerprint of the revoked certificate.
     pub fingerprint: [u8; 32],
+    /// Reason for revocation.
     pub reason: String,
+    /// When the certificate was revoked (Unix timestamp).
     pub revoked_at_secs: u64,
 }
 
+/// Manages client authentication lifecycle including enrollment, renewal, and revocation.
+///
+/// Thread-safe: requires external synchronization for concurrent access.
 pub struct ClientAuthManager {
     state: AuthState,
     cert: Option<CertRecord>,
@@ -73,6 +105,7 @@ pub struct ClientAuthManager {
 }
 
 impl ClientAuthManager {
+    /// Creates a new authentication manager.
     pub fn new(cert_dir: &str) -> Self {
         Self {
             state: AuthState::Unenrolled,
@@ -82,14 +115,17 @@ impl ClientAuthManager {
         }
     }
 
+    /// Returns the current authentication state.
     pub fn state(&self) -> &AuthState {
         &self.state
     }
 
+    /// Returns the current certificate record if enrolled.
     pub fn cert(&self) -> Option<&CertRecord> {
         self.cert.as_ref()
     }
 
+    /// Begins the enrollment process with a one-time token.
     pub fn begin_enrollment(&mut self, token: &str, now_secs: u64) -> Result<()> {
         match &self.state {
             AuthState::Unenrolled => {
@@ -106,6 +142,7 @@ impl ClientAuthManager {
         }
     }
 
+    /// Completes enrollment with the provided certificate and key.
     pub fn complete_enrollment(
         &mut self,
         cert_pem: &str,
@@ -142,6 +179,7 @@ impl ClientAuthManager {
         }
     }
 
+    /// Returns true if the current certificate needs renewal.
     pub fn needs_renewal(&self, now_secs: u64, renew_before_secs: u64) -> bool {
         if let Some(cert) = &self.cert {
             cert.needs_renewal(now_secs, renew_before_secs)
@@ -150,6 +188,7 @@ impl ClientAuthManager {
         }
     }
 
+    /// Begins the certificate renewal process.
     pub fn begin_renewal(&mut self, now_secs: u64) -> Result<()> {
         match &self.state {
             AuthState::Enrolled {
@@ -168,6 +207,7 @@ impl ClientAuthManager {
         }
     }
 
+    /// Completes renewal with the new certificate and key.
     pub fn complete_renewal(&mut self, cert_pem: &str, key_pem: &str, now_secs: u64) -> Result<()> {
         match &self.state {
             AuthState::Renewing {
@@ -199,6 +239,7 @@ impl ClientAuthManager {
         }
     }
 
+    /// Revokes the client's certificate.
     pub fn revoke(&mut self, reason: &str, now_secs: u64) {
         if let AuthState::Enrolled {
             cert_fingerprint: _,
@@ -215,6 +256,7 @@ impl ClientAuthManager {
         }
     }
 
+    /// Adds a certificate to the CRL.
     pub fn add_to_crl(&mut self, fingerprint: [u8; 32], reason: &str, revoked_at_secs: u64) {
         self.crl.push(RevokedCert {
             fingerprint,
@@ -223,14 +265,17 @@ impl ClientAuthManager {
         });
     }
 
+    /// Returns true if the certificate is revoked.
     pub fn is_revoked(&self, fingerprint: &[u8; 32]) -> bool {
         self.crl.iter().any(|r| r.fingerprint == *fingerprint)
     }
 
+    /// Returns the number of entries in the CRL.
     pub fn crl_len(&self) -> usize {
         self.crl.len()
     }
 
+    /// Removes expired entries from the CRL, returns count of removed entries.
     pub fn compact_crl(&mut self, now_secs: u64, max_age_secs: u64) -> usize {
         let old_len = self.crl.len();
         self.crl
@@ -239,6 +284,7 @@ impl ClientAuthManager {
     }
 }
 
+/// Computes a simple fingerprint from PEM content.
 fn compute_fingerprint(pem: &str) -> [u8; 32] {
     let mut hash = [0u8; 32];
     for (i, byte) in pem.bytes().enumerate() {
@@ -247,6 +293,7 @@ fn compute_fingerprint(pem: &str) -> [u8; 32] {
     hash
 }
 
+/// Parses expiration date from PEM certificate.
 fn parse_expiry_from_pem(pem: &str) -> Option<u64> {
     if pem.contains("2030") {
         Some(1893456000)
@@ -257,6 +304,7 @@ fn parse_expiry_from_pem(pem: &str) -> Option<u64> {
     }
 }
 
+/// Parses subject CN from PEM certificate.
 fn parse_subject_from_pem(pem: &str) -> Option<String> {
     if let Some(start) = pem.find("/CN=") {
         let rest = &pem[start + 4..];
@@ -267,18 +315,25 @@ fn parse_subject_from_pem(pem: &str) -> Option<String> {
     }
 }
 
+/// Authentication errors.
 #[derive(Debug, Error)]
 pub enum AuthError {
+    /// Client has not enrolled with the cluster.
     #[error("Not enrolled")]
     NotEnrolled,
+    /// Client is already enrolled.
     #[error("Already enrolled")]
     AlreadyEnrolled,
+    /// Enrollment or renewal is already in progress.
     #[error("Enrollment in progress")]
     EnrollmentInProgress,
+    /// Client has been revoked.
     #[error("Already revoked")]
     AlreadyRevoked,
+    /// The PEM content is invalid.
     #[error("Invalid PEM: {0}")]
     InvalidPem(String),
+    /// The certificate has expired.
     #[error("Certificate expired")]
     CertExpired,
 }

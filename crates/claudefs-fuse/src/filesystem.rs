@@ -29,16 +29,29 @@ use crate::perf::FuseMetrics;
 use crate::symlink::SymlinkStore;
 use crate::xattr::XattrStore;
 
+/// Configuration for the ClaudeFS FUSE filesystem.
+///
+/// Controls caching behavior, user/group identity, permission checking,
+/// and timeout values for attribute and entry caching.
 #[derive(Debug, Clone)]
 pub struct ClaudeFsConfig {
+    /// Metadata cache configuration.
     pub cache: CacheConfig,
+    /// Data cache configuration for file content.
     pub data_cache: DataCacheConfig,
+    /// Default UID for filesystem operations when running as root.
     pub uid: u32,
+    /// Default GID for filesystem operations when running as root.
     pub gid: u32,
+    /// Whether to enforce default POSIX permission checking.
     pub default_permissions: bool,
+    /// Whether to allow other users to access the filesystem.
     pub allow_other: bool,
+    /// How long to cache attribute (getattr) results.
     pub attr_timeout: Duration,
+    /// How long to cache lookup/entry results.
     pub entry_timeout: Duration,
+    /// Whether to use direct I/O (bypass page cache).
     pub direct_io: bool,
 }
 
@@ -58,10 +71,13 @@ impl Default for ClaudeFsConfig {
     }
 }
 
+/// Internal handle tracking an open file descriptor.
 #[derive(Debug)]
 #[allow(dead_code)]
 struct OpenHandle {
+    /// Inode number of the opened file.
     ino: u64,
+    /// Flags passed to the open call.
     flags: i32,
 }
 
@@ -79,6 +95,10 @@ struct ClaudeFsState {
     data_cache: DataCache,
 }
 
+/// FUSE filesystem implementation for ClaudeFS.
+///
+/// Thread-safe via internal mutex on state. Implements the `fuser::Filesystem`
+/// trait to handle FUSE operations from the kernel.
 pub struct ClaudeFsFilesystem {
     config: ClaudeFsConfig,
     state: Arc<Mutex<ClaudeFsState>>,
@@ -86,6 +106,7 @@ pub struct ClaudeFsFilesystem {
 }
 
 impl ClaudeFsFilesystem {
+    /// Creates a new ClaudeFS filesystem with the given configuration.
     pub fn new(config: ClaudeFsConfig) -> Self {
         let state = ClaudeFsState {
             inodes: InodeTable::new(),
@@ -105,15 +126,18 @@ impl ClaudeFsFilesystem {
         }
     }
 
+    /// Returns a reference to the filesystem configuration.
     pub fn config(&self) -> &ClaudeFsConfig {
         &self.config
     }
 
+    /// Returns a snapshot of current FUSE operation metrics.
     pub fn metrics_snapshot(&self) -> crate::perf::MetricsSnapshot {
         self.metrics.snapshot()
     }
 }
 
+/// Converts an internal inode entry to a FUSE file attribute structure.
 fn inode_to_fuser_attr(entry: &InodeEntry) -> fuser::FileAttr {
     let atime = SystemTime::UNIX_EPOCH + Duration::new(entry.atime_secs as u64, entry.atime_nsecs);
     let mtime = SystemTime::UNIX_EPOCH + Duration::new(entry.mtime_secs as u64, entry.mtime_nsecs);
