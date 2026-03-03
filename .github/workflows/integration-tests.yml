@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # Run nightly at 01:00 UTC (after tests-all at 00:00)
+    - cron: '0 1 * * *'
 
 env:
   RUST_BACKTRACE: 1
@@ -17,6 +20,11 @@ jobs:
     name: Full Workspace Integration
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Only run integration tests on schedule, PR, or manual trigger
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 

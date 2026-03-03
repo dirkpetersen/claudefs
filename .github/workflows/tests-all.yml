@@ -20,6 +20,12 @@ jobs:
     name: All Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Only run tests on schedule, PR, or manual trigger
+    # Skip on regular pushes to main (ci-build.yml is sufficient)
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
