@@ -34,6 +34,8 @@ pub struct Segment {
     pub sealed: bool,
     /// Seconds since UNIX_EPOCH when segment was created.
     pub created_at_secs: u64,
+    /// CRC32C checksum of the payload bytes (computed when segment is sealed).
+    pub payload_checksum: Option<crate::checksum::DataChecksum>,
 }
 
 impl Segment {
@@ -45,6 +47,17 @@ impl Segment {
     /// Total bytes in the payload.
     pub fn total_payload_bytes(&self) -> usize {
         self.payload.len()
+    }
+
+    /// Verify the integrity of the segment payload against the stored checksum.
+    ///
+    /// Returns `Ok(())` if valid, `Err(ReduceError::ChecksumMismatch)` if invalid,
+    /// or `Err(ReduceError::ChecksumMissing)` if the segment has no checksum.
+    pub fn verify_integrity(&self) -> Result<(), crate::error::ReduceError> {
+        match &self.payload_checksum {
+            Some(checksum) => crate::checksum::verify(&self.payload, checksum),
+            None => Err(crate::error::ReduceError::ChecksumMissing),
+        }
     }
 }
 
@@ -106,6 +119,7 @@ impl SegmentPacker {
                 payload: Vec::new(),
                 sealed: false,
                 created_at_secs: now,
+                payload_checksum: None,
             });
             self.next_id += 1;
         }
@@ -137,6 +151,10 @@ impl SegmentPacker {
         // Check if segment is full
         if segment.payload.len() >= self.config.target_size {
             segment.sealed = true;
+            segment.payload_checksum = Some(crate::checksum::compute(
+                &segment.payload,
+                crate::checksum::ChecksumAlgorithm::Crc32c,
+            ));
             let full_segment = self.current.take();
             debug!(
                 segment_id = full_segment.as_ref().unwrap().id,
@@ -153,6 +171,10 @@ impl SegmentPacker {
     pub fn flush(&mut self) -> Option<Segment> {
         if let Some(ref mut segment) = self.current {
             segment.sealed = true;
+            segment.payload_checksum = Some(crate::checksum::compute(
+                &segment.payload,
+                crate::checksum::ChecksumAlgorithm::Crc32c,
+            ));
             debug!(segment_id = segment.id, "Segment flushed");
         }
         self.current.take()
@@ -307,5 +329,98 @@ mod tests {
         assert_eq!(seg1.id, 0);
         assert_eq!(seg2.id, 1);
         assert_eq!(seg3.id, 2);
+    }
+
+    #[test]
+    fn test_sealed_segment_has_checksum() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 10000 });
+
+        let (_, payload) = make_chunk(100);
+        packer.add_chunk(blake3_hash(b"test"), &payload, payload.len() as u32);
+
+        let segment = packer.flush().expect("should return segment");
+        assert!(segment.payload_checksum.is_some());
+    }
+
+    #[test]
+    fn test_full_segment_has_checksum() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 1024 });
+
+        let sealed_segments: Vec<_> = (0..100)
+            .map(|i| {
+                let (_, payload) = make_chunk(100);
+                packer.add_chunk(blake3_hash(&[i]), &payload, payload.len() as u32)
+            })
+            .filter_map(|s| s)
+            .collect();
+
+        assert!(!sealed_segments.is_empty());
+        for segment in &sealed_segments {
+            assert!(segment.payload_checksum.is_some());
+        }
+    }
+
+    #[test]
+    fn test_segment_verify_integrity() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 10000 });
+
+        let (_, payload) = make_chunk(100);
+        packer.add_chunk(blake3_hash(b"test"), &payload, payload.len() as u32);
+
+        let segment = packer.flush().expect("should return segment");
+        assert!(segment.verify_integrity().is_ok());
+    }
+
+    #[test]
+    fn test_segment_verify_corruption() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 10000 });
+
+        let (_, payload) = make_chunk(100);
+        packer.add_chunk(blake3_hash(b"test"), &payload, payload.len() as u32);
+
+        let mut segment = packer.flush().expect("should return segment");
+
+        segment.payload[0] ^= 0xFF;
+
+        let result = segment.verify_integrity();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            crate::error::ReduceError::ChecksumMismatch
+        ));
+    }
+
+    #[test]
+    fn test_unsealed_no_checksum() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 10000 });
+
+        let (_, payload) = make_chunk(100);
+        packer.add_chunk(blake3_hash(b"test"), &payload, payload.len() as u32);
+
+        let segment = packer
+            .current
+            .as_ref()
+            .expect("should have current segment");
+        assert!(segment.payload_checksum.is_none());
+        assert!(!segment.sealed);
+    }
+
+    #[test]
+    fn test_verify_missing_checksum() {
+        let segment = Segment {
+            id: 0,
+            entries: Vec::new(),
+            payload: vec![1, 2, 3, 4, 5],
+            sealed: false,
+            created_at_secs: 0,
+            payload_checksum: None,
+        };
+
+        let result = segment.verify_integrity();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            crate::error::ReduceError::ChecksumMissing
+        ));
     }
 }
