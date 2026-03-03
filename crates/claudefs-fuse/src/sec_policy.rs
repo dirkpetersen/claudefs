@@ -4,51 +4,73 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
+/// Linux capability definitions for fine-grained privilege control.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Capability {
+    /// System administration (mount, reboot, etc.).
     SysAdmin,
+    /// DAC read search permission.
     DacReadSearch,
+    /// Override DAC restrictions.
     DacOverride,
+    /// Change file ownership.
     Chown,
+    /// Bypass file owner restrictions.
     FOwner,
+    /// Set file mode bits (setuid/setgid).
     FSetId,
+    /// Send signals to arbitrary processes.
     Kill,
+    /// Set process GID.
     SetGid,
+    /// Set process UID.
     SetUid,
+    /// Set process capabilities.
     SetPCap,
+    /// Network administration.
     NetAdmin,
+    /// Change root directory (chroot).
     SysChroot,
+    /// Create special files (mknod).
     Mknod,
+    /// Take file leases.
     Lease,
+    /// Write audit logs.
     AuditWrite,
 }
 
+/// A set of Linux capabilities.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CapabilitySet {
     caps: Vec<Capability>,
 }
 
 impl CapabilitySet {
+    /// Creates a new empty capability set.
     pub fn new() -> Self {
         Self { caps: Vec::new() }
     }
 
+    /// Returns a minimal capability set for FUSE operation.
     pub fn fuse_minimal() -> Self {
         let mut caps = Self::new();
         caps.add(Capability::SysAdmin);
         caps
     }
 
+    /// Returns true if the set contains the given capability.
     pub fn contains(&self, cap: &Capability) -> bool {
         self.caps.contains(cap)
     }
 
+    /// Adds a capability to the set (no-op if already present).
     pub fn add(&mut self, cap: Capability) {
         if !self.caps.contains(&cap) {
             self.caps.push(cap);
         }
     }
 
+    /// Removes a capability from the set.
     pub fn remove(&mut self, cap: Capability) -> bool {
         if let Some(pos) = self.caps.iter().position(|c| c == &cap) {
             self.caps.remove(pos);
@@ -58,10 +80,12 @@ impl CapabilitySet {
         }
     }
 
+    /// Returns the number of capabilities in the set.
     pub fn len(&self) -> usize {
         self.caps.len()
     }
 
+    /// Returns true if the set is empty.
     pub fn is_empty(&self) -> bool {
         self.caps.is_empty()
     }
@@ -73,14 +97,19 @@ impl Default for CapabilitySet {
     }
 }
 
+/// Seccomp filter mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum SeccompMode {
+    /// No seccomp filtering.
     #[default]
     Disabled,
+    /// Log violations but allow syscalls.
     Log,
+    /// Enforce the policy, blocking violations.
     Enforce,
 }
 
+/// Policy controlling which syscalls are allowed or blocked.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyscallPolicy {
     mode: SeccompMode,
@@ -89,6 +118,7 @@ pub struct SyscallPolicy {
 }
 
 impl SyscallPolicy {
+    /// Creates a new empty syscall policy.
     pub fn new() -> Self {
         Self {
             mode: SeccompMode::Disabled,
@@ -97,6 +127,7 @@ impl SyscallPolicy {
         }
     }
 
+    /// Creates a policy allowing all syscalls needed for FUSE operation.
     pub fn fuse_allowlist() -> Self {
         let allowed = [
             "read",
@@ -429,6 +460,7 @@ impl SyscallPolicy {
         }
     }
 
+    /// Returns true if the syscall is permitted by this policy.
     pub fn is_allowed(&self, syscall: &str) -> bool {
         if self.allowed.is_empty() {
             !self.blocked.contains(&syscall.to_string())
@@ -438,6 +470,7 @@ impl SyscallPolicy {
         }
     }
 
+    /// Returns true if the syscall is explicitly blocked.
     pub fn is_blocked(&self, syscall: &str) -> bool {
         if self.blocked.is_empty() {
             false
@@ -446,10 +479,12 @@ impl SyscallPolicy {
         }
     }
 
+    /// Returns the seccomp mode for this policy.
     pub fn mode(&self) -> SeccompMode {
         self.mode
     }
 
+    /// Returns a new policy with the specified seccomp mode.
     pub fn with_mode(mut self, mode: SeccompMode) -> Self {
         self.mode = mode;
         self
@@ -462,6 +497,7 @@ impl Default for SyscallPolicy {
     }
 }
 
+/// Represents a Linux mount namespace.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MountNamespace {
     ns_id: u64,
@@ -470,6 +506,7 @@ pub struct MountNamespace {
 }
 
 impl MountNamespace {
+    /// Creates a new mount namespace from an ID and owning PID.
     pub fn new(ns_id: u64, pid: u32) -> Self {
         let created_at_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -482,6 +519,7 @@ impl MountNamespace {
         }
     }
 
+    /// Returns the age of the namespace in seconds.
     pub fn age_secs(&self) -> u64 {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -490,15 +528,18 @@ impl MountNamespace {
         now.saturating_sub(self.created_at_secs)
     }
 
+    /// Returns the namespace ID.
     pub fn ns_id(&self) -> u64 {
         self.ns_id
     }
 
+    /// Returns the PID of the namespace creator.
     pub fn pid(&self) -> u32 {
         self.pid
     }
 }
 
+/// Security profile for a FUSE client or operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityProfile {
     capabilities: CapabilitySet,
@@ -508,6 +549,7 @@ pub struct SecurityProfile {
 }
 
 impl SecurityProfile {
+    /// Creates a default permissive security profile.
     pub fn default_profile() -> Self {
         Self {
             capabilities: CapabilitySet::new(),
@@ -517,6 +559,7 @@ impl SecurityProfile {
         }
     }
 
+    /// Creates a hardened security profile for untrusted environments.
     pub fn hardened() -> Self {
         Self {
             capabilities: CapabilitySet::fuse_minimal(),
@@ -526,6 +569,7 @@ impl SecurityProfile {
         }
     }
 
+    /// Creates a profile with the specified capabilities.
     pub fn with_capabilities(caps: CapabilitySet) -> Self {
         Self {
             capabilities: caps,
@@ -535,6 +579,7 @@ impl SecurityProfile {
         }
     }
 
+    /// Creates a profile with the specified syscall policy.
     pub fn with_syscall_policy(policy: SyscallPolicy) -> Self {
         Self {
             capabilities: CapabilitySet::new(),
@@ -544,28 +589,34 @@ impl SecurityProfile {
         }
     }
 
+    /// Returns true if the syscall is permitted by this profile.
     pub fn is_syscall_permitted(&self, syscall: &str) -> bool {
         self.syscall_policy.is_allowed(syscall)
     }
 
+    /// Returns the required capabilities for this profile.
     pub fn required_capabilities(&self) -> &CapabilitySet {
         &self.capabilities
     }
 
+    /// Returns a new profile with the specified mount namespace.
     pub fn with_mount_namespace(mut self, ns: MountNamespace) -> Self {
         self.mount_ns = Some(ns);
         self
     }
 
+    /// Returns a new profile with the no_new_privs flag set.
     pub fn with_no_new_privs(mut self, enabled: bool) -> Self {
         self.enforce_no_new_privs = enabled;
         self
     }
 
+    /// Returns the mount namespace if set.
     pub fn mount_ns(&self) -> Option<&MountNamespace> {
         self.mount_ns.as_ref()
     }
 
+    /// Returns true if no_new_privs is enforced.
     pub fn enforce_no_new_privs(&self) -> bool {
         self.enforce_no_new_privs
     }
@@ -577,18 +628,24 @@ impl Default for SecurityProfile {
     }
 }
 
+/// Type of security policy violation.
 #[derive(Debug, Clone, Error, Serialize, Deserialize)]
 pub enum ViolationType {
+    /// A syscall was attempted that is not permitted.
     #[error("Unauthorized syscall: {0}")]
     UnauthorizedSyscall(String),
+    /// Attempt to gain capabilities beyond what is allowed.
     #[error("Capability escalation attempt: {0}")]
     CapabilityEscalation(String),
+    /// Attempt to acquire new privileges.
     #[error("New privileges attempt: {0}")]
     NewPrivilegesAttempt(String),
+    /// Unauthorized mount operation.
     #[error("Unauthorized mount: {0}")]
     UnauthorizedMount(String),
 }
 
+/// Represents a security policy violation event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PolicyViolation {
     violation_type: ViolationType,
@@ -597,6 +654,7 @@ pub struct PolicyViolation {
 }
 
 impl PolicyViolation {
+    /// Creates a new policy violation.
     pub fn new(vtype: ViolationType, details: &str) -> Self {
         Self {
             violation_type: vtype,
@@ -605,19 +663,25 @@ impl PolicyViolation {
         }
     }
 
+    /// Returns the type of violation.
     pub fn violation_type(&self) -> &ViolationType {
         &self.violation_type
     }
 
+    /// Returns additional details about the violation.
     pub fn details(&self) -> &str {
         &self.details
     }
 
+    /// Returns when the violation occurred.
     pub fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
 }
 
+/// Enforces security policies and tracks violations.
+///
+/// Thread-safe: requires external synchronization for concurrent access.
 #[derive(Debug, Clone)]
 pub struct PolicyEnforcer {
     profile: SecurityProfile,
@@ -626,6 +690,7 @@ pub struct PolicyEnforcer {
 }
 
 impl PolicyEnforcer {
+    /// Creates a new policy enforcer with the given profile.
     pub fn new(profile: SecurityProfile) -> Self {
         Self {
             profile,
@@ -634,11 +699,13 @@ impl PolicyEnforcer {
         }
     }
 
+    /// Returns a new enforcer with the specified max violations limit.
     pub fn with_max_violations(mut self, max: usize) -> Self {
         self.max_violations = max;
         self
     }
 
+    /// Checks if a syscall is permitted, recording violations if not.
     pub fn check_syscall(&mut self, syscall: &str) -> Result<()> {
         if self.is_over_limit() {
             warn!("Policy enforcement limit reached, rejecting syscall checks");
@@ -661,6 +728,7 @@ impl PolicyEnforcer {
         Ok(())
     }
 
+    /// Records a policy violation.
     pub fn record_violation(&mut self, vtype: ViolationType, details: &str) {
         let violation = PolicyViolation::new(vtype, details);
         info!("Policy violation recorded: {}", violation.details());
@@ -671,27 +739,33 @@ impl PolicyEnforcer {
         }
     }
 
+    /// Returns the number of recorded violations.
     pub fn violation_count(&self) -> usize {
         self.violations.len()
     }
 
+    /// Returns the n most recent violations.
     pub fn recent_violations(&self, n: usize) -> &[PolicyViolation] {
         let start = self.violations.len().saturating_sub(n);
         &self.violations[start..]
     }
 
+    /// Returns true if the violation limit has been reached.
     pub fn is_over_limit(&self) -> bool {
         self.violation_count() >= self.max_violations
     }
 
+    /// Clears all recorded violations.
     pub fn clear_violations(&mut self) {
         self.violations.clear();
     }
 
+    /// Returns a reference to the security profile.
     pub fn profile(&self) -> &SecurityProfile {
         &self.profile
     }
 
+    /// Returns the maximum allowed violations.
     pub fn max_violations(&self) -> usize {
         self.max_violations
     }

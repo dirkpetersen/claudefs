@@ -5,24 +5,32 @@ use std::time::{Duration, Instant, SystemTime};
 use thiserror::Error;
 use tracing::{debug, trace, warn};
 
+/// Errors that can occur in the cache coherence protocol.
 #[derive(Error, Debug)]
 pub enum CoherenceError {
+    /// No lease exists for the specified inode.
     #[error("Lease not found for inode {0}")]
     LeaseNotFound(u64),
+    /// The lease has expired.
     #[error("Lease {0} has expired")]
     LeaseExpired(LeaseId),
+    /// The lease is in an invalid state for the operation.
     #[error("Lease {0} is in invalid state")]
     InvalidLeaseState(LeaseId),
+    /// The version vector is invalid.
     #[error("Invalid version vector: {0}")]
     InvalidVersion(String),
 }
 
+/// Result type for coherence operations.
 pub type CoherenceResult<T> = std::result::Result<T, CoherenceError>;
 
+/// Unique identifier for a cache lease.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LeaseId(u64);
 
 impl LeaseId {
+    /// Creates a new lease ID from a raw numeric value.
     pub fn new(id: u64) -> Self {
         LeaseId(id)
     }
@@ -34,25 +42,41 @@ impl fmt::Display for LeaseId {
     }
 }
 
+/// Current state of a cache lease.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum LeaseState {
+    /// Lease is active and valid.
     Active,
+    /// Lease has expired but not yet revoked.
     Expired,
+    /// Lease has been explicitly revoked.
     Revoked,
+    /// Lease is being renewed.
     Renewing,
 }
 
+/// Represents a granted cache lease for a file.
+///
+/// Thread-safe: the lease is immutable after creation, state changes
+/// happen through explicit methods.
 #[derive(Debug, Clone)]
 pub struct CacheLease {
+    /// Unique identifier for this lease.
     pub lease_id: LeaseId,
+    /// Inode number this lease is for.
     pub inode: u64,
+    /// Client ID that holds this lease.
     pub client_id: u64,
+    /// When the lease was granted.
     pub granted_at: Instant,
+    /// Duration the lease is valid for.
     pub duration: Duration,
+    /// Current state of the lease.
     pub state: LeaseState,
 }
 
 impl CacheLease {
+    /// Creates a new cache lease.
     pub fn new(lease_id: LeaseId, inode: u64, client_id: u64, duration: Duration) -> Self {
         CacheLease {
             lease_id,
@@ -64,10 +88,12 @@ impl CacheLease {
         }
     }
 
+    /// Returns true if the lease is currently valid.
     pub fn is_valid(&self) -> bool {
         self.state == LeaseState::Active && !self.is_expired()
     }
 
+    /// Returns true if the lease has expired.
     pub fn is_expired(&self) -> bool {
         if matches!(self.state, LeaseState::Expired | LeaseState::Revoked) {
             return true;
@@ -75,6 +101,7 @@ impl CacheLease {
         self.granted_at.elapsed() >= self.duration
     }
 
+    /// Returns the remaining time until the lease expires.
     pub fn time_remaining(&self) -> Duration {
         if self.is_expired() {
             Duration::ZERO
@@ -83,11 +110,13 @@ impl CacheLease {
         }
     }
 
+    /// Revokes this lease, marking it as invalid.
     pub fn revoke(&mut self) {
         debug!("Revoking lease {}", self.lease_id);
         self.state = LeaseState::Revoked;
     }
 
+    /// Renews the lease with a new duration.
     pub fn renew(&mut self, new_duration: Duration) {
         trace!(
             "Renewing lease {} with new duration {:?}",
@@ -100,24 +129,36 @@ impl CacheLease {
     }
 }
 
+/// Reason why a cache entry was invalidated.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum InvalidationReason {
+    /// Lease expired naturally.
     LeaseExpired,
+    /// Remote node wrote to the file.
     RemoteWrite(u64),
+    /// Version conflict detected between caches.
     ConflictDetected,
+    /// Explicit flush requested by client.
     ExplicitFlush,
+    /// Node failover occurred.
     NodeFailover,
 }
 
+/// Represents a cache invalidation event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheInvalidation {
+    /// Inode that was invalidated.
     pub inode: u64,
+    /// Reason for invalidation.
     pub reason: InvalidationReason,
+    /// Version at time of invalidation.
     pub version: u64,
+    /// When the invalidation occurred.
     pub timestamp: SystemTime,
 }
 
 impl CacheInvalidation {
+    /// Creates a new cache invalidation event.
     pub fn new(inode: u64, reason: InvalidationReason, version: u64) -> Self {
         CacheInvalidation {
             inode,
@@ -128,22 +169,28 @@ impl CacheInvalidation {
     }
 }
 
+/// Vector clock for tracking versions of cached inodes.
+///
+/// Used to detect conflicts in distributed cache coherence.
 #[derive(Debug, Clone, Default)]
 pub struct VersionVector {
     versions: HashMap<u64, u64>,
 }
 
 impl VersionVector {
+    /// Creates a new empty version vector.
     pub fn new() -> Self {
         VersionVector {
             versions: HashMap::new(),
         }
     }
 
+    /// Gets the version for an inode, or 0 if not present.
     pub fn get(&self, inode: u64) -> u64 {
         self.versions.get(&inode).copied().unwrap_or(0)
     }
 
+    /// Updates the version for an inode if the new version is higher.
     pub fn update(&mut self, inode: u64, version: u64) {
         let current = self.versions.get(&inode).copied().unwrap_or(0);
         if version > current {
@@ -157,6 +204,7 @@ impl VersionVector {
         }
     }
 
+    /// Returns inodes that have conflicting versions between two vectors.
     pub fn conflicts(&self, other: &VersionVector) -> Vec<u64> {
         let mut conflicted = Vec::new();
         let mut seen = std::collections::HashSet::new();
@@ -181,29 +229,39 @@ impl VersionVector {
         conflicted
     }
 
+    /// Merges another version vector into this one, taking max versions.
     pub fn merge(&mut self, other: &VersionVector) {
         for (&inode, &version) in &other.versions {
             self.update(inode, version);
         }
     }
 
+    /// Returns the number of tracked inodes.
     pub fn len(&self) -> usize {
         self.versions.len()
     }
 
+    /// Returns true if the vector is empty.
     pub fn is_empty(&self) -> bool {
         self.versions.is_empty()
     }
 }
 
+/// Cache coherence protocol to use.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub enum CoherenceProtocol {
+    /// Close-to-open consistency: cache invalidated on open after close.
     #[default]
     CloseToOpen,
+    /// Session-based coherence within a single mount session.
     SessionBased,
+    /// Strict consistency: all writes immediately visible to other clients.
     Strict,
 }
 
+/// Manages cache leases and invalidations for the coherence protocol.
+///
+/// Thread-safe: requires external synchronization for concurrent access.
 pub struct CoherenceManager {
     leases: HashMap<u64, CacheLease>,
     invalidations: Vec<CacheInvalidation>,
@@ -213,6 +271,7 @@ pub struct CoherenceManager {
 }
 
 impl CoherenceManager {
+    /// Creates a new coherence manager with the specified protocol.
     pub fn new(protocol: CoherenceProtocol) -> Self {
         CoherenceManager {
             leases: HashMap::new(),
@@ -223,6 +282,7 @@ impl CoherenceManager {
         }
     }
 
+    /// Grants a cache lease for an inode to a client.
     pub fn grant_lease(&mut self, inode: u64, client_id: u64) -> CacheLease {
         let lease_id = LeaseId::new(self.next_lease_id);
         self.next_lease_id += 1;
@@ -237,6 +297,7 @@ impl CoherenceManager {
         lease
     }
 
+    /// Revokes the lease for an inode, returning the invalidation event.
     pub fn revoke_lease(&mut self, inode: u64) -> Option<CacheInvalidation> {
         if let Some(lease) = self.leases.get_mut(&inode) {
             lease.revoke();
@@ -252,10 +313,12 @@ impl CoherenceManager {
         }
     }
 
+    /// Checks if a valid lease exists for an inode.
     pub fn check_lease(&self, inode: u64) -> Option<&CacheLease> {
         self.leases.get(&inode).filter(|lease| lease.is_valid())
     }
 
+    /// Invalidates the cache for an inode.
     pub fn invalidate(&mut self, inode: u64, reason: InvalidationReason, version: u64) {
         if let Some(lease) = self.leases.get_mut(&inode) {
             lease.revoke();
@@ -266,19 +329,23 @@ impl CoherenceManager {
         self.invalidations.push(invalidation);
     }
 
+    /// Returns pending invalidations that haven't been processed.
     pub fn pending_invalidations(&self) -> &[CacheInvalidation] {
         &self.invalidations
     }
 
+    /// Drains and returns all pending invalidations.
     pub fn drain_invalidations(&mut self) -> Vec<CacheInvalidation> {
         trace!("Draining {} invalidations", self.invalidations.len());
         std::mem::take(&mut self.invalidations)
     }
 
+    /// Returns the count of currently active leases.
     pub fn active_lease_count(&self) -> usize {
         self.leases.values().filter(|l| l.is_valid()).count()
     }
 
+    /// Expires stale leases and returns the count of expired leases.
     pub fn expire_stale_leases(&mut self) -> usize {
         let mut count = 0;
         for lease in self.leases.values_mut() {
@@ -294,6 +361,7 @@ impl CoherenceManager {
         count
     }
 
+    /// Returns true if an inode has a valid lease (is coherent).
     pub fn is_coherent(&self, inode: u64) -> bool {
         self.leases
             .get(&inode)
