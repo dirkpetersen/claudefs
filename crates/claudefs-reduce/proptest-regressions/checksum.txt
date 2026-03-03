@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b0264f84abdf51f617ee510ff8c8fdd54522f6bde0cf7627c9f20e4d80a819ea # shrinks to ref data = "\0Aa  A\00Aa   0Aa 000a0A0 \0¡  A0  a \0Aaa AAAa aaa A a  a0 Aa0A\0Aa a   A 0  ¡\0A\0\00a\00 \0A aa:e&zG*_?K}w{?~2\u{1b}jj\"$1ld[\0{\rd\n\t?\\$P'\nrg.\u{94}CP\u{7f}\t\tkG*<&Q\"`'msn$&@A`/\r\n``oGKR`\nL}b5\"\"/.\0\u{c}Q?=$_?\tH?5]\rþ\"d.'YD^*o\u{c}{\u{b}9.m/0\u{1b}WB[k\\=\u{1b}2&8n&$:\u{17}\u{3}\nA\"¸\u{7f}*RY%a'A:\\*=\u{8}\0?8L=\r%F\n{<FJ+AC[<?H1:}Y[\"u%#\"\te\u{1f}\"Qr¬"
+cc 52ecfc63e7d376db592928b219d530c618e9ef302ec2fd2701f6847442156851 # shrinks to ref data = "  \0¡\u{80}00aa¡  ¡¡¡a\u{80}AA\00¡\0£w.*I»Á6\u{83}ob=pá\u{97}U=8{q\0\u{7f}\r<ð=\u{ad}\u{1b}E/`:·&?¥:\\V\u{1b}`\u{1e}t?¡='/\\pîPDn'R+FÝ\nv$\tÍ<.z$ Ø.%<·0\"È%::'`CF\\x^\0\\ýÜ\u{9e}_\"\r\u{b}\u{b}E\n²¡x$Õ%:3Â%h-b9\u{1b}2îÀ\u{3}I\u{81}pV%\\jB¥ü*ÕxZ\0\u{b}\tÈ`ZÊ¥\u{b}F`\u{b}UEÝ6C*:&{`\n=!GÑN+im&*ÿw\\s\u{8c}?\u{8a}{<¾$!\\$Å\r.6\u{1b}\u{8d}¥Z%Nz\0`%\"QD»zX='3\u{84}hu ï\u{b}Xé\u{1a}\tw\u{b}\u{b}\u{7f}C:&%Ü\0:Z$¥}?\u{b}(¥»\u{14}Ì\u{1f}A\r?_F\u{b}É#\\ô\u{83}\u{7f}\tÈv[\u{1b}ÞÛ'IuMxBy.t\0*%W\u{8f}\"&\t=L\u{14}Ù¿{?'`Pk/('\u{91}b)9`L`\u{b}{==×.6\\\r:'ê\\{&`Ç\n\n*{\u{1b}_B*>=:{\u{b}L~3zW\"k0Ñ·ô\\@}4?\0¸\"¥\\*\n-'\u{19}\0{Ìq`¢A<E'<e}C\u{7f}d\u{16}c·:?<Í~^:%¹\u{b}\u{b}\u{8b}_û/\"*«øµ/o\u{1b}\nv=/\u{7f}eOÞ\u{1c}{W\u{1e}=\u{98}\n%HÉif%kÝ\u{7f}s,o\r\u{1b} \u{82}*?Ð`=8&Ü\u{1c}\u{3}Þ\u{85}"
