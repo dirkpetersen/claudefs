@@ -5,7 +5,9 @@
 //! Write path: Data → Chunk (FastCDC) → Fingerprint (BLAKE3) → Dedupe → Compress → Encrypt → Store
 //! Read path:  Store → Decrypt → Decompress → Data
 
+pub mod async_meta_bridge;
 pub mod background;
+pub mod checksum;
 pub mod compression;
 pub mod dedupe;
 pub mod encryption;
@@ -25,6 +27,11 @@ pub mod write_path;
 /// WORM compliance and retention policy enforcement.
 pub mod worm_reducer;
 
+pub use async_meta_bridge::{
+    AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
+    AsyncNullFingerprintStore,
+};
+pub use checksum::{ChecksumAlgorithm, ChecksummedBlock, DataChecksum};
 pub use compression::CompressionAlgorithm;
 pub use dedupe::{CasIndex, Chunk, Chunker, ChunkerConfig};
 pub use encryption::{EncryptedChunk, EncryptionAlgorithm, EncryptionKey};

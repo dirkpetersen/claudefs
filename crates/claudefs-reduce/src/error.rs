@@ -27,4 +27,7 @@ pub enum ReduceError {
     /// Attempted to downgrade WORM retention policy
     #[error("Cannot downgrade WORM retention policy")]
     PolicyDowngradeAttempted,
+    /// Data integrity checksum mismatch — silent data corruption detected
+    #[error("checksum mismatch — silent data corruption detected")]
+    ChecksumMismatch,
 }

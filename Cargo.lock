@@ -576,6 +576,7 @@ name = "claudefs-reduce"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "async-trait",
  "blake3",
  "bytes",
  "chacha20poly1305",
