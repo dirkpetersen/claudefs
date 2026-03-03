@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### Phase 2 Enhancements: Async Bridge + End-to-End Integrity
 
-**Status:** ✅ PHASE 2 ENHANCEMENTS — 187 tests passing (+21), 0 clippy warnings
+**Status:** ✅ PHASE 2 ENHANCEMENTS — 193 tests passing (+27), 0 clippy warnings
 
 **Session Achievements:**
 
@@ -30,10 +30,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
    - `compute()` and `verify()` functions with `ReduceError::ChecksumMismatch` on failure
    - 9 tests including proptest stability checks
 
-3. **`error.rs` — `ChecksumMismatch` and `Io` variants added**
+3. **`segment.rs` — Segment Integrity Checksums**
+   - `Segment.payload_checksum: Option<DataChecksum>` added to Segment struct
+   - `Segment::verify_integrity()` method for corruption detection
+   - `SegmentPacker` automatically computes CRC32C checksum when sealing
+   - 6 new tests: corruption detection, checksum presence, verify pass/fail
+
+4. **`error.rs` — `ChecksumMismatch`, `ChecksumMissing`, `Io` variants added**
 
 **Code Quality Metrics:**
-- Tests: 187 passing (up from 166, +21 new)
+- Tests: 193 passing (up from 166, +27 new)
 - Clippy: 0 warnings
 - New modules: 2 (async_meta_bridge, checksum)
 

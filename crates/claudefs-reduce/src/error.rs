@@ -30,4 +30,7 @@ pub enum ReduceError {
     /// Data integrity checksum mismatch — silent data corruption detected
     #[error("checksum mismatch — silent data corruption detected")]
     ChecksumMismatch,
+    /// No checksum available for integrity verification (segment not yet sealed)
+    #[error("checksum missing — segment has no integrity checksum")]
+    ChecksumMissing,
 }
