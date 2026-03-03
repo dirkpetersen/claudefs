@@ -1,0 +1,243 @@
+name: A9 Test & Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/claudefs-tests/**'
+      - 'crates/claudefs-storage/**'
+      - 'crates/claudefs-meta/**'
+      - 'crates/claudefs-reduce/**'
+      - 'crates/claudefs-transport/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/a9-tests.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Unit tests for the claudefs-tests crate itself
+  unit-tests:
+    name: A9 Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build claudefs-tests
+        run: cargo build -p claudefs-tests
+
+      - name: Run claudefs-tests unit tests
+        run: cargo test -p claudefs-tests -- --test-threads=4
+        timeout-minutes: 15
+
+      - name: Run clippy on claudefs-tests
+        run: cargo clippy -p claudefs-tests -- -D warnings
+
+  # Property-based tests (proptest) for data transforms
+  proptest:
+    name: A9 Property-Based Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-proptest-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run proptest storage tests
+        run: cargo test -p claudefs-tests proptest_storage -- --test-threads=1
+        env:
+          PROPTEST_CASES: 256
+
+      - name: Run proptest reduce tests
+        run: cargo test -p claudefs-tests proptest_reduce -- --test-threads=1
+        timeout-minutes: 20
+        env:
+          PROPTEST_CASES: 128
+
+      - name: Run proptest transport tests
+        run: cargo test -p claudefs-tests proptest_transport -- --test-threads=2
+        env:
+          PROPTEST_CASES: 256
+
+  # Integration tests across crates
+  integration:
+    name: A9 Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run storage integration tests
+        run: cargo test -p claudefs-tests storage_tests -- --test-threads=4
+
+      - name: Run meta integration tests
+        run: cargo test -p claudefs-tests meta_tests -- --test-threads=4
+
+      - name: Run reduce integration tests
+        run: cargo test -p claudefs-tests reduce_tests -- --test-threads=4
+
+  # Workspace-wide build check (all crates)
+  workspace-build:
+    name: Workspace Build Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-workspace-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build entire workspace
+        run: cargo build --workspace
+
+      - name: Run stable crate tests
+        run: >
+          cargo test
+          -p claudefs-tests
+          -p claudefs-storage
+          -p claudefs-meta
+          -p claudefs-reduce
+          -p claudefs-transport
+          -- --test-threads=4
+        timeout-minutes: 10
+
+  # POSIX compliance test (against tmpfs)
+  posix-compliance:
+    name: A9 POSIX Compliance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-posix-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run POSIX compliance tests (programmatic, no FUSE needed)
+        run: cargo test -p claudefs-tests posix_compliance -- --test-threads=2
+
+  # Linearizability / Jepsen framework tests
+  jepsen-framework:
+    name: A9 Jepsen Framework Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-jepsen-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run linearizability checker tests
+        run: cargo test -p claudefs-tests linearizability -- --test-threads=2
+
+      - name: Run Jepsen framework tests
+        run: cargo test -p claudefs-tests jepsen -- --test-threads=2
+
+  # Report generation
+  test-reports:
+    name: A9 Test Report Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-report-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run report generation tests
+        run: cargo test -p claudefs-tests report -- --test-threads=2
+
+      - name: Run regression registry tests
+        run: cargo test -p claudefs-tests regression -- --test-threads=2
