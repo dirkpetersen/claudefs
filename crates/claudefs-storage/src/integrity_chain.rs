@@ -238,7 +238,7 @@ impl IntegrityManager {
             .as_millis() as u64;
 
         let ttl = ttl_seconds.unwrap_or(self.config.chain_ttl_seconds);
-        let expires_at = now + ttl * 1000;
+        let expires_at = now + ttl * 60_000;
 
         let chain = IntegrityChain {
             id: Uuid::new_v4().to_string(),

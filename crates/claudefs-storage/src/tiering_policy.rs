@@ -207,12 +207,21 @@ impl TieringPolicyEngine {
             return AccessPattern::WriteOnceReadMany;
         }
 
-        if record.bytes_written > record.bytes_read * 10 && record.bytes_written > 1024 * 1024 {
+        let bytes_written = record.bytes_written;
+        let bytes_read = record.bytes_read;
+        let access_count = record.access_count;
+        if bytes_written > 0 && bytes_read == 0 && access_count >= 10 {
             return AccessPattern::WriteHeavy;
         }
 
         if record.access_count == 1 && record.bytes_read > 0 {
             return AccessPattern::ReadOnce;
+        }
+
+        if record.bytes_written > 0 && record.bytes_read > 0 {
+            if record.bytes_read > record.bytes_written * 5 {
+                return AccessPattern::WriteOnceReadMany;
+            }
         }
 
         let total_reads = record.sequential_read_count + record.random_read_count;
@@ -222,12 +231,6 @@ impl TieringPolicyEngine {
                 return AccessPattern::Sequential;
             } else if sequential_ratio < 0.2 {
                 return AccessPattern::Random;
-            }
-        }
-
-        if record.bytes_written > 0 && record.bytes_read > 0 {
-            if record.bytes_read > record.bytes_written * 5 {
-                return AccessPattern::WriteOnceReadMany;
             }
         }
 
