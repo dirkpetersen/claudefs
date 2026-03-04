@@ -26,6 +26,8 @@ pub mod indexer;
 pub mod metadata_consumer;
 /// Prometheus metrics collection
 pub mod metrics;
+/// Metrics collection from subsystems
+pub mod metrics_collector;
 /// Operational metrics aggregation
 pub mod ops_metrics;
 /// Performance reporting
@@ -48,6 +50,7 @@ pub use config::MgmtConfig;
 pub use grafana::{all_dashboards, generate_cluster_overview_dashboard};
 pub use indexer::MetadataIndexer;
 pub use metrics::ClusterMetrics;
+pub use metrics_collector::MetricsCollector;
 pub use quota::QuotaRegistry;
 pub use scraper::ScraperPool;
 

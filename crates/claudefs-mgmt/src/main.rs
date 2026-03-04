@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::Parser;
 use claudefs_mgmt::cli::Cli;
-use claudefs_mgmt::{AdminApi, AlertManager, ClusterMetrics, MetadataIndexer, MgmtConfig, ScraperPool};
+use claudefs_mgmt::{AdminApi, AlertManager, ClusterMetrics, MetadataIndexer, MetricsCollector, MgmtConfig, ScraperPool};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -38,6 +38,9 @@ async fn serve_with_modules(config_path: PathBuf) -> Result<()> {
     };
 
     let metrics = Arc::new(ClusterMetrics::new());
+    let collector = MetricsCollector::new(metrics.clone(), 10);
+    let collector_handle = collector.start();
+    tracing::info!("Metrics collector started with 10 second interval");
     let config = Arc::new(config);
     let indexer = Arc::new(MetadataIndexer::new(
         config.index_dir.clone(),

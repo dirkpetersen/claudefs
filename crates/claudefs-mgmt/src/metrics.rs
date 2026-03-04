@@ -452,6 +452,54 @@ impl Default for ClusterMetrics {
     }
 }
 
+impl ClusterMetrics {
+    pub fn record_read_iops(&self, count: u64) {
+        self.iops_read.add(count);
+    }
+
+    pub fn record_write_iops(&self, count: u64) {
+        self.iops_write.add(count);
+    }
+
+    pub fn record_read_latency_us(&self, latency: f64) {
+        self.latency_read_us.observe(latency);
+    }
+
+    pub fn record_write_latency_us(&self, latency: f64) {
+        self.latency_write_us.observe(latency);
+    }
+
+    pub fn set_capacity_stats(&self, total: u64, used: u64) {
+        self.capacity_total_bytes.set(total as f64);
+        self.capacity_used_bytes.set(used as f64);
+        self.capacity_available_bytes
+            .set((total.saturating_sub(used)) as f64);
+    }
+
+    pub fn set_node_stats(&self, total: usize, healthy: usize, degraded: usize, offline: usize) {
+        self.nodes_total.set(total as f64);
+        self.nodes_healthy.set(healthy as f64);
+        self.nodes_degraded.set(degraded as f64);
+        self.nodes_offline.set(offline as f64);
+    }
+
+    pub fn record_dedupe_stats(&self, hit_rate: f64, _bytes_saved: u64) {
+        self.dedupe_hit_rate.set(hit_rate);
+    }
+
+    pub fn record_compression_ratio(&self, ratio: f64) {
+        self.compression_ratio.set(ratio);
+    }
+
+    pub fn record_replication_lag(&self, secs: f64) {
+        self.replication_lag_secs.set(secs);
+    }
+
+    pub fn record_replication_conflict(&self) {
+        self.replication_conflicts_total.inc();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

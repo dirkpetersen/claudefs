@@ -5,6 +5,7 @@
 use claudefs_mgmt::{AdminApi, MgmtConfig, ClusterMetrics};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -13,7 +14,8 @@ fn make_api(token: Option<&str>) -> axum::Router {
     config.admin_token = token.map(|t| t.to_string());
     let config = Arc::new(config);
     let metrics = Arc::new(ClusterMetrics::new());
-    let api = Arc::new(AdminApi::new(metrics, config));
+    let index_dir = std::env::temp_dir().join("cfs-security-test-api");
+    let api = Arc::new(AdminApi::new(metrics, config, index_dir));
     api.router()
 }
 
