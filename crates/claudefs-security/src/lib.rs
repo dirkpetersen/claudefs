@@ -240,3 +240,9 @@ pub mod meta_pathres_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod gateway_server_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod reduce_sim_recomp_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_rdp_cluster_security_tests;
