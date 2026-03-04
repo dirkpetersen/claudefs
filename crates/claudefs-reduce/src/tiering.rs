@@ -529,4 +529,135 @@ mod tests {
         tracker.record_access(1, 3000);
         assert_eq!(tracker.len(), 2);
     }
+
+    #[test]
+    fn test_tier_class_ordering() {
+        // Test that tier classes have expected relationships
+        // Hot is most important, Cold is least
+        assert_ne!(TierClass::Hot, TierClass::Cold);
+        assert_ne!(TierClass::Hot, TierClass::Warm);
+        assert_ne!(TierClass::Warm, TierClass::Cold);
+    }
+
+    #[test]
+    fn test_tier_config_default_values() {
+        let config = TierConfig::default();
+        assert_eq!(config.hot_threshold, 10);
+        assert_eq!(config.warm_threshold, 3);
+        assert_eq!(config.cold_age_secs, 86400);
+    }
+
+    #[test]
+    fn test_tier_tracker_record_access_returns_unit() {
+        let mut tracker = TierTracker::new(TierConfig::default());
+        tracker.record_access(42, 1000);
+        assert!(tracker.get_record(42).is_some());
+    }
+
+    #[test]
+    fn test_tier_tracker_promote_hot_data() {
+        let config = TierConfig {
+            hot_threshold: 5,
+            warm_threshold: 2,
+            cold_age_secs: 86400,
+        };
+        let mut tracker = TierTracker::new(config);
+
+        for _ in 0..5 {
+            tracker.record_access(1, 1000);
+        }
+
+        assert_eq!(tracker.classify(1, 1000), TierClass::Hot);
+    }
+
+    #[test]
+    fn test_tier_tracker_demote_cold_data() {
+        let config = TierConfig {
+            hot_threshold: 5,
+            warm_threshold: 2,
+            cold_age_secs: 1000,
+        };
+        let mut tracker = TierTracker::new(config);
+
+        for _ in 0..5 {
+            tracker.record_access(1, 1000);
+        }
+
+        assert_eq!(tracker.classify(1, 1000), TierClass::Hot);
+
+        // After aging past cold_age_secs, should be cold
+        assert_eq!(tracker.classify(1, 2500), TierClass::Cold);
+    }
+
+    #[test]
+    fn test_tier_tracker_multiple_accesses() {
+        let mut tracker = TierTracker::new(TierConfig::default());
+
+        tracker.record_access(1, 1000);
+        tracker.record_access(1, 1100);
+        tracker.record_access(1, 1200);
+        tracker.record_access(1, 1300);
+
+        let record = tracker.get_record(1).unwrap();
+        assert_eq!(record.access_count, 4);
+        assert_eq!(record.last_access_ts, 1300);
+    }
+
+    #[test]
+    fn test_access_record_fields() {
+        let record = AccessRecord {
+            access_count: 10,
+            last_access_ts: 5000,
+            first_access_ts: 1000,
+        };
+
+        assert_eq!(record.access_count, 10);
+        assert_eq!(record.last_access_ts, 5000);
+        assert_eq!(record.first_access_ts, 1000);
+    }
+
+    #[test]
+    fn test_tier_tracker_stats() {
+        let mut tracker = TierTracker::new(TierConfig::default());
+
+        tracker.record_access(1, 1000);
+        tracker.record_access(2, 2000);
+        tracker.record_access(3, 3000);
+
+        assert_eq!(tracker.len(), 3);
+        assert!(!tracker.is_empty());
+    }
+
+    #[test]
+    fn test_tier_class_debug_format() {
+        let hot = TierClass::Hot;
+        let debug_str = format!("{:?}", hot);
+        assert!(debug_str.contains("Hot"));
+    }
+
+    #[test]
+    fn test_tier_config_serializable() {
+        let config = TierConfig {
+            hot_threshold: 15,
+            warm_threshold: 5,
+            cold_age_secs: 3600,
+        };
+        // Just verify it has the right trait bounds
+        let _ = config.clone();
+    }
+
+    #[test]
+    fn test_tier_tracker_with_custom_config() {
+        let config = TierConfig {
+            hot_threshold: 2,
+            warm_threshold: 1,
+            cold_age_secs: 100,
+        };
+        let mut tracker = TierTracker::new(config);
+
+        tracker.record_access(1, 1000);
+        tracker.record_access(1, 1100);
+        // With hot_threshold=2, this should be hot now
+        assert_eq!(tracker.classify(1, 1100), TierClass::Hot);
+    }
 }

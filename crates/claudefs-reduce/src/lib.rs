@@ -51,6 +51,12 @@ pub mod dedup_pipeline;
 pub mod compaction_scheduler;
 /// WORM compliance and retention policy enforcement.
 pub mod worm_reducer;
+/// Snapshot catalog for efficient snapshot management.
+pub mod snapshot_catalog;
+/// Chunk I/O scheduling with priority-based queue.
+pub mod chunk_scheduler;
+/// Tier migration policies for flash-to-S3 data movement.
+pub mod tier_migration;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -127,4 +133,11 @@ pub use dedup_pipeline::{
 pub use compaction_scheduler::{
     CompactionJob, CompactionPriority, CompactionScheduler, CompactionSchedulerConfig,
     SchedulerStats,
+};
+pub use snapshot_catalog::{SnapshotCatalog, SnapshotId, SnapshotRecord};
+pub use chunk_scheduler::{
+    ChunkOp, ChunkScheduler, OpPriority, ScheduledOp, SchedulerConfig, SchedulerError,
+};
+pub use tier_migration::{
+    MigrationCandidate, MigrationConfig, MigrationDirection, MigrationStats, TierMigrator,
 };
