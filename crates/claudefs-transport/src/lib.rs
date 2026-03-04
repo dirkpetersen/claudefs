@@ -60,6 +60,7 @@ pub mod rdma;
 pub mod rpc;
 pub mod server;
 pub mod splice;
+pub mod stream;
 pub mod tcp;
 pub mod tenant;
 pub mod tls;
