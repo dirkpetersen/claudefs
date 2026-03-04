@@ -563,4 +563,129 @@ mod tests {
             }
         ));
     }
+
+    #[test]
+    fn test_rotation_status_debug() {
+        let status = RotationStatus::Idle;
+        let debug_str = format!("{:?}", status);
+        assert!(debug_str.contains("Idle"));
+    }
+
+    #[test]
+    fn test_scheduler_empty_rewrap_returns_none() {
+        let mut scheduler = KeyRotationScheduler::new();
+        let mut km = test_key_manager();
+
+        scheduler.schedule_rotation(KeyVersion(1)).unwrap();
+        let result = scheduler.rewrap_next(&mut km);
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_rewrap_preserves_entry_count() {
+        let mut scheduler = KeyRotationScheduler::new();
+        let mut km = test_key_manager();
+
+        for i in 1..=3 {
+            let dek = km.generate_dek().unwrap();
+            let wrapped = km.wrap_dek(&dek).unwrap();
+            scheduler.register_chunk(i, wrapped);
+        }
+
+        scheduler.mark_needs_rotation(KeyVersion(0));
+        scheduler.schedule_rotation(KeyVersion(1)).unwrap();
+
+        while let Ok(Some(_)) = scheduler.rewrap_next(&mut km) {}
+
+        assert_eq!(scheduler.total_chunks(), 3);
+    }
+
+    #[test]
+    fn test_rotation_in_progress_status_updates() {
+        let mut scheduler = KeyRotationScheduler::new();
+        let mut km = test_key_manager();
+
+        for i in 1..=3 {
+            let dek = km.generate_dek().unwrap();
+            let wrapped = km.wrap_dek(&dek).unwrap();
+            scheduler.register_chunk(i, wrapped);
+        }
+
+        scheduler.mark_needs_rotation(KeyVersion(0));
+        scheduler.schedule_rotation(KeyVersion(1)).unwrap();
+
+        scheduler.rewrap_next(&mut km).unwrap();
+        scheduler.rewrap_next(&mut km).unwrap();
+
+        match scheduler.status() {
+            RotationStatus::InProgress {
+                rewrapped, total, ..
+            } => {
+                assert_eq!(*rewrapped, 2);
+                assert_eq!(*total, 3);
+            }
+            _ => panic!("Expected InProgress"),
+        }
+    }
+
+    #[test]
+    fn test_no_double_rotation_needed() {
+        let mut scheduler = KeyRotationScheduler::new();
+        let mut km = test_key_manager();
+
+        let dek = km.generate_dek().unwrap();
+        let wrapped = km.wrap_dek(&dek).unwrap();
+        scheduler.register_chunk(1, wrapped);
+
+        scheduler.mark_needs_rotation(KeyVersion(0));
+        scheduler.schedule_rotation(KeyVersion(1)).unwrap();
+
+        let result1 = scheduler.rewrap_next(&mut km).unwrap();
+        assert!(result1.is_some());
+
+        assert_eq!(scheduler.pending_count(), 0);
+        assert!(matches!(
+            scheduler.status(),
+            RotationStatus::Complete { .. }
+        ));
+    }
+
+    #[test]
+    fn test_scheduler_with_different_kek_versions() {
+        let mut scheduler = KeyRotationScheduler::new();
+
+        let wrapped_v0 = WrappedKey {
+            ciphertext: vec![1u8; 60],
+            nonce: [0u8; 12],
+            kek_version: KeyVersion(0),
+        };
+        let wrapped_v2 = WrappedKey {
+            ciphertext: vec![2u8; 60],
+            nonce: [0u8; 12],
+            kek_version: KeyVersion(2),
+        };
+
+        scheduler.register_chunk(1, wrapped_v0);
+        scheduler.register_chunk(2, wrapped_v2);
+
+        scheduler.mark_needs_rotation(KeyVersion(0));
+        assert_eq!(scheduler.pending_count(), 1);
+    }
+
+    #[test]
+    fn test_rotation_entry_debug() {
+        let entry = RotationEntry {
+            chunk_id: 42,
+            wrapped_key: WrappedKey {
+                ciphertext: vec![1, 2, 3],
+                nonce: [0u8; 12],
+                kek_version: KeyVersion(1),
+            },
+            needs_rotation: true,
+        };
+        let debug_str = format!("{:?}", entry);
+        assert!(debug_str.contains("chunk_id"));
+    }
 }

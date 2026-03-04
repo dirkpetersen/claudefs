@@ -576,4 +576,107 @@ mod tests {
         assert_eq!(p1.retain_until, p2.retain_until);
         assert_ne!(p1.retain_until, p3.retain_until);
     }
+
+    #[test]
+    fn test_retention_policy_various_periods() {
+        let policy_short = RetentionPolicy::immutable_until(100);
+        let policy_long = RetentionPolicy::immutable_until(u64::MAX / 2);
+
+        assert!(!policy_short.is_expired(50));
+        assert!(policy_short.is_expired(200));
+
+        assert!(!policy_long.is_expired(1000000));
+        assert!(!policy_long.is_expired(u64::MAX / 4));
+    }
+
+    #[test]
+    fn test_worm_violation_detection() {
+        let mut reducer = WormReducer::new();
+
+        reducer
+            .register(1, RetentionPolicy::legal_hold(), 100)
+            .unwrap();
+
+        let downgrade_result = reducer.register(1, RetentionPolicy::none(), 200);
+        assert!(downgrade_result.is_err());
+    }
+
+    #[test]
+    fn test_immutable_to_legal_hold_upgrade() {
+        let mut reducer = WormReducer::new();
+
+        reducer
+            .register(1, RetentionPolicy::immutable_until(1000), 100)
+            .unwrap();
+
+        let upgrade_result = reducer.register(1, RetentionPolicy::legal_hold(), 200);
+        assert!(upgrade_result.is_ok());
+    }
+
+    #[test]
+    fn test_retention_expiry_boundary() {
+        let policy = RetentionPolicy::immutable_until(1000);
+
+        for ts in [999, 1000, 1001] {
+            let expected = ts > 1000;
+            assert_eq!(policy.is_expired(ts), expected, "at ts {}", ts);
+        }
+    }
+
+    #[test]
+    fn test_multiple_gc_cycles() {
+        let mut reducer = WormReducer::new();
+
+        for i in 1..=20 {
+            reducer
+                .register(i, RetentionPolicy::immutable_until(i * 100), 0)
+                .unwrap();
+        }
+
+        let r1 = reducer.gc_expired(500);
+        let r2 = reducer.gc_expired(1000);
+        let r3 = reducer.gc_expired(1500);
+
+        assert!(r1 > 0);
+        assert!(r2 > 0);
+        assert!(r3 > 0);
+        assert!(r1 + r2 + r3 <= 20);
+    }
+
+    #[test]
+    fn test_worm_mode_strength_ordering() {
+        assert!(
+            WormReducer::policy_strength(&WormMode::LegalHold)
+                > WormReducer::policy_strength(&WormMode::Immutable)
+        );
+        assert!(
+            WormReducer::policy_strength(&WormMode::Immutable)
+                > WormReducer::policy_strength(&WormMode::None)
+        );
+    }
+
+    #[test]
+    fn test_policy_downgrade_from_legal_hold() {
+        let mut reducer = WormReducer::new();
+
+        reducer
+            .register(1, RetentionPolicy::legal_hold(), 100)
+            .unwrap();
+
+        let result = reducer.register(1, RetentionPolicy::immutable_until(1000), 200);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_active_count_with_only_expired() {
+        let mut reducer = WormReducer::new();
+
+        for i in 1..=5 {
+            reducer
+                .register(i, RetentionPolicy::immutable_until(i * 10), 0)
+                .unwrap();
+        }
+
+        assert_eq!(reducer.active_count(100), 0);
+    }
 }

@@ -57,6 +57,12 @@ pub mod snapshot_catalog;
 pub mod chunk_scheduler;
 /// Tier migration policies for flash-to-S3 data movement.
 pub mod tier_migration;
+/// Encryption key store for managing versioned data encryption keys.
+pub mod key_store;
+/// Bandwidth throttling for background data reduction operations.
+pub mod bandwidth_throttle;
+/// Dedup analytics for capacity planning and reporting.
+pub mod dedup_analytics;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -141,3 +147,8 @@ pub use chunk_scheduler::{
 pub use tier_migration::{
     MigrationCandidate, MigrationConfig, MigrationDirection, MigrationStats, TierMigrator,
 };
+pub use key_store::{KeyStore, KeyStoreConfig, KeyStoreStats, StoredKey};
+pub use bandwidth_throttle::{
+    BandwidthThrottle, ThrottleConfig, ThrottleDecision, ThrottleStats, TokenBucket,
+};
+pub use dedup_analytics::{DedupAnalytics, DedupSample, DedupTrend};
