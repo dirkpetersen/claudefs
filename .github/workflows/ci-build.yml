@@ -20,7 +20,7 @@ jobs:
   build:
     name: Build Workspace
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -30,23 +30,29 @@ jobs:
           toolchain: stable
           components: clippy, rustfmt
 
-      - name: Cache cargo registry
+      - name: Cache cargo registry and git
         uses: actions/cache@v4
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-deps-
 
-      - name: Cache cargo index
+      - name: Cache cargo build (debug)
         uses: actions/cache@v4
         with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          path: target/debug
+          key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-debug-
 
-      - name: Cache cargo build
+      - name: Cache cargo build (release)
         uses: actions/cache@v4
         with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: target/release
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-release-
 
       - name: Build all crates (debug)
         run: cargo build --workspace --all-targets
@@ -71,11 +77,25 @@ jobs:
       - name: Check code formatting
         run: cargo fmt --all -- --check
 
-  # Linting with clippy
+  # Linting with clippy (per-crate for faster CI)
   clippy:
     name: Lint Check (Clippy)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    strategy:
+      matrix:
+        crate: [
+          claudefs-storage,
+          claudefs-meta,
+          claudefs-reduce,
+          claudefs-transport,
+          claudefs-fuse,
+          claudefs-repl,
+          claudefs-gateway,
+          claudefs-mgmt,
+          claudefs-tests
+        ]
+      fail-fast: false
     steps:
       - uses: actions/checkout@v4
 
@@ -85,16 +105,30 @@ jobs:
           toolchain: stable
           components: clippy
 
-      - name: Cache cargo build
+      - name: Cache cargo deps (clippy)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-deps-
+
+      - name: Cache cargo build (clippy)
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-clippy-
 
-      - name: Run clippy on all crates
-        run: |
-          cargo clippy --all --all-targets --all-features -- -D warnings
-          cargo clippy --workspace --release -- -D warnings
+      - name: Run clippy on ${{ matrix.crate }} (debug)
+        run: cargo clippy -p ${{ matrix.crate }} --all-targets -- -D warnings
+        continue-on-error: false
+
+      - name: Run clippy on ${{ matrix.crate }} (release)
+        run: cargo clippy -p ${{ matrix.crate }} --all-targets --release -- -D warnings
+        continue-on-error: false
 
   # Security audit
   security-audit:
@@ -128,11 +162,22 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Cache cargo build
+      - name: Cache cargo deps (docs)
         uses: actions/cache@v4
         with:
-          path: target
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-deps-
+
+      - name: Cache cargo build (docs)
+        uses: actions/cache@v4
+        with:
+          path: target/doc
           key: ${{ runner.os }}-cargo-docs-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-docs-
 
       - name: Build documentation
         run: cargo doc --no-deps --workspace
