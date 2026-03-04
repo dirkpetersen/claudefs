@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 2 Integration Tests (2026-03-04)
+
+#### 3 New Test Modules, 111 New Tests, 1687 Total
+
+**Status:** ✅ PHASE 2 TESTS COMPLETE — 1687 tests passing, 0 failures (+111 from 1576)
+
+**New Coverage:**
+
+1. **`fuse_path_resolver_tests.rs`** (41 tests — 37 unit + 4 proptest)
+   - PathResolverConfig defaults and custom construction
+   - GenerationTracker: new, get/set/bump/remove operations
+   - ResolvedPath staleness detection via generation comparison
+   - PathResolver cache: insert, lookup, stale eviction, capacity eviction
+   - invalidate_prefix: exact match, sub-paths, unrelated paths preserved
+   - bump_generation and is_generation_current lifecycle
+   - validate_path: empty, absolute, dotdot, single component, trailing slash
+   - Stats tracking: cache_hits, cache_misses, stale_hits, invalidations
+   - proptest: validate_path accepts valid paths, rejects invalid inputs
+
+2. **`mgmt_phase2_tests.rs`** (32 tests — 28 unit + 4 proptest)
+   - ClusterMetrics construction and Prometheus format output
+   - Counter increments: iops_read, iops_write, bytes_read, bytes_write
+   - Gauge sets: nodes_total, nodes_healthy/degraded/offline, capacity, s3_queue_depth
+   - Histogram observe: read/write latency, S3 flush latency
+   - MetricsCollector lifecycle: new, start, stop, is_running flag
+   - Prometheus output format validation (claudefs_ prefix on all metrics)
+   - Concurrent metrics access from multiple threads
+   - proptest: any f64 can be observed in histogram without panic
+
+3. **`gateway_cluster_backend_tests.rs`** (38 tests — 35 unit + 3 proptest)
+   - ClusterVfsBackend construction: empty nodes, custom cluster name
+   - Initial stats all zero, last_success None
+   - All 15 VFS operations return NotImplemented (getattr, lookup, read, write, readdir,
+     mkdir, create, remove, rename, readlink, symlink, fsstat, fsinfo, pathconf, access)
+   - Error messages contain op name in feature field
+   - Stats accounting: total_rpc_calls and failed_rpcs incremented per op
+   - ConnPoolConfig defaults validated
+   - BackendNode construction with id/addr/port
+   - Multiple backends have independent stats
+   - Thread safety via Arc<ClusterVfsBackend>
+   - proptest: any 1-64 byte file handle triggers NotImplemented from getattr
+
+**Test Statistics (2026-03-04):**
+- Total tests: **1687** (was 1576, +111 new)
+- New modules: 3
+- New lines: ~1,119
+
+---
+
 ### A1: Storage Engine — Module Exports and Test Fix (2026-03-04)
 
 #### Status: ✅ 744 tests passing (716 lib + 28 proptest), 0 clippy warnings
