@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 1 Foundation Complete (2026-03-04)
+
+**Status:** ✅ PHASE 1 COMPLETE — 742 tests passing, 0 compile errors, 0 warnings
+
+- 35 modules implementing cross-site journal replication per D3 (async cloud conduit)
+- Core: `journal.rs` (CRC32 entries), `wal.rs` (cursor tracking), `conduit.rs` (gRPC/mTLS sim)
+- Engine: `engine.rs` (lifecycle), `conflict_resolver.rs` + `split_brain.rs` (LWW + vector clocks)
+- Failover: `failover.rs` / `site_failover.rs` / `active_active.rs` (site mode state machine)
+- Security: `batch_auth.rs`, `tls_policy.rs`, `uidmap.rs`, rate limiters
+- Observability: `health.rs`, `metrics.rs`, `otel_repl.rs`, `lag_monitor.rs`
+- Fixed: E0382 compile error (partial move in proptest), 5 warnings (unused mut/vars)
+
 ### A11: Infrastructure & CI — Phase 8 System Health Monitoring (2026-03-04)
 
 #### Phase 8 Infrastructure Status: Active Development, All Systems Nominal
