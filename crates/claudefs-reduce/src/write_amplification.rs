@@ -463,4 +463,112 @@ mod tests {
         let config = WriteAmplificationConfig::default();
         assert_eq!(config.max_events, 10000);
     }
+
+    #[test]
+    fn test_stats_merge_event() {
+        let mut stats = WriteAmplificationStats::default();
+        let event = WriteEvent {
+            logical_bytes: 1000,
+            physical_bytes: 500,
+            dedup_bytes_saved: 200,
+            compression_bytes_saved: 150,
+            ec_overhead_bytes: 50,
+            timestamp_ms: 1000,
+        };
+        stats.merge_event(&event);
+        assert_eq!(stats.total_logical_bytes, 1000);
+        assert_eq!(stats.total_physical_bytes, 500);
+        assert_eq!(stats.total_dedup_saved, 200);
+        assert_eq!(stats.total_compression_saved, 150);
+        assert_eq!(stats.total_ec_overhead, 50);
+        assert_eq!(stats.event_count, 1);
+    }
+
+    #[test]
+    fn test_write_event_default() {
+        let event = WriteEvent::default();
+        assert_eq!(event.logical_bytes, 0);
+        assert_eq!(event.physical_bytes, 0);
+        assert_eq!(event.dedup_bytes_saved, 0);
+        assert_eq!(event.compression_bytes_saved, 0);
+        assert_eq!(event.ec_overhead_bytes, 0);
+        assert_eq!(event.timestamp_ms, 0);
+    }
+
+    #[test]
+    fn test_zero_physical_bytes_edge_case() {
+        let stats = WriteAmplificationStats {
+            total_logical_bytes: 1000,
+            total_physical_bytes: 0,
+            ..Default::default()
+        };
+        assert_eq!(stats.effective_reduction(), 1.0);
+        assert_eq!(stats.ec_overhead_pct(), 0.0);
+    }
+
+    #[test]
+    fn test_high_write_amplification() {
+        let stats = WriteAmplificationStats {
+            total_logical_bytes: 100,
+            total_physical_bytes: 500,
+            ..Default::default()
+        };
+        assert_eq!(stats.write_amplification(), 5.0);
+    }
+
+    #[test]
+    fn test_circular_buffer_exact_capacity() {
+        let mut tracker =
+            WriteAmplificationTracker::with_config(WriteAmplificationConfig { max_events: 5 });
+
+        for i in 0..5 {
+            tracker.record(WriteEvent {
+                logical_bytes: (i + 1) as u64 * 100,
+                ..Default::default()
+            });
+        }
+
+        assert_eq!(tracker.event_count(), 5);
+        let stats = tracker.stats();
+        assert_eq!(stats.total_logical_bytes, 100 + 200 + 300 + 400 + 500);
+    }
+
+    #[test]
+    fn test_window_stats_empty_tracker() {
+        let tracker = WriteAmplificationTracker::new();
+        let window = tracker.window_stats(5);
+        assert_eq!(window.event_count, 0);
+        assert_eq!(window.total_logical_bytes, 0);
+    }
+
+    #[test]
+    fn test_record_with_all_fields() {
+        let mut tracker = WriteAmplificationTracker::new();
+
+        tracker.record(WriteEvent {
+            logical_bytes: 2000,
+            physical_bytes: 800,
+            dedup_bytes_saved: 600,
+            compression_bytes_saved: 400,
+            ec_overhead_bytes: 100,
+            timestamp_ms: 5000,
+        });
+
+        let stats = tracker.stats();
+        assert_eq!(stats.total_logical_bytes, 2000);
+        assert_eq!(stats.total_physical_bytes, 800);
+        assert_eq!(stats.total_dedup_saved, 600);
+        assert_eq!(stats.total_compression_saved, 400);
+        assert_eq!(stats.total_ec_overhead, 100);
+        assert!((stats.dedup_ratio() - 0.3).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_stats_event_count_increment() {
+        let mut stats = WriteAmplificationStats::default();
+        for _ in 0..5 {
+            stats.merge_event(&WriteEvent::default());
+        }
+        assert_eq!(stats.event_count, 5);
+    }
 }

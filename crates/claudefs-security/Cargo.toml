@@ -33,3 +33,4 @@ sha2.workspace = true
 hkdf.workspace = true
 blake3.workspace = true
 zeroize = { version = "1.7", features = ["derive"] }
+tempfile = "3"

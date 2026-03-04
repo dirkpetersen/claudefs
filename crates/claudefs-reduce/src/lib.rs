@@ -63,6 +63,12 @@ pub mod key_store;
 pub mod bandwidth_throttle;
 /// Dedup analytics for capacity planning and reporting.
 pub mod dedup_analytics;
+/// Chunk rebalancing for cluster load distribution.
+pub mod chunk_rebalancer;
+/// Write coalescing for merging adjacent writes.
+pub mod write_coalescer;
+/// EC repair planning for degraded segments.
+pub mod ec_repair;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -152,3 +158,8 @@ pub use bandwidth_throttle::{
     BandwidthThrottle, ThrottleConfig, ThrottleDecision, ThrottleStats, TokenBucket,
 };
 pub use dedup_analytics::{DedupAnalytics, DedupSample, DedupTrend};
+pub use chunk_rebalancer::{
+    ChunkRebalancer, NodeLoad, RebalanceAction, RebalancePlan, RebalancerConfig,
+};
+pub use write_coalescer::{CoalesceConfig, CoalescedWrite, WriteCoalescer, WriteOp};
+pub use ec_repair::{EcRepair, RepairAssessment, RepairPlan, ShardState};

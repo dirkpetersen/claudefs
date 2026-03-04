@@ -537,4 +537,111 @@ mod tests {
         assert_eq!(stage.chunks_in, 150);
         assert_eq!(stage.bytes_in, 15000);
     }
+
+    #[test]
+    fn test_alert_threshold_default() {
+        let threshold = AlertThreshold::default();
+        assert_eq!(threshold.max_error_rate, 0.01);
+        assert_eq!(threshold.min_reduction_ratio, 1.5);
+        assert_eq!(threshold.max_latency_us, 100_000);
+    }
+
+    #[test]
+    fn test_check_alerts_multiple_alert_types() {
+        let mut monitor = PipelineMonitor::new();
+
+        monitor.record_stage(StageMetrics {
+            stage_name: "bad".to_string(),
+            chunks_in: 100,
+            chunks_out: 100,
+            errors: 50,
+            bytes_in: 100,
+            bytes_out: 99,
+            latency_sum_us: 1_000_000,
+            latency_count: 10,
+        });
+
+        let threshold = AlertThreshold {
+            max_error_rate: 0.01,
+            min_reduction_ratio: 1.5,
+            max_latency_us: 50_000,
+        };
+
+        let alerts = monitor.check_alerts(&threshold);
+        assert_eq!(alerts.len(), 3);
+    }
+
+    #[test]
+    fn test_stage_metrics_new() {
+        let metrics = StageMetrics::new("test_stage");
+        assert_eq!(metrics.stage_name, "test_stage");
+        assert_eq!(metrics.chunks_in, 0);
+        assert_eq!(metrics.chunks_out, 0);
+    }
+
+    #[test]
+    fn test_stage_metrics_merge() {
+        let mut m1 = StageMetrics {
+            stage_name: "test".to_string(),
+            chunks_in: 100,
+            chunks_out: 95,
+            bytes_in: 10000,
+            bytes_out: 5000,
+            errors: 5,
+            latency_sum_us: 1000,
+            latency_count: 100,
+        };
+        let m2 = StageMetrics {
+            stage_name: "test".to_string(),
+            chunks_in: 50,
+            chunks_out: 48,
+            bytes_in: 5000,
+            bytes_out: 2500,
+            errors: 2,
+            latency_sum_us: 500,
+            latency_count: 50,
+        };
+        m1.merge(&m2);
+        assert_eq!(m1.chunks_in, 150);
+        assert_eq!(m1.chunks_out, 143);
+        assert_eq!(m1.errors, 7);
+        assert_eq!(m1.latency_count, 150);
+    }
+
+    #[test]
+    fn test_stage_error_rate_zero_chunks() {
+        let metrics = StageMetrics {
+            stage_name: "test".to_string(),
+            chunks_in: 0,
+            errors: 5,
+            ..Default::default()
+        };
+        assert_eq!(metrics.error_rate(), 0.0);
+    }
+
+    #[test]
+    fn test_stage_reduction_ratio_zero_output() {
+        let metrics = StageMetrics {
+            stage_name: "test".to_string(),
+            bytes_in: 1000,
+            bytes_out: 0,
+            ..Default::default()
+        };
+        assert_eq!(metrics.reduction_ratio(), 1.0);
+    }
+
+    #[test]
+    fn test_pipeline_metrics_default() {
+        let metrics = PipelineMetrics::default();
+        assert!(metrics.stages.is_empty());
+        assert_eq!(metrics.total_chunks, 0);
+        assert_eq!(metrics.total_bytes_in, 0);
+        assert_eq!(metrics.total_bytes_out, 0);
+    }
+
+    #[test]
+    fn test_get_stage_not_found() {
+        let monitor = PipelineMonitor::new();
+        assert!(monitor.get_stage("nonexistent").is_none());
+    }
 }
