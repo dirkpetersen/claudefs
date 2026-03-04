@@ -38,6 +38,10 @@ pub mod tiering_policy;
 pub mod write_journal;
 pub mod wear_leveling;
 pub mod zns;
+pub mod erasure;
+pub mod node_rebalance;
+pub mod nvme_passthrough;
+pub mod tracing_storage;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
@@ -102,3 +106,8 @@ pub use qos_storage::{
 
 #[cfg(feature = "uring")]
 pub use uring_engine::{UringConfig, UringIoEngine, UringStats};
+
+pub use erasure::{EcProfile, EcShard, StripeState, EcStripe, EcConfig, EcStats, EcError, ErasureCodingEngine};
+pub use node_rebalance::{NodeId, RebalanceSegmentId, ShardId, RebalanceState, MigrationDirection, MigrationTask, MigrationTaskState, RebalanceConfig, RebalanceStats, RebalanceEngine};
+pub use nvme_passthrough::{QueuePairId, CoreId, NsId, QueueState, NvmeOpType, SubmissionEntry, CompletionEntry, CompletionStatus, QueuePair, PassthroughConfig, PassthroughStats, PassthroughError, PassthroughManager};
+pub use tracing_storage::{TraceId, SpanId, TraceContext, StorageOp, SpanStatus, StorageSpan, TracingConfig, TracingStats, W3CTraceparent, StorageTracer};
