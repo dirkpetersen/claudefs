@@ -1521,3 +1521,47 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 3. Prefetch List Generation (5): empty non-sequential, block-aligned, excludes cached, max inflight, aligned return
 4. Health Monitoring (5): status variants, report all healthy, worst wins, transport check, cache check
 5. Health Thresholds (5): defaults, error rates, component lookup, checker count, empty report
+
+---
+
+## Section 35: Phase 18 — Gateway S3 Versioning/Multipart & Repl Failover/Bootstrap
+
+**Test Modules:** `gateway_s3_ver_multi_security_tests.rs` (25 tests), `repl_failover_bootstrap_security_tests.rs` (25 tests)
+**Total Tests After Phase 18:** 1521 passing, 0 failures
+
+### Gateway S3 Versioning & Multipart Uploads (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| GW-S3-01 | MEDIUM | Version IDs are unique and non-empty — prevents version confusion |
+| GW-S3-05 | HIGH | Versioning state machine enforces valid transitions only |
+| GW-S3-08 | HIGH | Delete markers preserve version history — no silent data loss |
+| GW-S3-12 | HIGH | Multipart state machine prevents double-complete or complete-after-abort |
+| GW-S3-14 | HIGH | Part number validation enforces 1-10000 range per S3 spec |
+| GW-S3-17 | MEDIUM | Contiguous part validation prevents gaps in multipart assembly |
+
+**Categories tested:**
+1. S3 Versioning IDs (5): unique IDs, version list ordering, delete markers, latest version, list filtering
+2. S3 Versioning State Machine (5): initial state, enable/suspend transitions, registry enable, put versioned, list versions
+3. S3 Delete & Edge Cases (5): delete creates marker, suspended versioning, registry stats, config defaults, version count
+4. Multipart State Machine (5): create upload, add parts, complete, abort, state transitions
+5. Multipart Validation (5): part number range, contiguous parts, manager lifecycle, concurrent uploads, stats
+
+### Replication Failover & Bootstrap Coordinator (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| REPL-FAIL-02 | HIGH | Single site failure correctly transitions to Degraded state |
+| REPL-FAIL-03 | CRITICAL | Split brain state correctly detected when both sites fail |
+| REPL-FAIL-05 | HIGH | Manual failover with explicit target prevents ambiguous primary election |
+| REPL-FAIL-10 | MEDIUM | is_degraded() returns true for all non-Normal states — conservative safety |
+| REPL-BOOT-12 | HIGH | Bootstrap phase machine enforces sequential progression |
+| REPL-BOOT-15 | HIGH | Bootstrap failure correctly tracked — attempts vs failures stats diverge |
+| REPL-BOOT-20 | MEDIUM | Multiple bootstrap attempts with mixed success correctly counted |
+
+**Categories tested:**
+1. Failover State Machine (5): initial normal, site down degrades, split brain, recovery, manual failover
+2. Failover Edge Cases (5): replication lag degrades, stats tracking, stats default, same site twice, is_degraded all states
+3. Bootstrap Phase Machine (5): initial idle, enroll to snapshot, snapshot to catchup, catchup to complete, failure
+4. Bootstrap Progress & Stats (5): progress idle, enrolling, snapshot, stats default, multiple attempts
+5. Integration & Cross-Module (5): event serialization, enrollment record, state clone, catchup tracking, phase variants
