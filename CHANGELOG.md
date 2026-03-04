@@ -24,6 +24,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+### A3: Data Reduction — Phase 25: Dedup Coordinator, Refcount Table, Pipeline Orchestrator (2026-03-04)
+
+#### 3 New Modules — 72 New Tests, 1830 Total
+
+**Status:** ✅ 1830 tests passing, 0 failures (+72 from 1758)
+
+**New modules:**
+
+1. **dedup_coordinator.rs** — Distributed dedup coordinator with shard routing.
+   `DedupCoordinator` routes fingerprint lookups to local/remote nodes using consistent
+   hash (FNV-like, 256 virtual shards). `NodeFingerprintStore` maps hash→node_id.
+   `DedupLookupResult` (FoundLocal/FoundRemote/NotFound). Tracks cross-node savings bytes. 24 tests.
+
+2. **refcount_table.rs** — CAS block reference count table for GC prerequisite.
+   `RefcountTable` tracks per-block ref counts with add_ref/dec_ref/remove.
+   `orphaned()` returns all zero-ref blocks eligible for deletion. Saturating add
+   with configurable max_ref_count (default 65535). 24 tests.
+
+3. **pipeline_orchestrator.rs** — Full reduction pipeline orchestrator.
+   Ties together all 6 stages: Ingest→Dedup→Compress→Encrypt→Segment→Tier.
+   `OrchestratorState` (Idle/Running/Draining/Stopped) lifecycle. Per-stage
+   `StageMetricsData` with reduction_factor(). record_stage/record_error/record_dedup_drop. 24 tests.
+
+---
+
 ### A3: Data Reduction — Phase 24: Compression Stats, Delta Index, Object Assembler (2026-03-04)
 
 #### 3 New Modules — 70 New Tests, 1758 Total
