@@ -1344,3 +1344,48 @@ Deep audit of filesystem integrity checker (fsck), quota enforcement edge cases,
 3. Tenant Isolation (5): create/list, authorization, quota check, inode assignment, removal
 4. Fsck Issues & Repair (5): dangling entry, duplicate entry, disconnected subtree, finding display, report accumulation
 5. Quota & Tenant Edge Cases (5): saturating add, remove/recheck, duplicate create, usage tracking, group enforcement
+
+## 31. Phase 14: Transport Pipeline & Gateway NFS/RPC Security
+
+Phase 14 extends security coverage to transport congestion control, circuit breaker, request pipeline middleware, NFS write tracking, RPC protocol validation, and S3 XML building.
+
+**Test Modules:** 2 new | **New Tests:** 50 | **Total:** 1321
+
+### 31.1 Transport Pipeline & Congestion Security
+
+Deep audit of transport congestion window control, atomic circuit breaker, and request pipeline middleware.
+
+**Test Module:** `transport_pipeline_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| PIPE-04 | HIGH | Min congestion window prevents complete network stall |
+| PIPE-13 | HIGH | Pipeline max stages limit prevents unbounded middleware growth |
+| PIPE-17 | MEDIUM | XML escaping in pipeline header stage prevents injection |
+
+**Categories tested:**
+1. Congestion Window (5): initial slow start, window growth, loss reduces, min window floor, stats tracking
+2. Circuit Breaker (5): defaults, opens on failures, half-open, reset, success recovery
+3. Pipeline Stages (5): passthrough, reject, max stages limit, duplicate ID, enable/disable
+4. Pipeline Execution (5): order, header stage, stats tracking, remove stage, metadata
+5. Config & Edge Cases (5): congestion config, pipeline config, CB config, empty execute, can_send
+
+### 31.2 Gateway NFS Write & RPC Security
+
+Deep audit of NFS write tracking, RPC protocol encoding/decoding, TCP record mark framing, and S3 XML builder.
+
+**Test Module:** `gateway_nfs_rpc_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| NFS-03 | MEDIUM | WriteStability ordering (Unstable < DataSync < FileSync) enables durability selection |
+| NFS-21 | HIGH | Write verifier stability ensures NFS client crash recovery works |
+| RPC-10 | HIGH | NFS RPC constants match RFC 1813 — protocol compliance verified |
+| XML-17 | HIGH | XML character escaping prevents injection (&lt; &gt; &amp; &quot;) |
+
+**Categories tested:**
+1. NFS Write Tracking (5): record/pending, commit, stability ordering, multiple files, commit all
+2. RPC Protocol (5): auth none, reply success, proc unavail, auth error, constants validation
+3. TCP Record Mark (5): encode, decode, roundtrip, empty, max fragment
+4. S3 XML Builder (5): basic build, escaping, error response, multipart, copy object
+5. NFS Edge Cases (5): verifier consistency, remove file, pending list, elem types, builder default

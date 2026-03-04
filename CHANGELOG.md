@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 14: Transport Pipeline & Gateway NFS/RPC (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1321 Total
+
+**Status:** ✅ 1321 security tests passing, 0 failures (+50 from 1271)
+
+**New Coverage — Transport Pipeline & Congestion (25 tests):**
+- Congestion Window (5 tests): initial slow start, window growth, loss reduces, min window floor, stats
+- Transport Circuit Breaker (5 tests): defaults, opens on failures, half-open, reset, recovery
+- Pipeline Stages (5 tests): passthrough, reject, max stages (FINDING), duplicate ID, enable/disable
+- Pipeline Execution (5 tests): execution order, header stage, stats tracking, remove, metadata
+- Config & Edge Cases (5 tests): congestion config, pipeline config, CB config, empty execute, can_send
+
+**New Coverage — Gateway NFS/RPC (25 tests):**
+- NFS Write Tracking (5 tests): record/pending, commit, stability ordering, multiple files, commit all
+- RPC Protocol (5 tests): auth none, reply success, proc unavail, auth error, constants (FINDING)
+- TCP Record Mark (5 tests): encode, decode, roundtrip, empty, max fragment
+- S3 XML Builder (5 tests): basic build, escaping (FINDING), error response, multipart, copy object
+- NFS Edge Cases (5 tests): verifier consistency (FINDING), remove file, pending list, elem types, default
+
+**Key Findings (3 HIGH, 2 MEDIUM):**
+- PIPE-04 (HIGH): Min congestion window prevents complete network stall
+- RPC-10 (HIGH): NFS RPC constants match RFC 1813 — protocol compliance
+- XML-17 (HIGH): XML character escaping prevents injection attacks
+
 ### A10: Security Audit — Phase 13: Storage QoS & Meta Integrity (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1271 Total
