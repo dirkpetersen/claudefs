@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 8: Eviction Scoring, Data Classification, Segment Splitting (2026-03-04)
+
+#### 3 New Modules — 97 New Tests, 591 Total
+
+**Status:** ✅ 591 tests passing, 0 failures, 0 clippy warnings (+97 from 494)
+
+**New modules:**
+- `eviction_scorer.rs` — Flash tier eviction scoring per architecture D5.
+  `EvictionScorer` computes `score = last_access_age × age_weight × size × size_weight`.
+  Pinned segments and segments not confirmed in S3 score 0.
+  `rank_candidates()` sorts by descending score. `select_eviction_set()` greedily selects
+  until `target_bytes` met. `should_evict()` / `should_stop_evicting()` check watermarks.
+- `data_classifier.rs` — Content-aware classification for optimal compression selection.
+  Detects JPEG/PNG/ZIP (CompressedMedia → SkipCompression), ELF/PE (Executable → LZ4),
+  JSON/XML (StructuredData → Zstd), plain text (Text → Zstd), high-entropy (→ SkipCompression).
+  Shannon entropy on first 512 bytes. Enables pipeline to skip compression for media/encrypted.
+- `segment_splitter.rs` — Segment splitting/merging for EC stripe alignment per D1/D3.
+  `split()` packs chunks into ≤2MB segments without splitting chunks across boundaries.
+  `merge()` combines undersized (<64KB) segments. `stats()` provides monitoring metrics.
+
+**Test expansions (+47 tests in background, metrics, snapshot modules)**
+
+---
+
 ### A4: Transport — Phase 5: OTLP Bridge, Cluster Topology, Fault Injection (2026-03-04)
 
 #### 3 New Modules — 83 New Tests, 900 Total
