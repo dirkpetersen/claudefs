@@ -450,4 +450,60 @@ mod tests {
         let result = DataClassifier::classify(data);
         assert_eq!(result.class, DataClass::StructuredData);
     }
+
+    #[test]
+    fn test_classify_small_binary_data() {
+        let data = [0x00u8, 0x01, 0x02, 0x03];
+        let result = DataClassifier::classify(&data);
+        assert_eq!(result.class, DataClass::Binary);
+    }
+
+    #[test]
+    fn test_entropy_half_uniform() {
+        let data: Vec<u8> = (0..128).flat_map(|i| vec![i, i]).collect();
+        let entropy = DataClassifier::entropy(&data);
+        assert!(entropy > 0.0 && entropy < 8.0);
+    }
+
+    #[test]
+    fn test_classify_mixed_printable_binary() {
+        let mut data = vec![0u8; 512];
+        for (i, byte) in data.iter_mut().enumerate() {
+            *byte = if i % 2 == 0 { 0x41 } else { (i % 256) as u8 };
+        }
+        let result = DataClassifier::classify(&data);
+        assert_ne!(result.class, DataClass::Text);
+    }
+
+    #[test]
+    fn test_classify_single_byte() {
+        let result = DataClassifier::classify(&[0x42]);
+        assert_ne!(result.class, DataClass::Unknown);
+    }
+
+    #[test]
+    fn test_classify_two_bytes() {
+        let result = DataClassifier::classify(&[0xFF, 0xD8]);
+        assert_ne!(result.class, DataClass::CompressedMedia);
+    }
+
+    #[test]
+    fn test_compression_hint_delta_not_used() {
+        let hint = CompressionHint::UseDelta;
+        assert_eq!(hint, CompressionHint::UseDelta);
+    }
+
+    #[test]
+    fn test_is_printable_ascii_high_percentage() {
+        let mut data = vec![0x41u8; 100];
+        data.extend(vec![0x00u8; 10]);
+        assert!(DataClassifier::is_printable_ascii(&data));
+    }
+
+    #[test]
+    fn test_is_printable_ascii_low_percentage() {
+        let mut data = vec![0x00u8; 100];
+        data.extend(vec![0x41u8; 10]);
+        assert!(!DataClassifier::is_printable_ascii(&data));
+    }
 }

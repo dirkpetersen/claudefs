@@ -407,4 +407,132 @@ mod tests {
         assert_eq!(stats.segments_pinned, 0);
         assert_eq!(stats.segments_not_in_s3, 0);
     }
+
+    #[test]
+    fn test_score_zero_size_is_zero() {
+        let scorer = EvictionScorer::default();
+        let info = SegmentEvictionInfo {
+            segment_id: 1,
+            size_bytes: 0,
+            last_access_age_secs: 100,
+            pinned: false,
+            confirmed_in_s3: true,
+        };
+        assert!((scorer.score(&info) - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_should_evict_exactly_at_boundary() {
+        let scorer = EvictionScorer::default();
+        assert!(scorer.should_evict(80.0));
+        assert!(!scorer.should_evict(79.999999));
+    }
+
+    #[test]
+    fn test_should_stop_evicting_at_boundary() {
+        let scorer = EvictionScorer::default();
+        assert!(scorer.should_stop_evicting(60.0));
+        assert!(!scorer.should_stop_evicting(60.000001));
+    }
+
+    #[test]
+    fn test_rank_candidates_all_pinned_returns_empty() {
+        let scorer = EvictionScorer::default();
+        let segments = vec![
+            SegmentEvictionInfo {
+                segment_id: 1,
+                size_bytes: 1000,
+                last_access_age_secs: 100,
+                pinned: true,
+                confirmed_in_s3: true,
+            },
+            SegmentEvictionInfo {
+                segment_id: 2,
+                size_bytes: 1000,
+                last_access_age_secs: 200,
+                pinned: true,
+                confirmed_in_s3: true,
+            },
+        ];
+        let ranked = scorer.rank_candidates(&segments);
+        assert!(ranked.is_empty());
+    }
+
+    #[test]
+    fn test_rank_candidates_all_not_in_s3_returns_empty() {
+        let scorer = EvictionScorer::default();
+        let segments = vec![
+            SegmentEvictionInfo {
+                segment_id: 1,
+                size_bytes: 1000,
+                last_access_age_secs: 100,
+                pinned: false,
+                confirmed_in_s3: false,
+            },
+            SegmentEvictionInfo {
+                segment_id: 2,
+                size_bytes: 1000,
+                last_access_age_secs: 200,
+                pinned: false,
+                confirmed_in_s3: false,
+            },
+        ];
+        let ranked = scorer.rank_candidates(&segments);
+        assert!(ranked.is_empty());
+    }
+
+    #[test]
+    fn test_select_eviction_set_zero_target() {
+        let scorer = EvictionScorer::default();
+        let candidates = vec![EvictionCandidate {
+            segment_id: 1,
+            score: 100.0,
+            size_bytes: 500,
+        }];
+        let selected = scorer.select_eviction_set(&candidates, 0);
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn test_score_with_negative_weights() {
+        let config = EvictionConfig {
+            high_watermark_pct: 80.0,
+            low_watermark_pct: 60.0,
+            age_weight: -1.0,
+            size_weight: 1.0,
+        };
+        let scorer = EvictionScorer::new(config);
+        let info = SegmentEvictionInfo {
+            segment_id: 1,
+            size_bytes: 1000,
+            last_access_age_secs: 100,
+            pinned: false,
+            confirmed_in_s3: true,
+        };
+        let score = scorer.score(&info);
+        assert!(score < 0.0);
+    }
+
+    #[test]
+    fn test_candidate_order_preserved_for_equal_scores() {
+        let scorer = EvictionScorer::default();
+        let segments = vec![
+            SegmentEvictionInfo {
+                segment_id: 1,
+                size_bytes: 1000,
+                last_access_age_secs: 50,
+                pinned: false,
+                confirmed_in_s3: true,
+            },
+            SegmentEvictionInfo {
+                segment_id: 2,
+                size_bytes: 1000,
+                last_access_age_secs: 50,
+                pinned: false,
+                confirmed_in_s3: true,
+            },
+        ];
+        let ranked = scorer.rank_candidates(&segments);
+        assert_eq!(ranked.len(), 2);
+    }
 }

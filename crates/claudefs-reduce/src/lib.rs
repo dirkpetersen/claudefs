@@ -69,6 +69,12 @@ pub mod chunk_rebalancer;
 pub mod write_coalescer;
 /// EC repair planning for degraded segments.
 pub mod ec_repair;
+/// Segment-level garbage collection integration.
+pub mod segment_gc;
+/// Checksum store for end-to-end data integrity.
+pub mod checksum_store;
+/// Pipeline backpressure for memory management.
+pub mod pipeline_backpressure;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -163,3 +169,12 @@ pub use chunk_rebalancer::{
 };
 pub use write_coalescer::{CoalesceConfig, CoalescedWrite, WriteCoalescer, WriteOp};
 pub use ec_repair::{EcRepair, RepairAssessment, RepairPlan, ShardState};
+pub use segment_gc::{
+    SegmentGc, SegmentGcAction, SegmentGcConfig, SegmentGcReport, SegmentInfo,
+};
+pub use checksum_store::{
+    ChecksumEntry, ChecksumStore, ChecksumStoreConfig, ChecksumVerifyResult,
+};
+pub use pipeline_backpressure::{
+    BackpressureConfig, BackpressureState, BackpressureStats, PipelineBackpressure,
+};

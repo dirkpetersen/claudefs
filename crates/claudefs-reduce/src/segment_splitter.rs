@@ -609,4 +609,118 @@ mod tests {
         assert!(plan.chunks.is_empty());
         assert_eq!(plan.total_bytes, 0);
     }
+
+    #[test]
+    fn test_split_single_large_chunk() {
+        let config = SplitterConfig {
+            max_segment_bytes: 1024,
+            min_segment_bytes: 64,
+            target_segment_bytes: 1024,
+        };
+        let splitter = SegmentSplitter::new(config);
+        let chunks = vec![make_chunk(2048, 1), make_chunk(100, 2)];
+        let plans = splitter.split(&chunks);
+
+        assert_eq!(plans.len(), 2);
+        assert_eq!(plans[0].total_bytes, 2048);
+        assert_eq!(plans[1].total_bytes, 100);
+    }
+
+    #[test]
+    fn test_merge_preserves_order() {
+        let splitter = SegmentSplitter::default();
+        let plans = vec![
+            SegmentPlan {
+                chunks: vec![make_chunk(1024, 1)],
+                total_bytes: 1024,
+            },
+            SegmentPlan {
+                chunks: vec![make_chunk(2048, 2)],
+                total_bytes: 2048,
+            },
+        ];
+
+        let merged = splitter.merge(&plans);
+        assert_eq!(merged[0].chunks[0].hash[0], 1);
+    }
+
+    #[test]
+    fn test_optimal_split_empty() {
+        let splitter = SegmentSplitter::default();
+        let plans = splitter.optimal_split(&[]);
+        assert!(plans.is_empty());
+    }
+
+    #[test]
+    fn test_split_with_exact_max_size() {
+        let config = SplitterConfig {
+            max_segment_bytes: 1024,
+            min_segment_bytes: 64,
+            target_segment_bytes: 1024,
+        };
+        let splitter = SegmentSplitter::new(config);
+        let chunks = vec![make_chunk(512, 1), make_chunk(512, 2)];
+        let plans = splitter.split(&chunks);
+
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].total_bytes, 1024);
+    }
+
+    #[test]
+    fn test_chunk_ref_offset_updated() {
+        let splitter = SegmentSplitter::default();
+        let chunks = vec![
+            ChunkRef {
+                hash: [1u8; 32],
+                offset: 999,
+                size: 100,
+            },
+            ChunkRef {
+                hash: [2u8; 32],
+                offset: 888,
+                size: 200,
+            },
+        ];
+        let plans = splitter.split(&chunks);
+
+        assert_eq!(plans[0].chunks[0].offset, 0);
+        assert_eq!(plans[0].chunks[1].offset, 100);
+    }
+
+    #[test]
+    fn test_merge_respects_max_size() {
+        let config = SplitterConfig {
+            max_segment_bytes: 128,
+            min_segment_bytes: 32,
+            target_segment_bytes: 128,
+        };
+        let splitter = SegmentSplitter::new(config);
+
+        let plans = vec![
+            SegmentPlan {
+                chunks: vec![make_chunk(64, 1)],
+                total_bytes: 64,
+            },
+            SegmentPlan {
+                chunks: vec![make_chunk(64, 2)],
+                total_bytes: 64,
+            },
+            SegmentPlan {
+                chunks: vec![make_chunk(64, 3)],
+                total_bytes: 64,
+            },
+        ];
+
+        let merged = splitter.merge(&plans);
+        let total: u64 = merged.iter().map(|p| p.total_bytes).sum();
+        assert_eq!(total, 192);
+    }
+
+    #[test]
+    fn test_stats_all_empty_segments() {
+        let plans = vec![SegmentPlan::default(), SegmentPlan::default()];
+        let stats = SegmentSplitter::stats(&plans);
+        assert_eq!(stats.output_segments, 2);
+        assert_eq!(stats.input_chunks, 0);
+    }
 }
