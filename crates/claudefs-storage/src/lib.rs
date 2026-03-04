@@ -42,6 +42,9 @@ pub mod erasure;
 pub mod node_rebalance;
 pub mod nvme_passthrough;
 pub mod tracing_storage;
+pub mod background_scheduler;
+pub mod device_health_monitor;
+pub mod prefetch_engine;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
@@ -111,3 +114,14 @@ pub use erasure::{EcProfile, EcShard, StripeState, EcStripe, EcConfig, EcStats, 
 pub use node_rebalance::{NodeId, RebalanceSegmentId, ShardId, RebalanceState, MigrationDirection, MigrationTask, MigrationTaskState, RebalanceConfig, RebalanceStats, RebalanceEngine};
 pub use nvme_passthrough::{QueuePairId, CoreId, NsId, QueueState, NvmeOpType, SubmissionEntry, CompletionEntry, CompletionStatus, QueuePair, PassthroughConfig, PassthroughStats, PassthroughError, PassthroughManager};
 pub use tracing_storage::{TraceId, SpanId, TraceContext, StorageOp, SpanStatus, StorageSpan, TracingConfig, TracingStats, W3CTraceparent, StorageTracer};
+pub use background_scheduler::{
+    BackgroundScheduler, BackgroundTask, BackgroundTaskId, BackgroundTaskType,
+    SchedulerStats,
+};
+pub use device_health_monitor::{
+    AlertSeverity as HealthAlertSeverity, DeviceHealthMonitor, DeviceHealthSummary,
+    HealthAlert, HealthAlertType, SmartSnapshot, WearSnapshot,
+};
+pub use prefetch_engine::{
+    PrefetchConfig, PrefetchEngine, PrefetchHint, PrefetchStats,
+};
