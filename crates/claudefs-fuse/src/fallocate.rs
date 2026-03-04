@@ -1,37 +1,127 @@
+//! Fallocate operations for the FUSE filesystem.
+//!
+//! This module provides support for the Linux `fallocate` system call, which allows
+//! applications to preallocate or deallocate blocks for a file. It implements all
+//! standard fallocate modes including punch hole, collapse range, insert range,
+//! and zero range operations.
+//!
+//! # Operations
+//!
+//! - **Allocate**: Preallocate space for a file, optionally keeping the file size unchanged.
+//! - **Punch Hole**: Deallocate blocks within a range, creating a "hole" in the file.
+//! - **Zero Range**: Zero out blocks within a range without deallocating them.
+//! - **Collapse Range**: Remove a range of blocks, shifting subsequent data left.
+//! - **Insert Range**: Insert a range of zeros at a specified offset, shifting data right.
+
 use crate::error::{FuseError, Result};
 use crate::inode::InodeId;
 
+/// Keep file size unchanged after allocation.
+///
+/// When set, preallocated blocks are not accounted toward the file size.
+/// Required for `PUNCH_HOLE` mode.
 pub const FALLOC_FL_KEEP_SIZE: u32 = 0x01;
+
+/// Deallocate blocks within the specified range.
+///
+/// Creates a "hole" in the file where reads return zeros.
+/// Must be combined with `FALLOC_FL_KEEP_SIZE`.
 pub const FALLOC_FL_PUNCH_HOLE: u32 = 0x02;
+
+/// Remove a range of blocks, shifting subsequent data left.
+///
+/// Reduces file size by `len` bytes. The offset and length must be
+/// block-aligned for most filesystems.
 pub const FALLOC_FL_COLLAPSE_RANGE: u32 = 0x08;
+
+/// Zero out blocks within the specified range.
+///
+/// Similar to punch hole but blocks remain allocated. Can be combined
+/// with `FALLOC_FL_KEEP_SIZE` to avoid changing file size.
 pub const FALLOC_FL_ZERO_RANGE: u32 = 0x10;
+
+/// Insert a range of zeros at the specified offset.
+///
+/// Shifts data after `offset` right by `len` bytes, increasing file size.
+/// The offset must be block-aligned for most filesystems.
 pub const FALLOC_FL_INSERT_RANGE: u32 = 0x20;
 
+/// Represents a parsed fallocate operation.
+///
+/// This enum encapsulates all supported fallocate modes, providing
+/// type-safe access to operation parameters and validation of flag combinations.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FallocateOp {
+    /// Preallocate blocks for a file.
+    ///
+    /// If `keep_size` is false, the file size is extended to cover the
+    /// allocated range. If true, blocks are allocated but file size unchanged.
     Allocate {
+        /// Whether to keep file size unchanged.
         keep_size: bool,
     },
+
+    /// Deallocate blocks within a range, creating a hole.
+    ///
+    /// Reads within the hole return zeros. The file size is unchanged.
     PunchHole {
+        /// Start offset of the hole.
         offset: u64,
+        /// Length of the hole in bytes.
         len: u64,
     },
+
+    /// Zero out blocks within a range.
+    ///
+    /// Blocks remain allocated but contain zeros. If `keep_size` is false
+    /// and the range extends beyond EOF, file size is increased.
     ZeroRange {
+        /// Start offset of the zeroed range.
         offset: u64,
+        /// Length of the zeroed range in bytes.
         len: u64,
+        /// Whether to keep file size unchanged.
         keep_size: bool,
     },
+
+    /// Remove a range of blocks, shifting subsequent data left.
+    ///
+    /// File size is reduced by `len` bytes. Requires block-aligned
+    /// offset and length on most filesystems.
     CollapseRange {
+        /// Start offset of the range to collapse.
         offset: u64,
+        /// Length of the range to collapse in bytes.
         len: u64,
     },
+
+    /// Insert a range of zeros at the specified offset.
+    ///
+    /// Data after `offset` is shifted right by `len` bytes, increasing
+    /// file size. Requires block-aligned offset on most filesystems.
     InsertRange {
+        /// Offset at which to insert zeros.
         offset: u64,
+        /// Length of the inserted range in bytes.
         len: u64,
     },
 }
 
 impl FallocateOp {
+    /// Parses fallocate flags into a typed operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `mode` - The fallocate mode flags from the kernel.
+    /// * `offset` - The starting offset for the operation.
+    /// * `len` - The length of the range in bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FuseError::InvalidArgument` if:
+    /// - `PUNCH_HOLE` is specified without `KEEP_SIZE`
+    /// - `COLLAPSE_RANGE` and `INSERT_RANGE` are both set
+    /// - `PUNCH_HOLE` is combined with `COLLAPSE_RANGE` or `INSERT_RANGE`
     pub fn from_flags(mode: u32, offset: u64, len: u64) -> Result<Self> {
         let punch_hole = mode & FALLOC_FL_PUNCH_HOLE != 0;
         let keep_size = mode & FALLOC_FL_KEEP_SIZE != 0;
@@ -81,6 +171,10 @@ impl FallocateOp {
         Ok(FallocateOp::Allocate { keep_size })
     }
 
+    /// Returns true if this operation frees storage space.
+    ///
+    /// `PunchHole` and `CollapseRange` reduce storage consumption.
+    /// Other operations either allocate new blocks or keep existing ones.
     pub fn is_space_saving(&self) -> bool {
         matches!(
             self,
@@ -88,6 +182,12 @@ impl FallocateOp {
         )
     }
 
+    /// Returns true if this operation modifies the file size.
+    ///
+    /// Size-modifying operations are:
+    /// - `Allocate` with `keep_size: false` (extends file)
+    /// - `CollapseRange` (shrinks file)
+    /// - `InsertRange` (grows file)
     pub fn modifies_size(&self) -> bool {
         matches!(
             self,
@@ -97,6 +197,10 @@ impl FallocateOp {
         )
     }
 
+    /// Returns the affected byte range for operations that target a specific region.
+    ///
+    /// Returns `None` for simple allocation operations that don't target a specific
+    /// range. Returns `Some((offset, len))` for operations with explicit ranges.
     pub fn affected_range(&self) -> Option<(u64, u64)> {
         match self {
             FallocateOp::Allocate { .. } => None,
@@ -108,21 +212,38 @@ impl FallocateOp {
     }
 }
 
+/// A fallocate request from the FUSE kernel driver.
+///
+/// Encapsulates all parameters needed to execute a fallocate operation
+/// on a specific file handle.
 pub struct FallocateRequest {
+    /// The inode number of the target file.
     pub ino: InodeId,
+    /// The file handle returned by `open`.
     pub fh: u64,
+    /// The parsed fallocate operation.
     pub op: FallocateOp,
 }
 
+/// Statistics tracking for fallocate operations.
+///
+/// Maintains counters for each operation type and total bytes affected.
+/// Useful for monitoring storage efficiency and workload patterns.
 pub struct FallocateStats {
+    /// Total number of allocate operations performed.
     pub total_allocations: u64,
+    /// Total number of punch hole operations performed.
     pub total_punch_holes: u64,
+    /// Total number of zero range operations performed.
     pub total_zero_ranges: u64,
+    /// Total bytes allocated across all allocate operations.
     pub bytes_allocated: u64,
+    /// Total bytes deallocated across all punch hole operations.
     pub bytes_punched: u64,
 }
 
 impl FallocateStats {
+    /// Creates a new statistics instance with all counters zeroed.
     pub fn new() -> Self {
         FallocateStats {
             total_allocations: 0,
@@ -133,6 +254,15 @@ impl FallocateStats {
         }
     }
 
+    /// Records a completed fallocate operation.
+    ///
+    /// Updates the appropriate counters based on the operation type.
+    /// Only `Allocate`, `PunchHole`, and `ZeroRange` are tracked.
+    ///
+    /// # Arguments
+    ///
+    /// * `op` - The operation that was performed.
+    /// * `len` - The length in bytes affected by the operation.
     pub fn record(&mut self, op: &FallocateOp, len: u64) {
         match op {
             FallocateOp::Allocate { .. } => {

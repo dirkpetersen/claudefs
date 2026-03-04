@@ -1,50 +1,117 @@
+//! Error types for the FUSE filesystem layer.
+//!
+//! This module provides [`FuseError`] for all error conditions that can arise
+//! during FUSE operations, along with a [`Result`] type alias for convenience.
+
 use thiserror::Error;
 
+/// Errors that can occur during FUSE filesystem operations.
+///
+/// Each variant maps to an appropriate POSIX errno value via [`Self::to_errno`],
+/// allowing the FUSE daemon to return correct error codes to the kernel.
 #[derive(Debug, Error)]
 pub enum FuseError {
+    /// I/O error from underlying system calls or storage operations.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// Mount operation failed at the specified mountpoint.
     #[error("Mount failed at {mountpoint}: {reason}")]
-    MountFailed { mountpoint: String, reason: String },
+    MountFailed {
+        /// The mountpoint path where the mount was attempted.
+        mountpoint: String,
+        /// The reason for the mount failure.
+        reason: String,
+    },
 
+    /// Requested inode does not exist in the filesystem.
     #[error("Inode not found: {ino}")]
-    NotFound { ino: u64 },
+    NotFound {
+        /// The inode number that was not found.
+        ino: u64,
+    },
 
+    /// Operation not permitted due to insufficient permissions.
     #[error("Permission denied for inode {ino}, operation: {op}")]
-    PermissionDenied { ino: u64, op: String },
+    PermissionDenied {
+        /// The inode number involved in the denied operation.
+        ino: u64,
+        /// The operation that was denied (e.g., "read", "write").
+        op: String,
+    },
 
+    /// Expected a directory but the inode is not a directory.
     #[error("Not a directory: {ino}")]
-    NotDirectory { ino: u64 },
+    NotDirectory {
+        /// The inode number that is not a directory.
+        ino: u64,
+    },
 
+    /// Expected a file but the inode is a directory.
     #[error("Is a directory: {ino}")]
-    IsDirectory { ino: u64 },
+    IsDirectory {
+        /// The inode number that is a directory.
+        ino: u64,
+    },
 
+    /// Attempted to remove a directory that contains entries.
     #[error("Directory not empty: {ino}")]
-    NotEmpty { ino: u64 },
+    NotEmpty {
+        /// The inode number of the non-empty directory.
+        ino: u64,
+    },
 
+    /// Attempted to create an entry that already exists.
     #[error("Name already exists: {name}")]
-    AlreadyExists { name: String },
+    AlreadyExists {
+        /// The name that already exists in the directory.
+        name: String,
+    },
 
+    /// Invalid argument provided to an operation.
     #[error("Invalid argument: {msg}")]
-    InvalidArgument { msg: String },
+    InvalidArgument {
+        /// Description of the invalid argument.
+        msg: String,
+    },
 
+    /// FUSE passthrough mode is not supported on the current kernel.
     #[error("Passthrough mode not supported on this kernel")]
     PassthroughUnsupported,
 
+    /// Running on a kernel version older than the minimum required.
     #[error("Kernel version too old: required {required}, found {found}")]
-    KernelVersionTooOld { required: String, found: String },
+    KernelVersionTooOld {
+        /// The minimum required kernel version.
+        required: String,
+        /// The detected kernel version.
+        found: String,
+    },
 
+    /// Metadata cache has reached its capacity limit.
     #[error("Metadata cache is full")]
     CacheOverflow,
 
+    /// Operation is not supported by this filesystem.
     #[error("Operation not supported: {op}")]
-    NotSupported { op: String },
+    NotSupported {
+        /// The name of the unsupported operation.
+        op: String,
+    },
 }
 
+/// A specialized `Result` type for FUSE operations.
 pub type Result<T> = std::result::Result<T, FuseError>;
 
 impl FuseError {
+    /// Converts the error to a POSIX errno value.
+    ///
+    /// This mapping allows the FUSE daemon to return appropriate error codes
+    /// to the kernel, which then translates them to userspace errno values.
+    ///
+    /// # Returns
+    ///
+    /// A POSIX errno integer value (e.g., `ENOENT`, `EACCES`, `EINVAL`).
     pub fn to_errno(&self) -> i32 {
         use libc::*;
         match self {

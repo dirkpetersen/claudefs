@@ -1,18 +1,38 @@
 //! I/O Priority Classification for QoS
 //!
 //! I/O priority classification enables quality-of-service in the FUSE client.
+//! Operations are classified into workload classes based on process identity,
+//! operation size, or metadata vs data distinctions. This enables the storage
+//! layer to provide differentiated service levels.
 
 use std::collections::HashMap;
 
+/// Workload classification for I/O operations.
+///
+/// Determines priority level, scheduling behavior, and latency targets
+/// for storage operations. Higher priority classes get preferential
+/// scheduling and lower latency targets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WorkloadClass {
+    /// User-interactive operations requiring minimal latency.
+    /// Examples: UI responsiveness, small metadata operations.
     Interactive,
+    /// Foreground operations with moderate latency requirements.
+    /// Examples: normal file reads/writes, application data access.
     Foreground,
+    /// Background operations tolerant of higher latency.
+    /// Examples: backups, indexing, large sequential scans.
     Background,
+    /// Idle operations with no latency constraints.
+    /// Examples: prefetching, speculative reads, cleanup.
     Idle,
 }
 
 impl WorkloadClass {
+    /// Returns the numeric priority value for this workload class.
+    ///
+    /// Higher values indicate higher priority. Used for queue ordering
+    /// and scheduling decisions.
     pub fn priority(&self) -> u8 {
         match self {
             WorkloadClass::Interactive => 3,
@@ -22,6 +42,9 @@ impl WorkloadClass {
         }
     }
 
+    /// Returns the Linux `ioprio` class value for this workload class.
+    ///
+    /// Maps to `IOPRIO_CLASS_RT` (1), `IOPRIO_CLASS_BE` (2), and `IOPRIO_CLASS_IDLE` (3).
     pub fn ioprio_class(&self) -> u8 {
         match self {
             WorkloadClass::Interactive => 1,
@@ -31,6 +54,10 @@ impl WorkloadClass {
         }
     }
 
+    /// Returns the target latency in microseconds for this workload class.
+    ///
+    /// Used for latency-aware scheduling and admission control.
+    /// Interactive operations target 1ms, idle operations have 60s target.
     pub fn target_latency_us(&self) -> u64 {
         match self {
             WorkloadClass::Interactive => 1000,
@@ -41,6 +68,10 @@ impl WorkloadClass {
     }
 }
 
+/// Classifier for determining I/O priority based on process identity.
+///
+/// Supports per-PID and per-UID overrides, with a fallback default class.
+/// PID overrides take precedence over UID overrides.
 #[derive(Debug, Clone)]
 pub struct IoPriorityClassifier {
     pid_overrides: HashMap<u32, WorkloadClass>,
@@ -49,6 +80,10 @@ pub struct IoPriorityClassifier {
 }
 
 impl IoPriorityClassifier {
+    /// Creates a new classifier with the specified default workload class.
+    ///
+    /// Operations without PID or UID overrides will be classified as
+    /// the default class.
     pub fn new(default_class: WorkloadClass) -> Self {
         Self {
             pid_overrides: HashMap::new(),
@@ -57,22 +92,40 @@ impl IoPriorityClassifier {
         }
     }
 
+    /// Sets a workload class override for a specific process ID.
+    ///
+    /// PID overrides take precedence over UID overrides.
     pub fn set_pid_class(&mut self, pid: u32, class: WorkloadClass) {
         self.pid_overrides.insert(pid, class);
     }
 
+    /// Sets a workload class override for a specific user ID.
+    ///
+    /// PID overrides take precedence over UID overrides.
     pub fn set_uid_class(&mut self, uid: u32, class: WorkloadClass) {
         self.uid_overrides.insert(uid, class);
     }
 
+    /// Removes the workload class override for a specific process ID.
+    ///
+    /// After removal, classification for this PID will fall back to
+    /// UID override or default class.
     pub fn remove_pid_override(&mut self, pid: u32) {
         self.pid_overrides.remove(&pid);
     }
 
+    /// Removes the workload class override for a specific user ID.
+    ///
+    /// After removal, classification for this UID will fall back to
+    /// the default class.
     pub fn remove_uid_override(&mut self, uid: u32) {
         self.uid_overrides.remove(&uid);
     }
 
+    /// Classifies an I/O operation based on process and user identity.
+    ///
+    /// Checks PID override first, then UID override, then falls back
+    /// to the default class.
     pub fn classify(&self, pid: u32, uid: u32) -> WorkloadClass {
         if let Some(&class) = self.pid_overrides.get(&pid) {
             return class;
@@ -83,6 +136,13 @@ impl IoPriorityClassifier {
         self.default_class
     }
 
+    /// Classifies an I/O operation based on operation characteristics.
+    ///
+    /// Uses operation size and metadata flag to determine appropriate
+    /// workload class. Metadata operations always classify as Interactive.
+    /// Small operations (<4KB) are Interactive, medium (4KB-64KB) are
+    /// Foreground, large (64KB-1MB) are Background, and very large (>1MB)
+    /// are Idle.
     pub fn classify_by_op(
         &self,
         _pid: u32,
@@ -106,16 +166,28 @@ impl IoPriorityClassifier {
     }
 }
 
+/// Statistics for a single I/O workload class.
+///
+/// Tracks operation counts, byte totals, and latency accumulation
+/// for monitoring and reporting.
 #[derive(Debug, Default, Clone)]
 pub struct IoClassStats {
+    /// Number of operations submitted to this class.
     pub ops_submitted: u64,
+    /// Number of operations completed in this class.
     pub ops_completed: u64,
+    /// Total bytes submitted in this class.
     pub bytes_submitted: u64,
+    /// Total bytes completed in this class.
     pub bytes_completed: u64,
+    /// Cumulative latency in microseconds for completed operations.
     pub total_latency_us: u64,
 }
 
 impl IoClassStats {
+    /// Computes the average latency per completed operation.
+    ///
+    /// Returns 0 if no operations have been completed.
     pub fn avg_latency_us(&self) -> u64 {
         if self.ops_completed == 0 {
             0
@@ -124,6 +196,9 @@ impl IoClassStats {
         }
     }
 
+    /// Records a completed operation with its byte count and latency.
+    ///
+    /// Increments operation and byte counters, and accumulates latency.
     pub fn record_op(&mut self, bytes: u64, latency_us: u64) {
         self.ops_submitted += 1;
         self.ops_completed += 1;
@@ -133,7 +208,11 @@ impl IoClassStats {
     }
 }
 
+/// Aggregate statistics across all I/O workload classes.
+///
+/// Maintains per-class statistics and provides aggregate calculations.
 pub struct IoPriorityStats {
+    /// Per-class statistics, indexed by `WorkloadClass`.
     pub by_class: HashMap<WorkloadClass, IoClassStats>,
 }
 
@@ -144,12 +223,16 @@ impl Default for IoPriorityStats {
 }
 
 impl IoPriorityStats {
+    /// Creates a new empty statistics container.
     pub fn new() -> Self {
         Self {
             by_class: HashMap::new(),
         }
     }
 
+    /// Records a completed operation for the specified workload class.
+    ///
+    /// Creates per-class statistics on first access if needed.
     pub fn record(&mut self, class: WorkloadClass, bytes: u64, latency_us: u64) {
         self.by_class
             .entry(class)
@@ -157,14 +240,21 @@ impl IoPriorityStats {
             .record_op(bytes, latency_us);
     }
 
+    /// Returns the total number of completed operations across all classes.
     pub fn total_ops(&self) -> u64 {
         self.by_class.values().map(|s| s.ops_completed).sum()
     }
 
+    /// Returns the total bytes completed across all classes.
     pub fn total_bytes(&self) -> u64 {
         self.by_class.values().map(|s| s.bytes_completed).sum()
     }
 
+    /// Computes the share of operations for a specific workload class.
+    ///
+    /// Returns a value between 0.0 and 1.0 representing the proportion
+    /// of total operations in the specified class. Returns 0.0 if no
+    /// operations have been recorded.
     pub fn class_share(&self, class: WorkloadClass) -> f64 {
         let total = self.total_ops() as f64;
         if total == 0.0 {
@@ -179,6 +269,10 @@ impl IoPriorityStats {
     }
 }
 
+/// Token bucket budget for per-class rate limiting.
+///
+/// Implements a replenishing token bucket for each workload class,
+/// with configurable limits and a time-based window for replenishment.
 #[derive(Debug)]
 pub struct PriorityBudget {
     budgets: HashMap<WorkloadClass, u64>,
@@ -188,6 +282,10 @@ pub struct PriorityBudget {
 }
 
 impl PriorityBudget {
+    /// Creates a new budget manager with the specified window duration.
+    ///
+    /// Initializes with default limits: Interactive (1000), Foreground (500),
+    /// Background (100), Idle (10).
     pub fn new(window_ms: u64) -> Self {
         let limits = HashMap::from([
             (WorkloadClass::Interactive, 1000),
@@ -206,11 +304,18 @@ impl PriorityBudget {
         }
     }
 
+    /// Sets the token limit for a specific workload class.
+    ///
+    /// Also resets the current budget to the new limit.
     pub fn set_limit(&mut self, class: WorkloadClass, limit: u64) {
         self.limits.insert(class, limit);
         self.budgets.insert(class, limit);
     }
 
+    /// Attempts to consume tokens from a workload class budget.
+    ///
+    /// Automatically resets the window if enough time has passed.
+    /// Returns `true` if tokens were available and consumed, `false` otherwise.
     pub fn try_consume(&mut self, class: WorkloadClass, tokens: u64, now_ms: u64) -> bool {
         if now_ms - self.last_reset_ms >= self.window_ms {
             self.reset_window(now_ms);
@@ -225,10 +330,17 @@ impl PriorityBudget {
         }
     }
 
+    /// Returns the remaining token budget for a workload class.
+    ///
+    /// Returns 1000 as a default if the class has no budget entry.
     pub fn remaining(&self, class: WorkloadClass) -> u64 {
         *self.budgets.get(&class).unwrap_or(&1000)
     }
 
+    /// Resets all budgets to their configured limits.
+    ///
+    /// Called automatically when the time window expires during
+    /// `try_consume`, or can be called manually.
     pub fn reset_window(&mut self, now_ms: u64) {
         self.last_reset_ms = now_ms;
         for (class, &limit) in &self.limits {

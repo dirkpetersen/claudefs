@@ -1,27 +1,47 @@
+//! ID mapping for FUSE mounts.
+//!
+//! Provides UID/GID translation between host and local namespaces,
+//! supporting multiple mapping strategies including identity, squash,
+//! range shifting, and explicit table-based mappings.
+
 use crate::error::Result;
 use std::collections::HashMap;
 
+/// Mapping mode for UID/GID translation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdMapMode {
+    /// No translation; host IDs pass through unchanged.
     Identity,
+    /// All IDs map to a single "nobody" user/group.
     Squash {
+        /// UID to map all users to.
         nobody_uid: u32,
+        /// GID to map all groups to.
         nobody_gid: u32,
     },
+    /// Linear shift of a contiguous ID range.
     RangeShift {
+        /// Start of the host ID range.
         host_base: u32,
+        /// Start of the local ID range.
         local_base: u32,
+        /// Number of IDs in the range.
         count: u32,
     },
+    /// Explicit host-to-local mapping table.
     Table,
 }
 
+/// Single entry in an ID mapping table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IdMapEntry {
+    /// ID on the host system.
     pub host_id: u32,
+    /// Corresponding ID in the local namespace.
     pub local_id: u32,
 }
 
+/// UID/GID mapper for FUSE namespace translation.
 pub struct IdMapper {
     mode: IdMapMode,
     uid_table: HashMap<u32, u32>,
@@ -29,6 +49,7 @@ pub struct IdMapper {
 }
 
 impl IdMapper {
+    /// Creates a new mapper with the specified mode.
     pub fn new(mode: IdMapMode) -> Self {
         Self {
             mode,
@@ -37,6 +58,10 @@ impl IdMapper {
         }
     }
 
+    /// Adds a UID mapping entry (Table mode only).
+    ///
+    /// Returns an error if not in Table mode, the table is full,
+    /// or the host_id already exists.
     pub fn add_uid_entry(&mut self, entry: IdMapEntry) -> Result<()> {
         if self.mode != IdMapMode::Table {
             return Err(crate::error::FuseError::InvalidArgument {
@@ -60,6 +85,10 @@ impl IdMapper {
         Ok(())
     }
 
+    /// Adds a GID mapping entry (Table mode only).
+    ///
+    /// Returns an error if not in Table mode, the table is full,
+    /// or the host_id already exists.
     pub fn add_gid_entry(&mut self, entry: IdMapEntry) -> Result<()> {
         if self.mode != IdMapMode::Table {
             return Err(crate::error::FuseError::InvalidArgument {
@@ -83,6 +112,9 @@ impl IdMapper {
         Ok(())
     }
 
+    /// Maps a host UID to a local UID.
+    ///
+    /// Root (UID 0) is always preserved except in Squash mode.
     pub fn map_uid(&self, host_uid: u32) -> u32 {
         match &self.mode {
             IdMapMode::Identity => {
@@ -110,6 +142,9 @@ impl IdMapper {
         }
     }
 
+    /// Maps a host GID to a local GID.
+    ///
+    /// Root (GID 0) is always preserved except in Squash mode.
     pub fn map_gid(&self, host_gid: u32) -> u32 {
         match &self.mode {
             IdMapMode::Identity => {
@@ -137,6 +172,9 @@ impl IdMapper {
         }
     }
 
+    /// Reverse-maps a local UID back to the host UID (Table mode only).
+    ///
+    /// Returns `None` if not in Table mode or no mapping exists.
     pub fn reverse_map_uid(&self, local_uid: u32) -> Option<u32> {
         if !matches!(self.mode, IdMapMode::Table) {
             return None;
@@ -147,6 +185,9 @@ impl IdMapper {
             .map(|(&host, _)| host)
     }
 
+    /// Reverse-maps a local GID back to the host GID (Table mode only).
+    ///
+    /// Returns `None` if not in Table mode or no mapping exists.
     pub fn reverse_map_gid(&self, local_gid: u32) -> Option<u32> {
         if !matches!(self.mode, IdMapMode::Table) {
             return None;
@@ -157,24 +198,32 @@ impl IdMapper {
             .map(|(&host, _)| host)
     }
 
+    /// Returns the number of UID mapping entries.
     pub fn uid_entry_count(&self) -> usize {
         self.uid_table.len()
     }
 
+    /// Returns the number of GID mapping entries.
     pub fn gid_entry_count(&self) -> usize {
         self.gid_table.len()
     }
 
+    /// Returns a reference to the current mapping mode.
     pub fn mode(&self) -> &IdMapMode {
         &self.mode
     }
 }
 
+/// Statistics for ID mapping operations.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct IdMapStats {
+    /// Total UID lookup attempts.
     pub uid_lookups: u64,
+    /// Total GID lookup attempts.
     pub gid_lookups: u64,
+    /// UID lookups that found a mapping.
     pub uid_hits: u64,
+    /// GID lookups that found a mapping.
     pub gid_hits: u64,
 }
 

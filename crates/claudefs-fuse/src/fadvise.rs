@@ -1,27 +1,62 @@
 #![allow(dead_code)]
 
+//! POSIX fadvise hint handling for the FUSE filesystem.
+//!
+//! This module implements tracking of `posix_fadvise()` hints received from
+//! applications via the FUSE `fadvise` operation. These hints inform the
+//! filesystem about expected access patterns, enabling optimizations such
+//! as readahead tuning, cache eviction policies, and prefetching.
+//!
+//! # Hints
+//!
+//! - [`FadviseHint::Normal`] - No specific access pattern
+//! - [`FadviseHint::Sequential`] - Sequential reads, increase readahead
+//! - [`FadviseHint::Random`] - Random access, suppress readahead
+//! - [`FadviseHint::WillNeed`] - Data will be needed soon, prefetch
+//! - [`FadviseHint::DontNeed`] - Data not needed after access, evict
+//! - [`FadviseHint::NoReuse`] - Data will not be reused, evict
+
 use crate::inode::InodeId;
 use std::collections::HashMap;
 use tracing::debug;
 
+/// POSIX fadvise access pattern hint.
+///
+/// Represents the advice provided by an application via `posix_fadvise()`
+/// to inform the filesystem about expected I/O patterns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FadviseHint {
+    /// No specific access pattern; default behavior.
     Normal,
+    /// Sequential access; increase readahead for better throughput.
     Sequential,
+    /// Random access; suppress readahead to avoid wasted I/O.
     Random,
+    /// Data will be needed soon; prefetch aggressively.
     WillNeed,
+    /// Data not needed after access; evict from cache promptly.
     DontNeed,
+    /// Data will not be reused; evict immediately after read.
     NoReuse,
 }
 
 impl FadviseHint {
+    /// Linux constant for `POSIX_FADV_NORMAL`.
     pub const POSIX_FADV_NORMAL: i32 = 0;
+    /// Linux constant for `POSIX_FADV_RANDOM`.
     pub const POSIX_FADV_RANDOM: i32 = 1;
+    /// Linux constant for `POSIX_FADV_SEQUENTIAL`.
     pub const POSIX_FADV_SEQUENTIAL: i32 = 2;
+    /// Linux constant for `POSIX_FADV_WILLNEED`.
     pub const POSIX_FADV_WILLNEED: i32 = 3;
+    /// Linux constant for `POSIX_FADV_DONTNEED`.
     pub const POSIX_FADV_DONTNEED: i32 = 4;
+    /// Linux constant for `POSIX_FADV_NOREUSE`.
     pub const POSIX_FADV_NOREUSE: i32 = 5;
 
+    /// Converts a Linux `posix_fadvise` constant to a [`FadviseHint`].
+    ///
+    /// Returns `None` for unrecognized values.
     pub fn from_linux_const(val: i32) -> Option<Self> {
         match val {
             Self::POSIX_FADV_SEQUENTIAL => Some(Self::Sequential),
@@ -34,6 +69,10 @@ impl FadviseHint {
         }
     }
 
+    /// Returns the readahead multiplier for this hint.
+    ///
+    /// Multiply the base readahead size by this value to get the
+    /// recommended readahead for this access pattern.
     pub fn readahead_multiplier(&self) -> u32 {
         match self {
             Self::Normal => 1,
@@ -45,25 +84,35 @@ impl FadviseHint {
         }
     }
 
+    /// Returns `true` if this hint indicates readahead should be suppressed.
     pub fn suppresses_readahead(&self) -> bool {
         matches!(self, Self::Random | Self::DontNeed | Self::NoReuse)
     }
 }
 
+/// Stores the fadvise hint state for a single file.
 #[derive(Debug, Clone)]
 pub struct FileHintState {
+    /// Inode number of the file.
     pub ino: InodeId,
+    /// The active access pattern hint.
     pub hint: FadviseHint,
+    /// Byte offset specified in the fadvise call.
     pub offset: u64,
+    /// Length of the region specified in the fadvise call.
     pub len: u64,
 }
 
+/// Tracks fadvise hints per inode with bounded memory.
+///
+/// Uses a simple LRU-style eviction when the maximum entry count is reached.
 pub struct HintTracker {
     hints: HashMap<InodeId, FileHintState>,
     max_entries: usize,
 }
 
 impl HintTracker {
+    /// Creates a new tracker with the given maximum entry count.
     pub fn new(max_entries: usize) -> Self {
         Self {
             hints: HashMap::new(),
@@ -71,6 +120,10 @@ impl HintTracker {
         }
     }
 
+    /// Sets the fadvise hint for an inode.
+    ///
+    /// If the tracker is at capacity and the inode is new, evicts an
+    /// arbitrary existing entry before inserting.
     pub fn set_hint(&mut self, ino: InodeId, hint: FadviseHint, offset: u64, len: u64) {
         if self.hints.len() >= self.max_entries && !self.hints.contains_key(&ino) {
             if let Some(first) = self.hints.keys().next().cloned() {
@@ -89,6 +142,7 @@ impl HintTracker {
         debug!("fadvise: set hint {:?} for ino {}", hint, ino);
     }
 
+    /// Returns the hint for an inode, or [`FadviseHint::Normal`] if unset.
     pub fn get_hint(&self, ino: InodeId) -> FadviseHint {
         self.hints
             .get(&ino)
@@ -96,40 +150,58 @@ impl HintTracker {
             .unwrap_or(FadviseHint::Normal)
     }
 
+    /// Clears the stored hint for an inode.
     pub fn clear(&mut self, ino: InodeId) {
         self.hints.remove(&ino);
         debug!("fadvise: cleared hint for ino {}", ino);
     }
 
+    /// Computes the suggested readahead size for an inode.
+    ///
+    /// Multiplies `base_readahead` by the hint's readahead multiplier.
     pub fn suggested_readahead(&self, ino: InodeId, base_readahead: u64) -> u64 {
         let mult = self.get_hint(ino).readahead_multiplier();
         base_readahead * mult as u64
     }
 
+    /// Returns `true` if data should be evicted from cache after reading.
+    ///
+    /// True for [`FadviseHint::NoReuse`] and [`FadviseHint::DontNeed`].
     pub fn should_evict_after_read(&self, ino: InodeId) -> bool {
         let hint = self.get_hint(ino);
         matches!(hint, FadviseHint::NoReuse | FadviseHint::DontNeed)
     }
 
+    /// Returns `true` if data should be prefetched immediately.
+    ///
+    /// True for [`FadviseHint::WillNeed`].
     pub fn should_prefetch_now(&self, ino: InodeId) -> bool {
         matches!(self.get_hint(ino), FadviseHint::WillNeed)
     }
 
+    /// Returns the number of tracked hints.
     pub fn len(&self) -> usize {
         self.hints.len()
     }
 
+    /// Returns `true` if no hints are tracked.
     pub fn is_empty(&self) -> bool {
         self.hints.is_empty()
     }
 }
 
+/// Statistics for fadvise hint reception.
 #[derive(Debug, Default, Clone)]
 pub struct FadviseStats {
+    /// Total number of fadvise hints received.
     pub hints_received: u64,
+    /// Number of sequential hints received.
     pub sequential_count: u64,
+    /// Number of random hints received.
     pub random_count: u64,
+    /// Number of willneed hints received.
     pub willneed_count: u64,
+    /// Number of dontneed hints received.
     pub dontneed_count: u64,
 }
 
