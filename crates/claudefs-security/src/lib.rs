@@ -138,9 +138,15 @@ pub mod repl_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod repl_phase2_security_tests;
-#[cfg(test)]
-#[allow(missing_docs)]
-pub mod repl_health_security_tests;
-#[cfg(test)]
-#[allow(missing_docs)]
-pub mod transport_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod repl_health_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod repl_qos_gc_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod transport_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod fuse_prefetch_health_security_tests;
