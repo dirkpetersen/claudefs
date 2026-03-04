@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 13: Key Store, Bandwidth Throttle, Dedup Analytics (2026-03-04)
+
+#### 3 New Modules — 105 New Tests, 1021 Total
+
+**Status:** ✅ 1021 tests passing, 0 failures, 0 clippy warnings (+105 from 916)
+
+**New modules:**
+- `key_store.rs` — Versioned encryption key management with rotation tracking (D7 compliance)
+- `bandwidth_throttle.rs` — Token-bucket throttler for background operations (compaction, GC, migration)
+- `dedup_analytics.rs` — Rolling-window dedup ratio tracking with trend analysis (Improving/Stable/Degrading)
+
+**Test expansions (+23):** worm_reducer (+8), audit_log (+8), key_rotation_scheduler (+7)
+
+## [Unreleased]
+
 ### A3: Data Reduction — Phase 12: Snapshot Catalog, Chunk Scheduler, Tier Migration (2026-03-04)
 
 #### 3 New Modules — 85 New Tests, 916 Total
