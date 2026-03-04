@@ -50,32 +50,70 @@ impl Default for EnrollmentConfig {
 /// Errors that can occur during enrollment operations.
 #[derive(Error, Debug)]
 pub enum EnrollmentError {
+    /// CA certificate generation failed.
     #[error("CA generation failed: {reason}")]
-    CaGenerationFailed { reason: String },
+    CaGenerationFailed {
+        /// Reason for the failure.
+        reason: String,
+    },
 
+    /// Certificate signing operation failed.
     #[error("Certificate signing failed: {reason}")]
-    CertSigningFailed { reason: String },
+    CertSigningFailed {
+        /// Reason for the failure.
+        reason: String,
+    },
 
+    /// Provided enrollment token is invalid.
     #[error("Invalid token: {reason}")]
-    InvalidToken { reason: String },
+    InvalidToken {
+        /// Reason the token is invalid.
+        reason: String,
+    },
 
+    /// Provided enrollment token has expired.
     #[error("Token expired: {token}")]
-    TokenExpired { token: String },
+    TokenExpired {
+        /// The expired token value.
+        token: String,
+    },
 
+    /// Provided enrollment token was already used.
     #[error("Token already used: {token}")]
-    TokenAlreadyUsed { token: String },
+    TokenAlreadyUsed {
+        /// The already-used token value.
+        token: String,
+    },
 
+    /// Certificate has been revoked.
     #[error("Certificate revoked: {serial}")]
-    CertificateRevoked { serial: String },
+    CertificateRevoked {
+        /// Serial number of the revoked certificate.
+        serial: String,
+    },
 
+    /// Certificate has expired.
     #[error("Certificate expired: {serial}")]
-    CertificateExpired { serial: String },
+    CertificateExpired {
+        /// Serial number of the expired certificate.
+        serial: String,
+    },
 
+    /// Certificate renewal was requested but not yet needed.
     #[error("Renewal not needed yet: {serial}")]
-    RenewalNotNeeded { serial: String },
+    RenewalNotNeeded {
+        /// Serial number of the certificate.
+        serial: String,
+    },
 
+    /// Maximum token limit exceeded for a node.
     #[error("Max tokens exceeded for node {node_id}, max: {max}")]
-    MaxTokensExceeded { node_id: String, max: usize },
+    MaxTokensExceeded {
+        /// Node identifier that exceeded the limit.
+        node_id: String,
+        /// Maximum allowed tokens per node.
+        max: usize,
+    },
 }
 
 /// Reason for certificate revocation.

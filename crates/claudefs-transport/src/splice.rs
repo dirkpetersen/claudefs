@@ -441,20 +441,46 @@ impl SpliceStats {
 /// Errors that can occur during splice operations.
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum SpliceError {
+    /// Attempted to use an endpoint type that is not supported by this operation.
     #[error("Unsupported endpoint: {reason}")]
-    UnsupportedEndpoint { reason: String },
+    UnsupportedEndpoint {
+        /// Human-readable explanation of why the endpoint is not supported.
+        reason: String,
+    },
 
+    /// Failed to create the kernel pipe buffer needed for splice operations.
     #[error("Pipe creation failed: {reason}")]
-    PipeCreationFailed { reason: String },
+    PipeCreationFailed {
+        /// Human-readable explanation of why pipe creation failed.
+        reason: String,
+    },
 
+    /// The splice syscall failed with an error.
     #[error("Splice failed: {reason} (errno: {errno})")]
-    SpliceFailed { reason: String, errno: i32 },
+    SpliceFailed {
+        /// Human-readable explanation of why the splice syscall failed.
+        reason: String,
+        /// The errno value returned by the failed syscall.
+        errno: i32,
+    },
 
+    /// The requested offset exceeds the file size.
     #[error("Offset {offset} out of range for file size {file_size}")]
-    OffsetOutOfRange { offset: u64, file_size: u64 },
+    OffsetOutOfRange {
+        /// The offset that was requested.
+        offset: u64,
+        /// The actual size of the file.
+        file_size: u64,
+    },
 
+    /// The splice transfer did not complete the expected number of bytes.
     #[error("Transfer incomplete: expected {expected} bytes, got {actual}")]
-    TransferIncomplete { expected: usize, actual: usize },
+    TransferIncomplete {
+        /// The number of bytes expected to be transferred.
+        expected: usize,
+        /// The number of bytes actually transferred.
+        actual: usize,
+    },
 }
 
 #[cfg(test)]

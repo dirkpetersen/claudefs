@@ -189,6 +189,9 @@ pub mod meta_worm_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod meta_conflict_security_tests;
-#[cfg(test)]
-#[allow(missing_docs)]
-pub mod gateway_pnfs_s3router_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod gateway_pnfs_s3router_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod gateway_perf_config_security_tests;

@@ -7,13 +7,18 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+/// A unique 64-bit identifier for request deduplication.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RequestId(u64);
 
+/// Configuration for the deduplication tracker.
 #[derive(Debug, Clone)]
 pub struct DedupConfig {
+    /// Maximum number of entries in the tracker before eviction.
     pub max_entries: usize,
+    /// Time-to-live in milliseconds for entries.
     pub ttl_ms: u64,
+    /// Interval between cleanup passes in milliseconds.
     pub cleanup_interval_ms: u64,
 }
 
@@ -27,30 +32,49 @@ impl Default for DedupConfig {
     }
 }
 
+/// A tracked entry for deduplication.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct DedupEntry {
+    /// The unique request identifier.
     pub request_id: RequestId,
+    /// Hash of the response for verification.
     pub response_hash: u64,
+    /// Timestamp when entry was created.
     pub created_at_ms: u64,
+    /// Number of times this request was seen.
     pub hit_count: u64,
 }
 
+/// Result of checking a request ID.
 #[derive(Debug, Clone, Copy)]
 pub enum DedupResult {
+    /// Request is new, not seen before.
     New,
-    Duplicate { hit_count: u64 },
+    /// Request was seen before, includes hit count.
+    Duplicate {
+        /// Number of times this request has been seen (including the original).
+        hit_count: u64,
+    },
+    /// Request existed but TTL expired.
     Expired,
 }
 
+/// Statistics snapshot for the tracker.
 #[derive(Debug, Clone, Default)]
 pub struct DedupStats {
+    /// Total number of check() calls.
     pub total_checks: u64,
+    /// Total duplicate requests found.
     pub total_duplicates: u64,
+    /// Total entries evicted.
     pub total_evictions: u64,
+    /// Current number of entries.
     pub current_entries: usize,
+    /// Ratio of duplicates to checks.
     pub hit_rate: f64,
 }
 
+/// Main deduplication tracker.
 pub struct DedupTracker {
     config: DedupConfig,
     entries: HashMap<RequestId, DedupEntry>,
@@ -61,6 +85,7 @@ pub struct DedupTracker {
 }
 
 impl DedupTracker {
+    /// Create a new tracker with given config.
     pub fn new(config: DedupConfig) -> Self {
         Self {
             config,
@@ -72,6 +97,7 @@ impl DedupTracker {
         }
     }
 
+    /// Check if request ID is duplicate/new/expired, returns DedupResult.
     pub fn check(&mut self, request_id: RequestId) -> DedupResult {
         self.total_checks += 1;
 
@@ -116,6 +142,7 @@ impl DedupTracker {
         DedupResult::New
     }
 
+    /// Record response hash for a request ID.
     pub fn record(&mut self, request_id: RequestId, response_hash: u64) {
         if let Some(entry) = self.entries.get_mut(&request_id) {
             entry.response_hash = response_hash;
@@ -130,6 +157,7 @@ impl DedupTracker {
         }
     }
 
+    /// Remove all expired entries, returns count evicted.
     pub fn evict_expired(&mut self) -> usize {
         let cutoff = self.current_time_ms.saturating_sub(self.config.ttl_ms);
         let before = self.entries.len();
@@ -139,22 +167,27 @@ impl DedupTracker {
         evicted
     }
 
+    /// Advance internal clock by given milliseconds.
     pub fn advance_time(&mut self, ms: u64) {
         self.current_time_ms = self.current_time_ms.saturating_add(ms);
     }
 
+    /// Set internal clock to specific timestamp.
     pub fn set_time(&mut self, ms: u64) {
         self.current_time_ms = ms;
     }
 
+    /// Returns current entry count.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Returns true if no entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// Returns current statistics snapshot.
     pub fn stats(&self) -> DedupStats {
         let hit_rate = if self.total_checks > 0 {
             self.total_duplicates as f64 / self.total_checks as f64
