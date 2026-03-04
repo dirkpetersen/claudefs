@@ -44,6 +44,8 @@ pub mod inode;
 pub mod inode_gen;
 /// Metadata journal for replication
 pub mod journal;
+/// Journal compaction for storage optimization
+pub mod journal_compactor;
 /// Journal tailing API for cross-site replication
 pub mod journal_tailer;
 /// Embedded key-value store
@@ -142,6 +144,7 @@ pub use fsck::{FsckConfig, FsckFinding, FsckIssue, FsckRepairAction, FsckReport,
 pub use hardlink::HardLinkStore;
 pub use health::{ComponentHealth, HealthChecker, HealthReport, HealthStatus, HealthThresholds};
 pub use inode_gen::{Generation, InodeGenManager, NfsFileHandle};
+pub use journal_compactor::{CompactEntry, CompactOpType, CompactionStats, JournalCompactor};
 pub use journal_tailer::{JournalTailer, ReplicationBatch, TailerConfig, TailerCursor};
 pub use kvstore::{KvStore, MemoryKvStore};
 pub use lazy_delete::{LazyDeleteEntry, LazyDeleteStore};
