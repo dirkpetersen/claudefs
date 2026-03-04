@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 4: IPC, Replication Channel, pNFS Layout (2026-03-04)
+
+#### 3 New Modules — 83 New Tests, 817 Total
+
+**Status:** ✅ 817 tests passing, 0 failures, 0 clippy warnings (+83 from 734)
+
+**New modules:**
+- `ipc.rs` — 23 tests: `IpcManager` / `IpcConnection` provide a Unix domain socket IPC transport
+  abstraction for same-host communication. `IpcConnectionState` tracks Connecting/Connected/
+  Disconnected/Error transitions. `IpcManager` enforces `max_connections` capacity, tracks
+  per-connection bytes/messages, and exposes `IpcStats` / `IpcStatsSnapshot`.
+  Used by `cfs server` mode to bypass TCP loopback when FUSE, metadata, and storage run in-process.
+- `repl_channel.rs` — 30 tests: `ReplChannel` implements the cross-site journal replication
+  channel for A6. `JournalEntry` carries sequence number, site_id, shard_id, and opaque payload.
+  `ReplAck` confirms delivery up to a sequence number. Backpressure enforced via
+  `max_inflight_bytes` / `max_inflight_entries`. Exponential reconnect backoff.
+  `timed_out_entries()` surfaces stale in-flight entries for retry. `ReplChannelStats` /
+  `ReplChannelStatsSnapshot` for monitoring.
+- `pnfs_layout.rs` — 30 tests: pNFS data layout protocol types for A7 gateway (RFC 5661).
+  `StripePattern` encodes 4+2 EC layout with `data_devices()` / `parity_devices()` accessors
+  and `device_for_offset()` for stripe-aware routing. `LayoutSegment` covers file byte ranges.
+  `LayoutCache` tracks MDS-side layout grants by inode with `grant_layout()` / `return_layout()` /
+  `recall_all()`. `LayoutStateId` with RFC-compatible 12-byte opaque field and seqid bumping.
+
+**Architecture alignment:**
+- `ipc.rs` supports D9 (single binary `cfs server` with all subsystems co-located)
+- `repl_channel.rs` supports D3 (journal 2x synchronous replication) and A6 cross-site conduit
+- `pnfs_layout.rs` supports A7 pNFS gateway (parallel direct-to-node data access for NFS clients)
+
+---
+
 ### A3: Data Reduction — Phase 6: Streaming Chunker, Read Cache, Prefetch Tracker (2026-03-04)
 
 #### 3 New Modules — 66 New Tests, 393 Total

@@ -165,3 +165,17 @@ pub use stream::{
     StreamChunk, StreamConfig, StreamError, StreamId, StreamManager,
     StreamReceiver, StreamSender, StreamStats, StreamStatsSnapshot,
 };
+
+pub mod ipc;
+pub mod repl_channel;
+pub mod pnfs_layout;
+
+pub use ipc::{IpcConfig, IpcConnection, IpcConnectionState, IpcManager, IpcStats, IpcStatsSnapshot};
+pub use repl_channel::{
+    InFlightEntry, JournalEntry, ReplAck, ReplChannel, ReplChannelConfig, ReplChannelState,
+    ReplChannelStats, ReplChannelStatsSnapshot, ReplError,
+};
+pub use pnfs_layout::{
+    DataLayout, DeviceAddr, DeviceId, IoMode, LayoutCache, LayoutError, LayoutSegment,
+    LayoutStateId, LayoutTypeTag, StripePattern,
+};
