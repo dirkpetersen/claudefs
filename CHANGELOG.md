@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 3 Deep Audit: Storage, Mgmt RBAC, Repl Phase 2 (2026-03-04)
+
+#### 3 New Test Modules — 75 New Tests, 822 Total
+
+**Status:** ✅ 822 security tests passing, 0 failures (+75 from 747)
+
+**New Coverage — Storage Deep Security (25 tests):**
+- Integrity Chain (5 tests): CRC32 default weakness, TTL=0 expiration, checksum mismatch detection, GC expired chains, nonexistent chain verification
+- Atomic Write (5 tests): unsupported capability, stats accumulation, zero-size request, oversized write rejection, batch with unsupported
+- Recovery (5 tests): truncated bitmap acceptance, out-of-range allocation, alloc/free roundtrip, secure defaults, phase transitions
+- Write Journal (5 tests): incrementing sequences, commit advancement, entries_since, truncation, corruption detection
+- Scrub & Hot Swap (5 tests): corrupted block detection, state machine transitions, invalid state transitions, fail-from-any-state, drain overcounting
+
+**New Coverage — Mgmt RBAC/Compliance (25 tests):**
+- RBAC (7 tests): Admin implies all, non-admin doesn't imply admin, inactive user denied, nonexistent user/role errors, removed user cleanup, duplicate role assignment
+- Audit Trail (5 tests): incrementing IDs, user filter, kind filter, empty filter returns all, success-only filter
+- Compliance (5 tests): WORM active status, expired status, duplicate policy rejection, unknown policy error, days remaining math
+- Live Config (5 tests): set/get roundtrip, nonexistent key error, remove key, version increments, reload updates
+- Rate Limiter (3 tests): lockout threshold, IP independence, constant-time equality
+
+**New Coverage — Repl Phase 2 (25 tests):**
+- Journal Source (8 tests): empty poll, acknowledge cursor advance, max_entries limit, batch sequences, arbitrary ack acceptance, VecSource exhaustion, cursor initial state
+- Sliding Window (10 tests): sequence increment, window full error, ack clears slot, nonexistent ack error, timeout detection, pre-deadline no timeout, retransmit counting, stats tracking, state transitions, cumulative ack
+- Catchup (7 tests): idle start, request transition, double-request fail, receive_batch transition, final batch completion, fail transition, reset to idle
+
+**Security Findings:** 47 findings across 3 areas
+- Storage (10): CRC32 default, TTL overflow, u64→u32 truncation, bitmap padding, journal desync, mutex poisoning, recovery unwrap, sequence wrap, auto-repair unconfirmed, hardcoded device paths
+- Mgmt (17): RBAC no auth context, no audit trail for mutations, active flag race, audit unbounded growth, audit query enumeration, timestamp spoofing, WORM caller-enforced, expiry time manipulation, config no schema validation, config watch no ACL, watcher unbounded growth, rate limit clock skew, IP spoofing, compliance no audit, policy immutability, reload silent errors, empty key accepted
+- Repl (20): No ACK bounds, sequence gap acceptance, site ID mismatch, replay batches, sequence overflow, out-of-order ACK, clock skew exploitation, retransmit overflow, silent mark_retransmit failures, cumulative ACK off-by-one, from_seq not validated, final_seq not monotonic, entry count overflow, timeout not enforced, unbounded batch size, no deduplication, batch sequence not tracked
+
+**Stats:** +75 tests, 822 total security tests | 33 test modules
+
+---
+
 ### A6: Replication — Phase 2: Journal Source + Sliding Window + Catchup (2026-03-04)
 
 #### 3 New Modules — 817 Tests, +75 New

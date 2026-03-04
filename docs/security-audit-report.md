@@ -711,4 +711,162 @@ The codebase demonstrates strong security engineering:
 - `crates/claudefs-repl/src/split_brain.rs` — Split-brain detection and fencing
 - `crates/claudefs-repl/src/wal.rs` — Replication write-ahead log
 - `crates/claudefs-repl/src/auth_ratelimit.rs` — Auth rate limiting
-- `crates/claudefs-security/src/*.rs` — All 27 security test modules
+- `crates/claudefs-security/src/*.rs` — All 33 security test modules
+
+---
+
+## 19. Storage Deep Security Audit (Phase 3 Extension)
+
+### 19.1 Integrity Chain (integrity_chain.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| STOR-01 | HIGH | Default algorithm is CRC-32, not Blake3. CRC-32 is collision-prone and inappropriate for integrity verification |
+| STOR-02 | MEDIUM | TTL calculation `ttl * 60_000` can overflow for large TTL values, causing immediate expiration |
+| STOR-03 | MEDIUM | TOCTOU race between expiration check and verification |
+
+### 19.2 Atomic Write (atomic_write.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| STOR-04 | HIGH | Size validation casts u64 to u32, truncating writes >4GB and bypassing alignment checks |
+| STOR-05 | MEDIUM | Fallback writes discard block info without logging; data loss risk |
+
+### 19.3 Recovery (recovery.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| STOR-06 | HIGH | Truncated bitmaps silently padded with zeros, marking unallocated blocks as free |
+| STOR-07 | HIGH | Journal offset uses `unwrap_or(0)` causing infinite loop if serialization fails |
+| STOR-08 | MEDIUM | `allow_partial_recovery` permits wrong-cluster devices |
+
+### 19.4 Write Journal (write_journal.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| STOR-09 | MEDIUM | 64-bit sequence wraps to 0 after 2^64 appends; recovery uses sequence comparison |
+| STOR-10 | MEDIUM | Checksums not auto-validated on append; corruption undetected until manual verify |
+
+### 19.5 Scrub (scrub.rs) & Hot Swap (hot_swap.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| STOR-11 | MEDIUM | Auto-repair marks errors repaired without confirming success |
+| STOR-12 | MEDIUM | Hardcoded NVMe device path format; fails on non-NVMe |
+| STOR-13 | HIGH | All Mutex::lock().unwrap() calls panic on poisoned lock (hot_swap.rs) |
+
+---
+
+## 20. Management RBAC/Compliance Security Audit (Phase 3 Extension)
+
+### 20.1 RBAC (rbac.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| MGMT-02 | CRITICAL | No authorization context on role mutation functions (assign_role, add_user); any caller can escalate |
+| MGMT-03 | HIGH | No audit trail for permission changes; privilege escalation undetectable |
+| MGMT-04 | MEDIUM | Active flag race condition; user.active can change between check and use |
+| MGMT-05 | MEDIUM | assign_role/revoke_role don't check user.active; inactive users silently modified |
+
+### 20.2 Audit Trail (audit_trail.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| MGMT-06 | HIGH | Circular buffer with no persistence; power loss loses all audit data |
+| MGMT-07 | HIGH | query() with empty filter returns all events; no ACL on audit queries |
+| MGMT-08 | MEDIUM | Caller controls user/ip/resource strings; admin can log events for other users |
+
+### 20.3 Compliance (compliance.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| MGMT-09 | HIGH | WORM enforcement delegated to caller; no delete prevention in registry |
+| MGMT-10 | HIGH | status() uses caller-provided now_ms; expiry can be manipulated |
+| MGMT-11 | HIGH | No audit trail for policy changes; compliance changes unauditable |
+| MGMT-12 | MEDIUM | File paths stored without normalization; potential injection |
+
+### 20.4 Live Config (live_config.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| MGMT-13 | HIGH | No schema validation on hot reload; malformed config can crash consumers |
+| MGMT-14 | HIGH | watch() has no ACL; any caller can observe sensitive config changes |
+| MGMT-15 | MEDIUM | Watcher vector unbounded; malicious client can exhaust memory |
+| MGMT-16 | MEDIUM | reload() errors vector never populated; PartialFailure status unreachable |
+
+### 20.5 Security Utilities (security.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| MGMT-17 | MEDIUM | Rate limiter uses Instant (wall clock); vulnerable to clock manipulation |
+| MGMT-18 | MEDIUM | record_failure accepts arbitrary string as IP; attacker can rate-limit admins |
+
+---
+
+## 21. Replication Phase 2 Security Audit (Phase 3 Extension)
+
+### 21.1 Journal Source (journal_source.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| REPL-01 | HIGH | acknowledge() accepts any sequence number without bounds validation |
+| REPL-02 | MEDIUM | No gap detection; entries with non-contiguous sequences silently accepted |
+| REPL-03 | MEDIUM | source_site_id taken from first entry; no validation all entries share same site |
+| REPL-04 | MEDIUM | Same batch can be polled multiple times if cursor not properly advanced |
+
+### 21.2 Sliding Window (sliding_window.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| REPL-05 | HIGH | next_batch_seq wraps after 2^64 sends; can collide with old sequences |
+| REPL-06 | HIGH | Out-of-order ACKs accepted; ACK(5) succeeds when only seqs 1-3 sent |
+| REPL-07 | HIGH | timed_out_batches() accepts caller-provided now_ms; no monotonicity check |
+| REPL-08 | MEDIUM | retransmit_count increments unbounded; can wrap to 0 |
+| REPL-09 | MEDIUM | mark_retransmit() silently fails if batch not found; no error returned |
+
+### 21.3 Catchup (catchup.rs)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| REPL-10 | HIGH | request(from_seq) accepts any u64 without bounds checking; u64::MAX causes issues |
+| REPL-11 | HIGH | final_seq not validated for monotonicity; multiple batches can have same final_seq |
+| REPL-12 | MEDIUM | entry_count not validated against max_batch_size config |
+| REPL-13 | MEDIUM | timeout_ms in CatchupConfig never enforced; sessions can hang indefinitely |
+| REPL-14 | MEDIUM | No deduplication; same batch received twice counts twice in stats |
+
+---
+
+## Phase 3 Extension Summary
+
+**Total New Findings:** 47 (3 CRITICAL, 14 HIGH, 30 MEDIUM)
+
+| Area | CRITICAL | HIGH | MEDIUM |
+|------|----------|------|--------|
+| Storage | 0 | 4 | 9 |
+| Management | 1 | 8 | 8 |
+| Replication | 0 | 6 | 10 |
+| **Total** | **1** | **18** | **27** |
+
+**Priority Remediations:**
+1. MGMT-02: Add authorization context to all RBAC mutation functions
+2. STOR-04: Use u64 arithmetic throughout atomic write validation
+3. STOR-06: Reject truncated bitmaps instead of padding with zeros
+4. REPL-06: Validate ACK sequences against in-flight range
+5. MGMT-13: Require schema validation before hot config reload
+6. MGMT-09: Enforce WORM deletion prevention within ComplianceRegistry
+
+**Files Reviewed (Phase 3 Extension):**
+- `crates/claudefs-storage/src/integrity_chain.rs`
+- `crates/claudefs-storage/src/atomic_write.rs`
+- `crates/claudefs-storage/src/recovery.rs`
+- `crates/claudefs-storage/src/write_journal.rs`
+- `crates/claudefs-storage/src/scrub.rs`
+- `crates/claudefs-storage/src/hot_swap.rs`
+- `crates/claudefs-mgmt/src/rbac.rs`
+- `crates/claudefs-mgmt/src/audit_trail.rs`
+- `crates/claudefs-mgmt/src/compliance.rs`
+- `crates/claudefs-mgmt/src/live_config.rs`
+- `crates/claudefs-mgmt/src/security.rs`
+- `crates/claudefs-repl/src/journal_source.rs`
+- `crates/claudefs-repl/src/sliding_window.rs`
+- `crates/claudefs-repl/src/catchup.rs`
