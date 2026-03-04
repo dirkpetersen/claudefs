@@ -62,7 +62,10 @@ pub mod priority;
 pub mod protocol;
 pub mod qos;
 pub mod quorum;
+pub mod node_blacklist;
+pub mod read_repair;
 pub mod retry;
+pub mod repl_state;
 pub mod routing;
 pub mod rdma;
 pub mod multicast_group;
@@ -236,4 +239,16 @@ pub use quorum::{
 pub use segment_router::{
     EcConfig, SegmentId, SegmentPlacement, SegmentRouter, SegmentRouterConfig,
     SegmentRouterError, SegmentRouterStats, SegmentRouterStatsSnapshot, StripeAssignment,
+};
+pub use repl_state::{
+    JournalEntryRecord, JournalReplChannel, JournalReplChannelStats, JournalReplChannelStatsSnapshot,
+    JournalSeq, ReplState, ReplStateConfig,
+};
+pub use read_repair::{
+    ReadRepairConfig, ReadRepairManager, ReadRepairStats, ReadRepairStatsSnapshot,
+    RepairError, RepairId, RepairOp, RepairOpState, RepairPriority, RepairShard, ShardRepairState,
+};
+pub use node_blacklist::{
+    BlacklistConfig, BlacklistEntry, BlacklistReason, BlacklistStats, BlacklistStatsSnapshot,
+    NodeBlacklist,
 };

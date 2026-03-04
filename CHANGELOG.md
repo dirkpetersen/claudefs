@@ -60,6 +60,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `write_fence.rs` — Write barrier for crash-consistent write ordering;
   tracks in-flight writes, auto-seals at limit, releases when all writes drain; 22 tests
 
+### A4: Transport — Phase 9: Replication State, Read Repair, Node Blacklist (2026-03-04)
+
+**Status:** ✅ Complete — 1176 tests passing (46 new), 3 new modules
+
+#### New Modules
+
+1. **repl_state.rs** — Journal replication channel state machine (15 tests)
+   - Tracks per-peer journal replication: sent, in-flight, acked entries
+   - State machine: Idle → Syncing → Live → Disconnected / NeedsResync
+   - Cumulative ack with inflight VecDeque for efficient space reclaim
+   - Used by A6 (Replication) to drive the D3 journal replication protocol
+
+2. **read_repair.rs** — EC read repair operation tracker (16 tests)
+   - Manages lifecycle: Fetching → Reconstructing → WritingBack → Complete
+   - `can_reconstruct()` checks if fetched_count >= ec_data_shards
+   - Foreground repairs (blocking reads) vs Background repairs (node failure)
+   - Used by A5 (FUSE) for degraded reads, A1 (storage) for background repair (D1)
+
+3. **node_blacklist.rs** — Transient failed-node blacklist with exponential backoff (15 tests)
+   - Blacklist entries expire automatically after configurable backoff
+   - Exponential backoff: base_backoff_ms * 2^(failure_count-1), capped at max_backoff_ms
+   - `filter_available()` removes blacklisted nodes from routing candidates
+   - Used by routing layer, A5 FUSE client, A2 Metadata for shard routing decisions
+
+#### Test Progression
+- P6: 1013 | P7: 1070 | P8: 1130 | **P9: 1176**
+
 ### A4: Transport — Phase 8: Fanout, Quorum, Segment Router (2026-03-04)
 
 **Status:** ✅ Complete — 1130 tests passing (60 new), 3 new modules
