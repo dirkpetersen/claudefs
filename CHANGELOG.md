@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A2: Metadata Service — Phase 6: SpaceAccounting, RangeLock, MtimeTracker (2026-03-04)
+
+#### 3 New Modules — 44 New Tests, 871 Total
+
+**Status:** ✅ 871 tests passing, 0 failures, 0 clippy warnings (+44 from 827)
+
+**New modules:**
+
+1. **space_accounting.rs** — Per-directory disk usage tracking for quota enforcement and `du`-like reporting.
+   SpaceAccountingStore with add_delta (saturating arithmetic), propagate_up() for ancestor updates,
+   total_tracked() for monitoring. 14 tests.
+
+2. **range_lock.rs** — POSIX byte-range locks (fcntl F_SETLK/F_GETLK). RangeLockManager with per-inode
+   lock lists. R+R=ok, R+W/W+R/W+W=conflict. test_lock() for non-blocking check, release_all_by_owner()
+   for client disconnect cleanup. 16 tests.
+
+3. **mtime_tracker.rs** — POSIX directory mtime/ctime propagation. MtimeBatch deduplicates updates,
+   apply_batch() atomically updates multiple dirs, newer-wins semantics. 14 tests.
+
+---
+
 ### A3: Data Reduction — Phase 23: Chunk Pipeline, Eviction Policy, Replication Filter (2026-03-04)
 
 #### 3 New Modules — 70 New Tests, 1688 Total
