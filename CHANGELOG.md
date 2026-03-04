@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A1: Storage Engine — Phase 4: I/O Accounting, Block Verifier, Compaction Manager (2026-03-04)
+
+#### 3 New Modules + lib.rs exports — 85 New Tests, 894 Total
+
+**Status:** ✅ 894 tests passing (866 unit + 28 proptest), 0 failures
+
+**New modules:**
+- `io_accounting.rs` — Per-tenant I/O accounting with 60-second sliding window. Tracks bytes read/written, IOPS, and latency per TenantId. top_tenants_by_bytes(), rotate_window() for window expiry. 28 tests.
+- `block_verifier.rs` — End-to-end block integrity verifier. CRC32c (table-based const-eval) and alternate algorithm. verify_batch() with fail_fast mode. Used by scrub engine. 25 tests.
+- `compaction_manager.rs` — Compaction job orchestrator with typed state machine (Queued→Running→Done/Failed/Cancelled). Enforces max concurrent jobs (default 2), min/max segments per job. bytes_freed tracking, CompactionError variants. 32 tests.
+
+Also added background_scheduler, device_health_monitor, prefetch_engine (committed separately in 5b276d5):
+- `background_scheduler.rs` — Priority queue for background I/O tasks (JournalFlush=10 > Scrub=50 > Defrag=100 > Compaction=150 > TierEviction=200). I/O budget enforcement with time-window reset.
+- `device_health_monitor.rs` — Aggregates SMART + wear + capacity into 0.0-1.0 health scores with dynamic weighting. Threshold-based alerts.
+- `prefetch_engine.rs` — Sequential read-ahead with sliding window for re-detection after random breaks. Confidence-based gating per stream.
+
+**Test Progression:** Phase 1: 434 | Phase 2: 394→434 | Phase 3: 744→809 | **Phase 4: 894**
+
 ### A3: Data Reduction — Phase 22: Segment Pressure, Key Derivation, Segment Stats (2026-03-04)
 
 #### 3 New Modules — 72 New Tests, 1618 Total
