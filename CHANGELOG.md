@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 6: Streaming Chunker, Read Cache, Prefetch Tracker (2026-03-04)
+
+#### 3 New Modules — 66 New Tests, 393 Total
+
+**Status:** ✅ 393 tests passing, 0 failures, 0 clippy warnings (+66 from 327)
+
+**New modules:**
+- `stream_chunker.rs` — 14 tests: `StreamChunker` implements async streaming CDC for large files.
+  Reads from any `tokio::io::AsyncRead` source in `read_buffer_size` chunks (default 1MB), applies
+  `fastcdc::v2020::FastCDC` for content-defined chunking, BLAKE3-hashes each result, and tracks
+  byte offsets. `chunk_stream()` is async; `chunk_slice()` is sync for in-memory data.
+- `read_cache.rs` — 14 tests: `ReadCache` is an LRU cache for decrypted+decompressed chunks on
+  the read path. Keyed by `ChunkHash`, bounded by `capacity_bytes` (default 256MB) and
+  `max_entries` (default 65536). Implemented with `HashMap` + `VecDeque` for LRU ordering.
+  `CacheStats::hit_rate()` reports fraction of accesses that were cache hits.
+- `prefetch.rs` — 14 tests: `PrefetchTracker` detects sequential/stride access patterns per file.
+  `AccessHistory` tracks recent byte offsets. `detect_pattern()` identifies `Sequential` or
+  `Stride` patterns with configurable confidence threshold. `record_access()` returns
+  `Vec<PrefetchHint>` for next `prefetch_depth` chunks when sequential pattern is confirmed.
+
+**Also:** Expanded tests in `dedupe.rs`, `compression.rs`, and `pipeline.rs` (+24 tests).
+
+---
+
 ### A4: Transport — Phase 3: Production Integration Modules (2026-03-04)
 
 #### 3 New Modules — 67 New Tests, 734 Total

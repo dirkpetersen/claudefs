@@ -208,4 +208,101 @@ mod tests {
             prop_assert_eq!(reassembled, data);
         }
     }
+
+    #[test]
+    fn test_chunker_min_max_boundaries() {
+        let config = ChunkerConfig::default();
+        let chunker = Chunker::with_config(config);
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(512 * 1024).collect();
+        let chunks = chunker.chunk(&data);
+        for chunk in &chunks {
+            assert!(
+                chunk.data.len() >= 4096,
+                "chunk too small: {}",
+                chunk.data.len()
+            );
+            assert!(
+                chunk.data.len() <= 1024 * 1024,
+                "chunk too large: {}",
+                chunk.data.len()
+            );
+        }
+    }
+
+    #[test]
+    fn test_chunker_covers_all_bytes() {
+        let config = ChunkerConfig::default();
+        let chunker = Chunker::with_config(config);
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(300 * 1024).collect();
+        let chunks = chunker.chunk(&data);
+        let total: usize = chunks.iter().map(|c| c.data.len()).sum();
+        assert_eq!(total, data.len());
+    }
+
+    #[test]
+    fn test_chunker_deterministic() {
+        let config = ChunkerConfig::default();
+        let chunker = Chunker::with_config(config);
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(200 * 1024).collect();
+        let chunks1 = chunker.chunk(&data);
+        let chunks2 = chunker.chunk(&data);
+        assert_eq!(chunks1.len(), chunks2.len());
+        for (a, b) in chunks1.iter().zip(chunks2.iter()) {
+            assert_eq!(a.hash, b.hash);
+            assert_eq!(a.data, b.data);
+        }
+    }
+
+    #[test]
+    fn test_cas_insert_and_lookup() {
+        let mut cas = CasIndex::new();
+        let hash = ChunkHash(*blake3::hash(b"test").as_bytes());
+        assert!(!cas.lookup(&hash));
+        cas.insert(hash);
+        assert!(cas.lookup(&hash));
+    }
+
+    #[test]
+    fn test_cas_dedup_returns_existing_ref() {
+        let mut cas = CasIndex::new();
+        let data = b"duplicate data";
+        let hash = ChunkHash(*blake3::hash(data).as_bytes());
+        cas.insert(hash);
+        cas.insert(hash);
+        assert!(cas.lookup(&hash));
+        assert_eq!(cas.refcount(&hash), 2);
+    }
+
+    #[test]
+    fn test_cas_remove() {
+        let mut cas = CasIndex::new();
+        let hash = ChunkHash(*blake3::hash(b"removable").as_bytes());
+        cas.insert(hash);
+        assert!(cas.lookup(&hash));
+        cas.release(&hash); // Set refcount to 0
+        cas.drain_unreferenced(); // Remove entries with refcount 0
+        assert!(!cas.lookup(&hash));
+    }
+
+    #[test]
+    fn test_chunker_single_chunk_for_tiny_input() {
+        let config = ChunkerConfig::default();
+        let chunker = Chunker::with_config(config);
+        let data = b"tiny";
+        let chunks = chunker.chunk(data);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(&chunks[0].data[..], data);
+    }
+
+    #[test]
+    fn test_chunker_hashes_match_data() {
+        let config = ChunkerConfig::default();
+        let chunker = Chunker::with_config(config);
+        let data: Vec<u8> = (0..=255u8).cycle().take(100 * 1024).collect();
+        let chunks = chunker.chunk(&data);
+        for chunk in &chunks {
+            let expected = ChunkHash(*blake3::hash(&chunk.data).as_bytes());
+            assert_eq!(chunk.hash, expected);
+        }
+    }
 }

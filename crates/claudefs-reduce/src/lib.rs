@@ -23,12 +23,15 @@ pub mod key_rotation_scheduler;
 pub mod meta_bridge;
 pub mod metrics;
 pub mod pipeline;
+pub mod prefetch;
+pub mod read_cache;
 pub mod recompressor;
 pub mod segment;
 pub mod segment_catalog;
 pub mod segment_reader;
 pub mod similarity;
 pub mod snapshot;
+pub mod stream_chunker;
 pub mod tiering;
 pub mod write_path;
 /// WORM compliance and retention policy enforcement.
@@ -62,3 +65,6 @@ pub use write_path::{IntegratedWritePath, WritePathConfig, WritePathResult, Writ
 pub use compaction::{CompactionConfig, CompactionEngine, CompactionResult};
 pub use erasure_codec::{EcStripe, EncodedSegment, ErasureCodec};
 pub use quota_tracker::{NamespaceId, QuotaConfig, QuotaTracker, QuotaUsage, QuotaViolation};
+pub use prefetch::{AccessHistory, AccessPattern, PrefetchConfig, PrefetchHint, PrefetchTracker};
+pub use read_cache::{CacheStats, ReadCache, ReadCacheConfig};
+pub use stream_chunker::{StreamChunkResult, StreamChunker, StreamChunkerConfig, StreamingStats};
