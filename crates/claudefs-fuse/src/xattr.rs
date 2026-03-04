@@ -1,3 +1,9 @@
+//! Extended attribute (xattr) storage for FUSE inodes.
+//!
+//! Provides an in-memory key-value store for extended attributes,
+//! supporting the standard Linux xattr operations: get, set, list, remove.
+//! Each inode maintains its own isolated namespace of xattr key-value pairs.
+
 use crate::error::{FuseError, Result};
 use crate::inode::InodeId;
 use std::collections::HashMap;
@@ -6,17 +12,27 @@ use std::ffi::OsStr;
 const MAX_NAME_LEN: usize = 255;
 const MAX_VALUE_LEN: usize = 65536;
 
+/// In-memory store for extended attributes across all inodes.
+///
+/// Maps each inode to its own collection of named xattr values.
+/// Thread-unsafe; callers must synchronize access if shared across threads.
 pub struct XattrStore {
     attrs: HashMap<InodeId, HashMap<String, Vec<u8>>>,
 }
 
 impl XattrStore {
+    /// Creates a new empty xattr store.
     pub fn new() -> Self {
         Self {
             attrs: HashMap::new(),
         }
     }
 
+    /// Sets an extended attribute on an inode.
+    ///
+    /// If the attribute already exists, its value is replaced.
+    /// Returns an error if the name is empty, exceeds 255 bytes,
+    /// contains invalid UTF-8, or if the value exceeds 64KB.
     pub fn set(&mut self, ino: InodeId, name: &OsStr, value: &[u8]) -> Result<()> {
         let name_str = name.to_str().ok_or_else(|| FuseError::InvalidArgument {
             msg: "xattr name is not valid UTF-8".to_string(),
@@ -47,11 +63,18 @@ impl XattrStore {
         Ok(())
     }
 
+    /// Gets the value of an extended attribute.
+    ///
+    /// Returns `None` if the inode or attribute does not exist.
     pub fn get(&self, ino: InodeId, name: &OsStr) -> Option<&[u8]> {
         let name_str = name.to_str()?;
         self.attrs.get(&ino)?.get(name_str).map(|v| v.as_slice())
     }
 
+    /// Lists all extended attribute names for an inode.
+    ///
+    /// Returns a sorted vector of attribute names. Returns an empty
+    /// vector if the inode has no xattrs.
     pub fn list(&self, ino: InodeId) -> Vec<String> {
         let mut names: Vec<String> = self
             .attrs
@@ -62,6 +85,10 @@ impl XattrStore {
         names
     }
 
+    /// Removes an extended attribute from an inode.
+    ///
+    /// Returns an error if the inode or attribute does not exist.
+    /// Cleans up empty inode entries to prevent memory leaks.
     pub fn remove(&mut self, ino: InodeId, name: &OsStr) -> Result<()> {
         let name_str = name.to_str().ok_or_else(|| FuseError::InvalidArgument {
             msg: "xattr name is not valid UTF-8".to_string(),
@@ -83,6 +110,10 @@ impl XattrStore {
         Ok(())
     }
 
+    /// Returns the buffer size needed to hold all xattr names for an inode.
+    ///
+    /// Calculates the total size including null terminators for each name,
+    /// as required by the `listxattr` syscall semantics.
     pub fn list_size(&self, ino: InodeId) -> u32 {
         self.attrs
             .get(&ino)
@@ -90,14 +121,19 @@ impl XattrStore {
             .unwrap_or(0)
     }
 
+    /// Removes all extended attributes for an inode.
+    ///
+    /// Called when an inode is deleted to clean up associated xattrs.
     pub fn clear_inode(&mut self, ino: InodeId) {
         self.attrs.remove(&ino);
     }
 
+    /// Returns the total number of xattr entries across all inodes.
     pub fn len(&self) -> usize {
         self.attrs.values().map(|m| m.len()).sum()
     }
 
+    /// Returns `true` if the store contains no xattr entries.
     pub fn is_empty(&self) -> bool {
         self.attrs.is_empty()
     }
