@@ -334,7 +334,7 @@ impl Cli {
         let metrics = Arc::new(ClusterMetrics::new());
         let config = Arc::new(config);
 
-        let api = AdminApi::new(metrics, config);
+        let api = AdminApi::new(metrics, config.clone(), config.index_dir.clone());
         api.serve().await
     }
 

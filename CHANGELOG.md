@@ -39,27 +39,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Parquet flushing to indexer (planned)
 - Integration with A2 metadata journal (blocked on A2 readiness)
 
-**Files Modified:**
-- `crates/claudefs-mgmt/src/lib.rs` — Added all module doc comments
-- `crates/claudefs-mgmt/src/analytics.rs` — Exploratory implementation (needs refinement)
-
-**Commits:**
-- 3776927: Add module documentation to fix missing_docs warnings
-- 82b7fe2: Phase 8 work progress — docs and planning
-
 ---
 
-### A6: Replication — Phase 1 Foundation Complete (2026-03-04)
+### A6: Replication — Phase 1 Foundation: All Tests Passing (2026-03-04)
 
-**Status:** ✅ PHASE 1 COMPLETE — 742 tests passing, 0 compile errors, 0 warnings
+#### Cross-Site Journal Replication: 742 Tests, 0 Failures
 
-- 35 modules implementing cross-site journal replication per D3 (async cloud conduit)
-- Core: `journal.rs` (CRC32 entries), `wal.rs` (cursor tracking), `conduit.rs` (gRPC/mTLS sim)
-- Engine: `engine.rs` (lifecycle), `conflict_resolver.rs` + `split_brain.rs` (LWW + vector clocks)
-- Failover: `failover.rs` / `site_failover.rs` / `active_active.rs` (site mode state machine)
-- Security: `batch_auth.rs`, `tls_policy.rs`, `uidmap.rs`, rate limiters
-- Observability: `health.rs`, `metrics.rs`, `otel_repl.rs`, `lag_monitor.rs`
-- Fixed: E0382 compile error (partial move in proptest), 5 warnings (unused mut/vars)
+**Status:** ✅ PHASE 1 COMPLETE — 742 tests passing, 0 warnings, 0 clippy issues
+
+The `claudefs-repl` crate implements asynchronous cross-site metadata journal replication
+(per D3: 2x synchronous journal replication + async cross-site conduit).
+
+**35 modules implemented:**
+- `journal.rs` — `JournalEntry`/`OpKind` with CRC32, proptest coverage
+- `wal.rs` — write-ahead log with per-shard cursor tracking
+- `conduit.rs` — gRPC/mTLS conduit (tokio mpsc for tests), `EntryBatch`, atomic stats
+- `engine.rs` — central `ReplicationEngine` with start/stop lifecycle and per-site stats
+- `conflict_resolver.rs` / `split_brain.rs` — last-write-wins, vector clock, quorum detection
+- `failover.rs` / `site_failover.rs` / `active_active.rs` — site mode state machine
+- `topology.rs` / `site_registry.rs` — site topology and role management
+- `uidmap.rs` — UID/GID translation across sites
+- `compression.rs` — LZ4/Zstd batch compression
+- `batch_auth.rs` / `auth_ratelimit.rs` / `recv_ratelimit.rs` / `tls_policy.rs` — auth + rate limiting
+- `backpressure.rs` / `throttle.rs` / `repl_qos.rs` — QoS and backpressure
+- `health.rs` / `metrics.rs` / `otel_repl.rs` / `lag_monitor.rs` — health, Prometheus, OpenTelemetry
+- `journal_gc.rs` / `repl_audit.rs` / `repl_maintenance.rs` — GC, audit, maintenance windows
+- `checkpoint.rs` / `pipeline.rs` / `fanout.rs` / `sync.rs` — pipeline stages, fan-out
+- `repl_bootstrap.rs` — new replica bootstrap coordination
+
+**Bug Fixes:**
+- E0382 compile error: partial move of `decoded.payload` before `validate_crc()` in proptest
+- 5 compiler warnings fixed (unused `mut`, unused `events` variables, unused loop variable `i`)
 
 ### A11: Infrastructure & CI — Phase 8 System Health Monitoring (2026-03-04)
 

@@ -48,10 +48,18 @@ impl BackendNode {
 pub enum ConnState {
     /// Connection is available
     Idle,
-    /// Connection is in use
-    InUse { since: Instant },
-    /// Connection is marked unhealthy
-    Unhealthy { last_error: String, since: Instant },
+    /// Connection is currently in use by an active request
+    InUse {
+        /// Timestamp when this connection was acquired
+        since: Instant,
+    },
+    /// Connection has been marked unhealthy and should not be used
+    Unhealthy {
+        /// Description of the error that caused this connection to become unhealthy
+        last_error: String,
+        /// Timestamp when this connection became unhealthy
+        since: Instant,
+    },
 }
 
 /// A single pooled connection slot
@@ -428,15 +436,19 @@ impl GatewayConnPool {
 /// Connection pool errors
 #[derive(Debug, Error)]
 pub enum ConnPoolError {
+    /// The specified backend node was not found in the pool
     #[error("Node not found: {0}")]
     NodeNotFound(String),
 
+    /// The pool has reached its maximum capacity and no connections are available
     #[error("Pool exhausted")]
     PoolExhausted,
 
+    /// The backend node is marked unhealthy and cannot accept connections
     #[error("Node unhealthy: {0}")]
     NodeUnhealthy(String),
 
+    /// The specified connection ID was not found in the pool
     #[error("Connection not found: {0}")]
     ConnNotFound(String),
 }

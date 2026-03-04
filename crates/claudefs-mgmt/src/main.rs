@@ -54,7 +54,7 @@ async fn serve_with_modules(config_path: PathBuf) -> Result<()> {
     
     let alert_manager = Arc::new(tokio::sync::Mutex::new(AlertManager::with_default_rules()));
     
-    let api = AdminApi::new(metrics.clone(), config.clone());
+    let api = AdminApi::new(metrics.clone(), config.clone(), config.index_dir.clone());
 
     let indexer_clone = indexer.clone();
     let indexer_handle = tokio::spawn(async move {

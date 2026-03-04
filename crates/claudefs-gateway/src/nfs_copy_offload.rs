@@ -346,18 +346,23 @@ impl CloneResult {
 /// Copy offload errors
 #[derive(Debug, Error)]
 pub enum CopyOffloadError {
+    /// The specified copy operation was not found
     #[error("Copy not found: {0}")]
     NotFound(String),
 
+    /// The maximum number of concurrent copy operations has been reached
     #[error("Limit exceeded: {0}")]
     LimitExceeded(String),
 
+    /// The copy operation has already completed and cannot be modified
     #[error("Copy already complete: {0}")]
     AlreadyComplete(String),
 
+    /// A copy segment specification is invalid (e.g., invalid offset or length)
     #[error("Invalid segment: {0}")]
     InvalidSegment(String),
 
+    /// An I/O error occurred during the copy operation
     #[error("IO error: {0}")]
     IoError(String),
 }
@@ -444,9 +449,9 @@ mod tests {
 
         manager.complete_copy(id1, 1000).unwrap();
         manager.fail_copy(id2).unwrap();
-        manager.cancel_copy(id3).unwrap();
+        assert!(manager.cancel_copy(id3));
 
-        assert_eq!(manager.active_count(), 1); // id3 still in progress
+        assert_eq!(manager.active_count(), 0); // all copies are in terminal states
 
         let purged = manager.purge_finished();
         assert_eq!(purged, 3);
@@ -463,7 +468,7 @@ mod tests {
         let id1 = manager
             .start_copy("/src1", "/dst1", vec![CopySegment::new(0, 0, 1000)])
             .unwrap();
-        let id2 = manager
+        let _id2 = manager
             .start_copy("/src2", "/dst2", vec![CopySegment::new(0, 0, 1000)])
             .unwrap();
 

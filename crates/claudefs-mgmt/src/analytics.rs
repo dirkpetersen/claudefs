@@ -71,96 +71,286 @@ impl AnalyticsEngine {
         Self { index_dir }
     }
 
-    pub fn query(&self, sql: &str) -> anyhow::Result<Vec<HashMap<String, serde_json::Value>>> {
-        tracing::debug!("Query executed (stub): {}", sql);
-
-        // TODO: Implement with DuckDB
-        // This would use the duckdb crate to query Parquet files:
-        //
-        // use duckdb::Connection;
-        // let conn = Connection::open(&self.duckdb_path)?;
-        //
-        // let sql = sql.replace(
-        //     "metadata",
-        //     &format!("read_parquet('{}/**/*.parquet')", self.index_dir.display())
-        // );
-        //
-        // let mut stmt = conn.prepare(&sql)?;
-        // let rows = stmt.query_map([], |row| {
-        //     // convert row to HashMap
-        // })?;
-        // // collect results
-        //
-        Ok(Vec::new())
+    fn find_parquet_files(&self) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&self.index_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(name) = path.file_name() {
+                    let name_str = name.to_string_lossy();
+                    if name_str.starts_with("metadata") && name_str.ends_with(".parquet") {
+                        files.push(path);
+                    }
+                }
+            }
+        }
+        files
     }
 
-    pub fn top_users(&self, limit: usize) -> anyhow::Result<Vec<UserStorageUsage>> {
-        tracing::debug!("top_users called with limit {}", limit);
-        // TODO: Implement with DuckDB
-        // SELECT owner_name, SUM(size_bytes) as total_size_bytes, COUNT(*) as file_count
-        // FROM read_parquet('{index_dir}/**/*.parquet')
-        // GROUP BY owner_name
-        // ORDER BY total_size_bytes DESC
-        // LIMIT {limit}
-        Ok(Vec::new())
+    pub async fn query(&self, sql: &str) -> anyhow::Result<Vec<HashMap<String, serde_json::Value>>> {
+        let index_dir = self.index_dir.clone();
+        task::spawn_blocking(move || {
+            let parquet_files = {
+                let mut files = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(&index_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if let Some(name) = path.file_name() {
+                            let name_str = name.to_string_lossy();
+                            if name_str.starts_with("metadata") && name_str.ends_with(".parquet") {
+                                files.push(path);
+                            }
+                        }
+                    }
+                }
+                files
+            };
+
+            if parquet_files.is_empty() {
+                return Ok(Vec::new());
+            }
+
+            let conn = duckdb::Connection::open_in_memory()?;
+
+            let paths: Vec<String> = parquet_files.iter()
+                .map(|p| p.to_string_lossy().to_string())
+                .collect();
+            let paths_str = paths.join(",");
+
+            let create_sql = format!(
+                "CREATE TABLE metadata AS SELECT * FROM read_parquet({})",
+                paths_str
+            );
+            conn.execute(&create_sql, [])?;
+
+            let mut stmt = conn.prepare(sql)?;
+            let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+
+            let rows = stmt.query_map([], |row| {
+                let mut map = HashMap::new();
+                for (i, col_name) in column_names.iter().enumerate() {
+                    let value = Self::duckdb_value_to_json(&row, i);
+                    map.insert(col_name.clone(), value);
+                }
+                Ok(map)
+            })?;
+
+            let mut results = Vec::new();
+            for row in rows {
+                results.push(row?);
+            }
+
+            Ok(results)
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("Join error: {}", e))?
     }
 
-    pub fn top_dirs(&self, depth: usize, limit: usize) -> anyhow::Result<Vec<DirStorageUsage>> {
-        tracing::debug!("top_dirs called with depth {} limit {}", depth, limit);
-        // TODO: Implement with DuckDB
-        // SELECT parent_path as path, SUM(size_bytes) as total_size_bytes, COUNT(*) as file_count
-        // FROM read_parquet('{index_dir}/**/*.parquet')
-        // WHERE array_length(string_to_array(path, '/')) = {depth + 1}
-        // GROUP BY parent_path
-        // ORDER BY total_size_bytes DESC
-        // LIMIT {limit}
-        Ok(Vec::new())
+    pub async fn top_users(&self, limit: usize) -> anyhow::Result<Vec<UserStorageUsage>> {
+        let sql = format!(
+            "SELECT owner_name, SUM(size_bytes) as total_size_bytes, COUNT(*) as file_count
+             FROM metadata
+             GROUP BY owner_name
+             ORDER BY total_size_bytes DESC
+             LIMIT {}", limit);
+
+        let results = self.query(&sql).await?;
+
+        let mut users = Vec::new();
+        for row in results {
+            users.push(UserStorageUsage {
+                owner_name: row.get("owner_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                total_size_bytes: row.get("total_size_bytes").and_then(|v| v.as_u64()).unwrap_or(0),
+                file_count: row.get("file_count").and_then(|v| v.as_u64()).unwrap_or(0),
+            });
+        }
+        Ok(users)
     }
 
-    pub fn find_files(&self, pattern: &str, limit: usize) -> anyhow::Result<Vec<MetadataRecord>> {
-        tracing::debug!("find_files called with pattern {} limit {}", pattern, limit);
+    pub async fn top_dirs(&self, depth: usize, limit: usize) -> anyhow::Result<Vec<DirStorageUsage>> {
+        let sql = format!(
+            "SELECT parent_path as path, SUM(size_bytes) as total_size_bytes, COUNT(*) as file_count
+             FROM metadata
+             GROUP BY parent_path
+             ORDER BY total_size_bytes DESC
+             LIMIT {}", limit);
 
-        let glob_pattern = self.pattern_to_sql_glob(pattern);
-        tracing::debug!("Converted to SQL pattern: {}", glob_pattern);
+        let results = self.query(&sql).await?;
 
-        // TODO: Implement with DuckDB
-        // SELECT * FROM read_parquet('{index_dir}/**/*.parquet')
-        // WHERE filename LIKE '{glob_pattern}'
-        // LIMIT {limit}
-        Ok(Vec::new())
+        let mut dirs = Vec::new();
+        for row in results {
+            let path = row.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let extracted = Self::extract_path_at_depth(&path, depth);
+            if let Some(final_path) = extracted {
+                if let Some(existing) = dirs.iter_mut().find(|d: &&mut DirStorageUsage| d.path == final_path) {
+                    existing.total_size_bytes += row.get("total_size_bytes").and_then(|v| v.as_u64()).unwrap_or(0);
+                    existing.file_count += row.get("file_count").and_then(|v| v.as_u64()).unwrap_or(0);
+                } else {
+                    dirs.push(DirStorageUsage {
+                        path: final_path,
+                        total_size_bytes: row.get("total_size_bytes").and_then(|v| v.as_u64()).unwrap_or(0),
+                        file_count: row.get("file_count").and_then(|v| v.as_u64()).unwrap_or(0),
+                    });
+                }
+            }
+        }
+
+        dirs.sort_by(|a, b| b.total_size_bytes.cmp(&a.total_size_bytes));
+        dirs.truncate(limit);
+        Ok(dirs)
     }
 
-    pub fn stale_files(&self, days: u64, limit: usize) -> anyhow::Result<Vec<MetadataRecord>> {
-        tracing::debug!("stale_files called with days {} limit {}", days, limit);
+    fn extract_path_at_depth(path: &str, depth: usize) -> Option<String> {
+        if depth == 0 {
+            return Some("/".to_string());
+        }
+        let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+        if depth > parts.len() {
+            return None;
+        }
+        let prefix = parts[..depth].join("/");
+        if prefix.is_empty() {
+            Some("/".to_string())
+        } else {
+            Some(format!("/{}", prefix))
+        }
+    }
 
+    pub async fn reduction_report(&self, limit: usize) -> anyhow::Result<Vec<ReductionStats>> {
+        let sql = format!(
+            "SELECT
+                parent_path as path,
+                SUM(size_bytes) as total_logical_bytes,
+                SUM(blocks_stored * 4096) as total_stored_bytes
+             FROM metadata
+             GROUP BY parent_path
+             ORDER BY total_logical_bytes DESC
+             LIMIT {}", limit);
+
+        let results = self.query(&sql).await?;
+
+        let mut stats = Vec::new();
+        for row in results {
+            let logical = row.get("total_logical_bytes").and_then(|v| v.as_u64()).unwrap_or(0);
+            let stored = row.get("total_stored_bytes").and_then(|v| v.as_u64()).unwrap_or(1);
+            let ratio = if stored > 0 { logical as f64 / stored as f64 } else { 0.0 };
+            stats.push(ReductionStats {
+                path: row.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                total_logical_bytes: logical,
+                total_stored_bytes: stored,
+                reduction_ratio: ratio,
+            });
+        }
+        Ok(stats)
+    }
+
+    #[allow(dead_code)]
+    pub async fn reduction_stats(&self) -> anyhow::Result<Vec<ReductionStats>> {
+        let sql = "SELECT
+            path,
+            SUM(size_bytes) as total_logical_bytes,
+            SUM(blocks_stored * 4096) as total_stored_bytes
+           FROM metadata
+           GROUP BY path";
+
+        let results = self.query(sql).await?;
+
+        let mut stats = Vec::new();
+        for row in results {
+            let logical = row.get("total_logical_bytes").and_then(|v| v.as_u64()).unwrap_or(0);
+            let stored = row.get("total_stored_bytes").and_then(|v| v.as_u64()).unwrap_or(1);
+            let ratio = if stored > 0 { logical as f64 / stored as f64 } else { 0.0 };
+            stats.push(ReductionStats {
+                path: row.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                total_logical_bytes: logical,
+                total_stored_bytes: stored,
+                reduction_ratio: ratio,
+            });
+        }
+        Ok(stats)
+    }
+
+    pub async fn find_files(&self, pattern: &str, limit: usize) -> anyhow::Result<Vec<MetadataRecord>> {
+        let glob_pattern = Self::pattern_to_sql_glob(pattern);
+
+        let sql = format!(
+            "SELECT * FROM metadata WHERE filename LIKE '{}' LIMIT {}",
+            glob_pattern, limit
+        );
+
+        let results = self.query(&sql).await?;
+
+        let mut records = Vec::new();
+        for row in results {
+            records.push(MetadataRecord {
+                inode: row.get("inode").and_then(|v| v.as_u64()).unwrap_or(0),
+                path: row.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                filename: row.get("filename").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                parent_path: row.get("parent_path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                owner_uid: row.get("owner_uid").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                owner_name: row.get("owner_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                group_gid: row.get("group_gid").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                group_name: row.get("group_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                size_bytes: row.get("size_bytes").and_then(|v| v.as_u64()).unwrap_or(0),
+                blocks_stored: row.get("blocks_stored").and_then(|v| v.as_u64()).unwrap_or(0),
+                mtime: row.get("mtime").and_then(|v| v.as_i64()).unwrap_or(0),
+                ctime: row.get("ctime").and_then(|v| v.as_i64()).unwrap_or(0),
+                file_type: row.get("file_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                is_replicated: row.get("is_replicated").and_then(|v| v.as_bool()).unwrap_or(false),
+            });
+        }
+        Ok(records)
+    }
+
+    pub async fn stale_files(&self, days: u64, limit: usize) -> anyhow::Result<Vec<MetadataRecord>> {
         let cutoff = chrono::Utc::now().timestamp() - (days as i64 * 86400);
 
-        // TODO: Implement with DuckDB
-        // SELECT * FROM read_parquet('{index_dir}/**/*.parquet')
-        // WHERE mtime < {cutoff}
-        // ORDER BY mtime ASC
-        // LIMIT {limit}
-        let _ = cutoff;
-        Ok(Vec::new())
+        let sql = format!(
+            "SELECT * FROM metadata WHERE mtime < {} ORDER BY mtime ASC LIMIT {}",
+            cutoff, limit
+        );
+
+        let results = self.query(&sql).await?;
+
+        let mut records = Vec::new();
+        for row in results {
+            records.push(MetadataRecord {
+                inode: row.get("inode").and_then(|v| v.as_u64()).unwrap_or(0),
+                path: row.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                filename: row.get("filename").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                parent_path: row.get("parent_path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                owner_uid: row.get("owner_uid").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                owner_name: row.get("owner_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                group_gid: row.get("group_gid").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                group_name: row.get("group_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                size_bytes: row.get("size_bytes").and_then(|v| v.as_u64()).unwrap_or(0),
+                blocks_stored: row.get("blocks_stored").and_then(|v| v.as_u64()).unwrap_or(0),
+                mtime: row.get("mtime").and_then(|v| v.as_i64()).unwrap_or(0),
+                ctime: row.get("ctime").and_then(|v| v.as_i64()).unwrap_or(0),
+                file_type: row.get("file_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                is_replicated: row.get("is_replicated").and_then(|v| v.as_bool()).unwrap_or(false),
+            });
+        }
+        Ok(records)
     }
 
-    pub fn reduction_report(&self, limit: usize) -> anyhow::Result<Vec<ReductionStats>> {
-        tracing::debug!("reduction_report called with limit {}", limit);
-
-        // TODO: Implement with DuckDB
-        // SELECT
-        //   parent_path as path,
-        //   SUM(size_bytes) as total_logical_bytes,
-        //   SUM(blocks_stored * 4096) as total_stored_bytes,
-        //   SUM(size_bytes) / NULLIF(SUM(blocks_stored * 4096), 0) as reduction_ratio
-        // FROM read_parquet('{index_dir}/**/*.parquet')
-        // GROUP BY parent_path
-        // ORDER BY total_logical_bytes DESC
-        // LIMIT {limit}
-        Ok(Vec::new())
+    fn duckdb_value_to_json(row: &duckdb::Row, idx: usize) -> serde_json::Value {
+        if let Ok(v) = row.get::<_, Option<i64>>(idx) {
+            return serde_json::json!(v);
+        }
+        if let Ok(v) = row.get::<_, Option<f64>>(idx) {
+            return serde_json::json!(v);
+        }
+        if let Ok(v) = row.get::<_, Option<String>>(idx) {
+            return serde_json::json!(v);
+        }
+        if let Ok(v) = row.get::<_, Option<bool>>(idx) {
+            return serde_json::json!(v);
+        }
+        serde_json::Value::Null
     }
 
-    fn pattern_to_sql_glob(&self, pattern: &str) -> String {
+    fn pattern_to_sql_glob(pattern: &str) -> String {
         let mut result = String::new();
         let mut in_percent = false;
 
@@ -252,39 +442,59 @@ mod tests {
         assert_eq!(record.filename, "file.txt");
     }
 
-    #[test]
-    fn test_top_users_empty_index() {
+    #[tokio::test]
+    async fn test_top_users_empty_index() {
         let engine = AnalyticsEngine::new(PathBuf::from("/tmp/test"));
-        let result = engine.top_users(10).unwrap();
+        let result = engine.top_users(10).await.unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
     fn test_pattern_to_sql_glob_asterisk() {
-        let engine = AnalyticsEngine::new(PathBuf::from("/tmp"));
-        let result = engine.pattern_to_sql_glob("*.txt");
+        let result = AnalyticsEngine::pattern_to_sql_glob("*.txt");
         assert_eq!(result, "%\\.txt");
     }
 
     #[test]
     fn test_pattern_to_sql_glob_question_mark() {
-        let engine = AnalyticsEngine::new(PathBuf::from("/tmp"));
-        let result = engine.pattern_to_sql_glob("file?.txt");
+        let result = AnalyticsEngine::pattern_to_sql_glob("file?.txt");
         assert_eq!(result, "file_\\.txt");
     }
 
     #[test]
     fn test_pattern_to_sql_glob_complex() {
-        let engine = AnalyticsEngine::new(PathBuf::from("/tmp"));
-        let result = engine.pattern_to_sql_glob("backup_*.tar.gz");
+        let result = AnalyticsEngine::pattern_to_sql_glob("backup_*.tar.gz");
         assert_eq!(result, "backup_%\\.tar\\.gz");
     }
 
     #[test]
     fn test_pattern_to_sql_glob_empty() {
-        let engine = AnalyticsEngine::new(PathBuf::from("/tmp"));
-        let result = engine.pattern_to_sql_glob("");
+        let result = AnalyticsEngine::pattern_to_sql_glob("");
         assert_eq!(result, "%");
+    }
+
+    #[test]
+    fn test_extract_path_at_depth_zero() {
+        let result = AnalyticsEngine::extract_path_at_depth("/home/user/file.txt", 0);
+        assert_eq!(result, Some("/".to_string()));
+    }
+
+    #[test]
+    fn test_extract_path_at_depth_one() {
+        let result = AnalyticsEngine::extract_path_at_depth("/home/user/file.txt", 1);
+        assert_eq!(result, Some("/home".to_string()));
+    }
+
+    #[test]
+    fn test_extract_path_at_depth_two() {
+        let result = AnalyticsEngine::extract_path_at_depth("/home/user/file.txt", 2);
+        assert_eq!(result, Some("/home/user".to_string()));
+    }
+
+    #[test]
+    fn test_extract_path_at_depth_exceeds() {
+        let result = AnalyticsEngine::extract_path_at_depth("/home/user", 5);
+        assert_eq!(result, None);
     }
 
     #[test]

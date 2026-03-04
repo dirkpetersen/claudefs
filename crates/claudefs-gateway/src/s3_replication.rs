@@ -372,12 +372,15 @@ impl ReplicationQueue {
 /// Replication errors
 #[derive(Debug, Error)]
 pub enum ReplicationError {
+    /// The specified replication rule was not found
     #[error("Rule not found: {0}")]
     RuleNotFound(String),
 
+    /// The replication configuration is invalid
     #[error("Configuration error: {0}")]
     ConfigError(String),
 
+    /// An error occurred in the replication event queue
     #[error("Queue error: {0}")]
     QueueError(String),
 }

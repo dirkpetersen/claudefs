@@ -586,7 +586,7 @@ mod tests {
     fn test_multipart_manager_active_count() {
         let manager = MultipartManager::new();
         let id1 = manager.create("bucket", "key1", "text/plain");
-        let id2 = manager.create("bucket", "key2", "text/plain");
+        let _id2 = manager.create("bucket", "key2", "text/plain");
 
         assert_eq!(manager.active_count(), 2);
 
