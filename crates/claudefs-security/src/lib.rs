@@ -25,6 +25,8 @@ pub mod fuzz_protocol;
 #[cfg(test)]
 pub mod gateway_auth_tests;
 #[cfg(test)]
+pub mod gateway_nfs_rpc_security_tests;
+#[cfg(test)]
 pub mod transport_tests;
 #[cfg(test)]
 pub mod unsafe_review_tests;
@@ -91,6 +93,9 @@ pub mod meta_deep_security_tests;
 pub mod transport_deep_security_tests;
 #[cfg(test)]
 pub mod transport_conn_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod transport_pipeline_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod repl_deep_security_tests_v2;
