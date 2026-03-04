@@ -97,13 +97,16 @@ pub mod repl_deep_security_tests_v2;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod fuse_deep_security_tests;
-    #[cfg(test)]
-    pub mod gateway_protocol_security_tests;
-    #[cfg(test)]
-    #[allow(missing_docs)]
-    pub mod meta_consensus_security_tests;
+#[cfg(test)]
+pub mod gateway_protocol_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_consensus_security_tests;
 #[cfg(test)]
 pub mod mgmt_extended_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod storage_erasure_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_infra_security_tests;
