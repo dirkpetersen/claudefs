@@ -647,7 +647,7 @@ mod tests {
 
         manager.record_health(100, false).await;
         manager.record_health(100, false).await;
-        let events = manager.record_health(100, false).await;
+        let _events = manager.record_health(100, false).await;
 
         let mode = manager.site_mode(100).await;
         assert_eq!(mode, Some(SiteMode::DegradedAcceptWrites));
@@ -690,7 +690,7 @@ mod tests {
             .unwrap();
 
         manager.record_health(100, true).await;
-        let events = manager.record_health(100, true).await;
+        let _events = manager.record_health(100, true).await;
 
         let mode = manager.site_mode(100).await;
         assert_eq!(mode, Some(SiteMode::ActiveReadWrite));
@@ -710,7 +710,7 @@ mod tests {
             .await
             .unwrap();
 
-        let events = manager.record_health(100, false).await;
+        let _events = manager.record_health(100, false).await;
         let mode = manager.site_mode(100).await;
         assert_eq!(mode, Some(SiteMode::Offline));
     }

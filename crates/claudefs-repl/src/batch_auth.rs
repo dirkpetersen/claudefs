@@ -427,7 +427,7 @@ mod tests {
 
     #[test]
     fn test_constant_time_compare_single_byte_diff() {
-        let mut a: [u8; 32] = [0x55; 32];
+        let a: [u8; 32] = [0x55; 32];
         let mut b: [u8; 32] = [0x55; 32];
         b[15] = 0x66;
         assert!(!constant_time_compare(&a, &b));

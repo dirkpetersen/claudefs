@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
 use thiserror::Error;
+use tokio::task;
 
 #[derive(Error, Debug)]
 pub enum AnalyticsError {

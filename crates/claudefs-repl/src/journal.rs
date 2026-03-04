@@ -573,8 +573,8 @@ mod proptest_journal {
             prop_assert_eq!(decoded.timestamp_us, timestamp_us);
             prop_assert_eq!(decoded.inode, inode);
             prop_assert_eq!(decoded.op, op);
-            prop_assert_eq!(decoded.payload, payload);
             prop_assert!(decoded.validate_crc());
+            prop_assert_eq!(decoded.payload, payload);
         }
 
         /// CRC32 is deterministic: same inputs always produce same CRC.

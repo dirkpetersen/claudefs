@@ -297,7 +297,7 @@ mod tests {
     fn test_multiple_maintenance_cycles() {
         let mut coord = MaintenanceCoordinator::new();
 
-        for i in 1..=5 {
+        for _i in 1..=5 {
             coord.enter_maintenance();
             coord.exit_maintenance();
             coord.complete_catchup();
