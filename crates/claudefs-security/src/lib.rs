@@ -55,6 +55,9 @@ pub mod phase2_audit;
 #[cfg(test)]
 pub mod meta_security_tests;
 #[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_access_xattr_security_tests;
+#[cfg(test)]
 pub mod gateway_security_tests;
 #[cfg(test)]
 pub mod fuse_security_tests;
@@ -75,6 +78,9 @@ pub mod storage_deep_security_tests;
 pub mod storage_deep_security_tests_v2;
 #[cfg(test)]
 pub mod gateway_s3_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_s3_ver_multi_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod meta_deep_security_tests;
@@ -137,6 +143,9 @@ pub mod reduce_extended_security_tests;
 pub mod repl_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
+pub mod repl_failover_bootstrap_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
 pub mod repl_phase2_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
@@ -150,3 +159,6 @@ pub mod repl_phase2_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
     pub mod fuse_prefetch_health_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod gateway_wire_audit_security_tests;

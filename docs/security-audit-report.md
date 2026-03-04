@@ -1565,3 +1565,51 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 3. Bootstrap Phase Machine (5): initial idle, enroll to snapshot, snapshot to catchup, catchup to complete, failure
 4. Bootstrap Progress & Stats (5): progress idle, enrolling, snapshot, stats default, multiple attempts
 5. Integration & Cross-Module (5): event serialization, enrollment record, state clone, catchup tracking, phase variants
+
+---
+
+## Section 36: Phase 19 — Gateway Wire/Audit/Access-Log & Meta Access/XAttr/Inode-Gen
+
+**Test Modules:** `gateway_wire_audit_security_tests.rs` (25 tests), `meta_access_xattr_security_tests.rs` (25 tests)
+**Total Tests After Phase 19:** 1571 passing, 0 failures
+
+### Gateway Wire Validation, Audit Trail, Access Log (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| GW-WIRE-01 | HIGH | NFS file handle size enforced 1-64 bytes per NFSv3 spec |
+| GW-WIRE-02 | HIGH | Filename rejects path separator and null byte injection |
+| GW-WIRE-03 | HIGH | NFS path traversal via null byte injection blocked |
+| GW-WIRE-06 | MEDIUM | S3 key rejects leading slash — prevents path confusion |
+| GW-WIRE-07 | MEDIUM | S3 object size limit enforced at 5TB per AWS spec |
+| GW-WIRE-16 | HIGH | Audit ring buffer prevents unbounded memory growth |
+| GW-WIRE-20 | MEDIUM | Monotonic audit IDs enable ordering and gap detection |
+| GW-WIRE-22 | HIGH | Access log ring buffer prevents memory exhaustion from log flooding |
+| GW-WIRE-25 | MEDIUM | Statistics functions handle zero denominators safely |
+
+**Categories tested:**
+1. Wire NFS Validation (5): file handle size, filename sanitization, path validation, count bounds, mode format/parse
+2. Wire S3 & Utility (5): S3 key/size validation, part number/upload ID, ETag computation, ISO8601, request ID
+3. Audit Trail Recording (5): severity ordering, event type mapping, record/query, disabled, min severity filter
+4. Audit Ring Buffer (5): eviction, record fields, config defaults, clear, monotonic IDs
+5. Access Log Stats (5): entry builder, ring buffer, stats tracking, protocol/client filtering, avg/rate safety
+
+### Meta POSIX Access Control, XAttr, NFS File Handles (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| META-ACC-01 | HIGH | Root user bypasses all permission checks — standard POSIX behavior |
+| META-ACC-03 | HIGH | Supplementary groups correctly checked for group permission matching |
+| META-ACC-06 | HIGH | File owner can delete own file in sticky directory |
+| META-ACC-08 | HIGH | Non-owner correctly blocked from deleting in sticky directory |
+| META-ACC-11 | MEDIUM | XAttr set/get roundtrip works correctly |
+| META-ACC-15 | HIGH | XAttr operations correctly inode-scoped — no cross-inode leakage |
+| META-ACC-17 | HIGH | NFS file handle serialization validates minimum length |
+| META-ACC-19 | CRITICAL | Stale NFS handles correctly detected after inode recycling |
+
+**Categories tested:**
+1. POSIX Access Control (5): root bypass, owner/group/other permissions, PermissionDenied errors
+2. Sticky Bit & Directory Ops (5): sticky owner delete, dir owner delete, non-owner blocked, can_create_in, can_delete_from
+3. Extended Attributes (5): set/get, nonexistent, list/remove, remove_all, inode isolation
+4. NFS File Handle & Generation (5): generation default/next, serialization roundtrip, allocate/reuse, stale detection, export/import
+5. Integration & Edge Cases (5): AccessMode flags, supplementary groups, xattr overwrite, clear/tracked, unknown inode
