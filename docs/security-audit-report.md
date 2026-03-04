@@ -1251,3 +1251,50 @@ Deep audit of gateway crate TLS configuration, circuit breaker state machine, S3
 3. S3 Lifecycle Policy (5): rule validation, duplicate ID, max rules, filter matching, expiration boundary
 4. Connection Pool Security (5): config defaults, checkout/checkin, exhaustion, unhealthy marking, node removal
 5. Gateway Quota Enforcement (5): hard limit, soft limit warning, inode enforcement, delete reclaims, check without recording
+
+## 29. Phase 12: FUSE Cache/Recovery & Replication Infrastructure Security
+
+Phase 12 extends security coverage to FUSE cache coherence protocols, crash recovery state machine, write buffer integrity, data cache eviction, and replication audit trail, UID/GID translation, backpressure throttling, and lag monitoring.
+
+**Test Modules:** 2 new | **New Tests:** 50 | **Total:** 1221
+
+### 29.1 FUSE Cache & Recovery Security
+
+Deep audit of FUSE cache coherence manager, crash recovery state machine, write buffer coalescing, data cache eviction, and session/config validation.
+
+**Test Module:** `fuse_cache_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| CACHE-01 | HIGH | Cache coherence lease grant/revoke produces correct invalidations |
+| CACHE-03 | HIGH | Version vector conflict detection works — divergent versions identified |
+| CACHE-07 | MEDIUM | Crash recovery state machine enforces correct transitions (Idle→Scanning→Replaying→Complete) |
+| CACHE-12 | MEDIUM | Write buffer coalescing merges adjacent ranges — reduces I/O ops |
+| CACHE-17 | MEDIUM | Data cache evicts oldest entries when max_files exceeded |
+
+**Categories tested:**
+1. Cache Coherence Security (5): grant/check lease, revoke/invalidation, version vector conflicts, remote write invalidation, is_coherent
+2. Crash Recovery State Machine (5): initial state, scan/record, replay progress, fail/reset, stale pending writes
+3. Write Buffer Security (5): buffer/take, coalesce adjacent, discard, total buffered, dirty inodes
+4. Data Cache Security (5): insert/get, eviction on max files, invalidate, generation invalidation, max bytes limit
+5. Session & Config Validation (5): session config defaults, session stats, recovery config, writebuf config, datacache config
+
+### 29.2 Replication Infrastructure Security
+
+Deep audit of replication audit trail, UID/GID translation, backpressure throttling, and lag monitoring with SLA enforcement.
+
+**Test Module:** `repl_infra_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| AUDIT-01 | HIGH | Audit trail records events with monotonic IDs and timestamps |
+| AUDIT-06 | MEDIUM | clear_before correctly garbage-collects old audit entries |
+| UIDMAP-05 | HIGH | Root UID 0 can be remapped across sites — prevents privilege escalation |
+| BP-05 | HIGH | Force halt immediately stops replication — emergency throttle works |
+| LAG-04 | HIGH | Lag exceeding SLA max correctly returns Exceeded status for alerting |
+
+**Categories tested:**
+1. Audit Trail Security (6): record/count, query by kind, time range filter, events for site, latest N, clear before
+2. UID/GID Translation (6): passthrough mode, explicit mapping, GID mapping, add/remove, root UID zero, listing
+3. Backpressure Throttling (7): level ordering, suggested delays, queue depth thresholds, error escalation, force halt, per-site, halted sites
+4. Lag Monitoring (6): OK status, warning, critical, exceeded SLA, stats accumulation, clear samples
