@@ -228,3 +228,9 @@ pub mod storage_tier_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod repl_pipeline_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_multiraft_btree_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_segment_security_tests;
