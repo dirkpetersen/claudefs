@@ -15,6 +15,7 @@ pub struct DirEntry {
 }
 
 impl DirEntry {
+    #[allow(dead_code)]
     fn is_root(&self) -> bool {
         self.parent.is_none()
     }

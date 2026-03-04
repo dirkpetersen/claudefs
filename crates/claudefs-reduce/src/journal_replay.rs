@@ -64,6 +64,7 @@ impl Default for ReplayState {
 }
 
 pub struct JournalReplayer {
+    #[allow(dead_code)]
     config: ReplayConfig,
 }
 

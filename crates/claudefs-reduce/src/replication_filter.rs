@@ -73,6 +73,7 @@ impl SimpleBloom {
 }
 
 pub struct ReplicationFilter {
+    #[allow(dead_code)]
     config: ReplicationFilterConfig,
     bloom: SimpleBloom,
     stats: ReplicationFilterStats,

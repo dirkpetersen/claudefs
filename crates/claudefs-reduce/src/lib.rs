@@ -17,6 +17,7 @@ pub mod erasure_codec;
 pub mod quota_tracker;
 pub mod compression;
 pub mod data_classifier;
+/// Bloom filter for efficient cross-site dedup detection.
 pub mod dedup_bloom;
 pub mod dedupe;
 pub mod encryption;
@@ -25,6 +26,7 @@ pub mod eviction_scorer;
 pub mod fingerprint;
 pub mod gc;
 pub mod journal_segment;
+/// Journal replay for crash recovery and inode reconstruction.
 pub mod journal_replay;
 pub mod key_manager;
 pub mod key_rotation_scheduler;
@@ -45,11 +47,15 @@ pub mod snapshot;
 pub mod stripe_coordinator;
 pub mod stream_chunker;
 pub mod tenant_isolator;
+/// Namespace tree structure for inode hierarchy (crash recovery support).
 pub mod namespace_tree;
 pub mod tiering;
 pub mod write_amplification;
+/// Distributed dedup coordinator with consistent hash shard routing.
 pub mod dedup_coordinator;
+/// Reference counting table for CAS block lifecycle tracking.
 pub mod refcount_table;
+/// Full data reduction pipeline orchestrator (ingest through tiering).
 pub mod pipeline_orchestrator;
 pub mod write_path;
 pub mod write_buffer;
@@ -117,6 +123,12 @@ pub mod chunk_pipeline;
 pub mod eviction_policy;
 /// Replication filter using Bloom filter for cross-site dedup.
 pub mod replication_filter;
+/// Compression statistics collection and aggregation.
+pub mod compression_stats;
+/// Super-feature delta index for similarity-based compression.
+pub mod delta_index;
+/// 64MB S3 blob assembler for tiered storage object packing.
+pub mod object_assembler;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -281,10 +293,6 @@ pub use eviction_policy::{
 pub use replication_filter::{
     ReplicationFilter, ReplicationFilterConfig, ReplicationFilterStats,
 };
-
-pub mod compression_stats;
-pub mod delta_index;
-pub mod object_assembler;
 
 pub use compression_stats::{
     AggregatedCompressionStats, CompressionBucket, CompressionStats, CompressionStatsConfig,
