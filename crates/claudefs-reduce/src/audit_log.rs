@@ -577,4 +577,110 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn test_event_filtering_by_kind() {
+        let mut log = AuditLog::new(AuditLogConfig::default());
+
+        log.record(1, 1000, AuditEventKind::HoldPlaced);
+        log.record(2, 1000, AuditEventKind::GcSuppressed);
+        log.record(3, 1000, AuditEventKind::HoldPlaced);
+
+        let events: Vec<_> = log
+            .events()
+            .filter(|e| matches!(e.kind, AuditEventKind::HoldPlaced))
+            .collect();
+        assert_eq!(events.len(), 2);
+    }
+
+    #[test]
+    fn test_log_rotation_config() {
+        let config = AuditLogConfig {
+            max_events: 5,
+            enabled: true,
+        };
+        let mut log = AuditLog::new(config);
+
+        for i in 0..10 {
+            log.record(i, i * 100, AuditEventKind::HoldPlaced);
+        }
+
+        assert_eq!(log.len(), 5);
+    }
+
+    #[test]
+    fn test_event_timestamp_ordering() {
+        let mut log = AuditLog::new(AuditLogConfig::default());
+
+        log.record(1, 5000, AuditEventKind::HoldPlaced);
+        log.record(2, 1000, AuditEventKind::HoldPlaced);
+        log.record(3, 3000, AuditEventKind::HoldPlaced);
+
+        let events: Vec<_> = log.events().collect();
+        assert!(events.windows(2).all(|w| w[0].seq < w[1].seq));
+    }
+
+    #[test]
+    fn test_config_enabled_toggle() {
+        let mut log = AuditLog::new(AuditLogConfig {
+            max_events: 10,
+            enabled: true,
+        });
+        log.record(1, 1000, AuditEventKind::HoldPlaced);
+        assert_eq!(log.len(), 1);
+
+        let mut log2 = AuditLog::new(AuditLogConfig {
+            max_events: 10,
+            enabled: false,
+        });
+        log2.record(1, 1000, AuditEventKind::HoldPlaced);
+        assert_eq!(log2.len(), 0);
+    }
+
+    #[test]
+    fn test_events_for_chunk_empty_result() {
+        let log = AuditLog::new(AuditLogConfig::default());
+        let events = log.events_for_chunk(999);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_ring_buffer_with_single_slot() {
+        let config = AuditLogConfig {
+            max_events: 1,
+            enabled: true,
+        };
+        let mut log = AuditLog::new(config);
+
+        log.record(1, 1000, AuditEventKind::HoldPlaced);
+        log.record(2, 2000, AuditEventKind::HoldPlaced);
+
+        assert_eq!(log.len(), 1);
+        let events: Vec<_> = log.events().collect();
+        assert_eq!(events[0].chunk_id, 2);
+    }
+
+    #[test]
+    fn test_events_since_inclusive() {
+        let mut log = AuditLog::new(AuditLogConfig::default());
+
+        log.record(1, 1000, AuditEventKind::HoldPlaced);
+        log.record(2, 2000, AuditEventKind::HoldPlaced);
+        log.record(3, 3000, AuditEventKind::HoldPlaced);
+
+        let since = log.events_since(1);
+        assert_eq!(since.len(), 2);
+    }
+
+    #[test]
+    fn test_audit_event_debug() {
+        let event = AuditEvent {
+            seq: 1,
+            timestamp_ts: 1000,
+            chunk_id: 42,
+            kind: AuditEventKind::HoldPlaced,
+        };
+        let debug_str = format!("{:?}", event);
+        assert!(debug_str.contains("HoldPlaced"));
+    }
 }
