@@ -71,25 +71,40 @@ impl std::fmt::Display for ConnectionId {
 /// A single migration operation tracking
 #[derive(Debug, Clone)]
 pub struct MigrationRecord {
+    /// Unique migration identifier
     pub id: u64,
+    /// Source connection being migrated away from
     pub source: ConnectionId,
+    /// Target connection being migrated to
     pub target: ConnectionId,
+    /// Reason for the migration
     pub reason: MigrationReason,
+    /// Current state of the migration
     pub state: MigrationState,
+    /// Number of requests successfully migrated
     pub requests_migrated: u64,
+    /// Number of requests that failed during migration
     pub requests_failed: u64,
+    /// Timestamp when migration started (milliseconds since epoch)
     pub started_at_ms: u64,
+    /// Timestamp when migration completed (milliseconds since epoch)
     pub completed_at_ms: Option<u64>,
 }
 
 /// Configuration for connection migration
 #[derive(Debug, Clone)]
 pub struct MigrationConfig {
+    /// Maximum number of concurrent migrations allowed
     pub max_concurrent_migrations: usize,
+    /// Timeout for migration operations in milliseconds
     pub migration_timeout_ms: u64,
+    /// Whether to retry requests that fail during migration
     pub retry_failed_requests: bool,
+    /// Maximum number of retry attempts per request
     pub max_retries: u32,
+    /// Timeout for quiescing in-flight requests in milliseconds
     pub quiesce_timeout_ms: u64,
+    /// Whether migration is enabled
     pub enabled: bool,
 }
 
@@ -109,12 +124,21 @@ impl Default for MigrationConfig {
 /// Errors that can occur during migration operations
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MigrationError {
-    /// Too many concurrent migrations
-    TooManyConcurrent { max: usize },
-    /// Connection is already being migrated
-    AlreadyMigrating { connection: ConnectionId },
-    /// Migration not found
-    MigrationNotFound { id: u64 },
+    /// Too many concurrent migrations are in progress
+    TooManyConcurrent {
+        /// Maximum allowed concurrent migrations
+        max: usize,
+    },
+    /// The connection is already being migrated
+    AlreadyMigrating {
+        /// The connection that is already migrating
+        connection: ConnectionId,
+    },
+    /// The requested migration was not found
+    MigrationNotFound {
+        /// The migration ID that was not found
+        id: u64,
+    },
     /// Migration is disabled
     Disabled,
 }
@@ -148,6 +172,7 @@ pub struct MigrationStats {
 }
 
 impl MigrationStats {
+    /// Creates a new migration stats instance with zero counters
     pub fn new() -> Self {
         Self {
             total_migrations: AtomicU64::new(0),
@@ -158,6 +183,7 @@ impl MigrationStats {
         }
     }
 
+    /// Returns a snapshot of the current migration statistics
     pub fn snapshot(&self) -> MigrationStatsSnapshot {
         MigrationStatsSnapshot {
             total_migrations: self.total_migrations.load(Ordering::Relaxed),
@@ -169,22 +195,27 @@ impl MigrationStats {
         }
     }
 
+    /// Increments the total migrations counter by one
     pub fn increment_total(&self) {
         self.total_migrations.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the successful migrations counter by one
     pub fn increment_successful(&self) {
         self.successful_migrations.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the failed migrations counter by one
     pub fn increment_failed(&self) {
         self.failed_migrations.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Adds the given count to the requests migrated counter
     pub fn add_requests_migrated(&self, count: u64) {
         self.requests_migrated.fetch_add(count, Ordering::Relaxed);
     }
 
+    /// Adds the given count to the requests failed counter
     pub fn add_requests_failed(&self, count: u64) {
         self.requests_failed.fetch_add(count, Ordering::Relaxed);
     }
@@ -199,11 +230,17 @@ impl Default for MigrationStats {
 /// Snapshot of migration statistics
 #[derive(Debug, Clone)]
 pub struct MigrationStatsSnapshot {
+    /// Total number of migrations started
     pub total_migrations: u64,
+    /// Number of migrations that completed successfully
     pub successful_migrations: u64,
+    /// Number of migrations that failed
     pub failed_migrations: u64,
+    /// Total number of requests migrated across all migrations
     pub requests_migrated: u64,
+    /// Total number of requests that failed during migration
     pub requests_failed: u64,
+    /// Number of currently active migrations
     pub active_migrations: usize,
 }
 
@@ -216,6 +253,7 @@ pub struct MigrationManager {
 }
 
 impl MigrationManager {
+    /// Creates a new migration manager with the given configuration
     pub fn new(config: MigrationConfig) -> Self {
         Self {
             config,
@@ -243,6 +281,9 @@ impl MigrationManager {
         })
     }
 
+    /// Starts a new migration from source to target connection
+    ///
+    /// Returns the migration ID on success, or an error if the migration cannot be started
     pub fn start_migration(
         &self,
         source: ConnectionId,
@@ -286,6 +327,9 @@ impl MigrationManager {
         Ok(id)
     }
 
+    /// Records that a request was successfully migrated for the given migration
+    ///
+    /// Returns true if the migration was found, false otherwise
     pub fn record_request_migrated(&self, migration_id: u64) -> bool {
         let mut migrations = self.active_migrations.lock().unwrap();
         if let Some(record) = migrations.iter_mut().find(|m| m.id == migration_id) {
@@ -300,6 +344,9 @@ impl MigrationManager {
         }
     }
 
+    /// Records that a request failed during migration for the given migration
+    ///
+    /// Returns true if the migration was found, false otherwise
     pub fn record_request_failed(&self, migration_id: u64) -> bool {
         let mut migrations = self.active_migrations.lock().unwrap();
         if let Some(record) = migrations.iter_mut().find(|m| m.id == migration_id) {
@@ -311,6 +358,9 @@ impl MigrationManager {
         }
     }
 
+    /// Marks the given migration as completed successfully
+    ///
+    /// Returns true if the migration was found, false otherwise
     pub fn complete_migration(&self, migration_id: u64) -> bool {
         let mut migrations = self.active_migrations.lock().unwrap();
         if let Some(record) = migrations.iter_mut().find(|m| m.id == migration_id) {
@@ -323,6 +373,9 @@ impl MigrationManager {
         }
     }
 
+    /// Marks the given migration as failed
+    ///
+    /// Returns true if the migration was found, false otherwise
     pub fn fail_migration(&self, migration_id: u64) -> bool {
         let mut migrations = self.active_migrations.lock().unwrap();
         if let Some(record) = migrations.iter_mut().find(|m| m.id == migration_id) {
@@ -335,11 +388,13 @@ impl MigrationManager {
         }
     }
 
+    /// Returns the migration record for the given ID, if it exists
     pub fn get_migration(&self, migration_id: u64) -> Option<MigrationRecord> {
         let migrations = self.active_migrations.lock().unwrap();
         migrations.iter().find(|m| m.id == migration_id).cloned()
     }
 
+    /// Returns the number of currently active migrations (Preparing or Migrating state)
     pub fn active_count(&self) -> usize {
         let migrations = self.active_migrations.lock().unwrap();
         migrations
@@ -350,6 +405,7 @@ impl MigrationManager {
             .count()
     }
 
+    /// Returns true if the given connection is currently being migrated
     pub fn is_migrating(&self, conn_id: ConnectionId) -> bool {
         let migrations = self.active_migrations.lock().unwrap();
         self.is_connection_migrating(conn_id, &migrations)

@@ -2,20 +2,30 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Bandwidth enforcement mode determining how limits are applied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EnforcementMode {
+    /// Requests exceeding limits are immediately dropped.
     #[default]
     Strict,
+    /// Requests exceeding limits are delayed to shape traffic.
     Shaping,
+    /// Requests are always allowed; violations are only logged.
     Monitor,
 }
 
+/// Configuration for bandwidth allocation and enforcement.
 #[derive(Debug, Clone)]
 pub struct BandwidthConfig {
+    /// Global bandwidth limit in bits per second.
     pub global_limit_bps: u64,
+    /// Default per-tenant bandwidth limit in bits per second.
     pub default_tenant_limit_bps: u64,
+    /// Multiplier applied to limits for burst allowance.
     pub burst_factor: f64,
+    /// Duration of the measurement window in milliseconds.
     pub measurement_window_ms: u64,
+    /// How bandwidth limits are enforced.
     pub enforcement: EnforcementMode,
 }
 
@@ -59,24 +69,46 @@ impl TenantBandwidth {
     }
 }
 
+/// Result of a bandwidth check for a request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BandwidthResult {
+    /// Request is allowed to proceed immediately.
     Allowed,
-    Throttled { delay_ms: u64 },
-    Dropped { bytes: u64 },
-    Monitored { over_limit: bool },
+    /// Request should be delayed before proceeding.
+    Throttled {
+        /// Delay duration in milliseconds.
+        delay_ms: u64,
+    },
+    /// Request was dropped due to exceeding limits.
+    Dropped {
+        /// Number of bytes that were dropped.
+        bytes: u64,
+    },
+    /// Request allowed but exceeds configured limits.
+    Monitored {
+        /// Whether the request exceeded bandwidth limits.
+        over_limit: bool,
+    },
 }
 
+/// Statistics snapshot for bandwidth allocator.
 #[derive(Debug, Clone, Default)]
 pub struct BandwidthStats {
+    /// Total number of bandwidth check requests.
     pub total_requests: u64,
+    /// Total number of requests allowed.
     pub total_allowed: u64,
+    /// Total number of requests throttled.
     pub total_throttled: u64,
+    /// Total number of requests dropped.
     pub total_dropped: u64,
+    /// Current global bandwidth usage in bits per second.
     pub global_usage_bps: u64,
+    /// Number of tenants being tracked.
     pub tenant_count: usize,
 }
 
+/// Per-tenant bandwidth allocator with configurable enforcement modes.
 pub struct BandwidthAllocator {
     config: BandwidthConfig,
     tenants: Vec<(String, TenantBandwidth)>,

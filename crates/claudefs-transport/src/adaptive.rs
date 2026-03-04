@@ -7,13 +7,21 @@ use std::sync::Mutex;
 /// Configuration for adaptive timeout tuning.
 #[derive(Debug, Clone)]
 pub struct AdaptiveConfig {
+    /// Starting timeout in milliseconds before any latency data
     pub initial_timeout_ms: u64,
+    /// Minimum allowed timeout in milliseconds (lower bound clamp)
     pub min_timeout_ms: u64,
+    /// Maximum allowed timeout in milliseconds (upper bound clamp)
     pub max_timeout_ms: u64,
+    /// Target percentile for timeout calculation (e.g., 0.99 for p99)
     pub percentile_target: f64,
+    /// Multiplier applied to target percentile latency (e.g., 1.5 = 50% safety margin)
     pub safety_margin: f64,
+    /// Number of samples in the sliding window histogram
     pub window_size: usize,
+    /// How often to recalculate timeout (milliseconds)
     pub adjustment_interval_ms: u64,
+    /// Whether adaptive tuning is active
     pub enabled: bool,
 }
 
@@ -45,6 +53,7 @@ struct LatencyWindow {
 }
 
 impl LatencyHistogram {
+    /// Creates a new histogram with given window capacity
     pub fn new(capacity: usize) -> Self {
         Self {
             samples: Mutex::new(LatencyWindow {
@@ -56,6 +65,7 @@ impl LatencyHistogram {
         }
     }
 
+    /// Records a latency sample in microseconds
     pub fn record(&self, latency_us: u64) {
         let mut window = self.samples.lock().unwrap();
         let head = window.head;
@@ -67,6 +77,7 @@ impl LatencyHistogram {
         }
     }
 
+    /// Returns the value at the given percentile (0.0-1.0)
     pub fn percentile(&self, p: f64) -> u64 {
         let window = self.samples.lock().unwrap();
         if window.count == 0 {
@@ -95,6 +106,7 @@ impl LatencyHistogram {
         }
     }
 
+    /// Returns a snapshot with p50/p90/p95/p99/p999/min/max/mean
     pub fn snapshot(&self) -> PercentileSnapshot {
         let window = self.samples.lock().unwrap();
         if window.count == 0 {
@@ -131,11 +143,13 @@ impl LatencyHistogram {
         }
     }
 
+    /// Returns current number of samples in window
     pub fn sample_count(&self) -> usize {
         let window = self.samples.lock().unwrap();
         window.count
     }
 
+    /// Clears all samples from the histogram
     pub fn reset(&self) {
         let mut window = self.samples.lock().unwrap();
         window.head = 0;
@@ -146,14 +160,23 @@ impl LatencyHistogram {
 /// Percentile results from the histogram.
 #[derive(Debug, Clone)]
 pub struct PercentileSnapshot {
+    /// 50th percentile latency (median)
     pub p50: u64,
+    /// 90th percentile latency
     pub p90: u64,
+    /// 95th percentile latency
     pub p95: u64,
+    /// 99th percentile latency
     pub p99: u64,
+    /// 99.9th percentile latency
     pub p999: u64,
+    /// Minimum observed latency
     pub min: u64,
+    /// Maximum observed latency
     pub max: u64,
+    /// Mean latency
     pub mean: u64,
+    /// Number of samples in the snapshot
     pub sample_count: usize,
 }
 
@@ -204,17 +227,24 @@ impl AdaptiveStats {
     }
 }
 
+/// Snapshot of adaptive timeout statistics.
 #[derive(Debug, Clone)]
 pub struct AdaptiveStatsSnapshot {
+    /// Total latency samples recorded
     pub samples_recorded: u64,
+    /// Number of timeout value adjustments made
     pub timeout_adjustments: u64,
+    /// Number of actual timeouts encountered
     pub timeouts_hit: u64,
+    /// Current timeout value in milliseconds
     pub current_timeout_ms: u64,
+    /// Current p99 latency in microseconds
     pub current_p99_us: u64,
 }
 
 impl AdaptiveTimeout {
     #[allow(clippy::if_same_then_else)]
+    /// Creates a new adaptive timeout manager with the given config
     pub fn new(config: AdaptiveConfig) -> Self {
         let initial = if config.enabled {
             config.initial_timeout_ms
@@ -230,15 +260,18 @@ impl AdaptiveTimeout {
         }
     }
 
+    /// Records an observed latency in microseconds
     pub fn record_latency(&self, latency_us: u64) {
         self.histogram.record(latency_us);
         self.stats.increment_samples();
     }
 
+    /// Records that a timeout occurred
     pub fn record_timeout(&self) {
         self.stats.increment_timeouts();
     }
 
+    /// Returns the current timeout in milliseconds
     pub fn current_timeout_ms(&self) -> u64 {
         if !self.config.enabled {
             return self.config.initial_timeout_ms;
@@ -246,6 +279,7 @@ impl AdaptiveTimeout {
         self.current_timeout_ms.load(Ordering::Relaxed)
     }
 
+    /// Recalculates timeout based on histogram percentile
     pub fn adjust(&self) {
         if !self.config.enabled {
             return;
@@ -267,10 +301,12 @@ impl AdaptiveTimeout {
         self.stats.increment_adjustments();
     }
 
+    /// Returns current latency percentile snapshot
     pub fn percentiles(&self) -> PercentileSnapshot {
         self.histogram.snapshot()
     }
 
+    /// Returns current adaptive timeout statistics
     pub fn stats(&self) -> AdaptiveStatsSnapshot {
         let mut snapshot = self.stats.snapshot();
         snapshot.current_timeout_ms = self.current_timeout_ms.load(Ordering::Relaxed);
