@@ -1839,3 +1839,44 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 8. Fencing & Validation (4)
 9. TLS Policy Validation (6)
 10. TLS Builder & Edge Cases (5)
+
+## Section 42: Phase 25 — Gateway Perf-Config & Repl Topology
+
+**Date:** 2026-03-04
+**Tests added:** 53 (28 + 25)
+**Total tests:** 1877
+**Modules:**
+- `gateway_perf_config_security_tests.rs` — 28 tests
+- `repl_topology_security_tests.rs` — 25 tests
+
+### Findings
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| FINDING-GW-PERF-01 | MEDIUM | Conservative auto-tune default — prevents aggressive resource consumption |
+| FINDING-GW-PERF-02 | MEDIUM | NFS gets larger buffers and more connections — matches protocol needs |
+| FINDING-GW-PERF-03 | HIGH | Zero connections/buffers/timeouts rejected — prevents DoS from misconfiguration |
+| FINDING-GW-PERF-04 | HIGH | Per-client limit cannot exceed total — prevents single client monopolizing |
+| FINDING-GW-PERF-05 | MEDIUM | CPU target capped at 100% — prevents invalid auto-tune targets |
+| FINDING-GW-PERF-06 | LOW | All default configs pass validation — safe out-of-the-box |
+| FINDING-GW-PERF-07 | MEDIUM | S3 uses shorter timeouts — HTTP protocol expects faster responses |
+| FINDING-REPL-TOPO-01 | MEDIUM | Removing nonexistent site returns None — safe idempotent |
+| FINDING-REPL-TOPO-02 | MEDIUM | Upsert replaces existing — allows live topology updates |
+| FINDING-REPL-TOPO-03 | HIGH | Local site not tracked as remote — prevents self-replication loops |
+| FINDING-REPL-TOPO-04 | MEDIUM | Deactivated sites excluded from active list — prevents replication to downed sites |
+| FINDING-REPL-TOPO-05 | LOW | New sites default to active — immediate participation |
+| FINDING-REPL-TOPO-06 | MEDIUM | Bidirectional role supports multi-master — enables LWW conflict resolution |
+| FINDING-REPL-TOPO-07 | LOW | None lag distinguishes "never measured" from "measured as 0" |
+| FINDING-REPL-TOPO-08 | LOW | Empty addrs allowed — site may be discovered later |
+
+**Categories tested:**
+1. Default Configurations (5)
+2. Per-Protocol Configuration (5)
+3. Validation — Zero Values (5+3)
+4. Validation — Boundary Values (5)
+5. Config Construction & Edge Cases (5)
+6. Topology Basics (5)
+7. Active/Inactive Management (5)
+8. Replication Roles (5)
+9. Lag Tracking (5)
+10. Multi-Site & Edge Cases (5)

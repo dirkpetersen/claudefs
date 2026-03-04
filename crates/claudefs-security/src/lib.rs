@@ -155,6 +155,9 @@ pub mod repl_security_tests;
 pub mod repl_failover_bootstrap_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
+pub mod repl_topology_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
 pub mod repl_phase2_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
