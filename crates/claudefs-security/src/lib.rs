@@ -61,6 +61,8 @@ pub mod transport_security_tests;
 #[cfg(test)]
 pub mod reduce_security_tests;
 #[cfg(test)]
+pub mod reduce_deep_security_tests;
+#[cfg(test)]
 pub mod repl_security_tests;
 #[cfg(test)]
 pub mod repl_phase2_security_tests;
@@ -73,8 +75,11 @@ pub mod mgmt_rbac_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod storage_deep_security_tests;
-#[cfg(test)]
-pub mod gateway_s3_security_tests;
-#[cfg(test)]
-#[allow(missing_docs)]
-pub mod meta_deep_security_tests;
+    #[cfg(test)]
+    pub mod gateway_s3_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod meta_deep_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod transport_deep_security_tests;
