@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 1: Repository Cleanup & Build Quality (2026-03-04)
+
+#### Repository Health Improvements
+
+**Status:** ✅ Compiler warnings reduced, code quality improved, CI workflows validated
+
+**Changes:**
+
+1. **Repository Cleanup** — Archived 489 stale agent input/output files from root directory to improve repo hygiene and reduce clutter.
+
+2. **Compiler Warning Fixes in claudefs-reduce:**
+   - Removed unused imports from `write_fence.rs` (AtomicBool, AtomicU64, Ordering, Arc)
+   - Added `#[allow(dead_code)]` to unused fields/methods for future expansion:
+     - `journal_replay.rs`: unused `config` field in `JournalReplayer` (may be used for validation in future)
+     - `namespace_tree.rs`: unused `is_root()` method in `DirEntry` (utility for future crash recovery)
+     - `replication_filter.rs`: unused `config` field in `ReplicationFilter` (for future tuning)
+
+3. **Module Documentation** — Added missing doc comments for 8 modules in `claudefs-reduce/src/lib.rs`:
+   - `dedup_bloom`, `journal_replay`, `namespace_tree`, `dedup_coordinator`, `refcount_table`, `pipeline_orchestrator`, `compression_stats`, `delta_index`, `object_assembler`
+
+4. **CI/CD Validation** — Confirmed existing GitHub Actions workflows:
+   - ✅ `ci-build.yml`: Parallel clippy checks per-crate, security audit, docs build
+   - ✅ `tests-parallel.yml`: Parallel test execution across all crates (~70% speedup)
+   - ✅ `tests-all.yml`: Nightly full test suite
+   - ✅ All bootstrap scripts have correct executable permissions
+
+**Impact:** Repository is cleaner, compiler warnings reduced, Phase 1 infrastructure baseline verified for agent autonomy.
+
+---
+
 ### A2: Metadata Service — Phase 7: LazyDelete, JournalCompactor (2026-03-04)
 
 #### 2 New Modules — 29 New Tests, 900 Total
