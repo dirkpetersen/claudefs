@@ -204,3 +204,6 @@ pub mod gateway_smb_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod meta_directory_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_nfs_core_security_tests;
