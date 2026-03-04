@@ -94,109 +94,9 @@ pub mod wire_diag;
 pub mod write_pipeline;
 pub mod zerocopy;
 
-pub use batch::{
-    BatchConfig, BatchCollector, BatchEnvelope, BatchItem, BatchRequest, BatchResponse,
-    BatchResult, BatchStats, BatchStatsSnapshot,
-};
-pub use bulk_transfer::{
-    BulkTransfer, BulkTransferConfig, BulkTransferError, BulkTransferStats,
-    ChunkId, ChunkState, JobId, TransferChunk,
-};
-pub use priority::{
-    Priority, PriorityConfig, PriorityScheduler, PriorityStats, PriorityStatsSnapshot,
-    PrioritizedRequest, classify_opcode,
-};
-pub use compress::{
-    CompressionAlgorithm, CompressionConfig, CompressedPayload, Compressor,
-    CompressionStats, CompressionStatsSnapshot,
-};
-pub use buffer::{BufferPool, BufferPoolConfig, PooledBuffer, BufferPoolStats};
-pub use client::{TransportClient, TransportClientConfig};
-pub use deadline::{Deadline, DeadlineContext, encode_deadline, decode_deadline};
-pub use discovery::{DiscoveryConfig, DiscoveryStats, MemberInfo, MembershipEvent, MembershipList, NodeState};
-pub use error::{TransportError, Result};
-pub use flowcontrol::{
-    FlowControlConfig, FlowControlState, FlowController, FlowPermit, WindowController,
-};
-pub use gossip::{
-    GossipConfig, GossipEvent, GossipMember, GossipNode, GossipStats, GossipStatsSnapshot,
-    MemberState,
-};
-pub use health::{HealthConfig, HealthStatus, HealthStats, ConnectionHealth};
-pub use keepalive::{KeepAliveConfig, KeepAliveManager, KeepAliveState, KeepAliveStats, KeepAliveTracker};
-pub use message::{serialize_message, deserialize_message};
-pub use protocol::{Frame, FrameHeader, Opcode, FrameFlags};
-pub use qos::{
-    default_qos_config, QosConfig, QosError, QosPermit, QosScheduler, QosStats, WorkloadClass,
-};
-pub use tls::{TlsConfig, TlsConnector, TlsAcceptor};
-pub use tls_tcp::TlsTcpTransport;
-pub use tracecontext::{
-    TraceContext, TraceFlags, TraceId, TraceParent, TraceState, TRACEPARENT_HEADER,
-    TRACESTATE_HEADER,
-};
-pub use metrics::{MetricsSnapshot, TransportMetrics};
-pub use retry::{RetryConfig, RetryExecutor, RetryOutcome, RetryPolicy, is_retryable};
-pub use routing::{ConsistentHashRing, NodeId, NodeInfo, RoutingTable, ShardId, ShardRouter};
-pub use mux::{Multiplexer, MuxConfig, StreamHandle, StreamState};
-pub use ratelimit::{
-    CompositeRateLimiter, RateLimitConfig, RateLimitResult, RateLimiter,
-};
-pub use transport::{Transport, Connection, Listener};
-pub use circuitbreaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
-pub use server::{ServerConfig, RequestContext, RequestHandler, RpcServer, ServerStats};
-pub use cancel::{CancelToken, CancelHandle, CancelReason, CancelRegistry, CancelStats};
-pub use hedge::{HedgeConfig, HedgePolicy, HedgeStats, HedgeTracker};
-pub use loadshed::{LoadShedConfig, LoadShedStats, LoadShedder};
-pub use tenant::{TenantId, TenantConfig, TenantTracker, TenantStats, TenantManager, TenantAdmitResult};
-pub use zerocopy::{ZeroCopyConfig, MemoryRegion, RegionId, RegionPool, RegionPoolStats};
-pub use adaptive::{
-    AdaptiveConfig, AdaptiveStats, AdaptiveStatsSnapshot, AdaptiveTimeout, LatencyHistogram,
-    PercentileSnapshot,
-};
-pub use backpressure::{
-    BackpressureConfig, BackpressureMonitor, BackpressureSignal, BackpressureStats,
-    BackpressureStatsSnapshot, BackpressureThrottle, PressureLevel, ThrottleConfig,
-};
-pub use connmigrate::{
-    ConnectionId, MigrationConfig, MigrationError, MigrationManager, MigrationReason,
-    MigrationRecord, MigrationState, MigrationStats, MigrationStatsSnapshot,
-};
-pub use pipeline::{
-    Pipeline, PipelineConfig, PipelineError, PipelineRequest, PipelineResult,
-    PipelineStats, PipelineStatsSnapshot, PipelineDirection, StageAction, StageConfig,
-    StageId, StageProcessor, StageResult, PassthroughStage, RejectStage, HeaderStage,
-};
-pub use observability::{
-    ObservabilityConfig, ObservabilityStats, ObservabilityStatsSnapshot,
-    SpanId, SpanStatus, SpanEvent, Span, SpanBuilder, SpanCollector,
-    EventSeverity, Attribute, AttributeValue,
-};
-pub use bandwidth::{BandwidthAllocator, BandwidthConfig, BandwidthResult, BandwidthStats, EnforcementMode};
-pub use request_dedup::{DedupConfig, DedupEntry, DedupResult, DedupStats, DedupTracker, RequestId};
-pub use splice::{
-    SpliceConfig, SpliceError, SpliceFlags, SpliceOperation, SplicePipeline, SplicePlan,
-    SpliceStats, TransferEndpoint,
-};
-pub use enrollment::{
-    CertificateBundle, ClusterCA, EnrollmentConfig, EnrollmentError, EnrollmentService,
-    EnrollmentStats, EnrollmentToken, RevocationEntry, RevocationReason,
-};
-pub use endpoint_registry::{
-    EndpointList, EndpointRegistry, EndpointRegistryConfig, EndpointRegistryStats,
-    ProtocolPreference, TransportAddr,
-};
-pub use timer_wheel::{
-    TimerFired, TimerHandle, TimerToken, TimerWheel, TimerWheelConfig, TimerWheelStats,
-};
-pub use session::{
-    Session, SessionConfig, SessionError, SessionId, SessionManager, SessionState,
-    SessionStats, SessionStatsSnapshot, SessionToken,
-};
-pub use stream::{
-    StreamChunk, StreamConfig, StreamError, StreamId, StreamManager,
-    StreamReceiver, StreamSender, StreamStats, StreamStatsSnapshot,
-};
+pub mod flow_sched;
+pub mod rebalance;
+pub mod snapshot_transfer;
 
 pub mod ipc;
 pub mod repl_channel;
@@ -281,4 +181,17 @@ pub use shard_map::{
 pub use timeout_budget::{
     TimeoutBudget, TimeoutBudgetConfig, TimeoutBudgetManager, TimeoutBudgetStats,
     TimeoutBudgetStatsSnapshot,
+};
+
+pub use flow_sched::{
+    FlowEntry, FlowId, FlowSchedConfig, FlowSchedError, FlowSchedStatsSnapshot,
+    FlowScheduler, PendingSend, SendDecision,
+};
+pub use rebalance::{
+    MigrationTask, MigrationTaskState, RebalanceConfig, RebalanceCoordinator, RebalanceError,
+    RebalancePlan, RebalanceStatsSnapshot, RebalanceTrigger,
+};
+pub use snapshot_transfer::{
+    ChunkTransferState, SnapshotMeta, SnapshotTransferConfig, SnapshotTransferManager,
+    SnapshotTransferStatsSnapshot, TransferChunk, TransferError, TransferId, TransferState,
 };
