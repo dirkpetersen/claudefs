@@ -83,6 +83,9 @@ pub mod gateway_s3_security_tests;
 pub mod gateway_s3_ver_multi_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
+pub mod gateway_s3_notif_repl_class_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
 pub mod meta_deep_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
@@ -162,3 +165,6 @@ pub mod repl_phase2_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
     pub mod gateway_wire_audit_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod meta_fingerprint_negcache_watch_security_tests;
