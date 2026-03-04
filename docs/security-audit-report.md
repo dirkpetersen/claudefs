@@ -1880,3 +1880,106 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 8. Replication Roles (5)
 9. Lag Tracking (5)
 10. Multi-Site & Edge Cases (5)
+
+---
+
+## 42. Gateway SMB3 Protocol (A7: claudefs-gateway) — Phase 26
+
+**Files reviewed:** `crates/claudefs-gateway/src/smb.rs`
+
+### 42.1 Session ID Boundary Testing — PASS
+
+- Zero and u64::MAX session IDs handled correctly
+- Session IDs implement Hash for session tracking maps
+- Tree ID u32::MAX boundary verified
+
+### 42.2 Authentication Info Validation — ADVISORY
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-SMB-01 | MEDIUM | No validation of uid=0 (root) — when SMB is fully implemented, root access via SMB must require explicit authorization |
+| FINDING-SMB-02 | LOW | Empty username/domain accepted — stub does not enforce identity validation |
+| FINDING-SMB-03 | LOW | Large supplementary_gids list (1000+) accepted without bounds check — potential DoS vector |
+
+### 42.3 Open Flags Security — ADVISORY
+
+- Conflicting flag combinations (create+exclusive+truncate) are not validated
+- All-false flags (no read, no write) accepted — should be rejected when implemented
+
+### 42.4 VFS Stub Safety — PASS
+
+- All 9 VFS operations correctly return NotImplemented
+- SmbVfsStub is Send + Sync (thread-safe trait bounds satisfied)
+- Path traversal, null bytes, and very long paths all handled via stub rejection
+
+### 42.5 Path Input Handling — ADVISORY
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-SMB-04 | MEDIUM | No path sanitization (traversal, null bytes, unicode) — must implement before production SMB support |
+| FINDING-SMB-05 | LOW | Windows path separators and double slashes accepted without normalization |
+
+**Tests:** 25 | **New Findings:** 5
+
+---
+
+## 43. Metadata Directory Operations (A2: claudefs-meta) — Phase 26
+
+**Files reviewed:** `crates/claudefs-meta/src/directory.rs`
+
+### 43.1 Path Traversal & Name Injection — ADVISORY
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-DIR-01 | HIGH | Directory separator "/" accepted in entry names — enables key namespace confusion in KV store |
+| FINDING-DIR-02 | MEDIUM | Null byte "\0" in entry names accepted — potential C interop issues |
+| FINDING-DIR-03 | MEDIUM | ".." and "." names accepted as regular entries — breaks POSIX convention |
+| FINDING-DIR-04 | LOW | Very long names (4096+ bytes) accepted without bounds check |
+
+### 43.2 Directory Entry Isolation — PASS
+
+- Entries in different parent directories are properly isolated
+- Same-name entries in different parents do not collide
+- Delete in one directory does not affect another
+- list_entries only returns entries for the specified parent
+
+### 43.3 Rename Security — PASS
+
+- Non-existent source correctly returns EntryNotFound
+- Self-rename (same parent, same name) handled correctly
+- Rename chains maintain consistency
+- Overwrite preserves source inode number
+
+### 43.4 Type Confusion — PASS
+
+- Creating entry in non-directory inode correctly fails with NotADirectory
+- Symlink, BlockDevice, and other file types round-trip correctly
+- File type stored/retrieved accurately from KV store
+
+### 43.5 Concurrent-Style Safety — PASS
+
+- Create-then-delete-then-recreate maintains consistency
+- Double-delete correctly fails on second attempt
+- Inode IDs properly tracked across operations
+
+### 43.6 Boundary & Edge Cases — PASS
+
+- InodeId(0) and InodeId(u64::MAX) handled as non-existent parents
+- Empty directory correctly reports is_empty=true
+- Large directory (100 entries) stores and lists all entries correctly
+
+### 43.7 Data Integrity — PASS
+
+- DirEntry serialization round-trip preserves all fields
+- Interleaved create/delete operations maintain consistency
+
+**Tests:** 28 | **New Findings:** 4
+
+**Categories tested:**
+1. Path Traversal & Name Injection (5)
+2. Directory Entry Isolation (4)
+3. Rename Security (5)
+4. Type Confusion (4)
+5. Concurrent-Style Safety (3)
+6. Boundary & Edge Cases (4)
+7. Data Integrity (3)

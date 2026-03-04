@@ -198,3 +198,9 @@ pub mod meta_conflict_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
     pub mod gateway_perf_config_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_smb_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_directory_security_tests;
