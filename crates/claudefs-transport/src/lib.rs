@@ -42,6 +42,7 @@ pub mod endpoint_registry;
 pub mod enrollment;
 pub mod error;
 pub use drain::{DrainConfig, DrainController, DrainGuard, DrainListener, DrainState, DrainStats};
+pub mod fanout;
 pub mod fault_inject;
 pub mod flowcontrol;
 pub mod gossip;
@@ -60,6 +61,7 @@ pub mod pipeline;
 pub mod priority;
 pub mod protocol;
 pub mod qos;
+pub mod quorum;
 pub mod retry;
 pub mod routing;
 pub mod rdma;
@@ -67,6 +69,7 @@ pub mod multicast_group;
 pub mod rpc;
 pub mod session;
 pub mod server;
+pub mod segment_router;
 pub mod splice;
 pub mod stream;
 pub mod tcp;
@@ -221,4 +224,16 @@ pub use wire_diag::{
 pub use credit_window::{
     CreditGrant, CreditWindow, CreditWindowConfig, CreditWindowState,
     CreditWindowStats, CreditWindowStatsSnapshot,
+};
+pub use fanout::{
+    FanoutConfig, FanoutId, FanoutManager, FanoutOp, FanoutState, FanoutStats, FanoutStatsSnapshot,
+    FanoutTarget, FanoutTargetResult,
+};
+pub use quorum::{
+    QuorumConfig, QuorumError, QuorumManager, QuorumPolicy, QuorumResult, QuorumRound,
+    QuorumStats, QuorumStatsSnapshot, Vote,
+};
+pub use segment_router::{
+    EcConfig, SegmentId, SegmentPlacement, SegmentRouter, SegmentRouterConfig,
+    SegmentRouterError, SegmentRouterStats, SegmentRouterStatsSnapshot, StripeAssignment,
 };
