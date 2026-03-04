@@ -90,6 +90,12 @@ pub mod chunk_tracker;
 pub mod hash_ring;
 /// Append-only write journal for ordered write tracking.
 pub mod write_journal;
+/// GC wave coordinator for multi-phase garbage collection.
+pub mod gc_coordinator;
+/// Block-level snapshot diff for incremental replication.
+pub mod snapshot_diff;
+/// Write fence for crash-consistent write ordering.
+pub mod write_fence;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -221,3 +227,10 @@ pub use hash_ring::{HashRing, HashRingConfig, RingMember, RingStats};
 pub use write_journal::{
     JournalEntryData, WriteJournal, WriteJournalConfig, WriteJournalStats,
 };
+pub use gc_coordinator::{
+    GcCandidate, GcCoordinator, GcCoordinatorConfig, GcPhase, GcWaveStats,
+};
+pub use snapshot_diff::{
+    BlockHash, SnapshotBlock, SnapshotDiff, SnapshotDiffConfig, SnapshotDiffResult,
+};
+pub use write_fence::{FenceState, WriteFence, WriteFenceConfig, WriteFenceStats};
