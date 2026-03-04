@@ -53,6 +53,7 @@ pub mod endurance_tests;
 pub mod fuse_coherence_policy_tests;
 pub mod fuse_path_resolver_tests;
 pub mod gateway_cluster_backend_tests;
+pub mod meta_phase2_tests;
 pub mod mgmt_phase2_tests;
 pub mod mgmt_topology_audit_tests;
 pub mod performance_suite;

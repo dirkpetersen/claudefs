@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 2 Metadata Tests (2026-03-04)
+
+#### 1 New Module: meta_phase2_tests — 60 Tests, 1824 Total
+
+**Status:** ✅ 1824 tests passing, 0 failures (+60 from 1764)
+
+**New Coverage — A2 Metadata Phase 2 Modules:**
+
+1. **LockManager** (20 tests): acquire read/write, multiple readers allowed, writer/reader blocking, lock ID increments, release, release_all_for_node, locks_on, independent inodes, sequential use, proptest
+2. **NegativeCache** (20 tests): config defaults, insert/is_negative, invalidate/invalidate_dir, stats (hits/misses/inserts/invalidations), entry_count, hit_ratio, max_entries enforcement, proptest
+3. **PathResolver** (20 tests): parse_path (simple/root/absolute/double-slash), cache operations (cache_resolution/invalidate_entry/invalidate_parent/clear), negative cache (cache_negative/check_negative/invalidate), resolve_path with lookup fn, proptest
+
+**Stats:** +60 tests, 1824 total
+
+---
+
 ### A9: Test & Validation — Phase 2 Replication Tests (2026-03-04)
 
 #### 1 New Module: repl_phase2_tests — 77 Tests, 1764 Total
