@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 20: GC Coordinator, Snapshot Diff, Write Fence (2026-03-04)
+
+#### 3 New Modules — 66 New Tests, 1476 Total
+
+**Status:** ✅ 1476 tests passing, 0 failures, 0 clippy warnings (+66 from 1410)
+
+**New modules:**
+- `gc_coordinator.rs` — Multi-phase GC wave coordinator (Scan→Mark→Sweep→Compact);
+  rate-limited GC with candidate queue, backpressure, wave history; 22 tests
+- `snapshot_diff.rs` — Block-level snapshot diff for incremental replication;
+  computes added/removed blocks between snapshot generations for cross-site sync; 22 tests
+- `write_fence.rs` — Write barrier for crash-consistent write ordering;
+  tracks in-flight writes, auto-seals at limit, releases when all writes drain; 22 tests
+
 ### A4: Transport — Phase 8: Fanout, Quorum, Segment Router (2026-03-04)
 
 **Status:** ✅ Complete — 1130 tests passing (60 new), 3 new modules
