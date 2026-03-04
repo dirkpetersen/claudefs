@@ -78,6 +78,8 @@ pub mod quota;
 pub mod raft_log;
 /// Raft-integrated metadata service (Phase 2)
 pub mod raftservice;
+/// Byte-range lock manager for POSIX file locking
+pub mod range_lock;
 /// Per-client metadata operation rate limiting
 pub mod rate_limit;
 /// Linearizable reads via ReadIndex protocol
@@ -153,6 +155,7 @@ pub use qos::{QosClass, QosManager, QosPolicy};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
 pub use raft_log::RaftLogStore;
 pub use raftservice::{RaftMetadataService, RaftServiceConfig};
+pub use range_lock::{RangeLock, RangeLockManager};
 pub use rate_limit::{ClientId, RateLimitConfig, RateLimitDecision, RateLimitStats, RateLimiter};
 pub use readindex::{PendingRead, ReadIndexManager, ReadStatus};
 pub use rpc::{MetadataRequest, MetadataResponse, RpcDispatcher};
