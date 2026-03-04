@@ -34,6 +34,7 @@ pub mod congestion;
 pub mod conn_auth;
 pub mod connmigrate;
 pub mod connection;
+pub mod credit_window;
 pub mod deadline;
 pub mod discovery;
 pub mod drain;
@@ -62,6 +63,7 @@ pub mod qos;
 pub mod retry;
 pub mod routing;
 pub mod rdma;
+pub mod multicast_group;
 pub mod rpc;
 pub mod session;
 pub mod server;
@@ -77,6 +79,7 @@ pub mod request_dedup;
 pub mod tracecontext;
 pub mod transport;
 pub mod version;
+pub mod wire_diag;
 pub mod zerocopy;
 
 pub use batch::{
@@ -206,4 +209,16 @@ pub use fault_inject::{
 pub use otel::{
     OtlpAttribute, OtlpConfig, OtlpEvent, OtlpExporter, OtlpExporterStatsSnapshot, OtlpSpan,
     OtlpStatusCode, OtlpValue, inject_trace_context, span_to_otlp,
+};
+pub use multicast_group::{
+    BroadcastResult, GroupEvent, GroupId, GroupMember, MulticastError, MulticastGroupConfig,
+    MulticastGroupManager, MulticastGroupStats, MulticastGroupStatsSnapshot,
+};
+pub use wire_diag::{
+    InFlightPing, RttSample, RttSeries, RttSeriesSnapshot, TraceHop, TracePath,
+    WireDiag, WireDiagConfig, WireDiagStats, WireDiagStatsSnapshot,
+};
+pub use credit_window::{
+    CreditGrant, CreditWindow, CreditWindowConfig, CreditWindowState,
+    CreditWindowStats, CreditWindowStatsSnapshot,
 };
