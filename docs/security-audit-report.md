@@ -1653,3 +1653,49 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 3. Negative Cache (5)
 4. Negative Cache Stats & TTL (5)
 5. Watch/Notify Manager (5)
+
+## Section 38: Phase 21 — Gateway Export/Mount/Portmap & Gateway Metrics/Health/Stats
+
+**Date:** 2026-03-04
+**Tests added:** 50 (25 + 25)
+**Total tests:** 1671
+**Modules:**
+- `gateway_export_mount_portmap_security_tests.rs` — 25 tests
+- `gateway_metrics_health_stats_security_tests.rs` — 25 tests
+
+### Findings
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| FINDING-GW-NFS-01 | MEDIUM | Duplicate export paths rejected — prevents path confusion |
+| FINDING-GW-NFS-02 | HIGH | Graceful draining prevents data corruption during removal |
+| FINDING-GW-NFS-03 | HIGH | Force remove overrides client safety — only for admin use |
+| FINDING-GW-NFS-04 | MEDIUM | Export reload correctly adds new and removes old exports |
+| FINDING-GW-NFS-05 | LOW | Client count underflow protected |
+| FINDING-GW-NFS-06 | MEDIUM | Valid mount returns file handle with auth flavors |
+| FINDING-GW-NFS-07 | MEDIUM | Mount to non-exported path correctly rejected |
+| FINDING-GW-NFS-08 | HIGH | Client-based access control enforced at mount time |
+| FINDING-GW-NFS-09 | MEDIUM | Wildcard and empty groups both allow all clients |
+| FINDING-GW-NFS-10 | MEDIUM | Localhost always allowed — standard NFS behavior |
+| FINDING-GW-NFS-11 | MEDIUM | Unregistered programs return port 0 — prevents port confusion |
+| FINDING-GW-NFS-12 | MEDIUM | Re-registration replaces port — prevents stale entries |
+| FINDING-GW-NFS-13 | MEDIUM | Unregister is protocol-specific — doesn't affect other protocols |
+| FINDING-GW-OBS-01 | LOW | Empty histogram percentiles safe — no division by zero |
+| FINDING-GW-OBS-02 | MEDIUM | Error rate correctly computed as errors/total |
+| FINDING-GW-OBS-03 | LOW | Zero requests produces 0.0 error rate — no division by zero |
+| FINDING-GW-OBS-04 | MEDIUM | Prometheus text format correctly includes labels |
+| FINDING-GW-OBS-05 | MEDIUM | Worst-status aggregation ensures conservative health reporting |
+| FINDING-GW-OBS-06 | LOW | Error rate handles zero denominator safely |
+| FINDING-GW-OBS-07 | MEDIUM | Prometheus exposition format has correct counter types |
+
+**Categories tested:**
+1. Export Manager Lifecycle (5)
+2. Export Client Tracking (5)
+3. MOUNT Protocol (5)
+4. Portmapper Registration (5)
+5. Cross-Module & Edge Cases (5)
+6. Latency Histogram (5)
+7. Operation Metrics (5)
+8. Gateway Metrics Aggregation (5)
+9. Health Checker & Report (5)
+10. Protocol Stats & Edge Cases (5)

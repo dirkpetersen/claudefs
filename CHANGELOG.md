@@ -33,6 +33,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+### A10: Security Audit — Phase 21: Gateway Export/Mount/Portmap & Gateway Metrics/Health/Stats (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1671 Total
+
+**Status:** ✅ 1671 security tests passing, 0 failures (+50 from 1621)
+
+**New test modules:**
+- `gateway_export_mount_portmap_security_tests.rs` — 25 tests: NFS export lifecycle (add/remove/reload/drain), client tracking with underflow protection, MOUNT protocol access control (groups, wildcard, localhost), portmapper registration/replacement/unregister
+- `gateway_metrics_health_stats_security_tests.rs` — 25 tests: latency histogram (percentiles, empty safety, reset), operation metrics (error rate, division-by-zero safety), gateway metrics aggregation/Prometheus export, health checker (worst-status aggregation, register/update), protocol stats (atomic counters, Prometheus format)
+
+**Key findings (20 total, 3 HIGH, 12 MEDIUM, 5 LOW):**
+- FINDING-GW-NFS-02 (HIGH): Graceful draining prevents data corruption during export removal
+- FINDING-GW-NFS-03 (HIGH): Force remove overrides client safety — admin-only
+- FINDING-GW-NFS-08 (HIGH): Client-based access control enforced at mount time
+- FINDING-GW-OBS-05 (MEDIUM): Worst-status aggregation ensures conservative health reporting
+- FINDING-GW-OBS-03 (LOW): Zero-request error rate safe — no division by zero
+
 ### A10: Security Audit — Phase 20: Gateway S3 Notif/Repl/Class & Meta Fingerprint/NegCache/Watch (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1621 Total

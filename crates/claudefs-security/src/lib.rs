@@ -105,6 +105,9 @@ pub mod fuse_deep_security_tests;
 pub mod gateway_protocol_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
+pub mod gateway_export_mount_portmap_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
 pub mod meta_consensus_security_tests;
 #[cfg(test)]
 pub mod mgmt_extended_security_tests;
@@ -168,3 +171,6 @@ pub mod repl_phase2_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
     pub mod meta_fingerprint_negcache_watch_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod gateway_metrics_health_stats_security_tests;
