@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 26: Gateway SMB3 & Meta Directory (2026-03-04)
+
+#### 2 New Modules — 53 New Tests, 1930 Total
+
+**Status:** 1930 tests passing, 0 failures, 0 clippy warnings (+53 from 1877)
+
+**New test modules:**
+- `gateway_smb_security_tests.rs` — 25 tests: SMB3 protocol stub security audit covering session ID
+  boundaries, authentication info validation (root uid, empty username/domain, large supplementary
+  groups), open flags security (conflicting combinations, all-true/all-false), file stat integrity
+  boundaries, VFS stub safety (Send+Sync, path traversal, null bytes, long paths), and path input
+  validation (unicode normalization, Windows separators, double slashes, empty paths).
+- `meta_directory_security_tests.rs` — 28 tests: Directory operations security audit covering path
+  traversal & name injection (slash injection, null bytes, ".." and "." names, long names), directory
+  entry isolation across parents, rename security (non-existent source, self-rename, chains,
+  overwrites), type confusion (non-directory parent, symlink/block device types), concurrent-style
+  safety (create-delete-recreate, double-delete), boundary cases (InodeId 0 and u64::MAX), and
+  data integrity (serialization round-trip, interleaved operations).
+
+**Security findings:** 9 new (1 HIGH, 3 MEDIUM, 5 LOW) — see audit report sections 42-43.
+
 ### A4: Transport — Phase 4: IPC, Replication Channel, pNFS Layout (2026-03-04)
 
 #### 3 New Modules — 83 New Tests, 817 Total
