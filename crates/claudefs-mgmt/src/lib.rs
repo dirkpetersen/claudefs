@@ -34,6 +34,8 @@ pub mod ops_metrics;
 pub mod perf_report;
 /// Storage quotas
 pub mod quota;
+/// Quota RPC types and storage traits
+pub mod quota_rpc;
 /// Prometheus metrics scraping
 pub mod scraper;
 /// Security and authentication
@@ -51,7 +53,8 @@ pub use grafana::{all_dashboards, generate_cluster_overview_dashboard};
 pub use indexer::MetadataIndexer;
 pub use metrics::ClusterMetrics;
 pub use metrics_collector::MetricsCollector;
-pub use quota::QuotaRegistry;
+pub use quota::{QuotaRegistry, QuotaRegistryWithStorage};
+pub use quota_rpc::{QuotaStorage, QuotaLedger, QuotaError, MockA2QuotaStorage};
 pub use scraper::ScraperPool;
 
 /// Node drain and decommissioning

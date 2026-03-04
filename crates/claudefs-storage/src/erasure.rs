@@ -157,8 +157,7 @@ impl ErasureCodingEngine {
             ));
         }
 
-        let shard_size =
-            (data.len() + profile.data_shards as usize - 1) / profile.data_shards as usize;
+        let shard_size = data.len().div_ceil(profile.data_shards as usize);
         let padded_size = shard_size * profile.data_shards as usize;
 
         let mut padded_data = data.to_vec();
@@ -176,39 +175,39 @@ impl ErasureCodingEngine {
         let mut parity_shards: Vec<Vec<u8>> = Vec::with_capacity(profile.parity_shards as usize);
         for p in 0..profile.parity_shards as usize {
             let mut parity = vec![0u8; shard_size];
-            for i in 0..shard_size {
+            for (i, parity_byte) in parity.iter_mut().enumerate() {
                 let mut byte: u8 = 0;
-                for d in 0..profile.data_shards as usize {
+                for (d, data_shard) in data_shards.iter().enumerate() {
                     let rotate = if p == 0 { 0u32 } else { d as u32 };
-                    let src_byte = data_shards[d].get(i).copied().unwrap_or(0);
+                    let src_byte = data_shard.get(i).copied().unwrap_or(0);
                     byte ^= src_byte.rotate_right(rotate);
                 }
-                parity[i] = byte;
+                *parity_byte = byte;
             }
             parity_shards.push(parity);
         }
 
         let mut shards: Vec<Option<EcShard>> = Vec::with_capacity(total_shards);
 
-        for i in 0..profile.data_shards as usize {
-            let checksum = simple_checksum(&data_shards[i]);
+        for (i, data_shard) in data_shards.iter().enumerate() {
+            let checksum = simple_checksum(data_shard);
             shards.push(Some(EcShard {
                 shard_index: i as u8,
                 is_parity: false,
-                data: data_shards[i].clone(),
+                data: data_shard.clone(),
                 checksum,
                 segment_id,
             }));
             self.stats.shards_created += 1;
         }
 
-        for i in 0..profile.parity_shards as usize {
+        for (i, parity_shard) in parity_shards.iter().enumerate() {
             let idx = profile.data_shards as usize + i;
-            let checksum = simple_checksum(&parity_shards[i]);
+            let checksum = simple_checksum(parity_shard);
             shards.push(Some(EcShard {
                 shard_index: idx as u8,
                 is_parity: true,
-                data: parity_shards[i].clone(),
+                data: parity_shard.clone(),
                 checksum,
                 segment_id,
             }));
@@ -272,20 +271,18 @@ impl ErasureCodingEngine {
 
                 for p in 0..profile.parity_shards as usize {
                     let parity_idx = profile.data_shards as usize + p;
-                    if stripe.shards[parity_idx].is_some() {
-                        if p == 0 {
-                            for byte_idx in 0..shard_size {
-                                let mut byte: u8 = 0;
-                                for d in 0..profile.data_shards as usize {
-                                    if let Some(ds) = stripe.shards[d].as_ref() {
-                                        byte ^= ds.data.get(byte_idx).copied().unwrap_or(0);
-                                    }
+                    if stripe.shards[parity_idx].is_some() && p == 0 {
+                        for (byte_idx, byte_out) in recovered.iter_mut().enumerate() {
+                            let mut byte: u8 = 0;
+                            for d in 0..profile.data_shards as usize {
+                                if let Some(ds) = stripe.shards[d].as_ref() {
+                                    byte ^= ds.data.get(byte_idx).copied().unwrap_or(0);
                                 }
-                                recovered[byte_idx] = byte;
                             }
-                            found_parity = true;
-                            break;
+                            *byte_out = byte;
                         }
+                        found_parity = true;
+                        break;
                     }
                 }
 
@@ -339,7 +336,7 @@ impl ErasureCodingEngine {
 
         if is_parity {
             let parity_idx = missing_index - profile.data_shards;
-            for byte_idx in 0..shard_size {
+            for (byte_idx, byte_out) in recovered_data.iter_mut().enumerate() {
                 let mut byte: u8 = 0;
                 for d in 0..profile.data_shards as usize {
                     if let Some(ds) = stripe.shards[d].as_ref() {
@@ -352,10 +349,10 @@ impl ErasureCodingEngine {
                             .rotate_right(rotate);
                     }
                 }
-                recovered_data[byte_idx] = byte;
+                *byte_out = byte;
             }
         } else {
-            for byte_idx in 0..shard_size {
+            for (byte_idx, byte_out) in recovered_data.iter_mut().enumerate() {
                 let mut byte: u8 = 0;
                 for d in 0..profile.data_shards as usize {
                     if d != missing_index as usize {
@@ -372,7 +369,7 @@ impl ErasureCodingEngine {
                         }
                     }
                 }
-                recovered_data[byte_idx] = byte;
+                *byte_out = byte;
             }
         }
 

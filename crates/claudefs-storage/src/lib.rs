@@ -8,6 +8,7 @@
 
 pub mod allocator;
 pub mod atomic_write;
+pub mod background_scheduler;
 pub mod block;
 pub mod block_cache;
 pub mod capacity;
@@ -15,6 +16,7 @@ pub mod checksum;
 pub mod compaction;
 pub mod defrag;
 pub mod device;
+pub mod device_health_monitor;
 pub mod encryption;
 pub mod engine;
 pub mod error;
@@ -26,6 +28,7 @@ pub mod block_verifier;
 pub mod compaction_manager;
 pub mod io_accounting;
 pub mod metrics;
+pub mod prefetch_engine;
 pub mod quota;
 pub mod qos_storage;
 pub mod recovery;
@@ -45,9 +48,6 @@ pub mod erasure;
 pub mod node_rebalance;
 pub mod nvme_passthrough;
 pub mod tracing_storage;
-pub mod background_scheduler;
-pub mod device_health_monitor;
-pub mod prefetch_engine;
 pub mod write_path;
 pub mod read_path;
 pub mod storage_health;
@@ -126,6 +126,7 @@ pub use erasure::{EcProfile, EcShard, StripeState, EcStripe, EcConfig, EcStats, 
 pub use node_rebalance::{NodeId, RebalanceSegmentId, ShardId, RebalanceState, MigrationDirection, MigrationTask, MigrationTaskState, RebalanceConfig, RebalanceStats, RebalanceEngine};
 pub use nvme_passthrough::{QueuePairId, CoreId, NsId, QueueState, NvmeOpType, SubmissionEntry, CompletionEntry, CompletionStatus, QueuePair, PassthroughConfig, PassthroughStats, PassthroughError, PassthroughManager};
 pub use tracing_storage::{TraceId, SpanId, TraceContext, StorageOp, SpanStatus, StorageSpan, TracingConfig, TracingStats, W3CTraceparent, StorageTracer};
+
 pub use background_scheduler::{
     BackgroundScheduler, BackgroundTask, BackgroundTaskId, BackgroundTaskType,
     SchedulerStats,

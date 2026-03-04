@@ -31,6 +31,17 @@ pub enum NvmeOpType {
     AtomicWrite,
 }
 
+#[derive(Debug, Clone)]
+pub struct SubmitRequest {
+    pub core_id: CoreId,
+    pub op_type: NvmeOpType,
+    pub namespace: NsId,
+    pub lba_start: u64,
+    pub lba_count: u32,
+    pub data_len: usize,
+    pub timestamp: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmissionEntry {
     pub command_id: u64,
@@ -238,20 +249,11 @@ impl PassthroughManager {
         self.core_to_queue.get(&core_id).copied()
     }
 
-    pub fn submit(
-        &mut self,
-        core_id: CoreId,
-        op_type: NvmeOpType,
-        namespace: NsId,
-        lba_start: u64,
-        lba_count: u32,
-        data_len: usize,
-        timestamp: u64,
-    ) -> Result<u64, PassthroughError> {
+    pub fn submit(&mut self, req: SubmitRequest) -> Result<u64, PassthroughError> {
         let qp_id = self
             .core_to_queue
-            .get(&core_id)
-            .ok_or(PassthroughError::NoQueueForCore(core_id))?;
+            .get(&req.core_id)
+            .ok_or(PassthroughError::NoQueueForCore(req.core_id))?;
 
         let queue = self.queue_pairs.get_mut(qp_id).unwrap();
 
@@ -268,7 +270,7 @@ impl PassthroughManager {
             return Err(PassthroughError::QueueFull(*qp_id, queue.sq_depth));
         }
 
-        if op_type == NvmeOpType::AtomicWrite && !self.config.atomic_writes {
+        if req.op_type == NvmeOpType::AtomicWrite && !self.config.atomic_writes {
             warn!("Atomic writes attempted but disabled");
             return Err(PassthroughError::AtomicWritesDisabled);
         }
@@ -278,20 +280,20 @@ impl PassthroughManager {
 
         let entry = SubmissionEntry {
             command_id,
-            core_id,
-            op_type,
-            namespace,
-            lba_start,
-            lba_count,
-            data_len,
-            submitted_at: timestamp,
+            core_id: req.core_id,
+            op_type: req.op_type,
+            namespace: req.namespace,
+            lba_start: req.lba_start,
+            lba_count: req.lba_count,
+            data_len: req.data_len,
+            submitted_at: req.timestamp,
         };
 
         self.submissions.insert(command_id, entry);
         queue.pending_submissions += 1;
         self.stats.total_submissions += 1;
 
-        match op_type {
+        match req.op_type {
             NvmeOpType::Read => self.stats.reads += 1,
             NvmeOpType::Write => self.stats.writes += 1,
             NvmeOpType::Flush => self.stats.flushes += 1,
@@ -301,7 +303,7 @@ impl PassthroughManager {
 
         debug!(
             "Submitted command {} to queue {:?}, op: {:?}",
-            command_id, qp_id, op_type
+            command_id, qp_id, req.op_type
         );
         Ok(command_id)
     }
@@ -317,11 +319,7 @@ impl PassthroughManager {
             .remove(&command_id)
             .ok_or(PassthroughError::CommandNotFound(command_id))?;
 
-        let latency_ns = if timestamp > submission.submitted_at {
-            timestamp - submission.submitted_at
-        } else {
-            0
-        };
+        let latency_ns = timestamp.saturating_sub(submission.submitted_at);
 
         for queue in self.queue_pairs.values_mut() {
             if queue.core_id == submission.core_id {
@@ -508,7 +506,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         let cmd_id = manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         assert_eq!(cmd_id, 0);
         let stats = manager.stats();
@@ -520,7 +526,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         let cmd_id = manager
-            .submit(CoreId(0), NvmeOpType::Write, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Write,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         assert_eq!(cmd_id, 0);
         let stats = manager.stats();
@@ -532,7 +546,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         let cmd_id = manager
-            .submit(CoreId(0), NvmeOpType::Flush, NsId(1), 0, 0, 0, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Flush,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 0,
+                data_len: 0,
+                timestamp: 100,
+            })
             .unwrap();
         let stats = manager.stats();
         assert_eq!(stats.flushes, 1);
@@ -543,7 +565,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         let cmd_id = manager
-            .submit(CoreId(0), NvmeOpType::AtomicWrite, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::AtomicWrite,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         let stats = manager.stats();
         assert_eq!(stats.atomic_writes, 1);
@@ -552,7 +582,15 @@ mod tests {
     #[test]
     fn test_submit_no_queue_fails() {
         let mut manager = PassthroughManager::new(default_config());
-        let result = manager.submit(CoreId(99), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100);
+        let result = manager.submit(SubmitRequest {
+            core_id: CoreId(99),
+            op_type: NvmeOpType::Read,
+            namespace: NsId(1),
+            lba_start: 0,
+            lba_count: 1,
+            data_len: 4096,
+            timestamp: 100,
+        });
         assert!(matches!(
             result,
             Err(PassthroughError::NoQueueForCore(CoreId(99)))
@@ -566,9 +604,25 @@ mod tests {
         let mut manager = PassthroughManager::new(config);
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
-        let result = manager.submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100);
+        let result = manager.submit(SubmitRequest {
+            core_id: CoreId(0),
+            op_type: NvmeOpType::Read,
+            namespace: NsId(1),
+            lba_start: 0,
+            lba_count: 1,
+            data_len: 4096,
+            timestamp: 100,
+        });
         assert!(matches!(result, Err(PassthroughError::QueueFull(_, 1))));
     }
 
@@ -577,7 +631,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         let cmd_id = manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         let entry = manager
             .complete(cmd_id, CompletionStatus::Success, 150)
@@ -591,7 +653,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         let cmd_id = manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         let entry = manager
             .complete(cmd_id, CompletionStatus::MediaError, 150)
@@ -623,7 +693,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         let qp_id = manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         manager.drain_queue(qp_id).unwrap();
-        let result = manager.submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100);
+        let result = manager.submit(SubmitRequest {
+            core_id: CoreId(0),
+            op_type: NvmeOpType::Read,
+            namespace: NsId(1),
+            lba_start: 0,
+            lba_count: 1,
+            data_len: 4096,
+            timestamp: 100,
+        });
         assert!(matches!(result, Err(PassthroughError::QueueNotActive(_))));
     }
 
@@ -643,7 +721,15 @@ mod tests {
         let qp_id = manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         assert_eq!(manager.pending_count(qp_id), 0);
         manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         assert_eq!(manager.pending_count(qp_id), 1);
     }
@@ -656,7 +742,15 @@ mod tests {
         let qp_id = manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         assert!(!manager.is_queue_full(qp_id));
         manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         assert!(manager.is_queue_full(qp_id));
     }
@@ -693,7 +787,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         let stats = manager.stats();
         assert_eq!(stats.total_submissions, 1);
@@ -704,7 +806,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         let cmd_id = manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         manager
             .complete(cmd_id, CompletionStatus::Success, 150)
@@ -730,7 +840,15 @@ mod tests {
         let mut manager = PassthroughManager::new(default_config());
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
         let cmd_id = manager
-            .submit(CoreId(0), NvmeOpType::Read, NsId(1), 0, 1, 4096, 100)
+            .submit(SubmitRequest {
+                core_id: CoreId(0),
+                op_type: NvmeOpType::Read,
+                namespace: NsId(1),
+                lba_start: 0,
+                lba_count: 1,
+                data_len: 4096,
+                timestamp: 100,
+            })
             .unwrap();
         manager
             .complete(cmd_id, CompletionStatus::Success, 200)
@@ -746,7 +864,15 @@ mod tests {
         config.atomic_writes = false;
         let mut manager = PassthroughManager::new(config);
         manager.create_queue_pair(CoreId(0), NsId(1)).unwrap();
-        let result = manager.submit(CoreId(0), NvmeOpType::AtomicWrite, NsId(1), 0, 1, 4096, 100);
+        let result = manager.submit(SubmitRequest {
+            core_id: CoreId(0),
+            op_type: NvmeOpType::AtomicWrite,
+            namespace: NsId(1),
+            lba_start: 0,
+            lba_count: 1,
+            data_len: 4096,
+            timestamp: 100,
+        });
         assert!(matches!(
             result,
             Err(PassthroughError::AtomicWritesDisabled)
