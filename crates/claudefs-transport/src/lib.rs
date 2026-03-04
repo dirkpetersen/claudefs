@@ -195,3 +195,8 @@ pub use snapshot_transfer::{
     ChunkTransferState, SnapshotMeta, SnapshotTransferConfig, SnapshotTransferManager,
     SnapshotTransferStatsSnapshot, TransferChunk, TransferError, TransferId, TransferState,
 };
+pub use protocol::{Frame, FrameFlags, FrameHeader, Opcode};
+pub use circuitbreaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
+pub use ratelimit::{CompositeRateLimiter, RateLimiter, RateLimitConfig};
+pub use metrics::TransportMetrics;
+pub use routing::{ConsistentHashRing, NodeId, NodeInfo};
