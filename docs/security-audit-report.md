@@ -1480,3 +1480,44 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 3. Capability Set (5): fuse minimal, add/remove, contains, hardened profile, default permissive
 4. Syscall Policy (5): FUSE allowlist, enforcer blocks, violation limit, recent violations, mount namespace
 5. File Attributes (5): new file, new dir, new symlink, file type variants, violation types
+
+---
+
+## Section 34: Phase 17 — Repl QoS/GC & FUSE Prefetch/Health
+
+**Test Modules:** `repl_qos_gc_security_tests.rs` (25 tests), `fuse_prefetch_health_security_tests.rs` (25 tests)
+**Total Tests After Phase 17:** 1471 passing, 0 failures
+
+### Replication QoS, Journal GC, Checkpoint (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| REPL-QOS-01 | MEDIUM | Priority ordering correctly distinguishes all workload tiers (100/75/50/25) |
+| REPL-QOS-03 | HIGH | QoS scheduler caps bandwidth at budget — prevents bandwidth hogging |
+| REPL-QOS-12 | HIGH | Missing site blocks GC — unacked entries safely retained |
+| REPL-QOS-22 | HIGH | Checkpoint serialization round-trip preserves all fields |
+| REPL-QOS-24 | MEDIUM | Lag calculation saturates to prevent underflow |
+
+**Categories tested:**
+1. QoS Bandwidth Scheduling (5): priority ordering, allocation ratios, budget capping, window reset, utilization
+2. QoS Edge Cases (5): custom allocation, token fields, class independence, zero bandwidth, priority comparison
+3. Journal GC State (5): ack recording, min acked seq, all sites acked, retain all, retain by age
+4. Journal GC Scheduling (5): retain by count, stats tracking, stats default, should_gc retain all, should_gc by age
+5. Checkpoint Management (5): fingerprint, serialize roundtrip, pruning, lag calculation, find/clear
+
+### FUSE Prefetch & Health Monitoring (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FUSE-HEALTH-01 | MEDIUM | Single access doesn't trigger prefetch — prevents false positives |
+| FUSE-HEALTH-03 | HIGH | Large gap correctly resets sequential pattern detection |
+| FUSE-HEALTH-09 | HIGH | Eviction is inode-scoped — doesn't affect other inodes |
+| FUSE-HEALTH-18 | HIGH | Worst-status aggregation ensures conservative health reporting |
+| FUSE-HEALTH-22 | MEDIUM | Error rate thresholds correctly escalate severity |
+
+**Categories tested:**
+1. Prefetch Sequential Detection (5): single access, sequential detected, large gap reset, independent inodes, config defaults
+2. Prefetch Cache & Eviction (5): store/serve, miss, sub-block serve, evict inode, stats
+3. Prefetch List Generation (5): empty non-sequential, block-aligned, excludes cached, max inflight, aligned return
+4. Health Monitoring (5): status variants, report all healthy, worst wins, transport check, cache check
+5. Health Thresholds (5): defaults, error rates, component lookup, checker count, empty report

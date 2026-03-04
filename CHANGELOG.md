@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 17: Repl QoS/GC & FUSE Prefetch/Health (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1471 Total
+
+**Status:** ✅ 1471 security tests passing, 0 failures (+50 from 1421)
+
+**New Coverage — Replication QoS, Journal GC, Checkpoint (25 tests):**
+- QoS Bandwidth Scheduling (5 tests): priority ordering, allocation ratios, budget capping, window reset, utilization
+- QoS Edge Cases (5 tests): custom allocation, token fields, class independence, zero bandwidth, priority comparison
+- Journal GC State (5 tests): ack recording, min acked seq, all sites acked, retain all, retain by age
+- Journal GC Scheduling (5 tests): retain by count, stats tracking, stats default, should_gc retain all/by age
+- Checkpoint Management (5 tests): fingerprint, serialize roundtrip, pruning, lag calculation, find/clear
+
+**New Coverage — FUSE Prefetch & Health Monitoring (25 tests):**
+- Prefetch Sequential Detection (5 tests): single access, sequential detected, gap reset, independent inodes, config
+- Prefetch Cache & Eviction (5 tests): store/serve, miss, sub-block, evict inode-scoped, stats
+- Prefetch List Generation (5 tests): empty non-sequential, block aligned, excludes cached, max inflight, aligned
+- Health Monitoring (5 tests): status variants, all healthy report, worst wins, transport check, cache check
+- Health Thresholds (5 tests): defaults, error rates, component lookup, checker count, empty report
+
+**Key Findings (4 HIGH, 3 MEDIUM):**
+- REPL-QOS-03 (HIGH): QoS scheduler caps bandwidth at budget — prevents hogging
+- REPL-QOS-12 (HIGH): Missing site blocks GC — unacked entries safely retained
+- FUSE-HEALTH-03 (HIGH): Large gap resets sequential pattern — prevents false prefetch
+- FUSE-HEALTH-18 (HIGH): Worst-status health aggregation ensures conservative reporting
+
 ### A10: Security Audit — Phase 16: Gateway Delegation/Cache & FUSE Barrier/Policy (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1421 Total
