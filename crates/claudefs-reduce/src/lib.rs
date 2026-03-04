@@ -9,6 +9,7 @@ pub mod async_meta_bridge;
 pub mod audit_log;
 pub mod background;
 pub mod checksum;
+pub mod chunk_verifier;
 pub mod compaction;
 pub mod erasure_codec;
 pub mod quota_tracker;
@@ -23,6 +24,7 @@ pub mod key_rotation_scheduler;
 pub mod meta_bridge;
 pub mod metrics;
 pub mod pipeline;
+pub mod pipeline_monitor;
 pub mod prefetch;
 pub mod read_cache;
 pub mod recompressor;
@@ -33,6 +35,7 @@ pub mod similarity;
 pub mod snapshot;
 pub mod stream_chunker;
 pub mod tiering;
+pub mod write_amplification;
 pub mod write_path;
 /// WORM compliance and retention policy enforcement.
 pub mod worm_reducer;
@@ -68,3 +71,13 @@ pub use quota_tracker::{NamespaceId, QuotaConfig, QuotaTracker, QuotaUsage, Quot
 pub use prefetch::{AccessHistory, AccessPattern, PrefetchConfig, PrefetchHint, PrefetchTracker};
 pub use read_cache::{CacheStats, ReadCache, ReadCacheConfig};
 pub use stream_chunker::{StreamChunkResult, StreamChunker, StreamChunkerConfig, StreamingStats};
+pub use chunk_verifier::{
+    ChunkVerifier, ChunkVerifierConfig, VerificationPriority, VerificationResult,
+    VerificationSchedule, VerificationStats,
+};
+pub use pipeline_monitor::{
+    AlertThreshold, PipelineAlert, PipelineMetrics, PipelineMonitor, StageMetrics,
+};
+pub use write_amplification::{
+    WriteAmplificationConfig, WriteAmplificationStats, WriteAmplificationTracker, WriteEvent,
+};

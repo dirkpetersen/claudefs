@@ -185,4 +185,102 @@ mod tests {
         let k2 = derive_chunk_key(&master, &[2u8; 32]);
         assert_ne!(k1.0, k2.0);
     }
+
+    #[test]
+    fn test_encryption_key_generate_different() {
+        use rand::RngCore;
+
+        let mut key1 = [0u8; 32];
+        let mut key2 = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut key1);
+        rand::thread_rng().fill_bytes(&mut key2);
+
+        let enc1 = EncryptionKey(key1);
+        let enc2 = EncryptionKey(key2);
+
+        assert_ne!(enc1.0, enc2.0);
+    }
+
+    #[test]
+    fn test_encryption_aes_gcm_roundtrip_empty() {
+        let key = test_key();
+        let enc = encrypt(&[], &key, EncryptionAlgorithm::AesGcm256).unwrap();
+        let dec = decrypt(&enc, &key).unwrap();
+
+        assert!(dec.is_empty());
+    }
+
+    #[test]
+    fn test_encryption_aes_gcm_roundtrip_large() {
+        let key = test_key();
+        let data: Vec<u8> = (0..1_048_576).map(|i| (i % 256) as u8).collect();
+
+        let enc = encrypt(&data, &key, EncryptionAlgorithm::AesGcm256).unwrap();
+        let dec = decrypt(&enc, &key).unwrap();
+
+        assert_eq!(dec, data);
+    }
+
+    #[test]
+    fn test_encryption_chacha20_roundtrip() {
+        let key = test_key();
+        let data = b"test data for ChaCha20-Poly1305 encryption";
+
+        let enc = encrypt(data, &key, EncryptionAlgorithm::ChaCha20Poly1305).unwrap();
+        let dec = decrypt(&enc, &key).unwrap();
+
+        assert_eq!(dec, data);
+    }
+
+    #[test]
+    fn test_encrypted_chunk_metadata() {
+        let key = test_key();
+        let data = b"test data";
+
+        let chunk = encrypt(data, &key, EncryptionAlgorithm::AesGcm256).unwrap();
+
+        assert!(chunk.ciphertext.len() > data.len());
+        assert_eq!(chunk.nonce.0.len(), 12);
+        assert_eq!(chunk.algo, EncryptionAlgorithm::AesGcm256);
+    }
+
+    #[test]
+    fn test_wrong_key_fails_decrypt() {
+        let key1 = test_key();
+        let key2 = EncryptionKey([99u8; 32]);
+
+        let enc = encrypt(b"secret", &key1, EncryptionAlgorithm::AesGcm256).unwrap();
+        let result = decrypt(&enc, &key2);
+
+        assert!(matches!(result, Err(ReduceError::DecryptionAuthFailed)));
+    }
+
+    #[test]
+    fn test_wrong_nonce_fails_decrypt() {
+        let key = test_key();
+        let mut enc = encrypt(b"secret", &key, EncryptionAlgorithm::AesGcm256).unwrap();
+
+        enc.ciphertext[0] ^= 0xff;
+
+        let result = decrypt(&enc, &key);
+        assert!(matches!(result, Err(ReduceError::DecryptionAuthFailed)));
+    }
+
+    #[test]
+    fn test_encryption_algorithm_variants() {
+        let aes = EncryptionAlgorithm::AesGcm256;
+        let chacha = EncryptionAlgorithm::ChaCha20Poly1305;
+        let default = EncryptionAlgorithm::default();
+
+        assert_ne!(aes, chacha);
+        assert_eq!(default, EncryptionAlgorithm::AesGcm256);
+    }
+
+    #[test]
+    fn test_encryption_key_as_bytes() {
+        let key = test_key();
+
+        assert_eq!(key.0.len(), 32);
+        assert_eq!(key.0, [42u8; 32]);
+    }
 }

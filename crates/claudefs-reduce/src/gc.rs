@@ -221,4 +221,143 @@ mod tests {
         assert_eq!(stats.chunks_scanned, 6);
         assert_eq!(stats.chunks_reclaimed, 5);
     }
+
+    #[test]
+    fn test_gc_empty_cas() {
+        let mut cas = CasIndex::new();
+        let mut gc = GcEngine::new(GcConfig::default());
+
+        let stats = gc.sweep(&mut cas);
+
+        assert_eq!(stats.chunks_scanned, 0);
+        assert_eq!(stats.chunks_reclaimed, 0);
+    }
+
+    #[test]
+    fn test_gc_all_referenced() {
+        let mut cas = CasIndex::new();
+
+        let hash1 = blake3_hash(b"chunk1");
+        let hash2 = blake3_hash(b"chunk2");
+
+        cas.insert(hash1);
+        cas.insert(hash2);
+
+        let mut gc = GcEngine::new(GcConfig::default());
+        let stats = gc.sweep(&mut cas);
+
+        assert_eq!(stats.chunks_reclaimed, 0);
+        assert!(cas.lookup(&hash1));
+        assert!(cas.lookup(&hash2));
+    }
+
+    #[test]
+    fn test_gc_multiple_cycles() {
+        let mut cas = CasIndex::new();
+        let mut gc = GcEngine::new(GcConfig::default());
+
+        // Add multiple chunks and reclaim across cycles
+        for i in 0..3 {
+            let hash = blake3_hash(format!("chunk {}", i).as_bytes());
+            cas.insert(hash);
+            cas.release(&hash);
+        }
+
+        // Run GC cycle - should reclaim all 3 unreferenced chunks
+        let stats = gc.run_cycle(&mut cas, &[]);
+        assert_eq!(stats.chunks_reclaimed, 3);
+    }
+
+    #[test]
+    fn test_mark_reachable_multiple() {
+        let mut gc = GcEngine::new(GcConfig::default());
+
+        let hashes: Vec<ChunkHash> = (0..10)
+            .map(|i| blake3_hash(format!("chunk {}", i).as_bytes()))
+            .collect();
+
+        gc.mark_reachable(&hashes);
+
+        for hash in &hashes {
+            assert!(gc.is_marked(hash));
+        }
+    }
+
+    #[test]
+    fn test_sweep_only_zeros() {
+        let mut cas = CasIndex::new();
+
+        let hash_zero = blake3_hash(b"zero refcount");
+        let hash_one = blake3_hash(b"one refcount");
+
+        cas.insert(hash_zero);
+        cas.release(&hash_zero);
+
+        cas.insert(hash_one);
+
+        let mut gc = GcEngine::new(GcConfig::default());
+        let _stats = gc.sweep(&mut cas);
+
+        assert!(!cas.lookup(&hash_zero));
+        assert!(cas.lookup(&hash_one));
+    }
+
+    #[test]
+    fn test_gc_with_high_refcount() {
+        let mut cas = CasIndex::new();
+
+        let hash = blake3_hash(b"high refcount chunk");
+
+        cas.insert(hash);
+        cas.insert(hash);
+        cas.insert(hash);
+        cas.insert(hash);
+        cas.insert(hash);
+
+        assert_eq!(cas.refcount(&hash), 5);
+
+        let mut gc = GcEngine::new(GcConfig::default());
+        let stats = gc.sweep(&mut cas);
+
+        assert_eq!(stats.chunks_reclaimed, 0);
+        assert!(cas.lookup(&hash));
+        assert_eq!(cas.refcount(&hash), 5);
+    }
+
+    #[test]
+    fn test_gc_stats_bytes_reclaimed() {
+        let mut cas = CasIndex::new();
+        let mut gc = GcEngine::new(GcConfig::default());
+
+        let hash = blake3_hash(b"chunk");
+        cas.insert(hash);
+        cas.release(&hash);
+
+        let stats = gc.sweep(&mut cas);
+
+        assert_eq!(stats.bytes_reclaimed, 0);
+    }
+
+    #[test]
+    fn test_is_marked_false_initially() {
+        let gc = GcEngine::new(GcConfig::default());
+        let hash = blake3_hash(b"not marked");
+
+        assert!(!gc.is_marked(&hash));
+    }
+
+    #[test]
+    fn test_run_cycle_empty_reachable() {
+        let mut cas = CasIndex::new();
+
+        let hash = blake3_hash(b"chunk");
+        cas.insert(hash);
+        cas.release(&hash);
+
+        let mut gc = GcEngine::new(GcConfig::default());
+        let stats = gc.run_cycle(&mut cas, &[]);
+
+        assert_eq!(stats.chunks_reclaimed, 1);
+        assert!(!cas.lookup(&hash));
+    }
 }
