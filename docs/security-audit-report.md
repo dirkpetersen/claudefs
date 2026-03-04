@@ -960,3 +960,52 @@ Deep S3 API security audit covering presigned URL signing, bucket policy enforce
 - `crates/claudefs-gateway/src/gateway_audit.rs` — Audit logging
 - `crates/claudefs-gateway/src/error.rs` — Error handling
 - `crates/claudefs-gateway/src/s3_router.rs` — HTTP request routing
+
+---
+
+## Section 23: Phase 6 — Transport Deep Security & Reduce Deep Security
+
+**Date:** 2026-03-04
+**Tests Added:** 50 (25 transport deep + 25 reduce deep)
+**Total Tests:** 922
+
+### 23.1 Transport Deep Security Audit
+
+Deep audit of transport crate: connection authentication, protocol frame parsing, request deduplication, flow control, rate limiting, circuit breaker, enrollment, and multipath routing.
+
+**Test Module:** `transport_deep_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| TRANS-DEEP-01 | HIGH | ConnectionAuthenticator time defaults to 0 — expired certificates accepted if set_time() never called |
+| TRANS-DEEP-02 | HIGH | CA fingerprint uses substring match — "CA" matches "MyCertificationAuthority" |
+| TRANS-DEEP-03 | MEDIUM | ONE_WAY + RESPONSE flags can be set simultaneously — no conflict detection |
+| TRANS-DEEP-04 | LOW | AuthLevel::None bypasses all certificate checks |
+
+**Categories tested:**
+1. Connection Authentication (5): time default, AuthLevel::None, revocation, expiry, CA fingerprint substring
+2. Protocol Frame Security (5): magic validation, max payload, checksum corruption, conflicting flags, empty payload
+3. Request Deduplication (5): config, result variants, stats, tracker interface, defaults
+4. Flow Control & Rate Limiting (5): state transitions, permit release, circuit breaker, half-open recovery, burst
+5. Enrollment & Multipath (5): token generation, token reuse, all paths failed, failover, adaptive timeout
+
+### 23.2 Reduce Deep Security Audit
+
+Deep audit of reduce crate: encryption/key management, dedup/fingerprinting, compression, checksum integrity, pipeline, GC, snapshots, and segments.
+
+**Test Module:** `reduce_deep_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| REDUCE-DEEP-01 | HIGH | Deterministic DEK per chunk — same plaintext always encrypts with same derived key |
+| REDUCE-DEEP-02 | MEDIUM | SuperFeatures on tiny data (<4 bytes) returns [0,0,0,0] — false-positive similarity |
+| REDUCE-DEEP-03 | MEDIUM | CRC32C is non-cryptographic (4 bytes) — not suitable for malicious tampering detection |
+| REDUCE-DEEP-04 | MEDIUM | CAS refcount double-release returns true incorrectly |
+| REDUCE-DEEP-05 | HIGH | GC sweep() may ignore reachable marks set by mark_reachable() |
+
+**Categories tested:**
+1. Encryption & Key Management (5): deterministic DEK, different chunk keys, key rotation, tamper detection, nonce uniqueness
+2. Dedup & Fingerprint Security (5): refcount underflow, drain unreferenced, BLAKE3 determinism, tiny data features, chunker reassembly
+3. Compression Security (5): LZ4/Zstd roundtrip, none passthrough, compressible detection, empty data
+4. Checksum & Integrity (5): BLAKE3 corruption, CRC32C collision risk, ChecksummedBlock, algorithm downgrade, empty data
+5. Pipeline & GC Security (5): pipeline roundtrip, dedup detection, GC sweep, snapshot limit, segment packing

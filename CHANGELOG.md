@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 6: Transport & Reduce Deep Security (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 922 Total
+
+**Status:** ✅ 922 security tests passing, 0 failures (+50 from 872)
+
+**New Coverage — Transport Deep Security (25 tests):**
+- Connection Auth (5 tests): time=0 default (FINDING), AuthLevel::None bypass, revocation, expiry, CA fingerprint substring (FINDING)
+- Protocol Frame (5 tests): magic validation, max payload, checksum corruption, conflicting flags (FINDING), empty payload
+- Request Dedup (5 tests): config defaults, result variants, stats tracking, tracker interface, custom config
+- Flow Control (5 tests): state transitions, permit RAII, circuit breaker open/close, half-open recovery, rate limit burst
+- Enrollment & Multipath (5 tests): token generation, token reuse failure, all-paths-failed, failover, adaptive timeout
+
+**New Coverage — Reduce Deep Security (25 tests):**
+- Encryption & Key Mgmt (5 tests): deterministic DEK (FINDING), different chunk keys, key rotation, tamper detection, nonce uniqueness
+- Dedup & Fingerprint (5 tests): refcount underflow, drain unreferenced, BLAKE3 determinism, tiny data features (FINDING), chunker reassembly
+- Compression (5 tests): LZ4/Zstd roundtrip, none passthrough, compressible detection, empty data
+- Checksum & Integrity (5 tests): BLAKE3 corruption, CRC32C collision risk (FINDING), ChecksummedBlock, algorithm downgrade, empty data
+- Pipeline & GC (5 tests): pipeline roundtrip, dedup detection, GC sweep (FINDING), snapshot limit, segment packing
+
+**Key Findings (2 HIGH, 5 MEDIUM):**
+- TRANS-DEEP-01 (HIGH): Auth time defaults to 0 — expired certs accepted
+- TRANS-DEEP-02 (HIGH): CA fingerprint substring match vulnerability
+- REDUCE-DEEP-01 (HIGH): Deterministic DEK — same data → same encryption key
+- REDUCE-DEEP-05 (HIGH): GC sweep may ignore reachable marks
+- REDUCE-DEEP-02 (MEDIUM): Tiny data produces identical SuperFeatures
+- REDUCE-DEEP-03 (MEDIUM): CRC32C not suitable for malicious tampering
+- REDUCE-DEEP-04 (MEDIUM): CAS refcount double-release returns true
+
 ### A10: Security Audit — Phase 5: Meta Deep Security & Gateway S3 Pentest (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 872 Total
