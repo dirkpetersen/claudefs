@@ -58,6 +58,8 @@ pub mod locking;
 pub mod membership;
 /// Metadata service metrics collector
 pub mod metrics;
+/// Modification time tracking for inode updates
+pub mod mtime_tracker;
 /// Multi-Raft group manager
 pub mod multiraft;
 /// Negative lookup cache
@@ -145,6 +147,7 @@ pub use lease_renew::{LeaseRenewConfig, LeaseRenewManager, RenewalAction};
 pub use locking::{LockManager, LockType};
 pub use membership::{MemberInfo, MembershipEvent, MembershipManager, NodeState};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
+pub use mtime_tracker::{MtimeBatch, MtimeReason, MtimeStore, MtimeUpdate};
 pub use multiraft::MultiRaftManager;
 pub use neg_cache::{NegCacheConfig, NegativeCache};
 pub use node::{ClusterStatus, DirEntryPlus, MetadataNode, MetadataNodeConfig, StatFs};
