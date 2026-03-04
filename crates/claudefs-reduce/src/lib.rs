@@ -75,6 +75,9 @@ pub mod segment_gc;
 pub mod checksum_store;
 /// Pipeline backpressure for memory management.
 pub mod pipeline_backpressure;
+pub mod ingest_pipeline;
+pub mod prefetch_manager;
+pub mod dedup_index;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -177,4 +180,14 @@ pub use checksum_store::{
 };
 pub use pipeline_backpressure::{
     BackpressureConfig, BackpressureState, BackpressureStats, PipelineBackpressure,
+};
+pub use ingest_pipeline::{
+    IngestChunk, IngestConfig, IngestMetrics, IngestPipeline, IngestStage,
+};
+pub use prefetch_manager::{
+    PrefetchEntry, PrefetchError, PrefetchManager, PrefetchManagerConfig, PrefetchRequest,
+    PrefetchStatus,
+};
+pub use dedup_index::{
+    DedupIndex, DedupIndexConfig, DedupIndexEntry, DedupIndexStats,
 };
