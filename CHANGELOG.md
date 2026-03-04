@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 3 Complete (2026-03-04)
+
+#### Full-Stack Security Audit: All 8 Crates, 93 New Tests, 65+ Findings
+
+**Status:** PHASE 3 AUDIT COMPLETE — 658 tests passing, 0 failures
+
+**Audit Coverage:**
+1. **Metadata security** (claudefs-meta): Raft consensus, KV store, distributed locking, CDC, cross-shard 2PC — 16 findings
+2. **Gateway security** (claudefs-gateway): S3 API, pNFS layouts, NFS auth, token auth, connection pooling, ClusterVfsBackend — 32 findings
+3. **FUSE client security** (claudefs-fuse): client_auth, path_resolver, mount options, passthrough FD — 12 findings
+4. **Transport security** (claudefs-transport): certificate auth, zero-copy pool, flow control — 11 findings
+5. **Phase 2 remediation verification**: 2 FIXED, 1 IMPROVED, 1 PARTIAL
+6. **Dependency CVE sweep**: 4 known advisories, no new
+
+**Critical Findings:**
+- FUSE: Trivial enrollment token acceptance, weak certificate fingerprint (checksum, not SHA-256)
+- Transport: Certificate expiry never checked in production (time=0), unsound zerocopy allocator
+- Gateway: No S3 bucket/object authorization, path traversal in object keys
+- Meta: Special filenames (".", "..") accepted, lock deadlock risk (no TTL)
+- Cluster: No auth context forwarded from NFS to backend RPC
+
+**New Test Modules:** meta_security_tests (25), gateway_security_tests (28), fuse_security_tests (20), transport_security_tests (20)
+
+**Full report:** `docs/security-audit-report.md`
+
 ### A9: Test & Validation — Phase 2 Integration Tests (2026-03-04)
 
 #### 3 New Test Modules, 111 New Tests, 1687 Total
