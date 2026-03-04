@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A7: Protocol Gateways — Phase 1 Test Fixes & Quality Pass (2026-03-04)
+
+**Status:** ✅ PHASE 1 STABLE — 1107 tests passing, 0 build warnings, 0 errors
+
+**Session Achievements:**
+
+1. **Compilation Error Fixed** (`nfs_copy_offload.rs`)
+   - `cancel_copy()` returns `bool`, not `Result` — test called `.unwrap()` on a bool
+   - Fixed test assertion: `assert!(manager.cancel_copy(id3))`
+   - Corrected `active_count()` assertion: 0 after all terminal-state transitions (not 1)
+
+2. **Logic Bug Fixed: `is_restored()` for Non-Glacier Storage Classes** (`s3_storage_class.rs`)
+   - Standard, StandardIa, IntelligentTiering objects are always accessible
+   - `is_restored()` now returns `true` immediately when `!current_class.requires_restore()`
+   - Previously returned `false` for all objects without a `restore_expiry` set
+
+3. **Logic Bug Fixed: `GatewayConnPool::checkout()` Empty Pool** (`gateway_conn_pool.rs`)
+   - Removed buggy second fallback loop that auto-created connections on empty nodes
+   - Checkout now correctly returns `None` when no pre-existing connections exist
+   - First loop is sufficient: handles both idle connections and auto-creates for in-use nodes
+
+4. **Documentation Warnings Eliminated** (20 warnings → 0)
+   - Added field-level doc comments to struct-like enum variant fields in `ConnState`
+   - Added variant-level doc comments to: `ConnPoolError`, `CopyOffloadError`,
+     `ReplicationError`, `StorageClassError`
+   - Added method doc to `set_opened_at` in `gateway_circuit_breaker.rs`
+
+5. **Test Warning Fixes** (unused variables in tests)
+   - `s3.rs`, `s3_multipart.rs`, `s3_presigned.rs`, `session.rs`, `nfs_copy_offload.rs`
+   - Prefixed intentionally-unused test variables with `_`
+
+**Crate Statistics:**
+- Source files: 53 `.rs` files, ~29,300 lines total
+- Tests: 1107 passing
+- Build: 0 errors, 0 warnings
+- Coverage: NFS v3+v4, pNFS, S3 API, SMB stubs, XDR, RPC, TLS, auth, metrics, caching
+
 ### A8: Management — Phase 1 Documentation & Analytics Planning (2026-03-04)
 
 **Status:** ✅ FOUNDATION COMPLETE — 38 modules (~21k LOC), documentation 100%, all tests passing
