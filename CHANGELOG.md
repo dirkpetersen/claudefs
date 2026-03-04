@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 5: OTLP Bridge, Cluster Topology, Fault Injection (2026-03-04)
+
+#### 3 New Modules — 83 New Tests, 900 Total
+
+**Status:** ✅ 900 tests passing, 0 failures, 0 clippy warnings (+83 from 817)
+
+**New modules:**
+- `otel.rs` — 28 tests: `OtlpExporter` queues internal `observability::Span` records for
+  OpenTelemetry OTLP export. `span_to_otlp()` converts spans to OTLP wire format with status
+  mapping (Ok→Ok, Error/Timeout/Cancelled→Error). `inject_trace_context()` stamps W3C trace ID
+  (from `tracecontext::TraceContext`) into queued spans for distributed trace correlation.
+  Configurable `batch_size`/`queue_capacity` with drop-on-full behavior. `OtlpExporterStats`
+  tracks spans_queued, spans_dropped, batches_prepared. Satisfies Priority 1 distributed tracing
+  requirement.
+- `cluster_topology.rs` — 26 tests: `ClusterTopology` maps node IDs to `TopologyLabel`
+  (datacenter, rack, hostname). `proximity()` computes `SameNode`/`SameRack`/`SameDatacenter`/
+  `RemoteDatacenter`. `sorted_by_proximity()` returns nodes nearest-first for topology-aware
+  routing — critical for D8 EC stripe placement (prefer local rack to minimize cross-rack traffic).
+  `same_rack_peers()`, `same_dc_cross_rack_peers()`, `remote_dc_peers()` for targeted selection.
+  Deterministic tie-breaking by node_id.
+- `fault_inject.rs` — 29 tests: `FaultInjector` for chaos/Jepsen-style transport testing.
+  `FaultSpec` with probability-based firing threshold. `on_send()`/`on_recv()`/`on_connect()`
+  return `Allow`/`Drop`/`Corrupt`/`Delay(ms)` actions. LCG pseudo-random with optional `seed`
+  for deterministic test replay. All faults disabled by default (safe for production).
+  `FaultInjectorStats` with `send_drop_rate`. Used by A9 (Test & Validation) for chaos testing.
+
+**Architecture alignment:**
+- `otel.rs` supports Priority 1 OpenTelemetry/distributed tracing requirement (all agents)
+- `cluster_topology.rs` supports D8 (topology-aware EC stripe placement) and A6 replication routing
+- `fault_inject.rs` supports A9 Jepsen-style tests and CrashMonkey chaos engineering
+
+---
+
 ### A3: Data Reduction — Phase 7: Integrity Verification, Pipeline Monitoring, Write Amplification (2026-03-04)
 
 #### 3 New Modules — 101 New Tests, 494 Total
