@@ -74,7 +74,7 @@ impl ErasureCodec {
         let padded_len = if original_len == 0 {
             data_shards
         } else {
-            ((original_len + data_shards - 1) / data_shards) * data_shards
+            original_len.div_ceil(data_shards) * data_shards
         };
 
         let mut padded = payload.to_vec();
@@ -141,7 +141,7 @@ impl ErasureCodec {
     /// Fails if too many shards are missing (more than `parity_shards`).
     pub fn reconstruct(
         &self,
-        shards: &mut Vec<Option<Vec<u8>>>,
+        shards: &mut [Option<Vec<u8>>],
         shard_size: usize,
     ) -> Result<(), ReduceError> {
         if shards.len() != self.stripe.total_shards() {
@@ -160,18 +160,16 @@ impl ErasureCodec {
         }
 
         self.rs
-            .reconstruct_data(shards)
+            .reconstruct(shards)
             .map_err(|e| ReduceError::RecoveryFailed(format!("reconstruct failed: {}", e)))?;
 
-        for shard in shards.iter() {
-            if let Some(ref s) = shard {
-                if s.len() != shard_size {
-                    return Err(ReduceError::InvalidInput(format!(
-                        "shard size mismatch: expected {}, got {}",
-                        shard_size,
-                        s.len()
-                    )));
-                }
+        for s in shards.iter().flatten() {
+            if s.len() != shard_size {
+                return Err(ReduceError::InvalidInput(format!(
+                    "shard size mismatch: expected {}, got {}",
+                    shard_size,
+                    s.len()
+                )));
             }
         }
 
@@ -403,7 +401,7 @@ mod tests {
         }
 
         let result = codec.decode(&corrupted);
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     #[test]

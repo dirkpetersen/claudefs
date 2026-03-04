@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 5: Erasure Codec, Compaction, Quota Tracker (2026-03-04)
+
+#### 3 New Modules — 52 New Tests, 327 Total
+
+**Status:** ✅ 327 tests passing, 0 failures, 0 clippy warnings (+52 from 275)
+
+**New modules:**
+- `erasure_codec.rs` — 17 tests: `ErasureCodec` implements Reed-Solomon erasure coding
+  per architecture decision D1. Supports 4+2 (default, ≥6 nodes) and 2+1 (3–5 nodes)
+  stripe configurations using `reed-solomon-erasure v6`. `encode()` splits segment payload
+  into data shards and computes parity shards. `decode()` reconstructs payload from all shards.
+  `reconstruct()` recovers missing shards (up to parity budget). `extract_payload()` trims
+  padding after reconstruction. Added `ShardCountMismatch` and `RecoveryFailed` error variants.
+- `compaction.rs` — 16 tests: `CompactionEngine` identifies sparse segments and rewrites
+  their live chunks into new denser segments. `live_ratio()` computes what fraction of a
+  segment's chunks are still referenced. `select_candidates()` finds segments below the
+  live-ratio threshold (default 0.7). `compact()` uses `SegmentReader` to extract live
+  chunk payloads and `SegmentPacker` to produce output segments. Returns `CompactionResult`
+  with counters for segments_examined, segments_compacted, segments_produced, chunks_repacked,
+  and bytes_reclaimed.
+- `quota_tracker.rs` — 19 tests: `QuotaTracker` tracks logical bytes (before reduction) and
+  physical bytes (after dedup+compression) per namespace. `set_quota()` configures per-namespace
+  limits. `record_write()`, `record_dedup_hit()`, `record_delete()` maintain counters.
+  `check_write()` validates a proposed write against limits (0 = unlimited). `total_usage()`
+  aggregates across all namespaces. `QuotaUsage::reduction_ratio()` computes space savings.
+
+**Also:**
+- Added `reed-solomon-erasure = { version = "6", features = ["simd-accel"] }` dependency
+- Added `ShardCountMismatch { expected, got }` and `RecoveryFailed(String)` to `ReduceError`
+- Lib.rs re-exports: `EcStripe`, `EncodedSegment`, `ErasureCodec`, `CompactionConfig`,
+  `CompactionEngine`, `CompactionResult`, `NamespaceId`, `QuotaConfig`, `QuotaTracker`,
+  `QuotaUsage`, `QuotaViolation`
+
+**Phase 5 Features:**
+- Segment durability: Reed-Solomon EC protects against up to 2 node failures (4+2)
+- Storage efficiency: compaction reclaims space from segments with many dead chunks
+- Multi-tenant quotas: per-namespace logical+physical usage tracking with configurable limits
+
+---
+
 ### A4: Transport — Phase 2 Complete: Zero Clippy Warnings (2026-03-04)
 
 #### Documentation Pass — 393 Missing Doc Comments Fixed

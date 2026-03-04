@@ -11,21 +11,12 @@ use std::collections::HashMap;
 pub type NamespaceId = u64;
 
 /// Quota configuration for one namespace.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct QuotaConfig {
     /// Maximum logical bytes (apparent file sizes). 0 = unlimited.
     pub max_logical_bytes: u64,
     /// Maximum physical bytes (actual flash usage after reduction). 0 = unlimited.
     pub max_physical_bytes: u64,
-}
-
-impl Default for QuotaConfig {
-    fn default() -> Self {
-        Self {
-            max_logical_bytes: 0,
-            max_physical_bytes: 0,
-        }
-    }
 }
 
 /// Current usage counters for a namespace.
