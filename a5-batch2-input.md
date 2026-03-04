@@ -1,0 +1,1 @@
+Read `crates/claudefs-fuse/src/migration.rs`, add `///` doc comments to every undocumented public item (enum, struct, variant, field, method), add `//!` module doc, and write the updated file back. Do not change any code logic or tests.
