@@ -104,3 +104,6 @@ pub mod fuse_deep_security_tests;
     pub mod meta_consensus_security_tests;
 #[cfg(test)]
 pub mod mgmt_extended_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_erasure_security_tests;
