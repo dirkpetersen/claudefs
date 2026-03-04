@@ -78,7 +78,7 @@ pub enum RecoveryPhase {
     Failed,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RecoveryState {
     pub phase: RecoveryPhase,
     pub devices_discovered: usize,
@@ -86,19 +86,6 @@ pub struct RecoveryState {
     pub journal_entries_found: usize,
     pub journal_entries_replayed: usize,
     pub errors: Vec<String>,
-}
-
-impl Default for RecoveryState {
-    fn default() -> Self {
-        Self {
-            phase: RecoveryPhase::default(),
-            devices_discovered: 0,
-            devices_valid: 0,
-            journal_entries_found: 0,
-            journal_entries_replayed: 0,
-            errors: Vec::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

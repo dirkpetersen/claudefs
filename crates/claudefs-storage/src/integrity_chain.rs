@@ -195,9 +195,7 @@ impl From<IntegrityError> for StorageError {
             IntegrityError::ChainNotFound(id) => {
                 StorageError::AllocatorError(format!("Chain not found: {}", id))
             }
-            IntegrityError::IoError(msg) => {
-                StorageError::IoError(std::io::Error::new(std::io::ErrorKind::Other, msg))
-            }
+            IntegrityError::IoError(msg) => StorageError::IoError(std::io::Error::other(msg)),
             IntegrityError::InvalidData(msg) => StorageError::SerializationError { reason: msg },
             IntegrityError::AlgorithmNotSupported(msg) => StorageError::AllocatorError(msg),
             IntegrityError::ChecksumMismatch { .. } => {

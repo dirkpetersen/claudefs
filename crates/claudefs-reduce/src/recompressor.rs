@@ -216,7 +216,7 @@ mod tests {
             })
             .collect();
 
-        let (improved, stats) = recompressor.recompress_batch(&chunks);
+        let (_improved, stats) = recompressor.recompress_batch(&chunks);
 
         assert_eq!(stats.chunks_processed, 5);
         assert!(stats.chunks_improved > 0);

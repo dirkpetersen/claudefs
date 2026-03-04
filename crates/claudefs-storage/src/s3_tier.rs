@@ -167,20 +167,15 @@ impl ObjectStoreBackend for MockObjectStore {
 }
 
 /// Tiering mode for segment storage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum TieringMode {
+    #[default]
     /// Cache mode (default): every segment asynchronously written to S3.
     Cache,
     /// Tiered mode: only aged-out segments go to S3.
     Tiered,
     /// Disabled: no S3 tiering.
     Disabled,
-}
-
-impl Default for TieringMode {
-    fn default() -> Self {
-        TieringMode::Cache
-    }
 }
 
 /// Configuration for S3 tiering.

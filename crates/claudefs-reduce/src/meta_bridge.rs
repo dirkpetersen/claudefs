@@ -261,7 +261,7 @@ mod tests {
     fn test_null_store_always_returns_none() {
         let store = NullFingerprintStore::new();
         let hash = [0u8; 32];
-        let location = BlockLocation { node_id: 1, block_offset: 100, size: 4096 };
+        let _location = BlockLocation { node_id: 1, block_offset: 100, size: 4096 };
         
         assert!(store.lookup(&hash).is_none());
         assert!(store.lookup(&[1u8; 32]).is_none());

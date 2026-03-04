@@ -119,12 +119,35 @@ impl TlsAcceptor {
         let certs = load_certs_from_pem(&config.cert_chain_pem)?;
         let key = load_private_key_from_pem(&config.private_key_pem)?;
 
-        let server_config = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(certs, key)
-            .map_err(|e| TransportError::TlsError {
-                reason: format!("failed to set server cert: {}", e),
-            })?;
+        let server_config = if config.require_client_auth {
+            let ca_certs = load_certs_from_pem(&config.ca_cert_pem)?;
+            let mut root_store = rustls::RootCertStore::empty();
+            for cert in ca_certs {
+                root_store.add(cert).map_err(|e| TransportError::TlsError {
+                    reason: format!("failed to add CA cert: {}", e),
+                })?;
+            }
+
+            let verifier = rustls::server::WebPkiClientVerifier::builder(Arc::new(root_store))
+                .build()
+                .map_err(|e| TransportError::TlsError {
+                    reason: format!("failed to build client verifier: {}", e),
+                })?;
+
+            rustls::ServerConfig::builder()
+                .with_client_cert_verifier(verifier)
+                .with_single_cert(certs, key)
+                .map_err(|e| TransportError::TlsError {
+                    reason: format!("failed to set server cert: {}", e),
+                })?
+        } else {
+            rustls::ServerConfig::builder()
+                .with_no_client_auth()
+                .with_single_cert(certs, key)
+                .map_err(|e| TransportError::TlsError {
+                    reason: format!("failed to set server cert: {}", e),
+                })?
+        };
 
         let inner = TlsAcceptorInner::from(Arc::new(server_config));
         Ok(Self { inner })

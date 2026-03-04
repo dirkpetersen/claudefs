@@ -172,7 +172,7 @@ impl LiveConfigStore {
         let mut keys_unchanged = 0;
         let mut changed_keys = Vec::new();
         #[allow(dead_code)]
-        let mut errors = Vec::new();
+        let errors = Vec::new();
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

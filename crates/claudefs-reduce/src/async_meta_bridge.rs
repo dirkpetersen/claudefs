@@ -470,7 +470,7 @@ mod tests {
         let mut write_path = AsyncIntegratedWritePath::new(config, store.clone());
 
         let data = test_data(100_000);
-        let result1 = write_path.process_write(&data).await.unwrap();
+        let _result1 = write_path.process_write(&data).await.unwrap();
 
         let config2 = WritePathConfig::default();
         let mut write_path2 = AsyncIntegratedWritePath::new(config2, store);

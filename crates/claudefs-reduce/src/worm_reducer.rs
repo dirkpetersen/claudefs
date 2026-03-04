@@ -226,7 +226,7 @@ mod tests {
         reducer
             .register(make_hash(3), RetentionPolicy::immutable_until(1000), 0)
             .unwrap();
-        reducer.register(make_hash(4), RetentionPolicy::legal_hold(), 0);
+        let _ = reducer.register(make_hash(4), RetentionPolicy::legal_hold(), 0);
 
         let removed = reducer.gc_expired(600);
         assert_eq!(removed, 1);
@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn test_register_and_get() {
         let mut reducer = WormReducer::new();
-        reducer.register(100, RetentionPolicy::legal_hold(), 1024);
+        let _ = reducer.register(100, RetentionPolicy::legal_hold(), 1024);
 
         let result = reducer.get(&100);
         assert!(result.is_some());
@@ -254,8 +254,8 @@ mod tests {
         let mut reducer = WormReducer::new();
         assert_eq!(reducer.total_count(), 0);
 
-        reducer.register(1, RetentionPolicy::none(), 0);
-        reducer.register(2, RetentionPolicy::legal_hold(), 0);
+        let _ = reducer.register(1, RetentionPolicy::none(), 0);
+        let _ = reducer.register(2, RetentionPolicy::legal_hold(), 0);
         assert_eq!(reducer.total_count(), 2);
     }
 
@@ -264,7 +264,7 @@ mod tests {
         let mut reducer = WormReducer::new();
 
         for i in 1..=5 {
-            reducer.register(
+            let _ = reducer.register(
                 make_hash(i),
                 RetentionPolicy::immutable_until(1000),
                 i * 512,

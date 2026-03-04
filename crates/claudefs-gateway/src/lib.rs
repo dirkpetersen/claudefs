@@ -14,7 +14,11 @@ pub mod error;
 pub mod export_manager;
 /// Audit logging for gateway operations.
 pub mod gateway_audit;
-/// Circuit breaker for gateway resilience.
+/// Circuit breaker for backend fault tolerance and cascading failure prevention.
+pub mod gateway_circuit_breaker;
+/// Connection pool for backend metadata and transport node connections.
+pub mod gateway_conn_pool;
+/// Prometheus metrics and counters for gateway operations.
 pub mod gateway_metrics;
 /// TLS configuration for secure gateway connections.
 pub mod gateway_tls;
@@ -28,6 +32,8 @@ pub mod nfs;
 pub mod nfs_acl;
 /// NFS dentry caching.
 pub mod nfs_cache;
+/// NFSv4.2 server-side copy offload (COPY operation, RFC 7862).
+pub mod nfs_copy_offload;
 /// NFS delegation support.
 pub mod nfs_delegation;
 /// NFS export handling.
@@ -74,8 +80,12 @@ pub mod s3_object_lock;
 pub mod s3_presigned;
 /// S3 rate limiting.
 pub mod s3_ratelimit;
+/// S3 cross-region replication configuration and state tracking.
+pub mod s3_replication;
 /// S3 request routing.
 pub mod s3_router;
+/// S3 storage class management (Standard, IA, Glacier, Intelligent-Tiering).
+pub mod s3_storage_class;
 /// S3 versioning support.
 pub mod s3_versioning;
 /// S3 XML request/response handling.
