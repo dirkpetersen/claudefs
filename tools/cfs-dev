@@ -437,6 +437,75 @@ cmd_ssh() {
   fi
 }
 
+cmd_deploy() {
+  local skip_build=false
+  local target_node=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --skip-build) skip_build=true; shift ;;
+      --node) target_node="$2"; shift 2 ;;
+      --key) KEY_NAME="$2"; shift 2 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+  done
+
+  local key_arg
+  key_arg=$(ssh_key_arg)
+
+  local orch_ip
+  orch_ip=$(get_orchestrator_ip)
+  [[ -z "$orch_ip" || "$orch_ip" == "None" ]] && die "Orchestrator not running"
+
+  info "Deploying to cluster from orchestrator..."
+
+  if [[ -n "$target_node" ]]; then
+    ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
+      "$SCRIPT_DIR/deploy-cluster.sh deploy --skip-build --node $target_node"
+  elif [[ "$skip_build" == "true" ]]; then
+    ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
+      "$SCRIPT_DIR/deploy-cluster.sh deploy --skip-build"
+  else
+    ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
+      "$SCRIPT_DIR/deploy-cluster.sh deploy"
+  fi
+}
+
+cmd_validate() {
+  local key_arg
+  key_arg=$(ssh_key_arg)
+
+  local orch_ip
+  orch_ip=$(get_orchestrator_ip)
+  [[ -z "$orch_ip" || "$orch_ip" == "None" ]] && die "Orchestrator not running"
+
+  info "Validating cluster deployment..."
+  ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
+    "$SCRIPT_DIR/deploy-cluster.sh validate"
+}
+
+cmd_health() {
+  local cmd="${1:-status}"
+  shift || true
+
+  local key_arg
+  key_arg=$(ssh_key_arg)
+
+  local orch_ip
+  orch_ip=$(get_orchestrator_ip)
+  [[ -z "$orch_ip" || "$orch_ip" == "None" ]] && die "Orchestrator not running"
+
+  case "$cmd" in
+    status|full|connectivity|replication|monitor)
+      ssh -o StrictHostKeyChecking=no $key_arg "ubuntu@${orch_ip}" \
+        "$SCRIPT_DIR/cluster-health-check.sh $cmd $*"
+      ;;
+    *)
+      die "Unknown health command: $cmd"
+      ;;
+  esac
+}
+
 cmd_help() {
   cat << 'HELP'
 cfs-dev — ClaudeFS development cluster management
@@ -458,6 +527,23 @@ Commands:
       --agent A1       Stream specific agent (e.g., A1, A2)
       --no-follow      Dump logs instead of tailing
 
+  deploy [--skip-build] [--node NAME] [--key KEY]
+      Build and deploy ClaudeFS to all cluster nodes.
+      --skip-build     Use existing release binary (faster iteration)
+      --node NAME      Deploy to specific node only
+
+  validate [--key KEY]
+      Validate deployment: check binaries and services on all nodes.
+
+  health <subcommand> [options] [--key KEY]
+      Check cluster health and connectivity.
+      Subcommands:
+        status       — Quick health snapshot
+        full         — Comprehensive health report (saved to file)
+        connectivity — Test inter-node RPC connectivity
+        replication  — Check cross-site replication setup
+        monitor N    — Continuous monitoring (interval in seconds, default 60)
+
   down
       Terminate spot cluster nodes (keep orchestrator running).
 
@@ -475,6 +561,13 @@ Commands:
 
 Environment:
   CFS_KEY_NAME    Default SSH key pair name
+
+Phase 2 Workflow Example:
+  cfs-dev up --phase 2              # Provision full cluster
+  cfs-dev health full               # Comprehensive health check
+  cfs-dev deploy                    # Build and deploy ClaudeFS
+  cfs-dev validate                  # Verify deployment
+  cfs-dev health monitor 60         # Watch cluster health
 HELP
 }
 
@@ -484,13 +577,16 @@ COMMAND="${1:-help}"
 shift || true
 
 case "$COMMAND" in
-  up)      cmd_up "$@" ;;
-  status)  cmd_status "$@" ;;
-  logs)    cmd_logs "$@" ;;
-  down)    cmd_down "$@" ;;
-  destroy) cmd_destroy "$@" ;;
-  cost)    cmd_cost "$@" ;;
-  ssh)     cmd_ssh "$@" ;;
+  up)       cmd_up "$@" ;;
+  status)   cmd_status "$@" ;;
+  logs)     cmd_logs "$@" ;;
+  deploy)   cmd_deploy "$@" ;;
+  validate) cmd_validate "$@" ;;
+  health)   cmd_health "$@" ;;
+  down)     cmd_down "$@" ;;
+  destroy)  cmd_destroy "$@" ;;
+  cost)     cmd_cost "$@" ;;
+  ssh)      cmd_ssh "$@" ;;
   help|--help|-h) cmd_help ;;
-  *)       die "Unknown command: $COMMAND. Run 'cfs-dev help' for usage." ;;
+  *)        die "Unknown command: $COMMAND. Run 'cfs-dev help' for usage." ;;
 esac
