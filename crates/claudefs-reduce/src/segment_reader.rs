@@ -263,4 +263,93 @@ mod tests {
         let count = reader.iter_chunks().count();
         assert_eq!(count, reader.len());
     }
+
+    #[test]
+    fn test_read_at_offset_middle() {
+        let segment = make_test_segment();
+        let reader = SegmentReader::new(&segment);
+
+        let data = b"foo bar baz";
+        let hash = blake3_hash(data);
+        let chunk = reader.get_chunk(&hash).unwrap();
+        assert_eq!(chunk, data);
+    }
+
+    #[test]
+    fn test_read_partial_chunk_prefix() {
+        let segment = make_test_segment();
+        let reader = SegmentReader::new(&segment);
+
+        let data = b"hello world";
+        let hash = blake3_hash(data);
+        let chunk = reader.get_chunk(&hash).unwrap();
+        assert_eq!(&chunk[..5], b"hello");
+    }
+
+    #[test]
+    fn test_read_partial_chunk_suffix() {
+        let segment = make_test_segment();
+        let reader = SegmentReader::new(&segment);
+
+        let data = b"hello world";
+        let hash = blake3_hash(data);
+        let chunk = reader.get_chunk(&hash).unwrap();
+        assert_eq!(&chunk[6..], b"world");
+    }
+
+    #[test]
+    fn test_missing_segment_error() {
+        let segment = make_test_segment();
+        let reader = SegmentReader::new(&segment);
+
+        let unknown_hash = blake3_hash(b"not present");
+        let result = reader.get_chunk(&unknown_hash);
+        assert!(matches!(result.unwrap_err(), ReduceError::NotFound(_)));
+    }
+
+    #[test]
+    fn test_empty_segment_handling() {
+        let segment = Segment {
+            id: 0,
+            entries: Vec::new(),
+            payload: Vec::new(),
+            sealed: true,
+            created_at_secs: 0,
+            payload_checksum: None,
+        };
+        let reader = SegmentReader::new(&segment);
+        assert!(reader.is_empty());
+        assert_eq!(reader.len(), 0);
+    }
+
+    #[test]
+    fn test_single_entry_segment() {
+        let data = b"single chunk";
+        let hash = blake3_hash(data);
+
+        let segment = Segment {
+            id: 1,
+            entries: vec![SegmentEntry {
+                hash,
+                offset_in_segment: 0,
+                payload_size: data.len() as u32,
+                original_size: data.len() as u32,
+            }],
+            payload: data.to_vec(),
+            sealed: true,
+            created_at_secs: 0,
+            payload_checksum: None,
+        };
+
+        let reader = SegmentReader::new(&segment);
+        assert_eq!(reader.len(), 1);
+        assert_eq!(reader.get_chunk(&hash).unwrap(), data);
+    }
+
+    #[test]
+    fn test_reader_new_lifetime() {
+        let segment = make_test_segment();
+        let reader = SegmentReader::new(&segment);
+        assert_eq!(reader.len(), 3);
+    }
 }

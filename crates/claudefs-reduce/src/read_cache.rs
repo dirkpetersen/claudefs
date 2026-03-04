@@ -363,4 +363,113 @@ mod tests {
         assert_eq!(cache.len(), 100);
         assert_eq!(cache.stats().evictions, 0);
     }
+
+    #[test]
+    fn test_lru_eviction_order() {
+        let config = ReadCacheConfig {
+            capacity_bytes: 1000,
+            max_entries: 3,
+        };
+        let mut cache = ReadCache::new(config);
+
+        cache.insert(make_hash(1), make_data(300));
+        cache.insert(make_hash(2), make_data(300));
+        cache.insert(make_hash(3), make_data(300));
+
+        cache.get(&make_hash(1));
+        cache.get(&make_hash(2));
+
+        cache.insert(make_hash(4), make_data(300));
+
+        assert!(cache.get(&make_hash(1)).is_some());
+        assert!(cache.get(&make_hash(2)).is_some());
+    }
+
+    #[test]
+    fn test_capacity_bound_enforced() {
+        let config = ReadCacheConfig {
+            capacity_bytes: 500,
+            max_entries: 1000,
+        };
+        let mut cache = ReadCache::new(config);
+
+        cache.insert(make_hash(1), make_data(300));
+        cache.insert(make_hash(2), make_data(300));
+        cache.insert(make_hash(3), make_data(300));
+
+        assert!(cache.stats().current_bytes <= 500);
+    }
+
+    #[test]
+    fn test_stats_under_load() {
+        let config = ReadCacheConfig {
+            capacity_bytes: 1024,
+            max_entries: 10,
+        };
+        let mut cache = ReadCache::new(config);
+
+        for i in 0..20 {
+            cache.insert(make_hash(i as u8), make_data(100));
+            cache.get(&make_hash(i as u8));
+        }
+
+        let stats = cache.stats();
+        assert!(stats.hits > 0);
+        assert!(stats.evictions > 0);
+    }
+
+    #[test]
+    fn test_reinsert_updates_data() {
+        let mut cache = ReadCache::new(ReadCacheConfig::default());
+        let hash = make_hash(1);
+
+        cache.insert(hash, vec![1, 2, 3]);
+        assert_eq!(cache.get(&hash).unwrap(), &vec![1, 2, 3]);
+
+        cache.insert(hash, vec![4, 5, 6]);
+        assert_eq!(cache.get(&hash).unwrap(), &vec![4, 5, 6]);
+    }
+
+    #[test]
+    fn test_small_capacity_eviction() {
+        let config = ReadCacheConfig {
+            capacity_bytes: 50,
+            max_entries: 10,
+        };
+        let mut cache = ReadCache::new(config);
+
+        cache.insert(make_hash(1), make_data(100));
+        cache.insert(make_hash(2), make_data(100));
+
+        assert!(cache.stats().evictions >= 1);
+    }
+
+    #[test]
+    fn test_eviction_updates_current_bytes() {
+        let config = ReadCacheConfig {
+            capacity_bytes: 100,
+            max_entries: 10,
+        };
+        let mut cache = ReadCache::new(config.clone());
+
+        cache.insert(make_hash(1), make_data(50));
+        cache.insert(make_hash(2), make_data(60));
+
+        let stats = cache.stats();
+        assert!(stats.current_bytes <= config.capacity_bytes);
+    }
+
+    #[test]
+    fn test_multiple_accesses_same_key() {
+        let mut cache = ReadCache::new(ReadCacheConfig::default());
+        let hash = make_hash(1);
+        cache.insert(hash, make_data(100));
+
+        cache.get(&hash);
+        cache.get(&hash);
+        cache.get(&hash);
+
+        let stats = cache.stats();
+        assert_eq!(stats.hits, 3);
+    }
 }
