@@ -96,6 +96,8 @@ pub mod shard;
 pub mod shard_stats;
 /// Raft log snapshot and compaction
 pub mod snapshot;
+/// Space accounting for directories
+pub mod space_accounting;
 /// Symlink storage and resolution with loop detection
 pub mod symlink;
 /// Multi-tenant namespace isolation
@@ -160,6 +162,7 @@ pub use service::MetadataServiceConfig;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use shard_stats::{ClusterShardStats, ShardStats};
 pub use snapshot::{RaftSnapshot, SnapshotManager};
+pub use space_accounting::{DirUsage, SpaceAccountingStore};
 pub use symlink::SymlinkStore;
 pub use tenant::{TenantConfig, TenantId, TenantManager, TenantUsage};
 pub use tracecontext::{SpanId, SpanRecord, SpanStatus, TraceCollector, TraceContext, TraceId};
