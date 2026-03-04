@@ -461,7 +461,95 @@ The codebase demonstrates strong security engineering:
 
 ---
 
-## 18. Phase 3 Remediation Priority (Updated)
+## 18. Data Reduction (claudefs-reduce) Security Review
+
+**Reviewed by:** A10 (Security Audit Agent)
+**Date:** 2026-03-04
+**Scope:** GC engine, key management, encryption, checksums, segments, snapshots
+
+### 18.1 GC Safety Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-REDUCE-01 | HIGH | GC sweep deletes all unmarked chunks — if mark phase is incomplete (e.g., crash during mark), live data is permanently lost |
+| FINDING-REDUCE-02 | HIGH | clear_marks() followed by sweep() deletes ALL chunks — no safety interlock prevents accidental double-clear |
+| FINDING-REDUCE-03 | MEDIUM | TOCTOU in mark-sweep: chunks inserted between mark and sweep are not marked reachable and will be reclaimed |
+| FINDING-REDUCE-04 | LOW | CAS refcount underflow handled gracefully (release of unreferenced hash returns false, no panic) — PASS |
+
+### 18.2 Key Management Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-REDUCE-05 | HIGH | clear_history() destroys old KEK versions — any wrapped DEK using old versions becomes permanently undecryptable (data loss) |
+| FINDING-REDUCE-06 | MEDIUM | Double schedule_rotation() behavior — may overwrite in-progress rotation without completing previous one |
+| FINDING-REDUCE-07 | LOW | Nonce uniqueness verified for 100 random_nonce() calls — no collisions detected (PASS, but 12-byte nonce collision risk at scale) |
+
+### 18.3 Encryption and Integrity Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-REDUCE-08 | LOW | Segment integrity verification correctly detects tampered payload when checksum present — PASS |
+| FINDING-REDUCE-09 | MEDIUM | Snapshot max_snapshots enforcement behavior varies — may silently reject or delete oldest (needs documentation) |
+
+### 18.4 Summary
+
+- **3 HIGH findings**: GC incomplete mark data loss, clear_marks danger, key history loss
+- **3 MEDIUM findings**: GC TOCTOU, double rotation, snapshot limit behavior
+- **3 LOW findings**: Refcount underflow safe, nonce uniqueness verified, segment integrity verified
+
+---
+
+## 19. Replication (claudefs-repl) Security Review
+
+**Reviewed by:** A10 (Security Audit Agent)
+**Date:** 2026-03-04
+**Scope:** Journal integrity, batch auth, site identity, TLS policy, conflict resolution, failover
+
+### 19.1 Journal Integrity Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-REPL-01 | MEDIUM | CRC32 is insufficient for tampering detection — collision-prone, not cryptographic; attacker can forge entries with same CRC |
+| FINDING-REPL-PASS-01 | LOW | CRC validation correctly detects payload modifications — PASS |
+| FINDING-REPL-PASS-02 | LOW | Empty payload entries handled correctly — PASS |
+
+### 19.2 Batch Authentication Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-REPL-02 | LOW | Batch auth correctly binds batch_seq — replay with different seq rejected (PASS, replay protection verified) |
+| FINDING-REPL-03 | LOW | Zero tag correctly rejected — BatchTag::zero() cannot authenticate any batch (PASS) |
+| FINDING-REPL-PASS-03 | LOW | Tampered entries correctly rejected by HMAC verification — PASS |
+| FINDING-REPL-PASS-04 | LOW | Wrong key correctly rejected — PASS |
+
+### 19.3 Site Identity and TLS Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-REPL-04 | HIGH | Optional fingerprint bypass — verify_source_id with fingerprint=None succeeds even when site has registered fingerprint |
+| FINDING-REPL-05 | MEDIUM | TlsMode::TestOnly allows plaintext connections — must not be used in production deployments |
+| FINDING-REPL-06 | MEDIUM | validate_tls_config accepts empty cert/key/ca bytes — no content validation on PEM data |
+| FINDING-REPL-PASS-05 | LOW | Fingerprint mismatch correctly rejected — PASS |
+| FINDING-REPL-PASS-06 | LOW | TLS Required mode correctly rejects plaintext — PASS |
+
+### 19.4 Conflict Resolution and Failover Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-REPL-07 | MEDIUM | LWW tie-breaking with equal timestamps uses site_id as tiebreaker — deterministic but arbitrary (higher site_id wins) |
+| FINDING-REPL-08 | LOW | Rate limiter correctly locks out after exceeding max_auth_attempts_per_minute — PASS |
+| FINDING-REPL-PASS-07 | LOW | Fencing tokens are strictly monotonic — PASS |
+| FINDING-REPL-PASS-08 | LOW | WAL cursor reset works correctly — PASS |
+
+### 19.5 Summary
+
+- **1 HIGH finding**: Optional fingerprint bypass allows unverified site identity
+- **4 MEDIUM findings**: CRC32 weakness, TestOnly plaintext, empty cert validation, LWW tie-breaking
+- **8 LOW findings**: Various correctness verifications passing
+
+---
+
+## 20. Phase 3 Remediation Priority (Final — All 8 Crates Audited)
 
 ### Immediate (CRITICAL — 8 findings)
 
@@ -474,9 +562,13 @@ The codebase demonstrates strong security engineering:
 7. **FINDING-TRANS-01:** Fix certificate time validation — use SystemTime::now() instead of manual tracking
 8. **FINDING-CLUSTER-01:** Propagate NFS auth context (uid/gid) to backend RPC calls
 
-### High Priority (17 findings)
+### High Priority (21 findings)
 
-9. **FINDING-FUSE-02:** Replace trivial checksum fingerprint with SHA-256
+9. **FINDING-REDUCE-01:** Add safety interlock for GC mark phase — require mark completion flag before sweep
+10. **FINDING-REDUCE-02:** Add guard preventing clear_marks() immediately before sweep()
+11. **FINDING-REDUCE-05:** Prevent clear_history() from destroying KEK versions with outstanding wrapped DEKs
+12. **FINDING-REPL-04:** Require fingerprint verification in verify_source_id when site has registered fingerprint
+13. **FINDING-FUSE-02:** Replace trivial checksum fingerprint with SHA-256
 10. **FINDING-FUSE-03:** Parse X.509 certificate expiry via ASN.1, not string matching
 11. **FINDING-FUSE-11:** Fix passthrough fd overwrite — check for existing before register
 12. **FINDING-TRANS-02:** Fix CA fingerprint validation — exact DER comparison, not substring match
@@ -494,9 +586,15 @@ The codebase demonstrates strong security engineering:
 24. **FINDING-META-26:** Add persistent 2PC recovery log for cross-shard transactions
 25. **FINDING-GW-23:** Implement mTLS for backend node connections
 
-### Medium Priority (14 findings)
+### Medium Priority (20 findings)
 
-26. **FINDING-FUSE-04:** Add CRL max size limit and auto-compaction
+26. **FINDING-REDUCE-03:** Add epoch/generation tracking to prevent TOCTOU in mark-sweep GC
+27. **FINDING-REDUCE-06:** Prevent double schedule_rotation() from overwriting in-progress rotation
+28. **FINDING-REDUCE-09:** Document and enforce consistent snapshot max_snapshots behavior
+29. **FINDING-REPL-01:** Replace CRC32 with cryptographic hash (HMAC or BLAKE3) for journal entry integrity
+30. **FINDING-REPL-05:** Enforce TlsMode::Required in all production deployments; add compile-time guard
+31. **FINDING-REPL-06:** Validate PEM content in validate_tls_config (check for BEGIN/END markers at minimum)
+32. **FINDING-FUSE-04:** Add CRL max size limit and auto-compaction
 27. **FINDING-FUSE-10:** Default `default_permissions` to true in MountOptions
 28. **FINDING-TRANS-03:** Check `is_ca` field in certificate authentication
 29. **FINDING-TRANS-09:** Fix window controller CAS race with retry loop
@@ -537,8 +635,10 @@ The codebase demonstrates strong security engineering:
 | gateway_security_tests.rs | 28 | S3 API, pNFS layout, NFS auth, token auth security |
 | fuse_security_tests.rs | 20 | Client auth, path resolution, mount options, passthrough FD |
 | transport_security_tests.rs | 20 | Certificate auth, zero-copy pool, flow control |
+| reduce_security_tests.rs | 20 | GC safety, key management, encryption, checksum/segment integrity |
+| repl_security_tests.rs | 20 | Journal integrity, batch auth, site identity/TLS, conflict resolution |
 
-**Total:** 658 passing tests (93 new in Phase 3)
+**Total:** 698 passing tests (133 new in Phase 3)
 
 ---
 
@@ -595,4 +695,20 @@ The codebase demonstrates strong security engineering:
 - `crates/claudefs-transport/src/tcp.rs` — TCP transport
 - `crates/claudefs-transport/src/message.rs` — Message serialization
 - `crates/claudefs-transport/src/connection.rs` — Connection management
-- `crates/claudefs-security/src/*.rs` — All 25 security test modules
+- `crates/claudefs-reduce/src/gc.rs` — Garbage collection mark-sweep engine
+- `crates/claudefs-reduce/src/key_manager.rs` — Key envelope encryption and rotation
+- `crates/claudefs-reduce/src/key_rotation_scheduler.rs` — Key rotation scheduling
+- `crates/claudefs-reduce/src/encryption.rs` — AES-GCM/ChaCha20 encryption
+- `crates/claudefs-reduce/src/checksum.rs` — BLAKE3/CRC32C/xxHash integrity
+- `crates/claudefs-reduce/src/segment.rs` — Segment packing and integrity
+- `crates/claudefs-reduce/src/snapshot.rs` — Snapshot management
+- `crates/claudefs-reduce/src/dedupe.rs` — Content-addressable deduplication
+- `crates/claudefs-repl/src/journal.rs` — Journal entries and CRC validation
+- `crates/claudefs-repl/src/batch_auth.rs` — HMAC batch authentication
+- `crates/claudefs-repl/src/site_registry.rs` — Site identity and fingerprint verification
+- `crates/claudefs-repl/src/tls_policy.rs` — TLS enforcement policy
+- `crates/claudefs-repl/src/conflict_resolver.rs` — LWW conflict resolution
+- `crates/claudefs-repl/src/split_brain.rs` — Split-brain detection and fencing
+- `crates/claudefs-repl/src/wal.rs` — Replication write-ahead log
+- `crates/claudefs-repl/src/auth_ratelimit.rs` — Auth rate limiting
+- `crates/claudefs-security/src/*.rs` — All 27 security test modules

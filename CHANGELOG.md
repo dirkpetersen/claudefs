@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 3 Reduce + Repl Deep Audit (2026-03-04)
+
+#### 2 New Modules: reduce_security_tests + repl_security_tests — 40 Tests, 698 Total
+
+**Status:** ✅ 698 security tests passing, 0 failures (+40 from 658)
+
+**New Coverage — Reduce Crate Security:**
+- GC Safety (5 tests): incomplete mark sweep, clear_marks danger, TOCTOU, refcount underflow, stats accuracy
+- Key Management (6 tests): missing key, wrap/unwrap roundtrip, history loss, scheduler edge cases, tampered ciphertext
+- Encryption (4 tests): nonce uniqueness, empty plaintext, wrong key, deterministic derivation
+- Checksum/Segment (5 tests): tampered data, segment integrity, snapshot limits, clone validation, compression roundtrip
+
+**New Coverage — Repl Crate Security:**
+- Journal Integrity (5 tests): CRC validation, CRC collision weakness, empty payload, position tracking, shard filtering
+- Batch Auth (5 tests): sign/verify, tampered entry, replay protection, wrong key, zero tag
+- Site Identity/TLS (5 tests): fingerprint mismatch, fingerprint bypass, TLS required, TestOnly mode, empty cert validation
+- Conflict/Failover (5 tests): LWW resolution, equal timestamp tie-breaking, fencing tokens, WAL reset, rate limiter lockout
+
+**Security Findings:** 16 findings (3 HIGH, 7 MEDIUM, 6 LOW)
+- HIGH: GC incomplete mark data loss, clear_marks danger, key history loss, optional fingerprint bypass
+- MEDIUM: GC TOCTOU, double rotation, snapshot limits, CRC32 weakness, TestOnly plaintext, empty cert validation, LWW tie-breaking
+
+**Stats:** +40 tests, 698 total security tests | All 8 crates now audited
+
+---
+
 ### A9: Test & Validation — Phase 2 Metadata Tests (2026-03-04)
 
 #### 1 New Module: meta_phase2_tests — 60 Tests, 1824 Total
