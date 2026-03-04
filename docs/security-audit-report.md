@@ -1793,3 +1793,49 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 8. WORM Manager Lock/Unlock (6)
 9. Legal Hold Operations (5)
 10. Audit Trail & Counts (5)
+
+## Section 41: Phase 24 — Meta Conflict Detection & Repl Split-Brain/TLS
+
+**Date:** 2026-03-04
+**Tests added:** 53 (28 + 25)
+**Total tests:** 1824
+**Modules:**
+- `meta_conflict_security_tests.rs` — 28 tests
+- `repl_splitbrain_tls_security_tests.rs` — 25 tests
+
+### Findings
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| FINDING-META-CONF-01 | MEDIUM | Higher sequence always wins — correct LWW semantics |
+| FINDING-META-CONF-02 | MEDIUM | Site_id tie-breaker is deterministic — both sites agree on winner |
+| FINDING-META-CONF-03 | LOW | Same-site equal clocks resolve to Remote — edge case |
+| FINDING-META-CONF-04 | MEDIUM | Same sequence from different sites correctly identified as concurrent |
+| FINDING-META-CONF-05 | MEDIUM | Strictly ordered operations correctly identified as non-concurrent |
+| FINDING-META-CONF-06 | HIGH | Conflict log bounded — prevents memory exhaustion |
+| FINDING-META-CONF-07 | MEDIUM | Clock increments monotonically — prevents clock rollback |
+| FINDING-META-CONF-08 | MEDIUM | LWW resolution is deterministic — both sites reach same conclusion |
+| FINDING-META-CONF-09 | MEDIUM | Concurrent detection is symmetric — order doesn't matter |
+| FINDING-META-CONF-10 | LOW | Conflict timestamps enable operator investigation |
+| FINDING-REPL-SB-01 | MEDIUM | Fencing tokens are monotonically increasing — prevents replay |
+| FINDING-REPL-SB-02 | HIGH | Confirmation requires partition evidence — prevents false declarations |
+| FINDING-REPL-SB-03 | HIGH | Fencing only allowed after confirmation — prevents premature shutdown |
+| FINDING-REPL-SB-04 | HIGH | Full split-brain lifecycle correctly managed — graceful recovery |
+| FINDING-REPL-SB-05 | HIGH | Stale fencing tokens rejected — prevents fenced site resumption |
+| FINDING-REPL-SB-06 | MEDIUM | Two-step healing ensures graceful transition |
+| FINDING-REPL-TLS-01 | HIGH | Required mode rejects plaintext — enforces encryption |
+| FINDING-REPL-TLS-02 | HIGH | PEM format validated — prevents misconfigured certificates |
+| FINDING-REPL-TLS-03 | MEDIUM | TestOnly mode allows plaintext for development |
+| FINDING-REPL-TLS-04 | MEDIUM | Builder defaults to TestOnly — production mode must be explicit |
+
+**Categories tested:**
+1. Vector Clock & LWW Resolution (5+3)
+2. Conflict Detection (5)
+3. Conflict Log Management (5)
+4. Edge Cases (5)
+5. Security Properties (5)
+6. Fencing Token (4)
+7. Split-Brain State Machine (6)
+8. Fencing & Validation (4)
+9. TLS Policy Validation (6)
+10. TLS Builder & Edge Cases (5)
