@@ -98,6 +98,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Build: 0 errors, 0 warnings
 - Coverage: NFS v3+v4, pNFS, S3 API, SMB stubs, XDR, RPC, TLS, auth, metrics, caching
 
+### A7: Protocol Gateways — Phase 2 Proptest + Async NFS Listener (2026-03-04)
+
+**Status:** ✅ PHASE 2 MILESTONE — 1121 tests passing (+14), 0 build warnings, 0 errors
+
+**Phase 2 Additions:**
+
+1. **proptest-based XDR round-trip tests** (`xdr.rs`, +9 property tests)
+   - u32/i32/u64/i64/bool/opaque/string/sequence round-trip properties
+   - Alignment property: all XDR output is multiple of 4 bytes (RFC 4506 §4.2)
+   - Truncated buffer property: decode returns Err, never panics
+
+2. **Async TCP NFS Listener** (`nfs_listener.rs`, 198 lines, new module)
+   - `NfsListener` + `NfsShutdown` with tokio watch-channel graceful shutdown
+   - RFC 5531 §11 record marking (4-byte big-endian length + last-fragment bit)
+   - MAX_RPC_RECORD=4MB guard; per-connection `tokio::spawn` for parallelism
+   - 4 unit tests for listener construction, shutdown signal, record mark parsing
+
+3. **`RpcDispatcher::dispatch(&[u8]) -> Vec<u8>`** — raw RPC byte dispatch for listener integration
+
+4. **Samba VFS Plugin** (pre-existing in `tools/samba-vfs/`)
+   - Confirmed: `cfs_vfs.c` (~750 lines), `cfsrpc.h`, `Makefile` — all complete
+   - Implements all core VFS ops: stat/fstat/lstat, open/close, read/pread, write/pwrite,
+     mkdir/rmdir, unlink, rename, opendir/readdir/closedir, fsync, ftruncate, disk_free
+   - C FFI header matches claudefs-transport error code enum
+
+**Updated Crate Statistics:**
+- Source files: 54 `.rs` files, ~29,500 lines total
+- Tests: 1121 passing (1107 lib + 14 new)
+- Build: 0 errors, 0 warnings
+
 ### A8: Management — Phase 1 Documentation & Analytics Planning (2026-03-04)
 
 **Status:** ✅ FOUNDATION COMPLETE — 38 modules (~21k LOC), documentation 100%, all tests passing
