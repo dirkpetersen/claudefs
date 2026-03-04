@@ -362,10 +362,9 @@ async fn stale_files_handler(
 
 async fn reduction_report_handler(
     State(state): State<Arc<AdminApi>>,
-    Query(params): Query<ReductionReportParams>,
+    _params: Query<ReductionReportParams>,
 ) -> impl IntoResponse {
-    let limit = params.limit.unwrap_or(20);
-    match state.analytics.reduction_report(limit).await {
+    match state.analytics.reduction_stats().await {
         Ok(results) => (StatusCode::OK, Json(results)).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": format!("{}", e)}))).into_response(),
     }

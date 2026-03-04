@@ -539,6 +539,7 @@ impl Default for HotSwapManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block::{BlockId, BlockSize};
 
     fn create_test_block_ref(device_idx: u16, offset: u64) -> BlockRef {
         BlockRef {

@@ -7,36 +7,59 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+/// Atomic counters for FUSE operation types.
 #[derive(Default)]
 pub struct OpCounters {
+    /// Number of lookup operations.
     pub lookups: AtomicU64,
+    /// Number of read operations.
     pub reads: AtomicU64,
+    /// Number of write operations.
     pub writes: AtomicU64,
+    /// Number of create operations.
     pub creates: AtomicU64,
+    /// Number of unlink operations.
     pub unlinks: AtomicU64,
+    /// Number of mkdir operations.
     pub mkdirs: AtomicU64,
+    /// Number of rmdir operations.
     pub rmdirs: AtomicU64,
+    /// Number of rename operations.
     pub renames: AtomicU64,
+    /// Number of getattr operations.
     pub getattrs: AtomicU64,
+    /// Number of setattr operations.
     pub setattrs: AtomicU64,
+    /// Number of readdir operations.
     pub readdirs: AtomicU64,
+    /// Number of error operations.
     pub errors: AtomicU64,
 }
 
+/// Atomic counters for byte-level I/O throughput.
 #[derive(Default)]
 pub struct ByteCounters {
+    /// Total bytes read.
     pub bytes_read: AtomicU64,
+    /// Total bytes written.
     pub bytes_written: AtomicU64,
 }
 
+/// Histogram for tracking operation latency distribution.
+///
+/// Buckets: [0-10µs, 11-100µs, 101-1ms, 1-10ms, 10-100ms, >100ms].
 #[derive(Debug, Clone, Default)]
 pub struct LatencyHistogram {
+    /// Count per bucket: [≤10µs, ≤100µs, ≤1ms, ≤10ms, ≤100ms, >100ms].
     pub buckets: [u64; 6],
+    /// Sum of all recorded latencies in microseconds.
     pub total_us: u64,
+    /// Total number of recorded samples.
     pub count: u64,
 }
 
 impl LatencyHistogram {
+    /// Records a latency measurement into the appropriate bucket.
     pub fn record(&mut self, duration: Duration) {
         let us = duration.as_micros() as u64;
         self.total_us += us;
@@ -53,6 +76,7 @@ impl LatencyHistogram {
         self.buckets[bucket] += 1;
     }
 
+    /// Returns the approximate 50th percentile latency in microseconds.
     pub fn p50_us(&self) -> u64 {
         if self.count == 0 {
             return 0;
@@ -60,6 +84,7 @@ impl LatencyHistogram {
         self.total_us / self.count
     }
 
+    /// Returns the approximate 99th percentile latency in microseconds.
     pub fn p99_us(&self) -> u64 {
         if self.count == 0 {
             return 0;
@@ -82,6 +107,7 @@ impl LatencyHistogram {
         200_000
     }
 
+    /// Returns the mean latency in microseconds.
     pub fn mean_us(&self) -> u64 {
         if self.count == 0 {
             return 0;
@@ -90,12 +116,16 @@ impl LatencyHistogram {
     }
 }
 
+/// Container for FUSE performance metrics with atomic counters.
 pub struct FuseMetrics {
+    /// Operation counters.
     pub ops: Arc<OpCounters>,
+    /// Byte throughput counters.
     pub bytes: Arc<ByteCounters>,
 }
 
 impl FuseMetrics {
+    /// Creates a new `FuseMetrics` instance with zeroed counters.
     pub fn new() -> Self {
         Self {
             ops: Arc::new(OpCounters::default()),
@@ -103,56 +133,69 @@ impl FuseMetrics {
         }
     }
 
+    /// Increments the lookup operation counter.
     pub fn inc_lookup(&self) {
         self.ops.lookups.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the read operation and byte counters.
     pub fn inc_read(&self, bytes: u64) {
         self.ops.reads.fetch_add(1, Ordering::Relaxed);
         self.bytes.bytes_read.fetch_add(bytes, Ordering::Relaxed);
     }
 
+    /// Increments the write operation and byte counters.
     pub fn inc_write(&self, bytes: u64) {
         self.ops.writes.fetch_add(1, Ordering::Relaxed);
         self.bytes.bytes_written.fetch_add(bytes, Ordering::Relaxed);
     }
 
+    /// Increments the create operation counter.
     pub fn inc_create(&self) {
         self.ops.creates.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the unlink operation counter.
     pub fn inc_unlink(&self) {
         self.ops.unlinks.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the mkdir operation counter.
     pub fn inc_mkdir(&self) {
         self.ops.mkdirs.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the rmdir operation counter.
     pub fn inc_rmdir(&self) {
         self.ops.rmdirs.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the rename operation counter.
     pub fn inc_rename(&self) {
         self.ops.renames.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the getattr operation counter.
     pub fn inc_getattr(&self) {
         self.ops.getattrs.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the setattr operation counter.
     pub fn inc_setattr(&self) {
         self.ops.setattrs.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the readdir operation counter.
     pub fn inc_readdir(&self) {
         self.ops.readdirs.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the error counter.
     pub fn inc_error(&self) {
         self.ops.errors.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Captures a consistent snapshot of all counters.
     pub fn snapshot(&self) -> MetricsSnapshot {
         MetricsSnapshot {
             lookups: self.ops.lookups.load(Ordering::Relaxed),
@@ -179,39 +222,58 @@ impl Default for FuseMetrics {
     }
 }
 
+/// Point-in-time snapshot of FUSE operation and byte counters.
 #[derive(Debug, Clone, Default)]
 pub struct MetricsSnapshot {
+    /// Number of lookup operations.
     pub lookups: u64,
+    /// Number of read operations.
     pub reads: u64,
+    /// Number of write operations.
     pub writes: u64,
+    /// Number of create operations.
     pub creates: u64,
+    /// Number of unlink operations.
     pub unlinks: u64,
+    /// Number of mkdir operations.
     pub mkdirs: u64,
+    /// Number of rmdir operations.
     pub rmdirs: u64,
+    /// Number of rename operations.
     pub renames: u64,
+    /// Number of getattr operations.
     pub getattrs: u64,
+    /// Number of setattr operations.
     pub setattrs: u64,
+    /// Number of readdir operations.
     pub readdirs: u64,
+    /// Number of errors.
     pub errors: u64,
+    /// Total bytes read.
     pub bytes_read: u64,
+    /// Total bytes written.
     pub bytes_written: u64,
 }
 
+/// Timer for measuring operation duration.
 pub struct OpTimer {
     start: Instant,
 }
 
 impl OpTimer {
+    /// Creates a new timer starting at the current instant.
     pub fn new() -> Self {
         Self {
             start: Instant::now(),
         }
     }
 
+    /// Returns elapsed time in microseconds.
     pub fn elapsed_us(&self) -> u64 {
         self.start.elapsed().as_micros() as u64
     }
 
+    /// Returns elapsed time as a `Duration`.
     pub fn elapsed(&self) -> Duration {
         self.start.elapsed()
     }

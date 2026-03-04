@@ -371,25 +371,6 @@ impl GatewayConnPool {
             }
         }
 
-        // If no healthy pool found, try to create new connections
-        // Start from current index and try each node once
-        let start_idx = self.rr_index;
-        loop {
-            let idx = self.rr_index % self.node_order.len();
-            let node_id = self.node_order[idx].clone();
-            self.rr_index = (self.rr_index + 1) % self.node_order.len();
-
-            if let Some(pool) = self.pools.get_mut(&node_id) {
-                if let Some(conn_id) = pool.checkout() {
-                    return Some((node_id, conn_id));
-                }
-            }
-
-            if self.rr_index == start_idx {
-                break;
-            }
-        }
-
         None
     }
 
