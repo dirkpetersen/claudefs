@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 3: Production Integration Modules (2026-03-04)
+
+#### 3 New Modules — 67 New Tests, 734 Total
+
+**Status:** ✅ 734 tests passing, 0 failures, 0 clippy warnings (+67 from 667)
+
+**New modules:**
+- `gossip.rs` — 17 tests: SWIM-inspired gossip membership state machine (architecture D2).
+  Implements `GossipNode` with join/leave/suspect/confirm-dead, gossip event propagation,
+  time-based auto-transitions (Suspect→Dead after timeout, Dead cleanup), incarnation-based
+  merge semantics. Pure state machine — no networking, fully testable.
+- `stream.rs` — 23 tests: Chunked streaming for large payloads (64MB EC stripes, file data).
+  `StreamSender` / `StreamReceiver` pair with sequence validation, flow control window,
+  `StreamManager` for concurrent stream tracking (configurable max), stats snapshots.
+- `session.rs` — 32 tests: Connection-level session management with reconnect semantics.
+  Token-based auth with configurable TTL, automatic reconnect with backoff up to max attempts,
+  session expiry, `SessionManager` with bulk eviction for expired sessions.
+
+**Architecture alignment:**
+- `gossip.rs` implements D2 (SWIM protocol with bootstrap seed list)
+- `stream.rs` supports D1 (EC 4+2 stripe transfers, 2MB segments)
+- `session.rs` supports D7 (mTLS client enrollment, session lifecycle)
+
+---
+
 ### A3: Data Reduction — Phase 5: Erasure Codec, Compaction, Quota Tracker (2026-03-04)
 
 #### 3 New Modules — 52 New Tests, 327 Total
