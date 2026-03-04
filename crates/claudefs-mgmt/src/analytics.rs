@@ -71,31 +71,21 @@ impl AnalyticsEngine {
         Self { index_dir }
     }
 
-    fn find_parquet_files(&self) -> Vec<PathBuf> {
-        let mut files = Vec::new();
-        if let Ok(entries) = std::fs::read_dir(&self.index_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if let Some(name) = path.file_name() {
-                    let name_str = name.to_string_lossy();
-                    if name_str.starts_with("metadata") && name_str.ends_with(".parquet") {
-                        files.push(path);
-                    }
-                }
-            }
-        }
-        files
-    }
-
     pub async fn query(&self, sql: &str) -> anyhow::Result<Vec<HashMap<String, serde_json::Value>>> {
+        use std::path::Path;
+        
         let index_dir = self.index_dir.clone();
+        let sql = sql.to_string();
+        
         task::spawn_blocking(move || {
-            let parquet_files = {
+            fn find_parquet_files(dir: &Path) -> Vec<PathBuf> {
                 let mut files = Vec::new();
-                if let Ok(entries) = std::fs::read_dir(&index_dir) {
+                if let Ok(entries) = std::fs::read_dir(dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
-                        if let Some(name) = path.file_name() {
+                        if path.is_dir() {
+                            files.extend(find_parquet_files(&path));
+                        } else if let Some(name) = path.file_name() {
                             let name_str = name.to_string_lossy();
                             if name_str.starts_with("metadata") && name_str.ends_with(".parquet") {
                                 files.push(path);
@@ -104,7 +94,9 @@ impl AnalyticsEngine {
                     }
                 }
                 files
-            };
+            }
+            
+            let parquet_files = find_parquet_files(&index_dir);
 
             if parquet_files.is_empty() {
                 return Ok(Vec::new());
@@ -115,15 +107,18 @@ impl AnalyticsEngine {
             let paths: Vec<String> = parquet_files.iter()
                 .map(|p| p.to_string_lossy().to_string())
                 .collect();
-            let paths_str = paths.join(",");
+            let paths_str = paths.iter()
+                .map(|p| format!("'{}'", p.replace("'", "''")))
+                .collect::<Vec<_>>()
+                .join(",");
 
             let create_sql = format!(
-                "CREATE TABLE metadata AS SELECT * FROM read_parquet({})",
+                "CREATE TABLE metadata AS SELECT * FROM read_parquet([{}])",
                 paths_str
             );
-            conn.execute(&create_sql, [])?;
+            conn.execute_batch(&create_sql)?;
 
-            let mut stmt = conn.prepare(sql)?;
+            let mut stmt = conn.prepare(&sql)?;
             let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
 
             let rows = stmt.query_map([], |row| {

@@ -157,8 +157,10 @@ impl ObjectStorageState {
 
     /// Whether the object is currently accessible (restored and not expired)
     pub fn is_restored(&self) -> bool {
+        if !self.current_class.requires_restore() {
+            return true;
+        }
         if let Some(expiry) = self.restore_expiry {
-            // Check if restore has not expired
             std::time::SystemTime::now() < expiry && !self.is_restoring
         } else {
             false
