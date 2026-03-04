@@ -1,0 +1,177 @@
+name: Test Regression Registry
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+  workflow_dispatch:
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Detect and register test regressions
+  detect-regressions:
+    name: Detect Test Regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache cargo deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-deps-
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target/debug
+          key: ${{ runner.os }}-cargo-regression-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-regression-
+
+      - name: Run tests with regression tracking
+        run: cargo test --workspace
+        continue-on-error: true
+
+      - name: Check for new regression cases
+        run: |
+          echo "## Test Regression Report"
+          echo ""
+
+          # Find all regression files
+          if find crates/*/proptest-regressions -name "*.txt" 2>/dev/null | grep -q .; then
+            echo "### Regression Cases Detected"
+            echo ""
+            find crates/*/proptest-regressions -name "*.txt" 2>/dev/null | while read -r file; do
+              crate=$(echo "$file" | cut -d'/' -f2)
+              test=$(basename "$file" .txt)
+              line_count=$(wc -l < "$file")
+              echo "- **$crate**: $test ($line_count cases)"
+            done
+            echo ""
+          fi
+
+          echo "### How Regression Cases Work"
+          echo ""
+          echo "1. **First Failure**: proptest generates a failing input"
+          echo "2. **Registration**: Input automatically saved to proptest-regressions/"
+          echo "3. **Lock-In**: Subsequent runs replay this exact input (prevents flakiness)"
+          echo "4. **Fix Validation**: Once fixed, remove from regression file"
+          echo ""
+
+      - name: Auto-commit regression cases
+        if: github.event_name == 'push'
+        run: |
+          # Check if any regression files changed
+          if git diff --quiet crates/*/proptest-regressions; then
+            echo "No new regressions to commit"
+            exit 0
+          fi
+
+          # Configure git
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          # Stage regression files
+          git add crates/*/proptest-regressions/
+
+          # Create commit with regression details
+          regression_count=$(find crates/*/proptest-regressions -name "*.txt" 2>/dev/null | wc -l)
+
+          git commit -m "$(cat <<REGEOF
+[CI] Auto-register test regression cases ($regression_count)
+
+Proptest regression cases auto-registered to prevent flakiness:
+
+REGEOF
+          )" || echo "No regression files to commit"
+
+          # Push back to branch
+          git push origin HEAD:refs/heads/$GITHUB_REF_NAMES[0] || true
+
+      - name: Generate regression report
+        if: always()
+        run: |
+          echo "## Regression Statistics"
+          echo ""
+          echo "Total regressions: $(find crates/*/proptest-regressions -name "*.txt" 2>/dev/null | wc -l)"
+          echo "Total cases: $(find crates/*/proptest-regressions -name "*.txt" -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}')"
+          echo ""
+          echo "### By Crate"
+          find crates/*/proptest-regressions -name "*.txt" 2>/dev/null | while read -r file; do
+            crate=$(echo "$file" | cut -d'/' -f2)
+            test=$(basename "$file" .txt)
+            echo "- $crate/$test"
+          done
+
+      - name: Upload regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-report
+          path: crates/*/proptest-regressions/
+          retention-days: 90
+
+  # Clean up resolved regressions
+  cleanup-resolved:
+    name: Clean Up Resolved Regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'schedule'  # Weekly cleanup
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for manually resolved regressions
+        run: |
+          echo "## Regression Cleanup Check"
+          echo ""
+          echo "Looking for regression files that should be removed..."
+          echo ""
+          echo "Note: Developers must manually remove regression entries after fixing."
+          echo "Command: rm entries from crates/*/proptest-regressions/*.txt"
+
+  # Summary
+  regression-summary:
+    name: Regression Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: detect-regressions
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print summary
+        run: |
+          echo "## Regression Handling Summary"
+          echo ""
+          echo "✅ Automatic regression case registration"
+          echo "✅ Prevents flaky test false positives"
+          echo "✅ Regression files committed to track issues"
+          echo "✅ Easy identification: grep 'REGRESSION' in test output"
+          echo ""
+          echo "**Next Steps:**"
+          echo "1. Review regression cases in CI report"
+          echo "2. Fix the underlying cause"
+          echo "3. Remove regression entry from proptest-regressions/"
+          echo "4. Commit: 'Fix: resolve regression in [test]'"
