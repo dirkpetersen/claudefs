@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 17: Object Store Bridge, Chunk Pool, Recovery Scanner (2026-03-04)
+
+#### 3 New Modules — 68 New Tests, 1303 Total
+
+**Status:** ✅ 1303 tests passing, 0 failures, 0 clippy warnings (+68 from 1235)
+
+**New modules:**
+- `object_store_bridge.rs` — S3-compatible in-memory store for tiering tests (D5 cache mode)
+- `chunk_pool.rs` — Vec<u8> buffer pool for hot-path allocation reuse; tracks hit/miss stats
+- `recovery_scanner.rs` — Crash recovery via segment header parsing and metadata rebuild
+
+**Test expansions (+23):** cache_coherency (+8), stripe_coordinator (+8), read_planner (+7)
+
+## [Unreleased]
+
 ### A3: Data Reduction — Phase 16: Ingest Pipeline, Prefetch Manager, Dedup Index (2026-03-04)
 
 #### 3 New Modules — 66 New Tests, 1235 Total
