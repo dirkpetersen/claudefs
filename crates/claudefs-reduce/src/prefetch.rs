@@ -399,4 +399,103 @@ mod tests {
         tracker.record_access(1, 4096, 4096);
         assert_eq!(tracker.tracked_files(), 2); // Still 2 files
     }
+
+    #[test]
+    fn test_small_history_insufficient() {
+        let mut history = AccessHistory::new(8);
+        history.push(0);
+        history.push(4096);
+        assert_eq!(history.detect_pattern(4096), AccessPattern::Random);
+    }
+
+    #[test]
+    fn test_large_stride_value() {
+        let mut history = AccessHistory::new(8);
+        for offset in [0u64, 1048576, 2097152, 3145728] {
+            history.push(offset);
+        }
+        let pattern = history.detect_pattern(4096);
+        assert!(matches!(
+            pattern,
+            AccessPattern::Stride {
+                stride_bytes: 1048576
+            }
+        ));
+    }
+
+    #[test]
+    fn test_multiple_file_streams() {
+        let mut tracker = PrefetchTracker::new(PrefetchConfig::default());
+
+        for offset in [0u64, 4096, 8192] {
+            tracker.record_access(1, offset, 4096);
+        }
+        for offset in [0u64, 8192, 16384] {
+            tracker.record_access(2, offset, 8192);
+        }
+
+        assert_eq!(tracker.get_pattern(1), AccessPattern::Sequential);
+        assert!(matches!(
+            tracker.get_pattern(2),
+            AccessPattern::Stride { .. }
+        ));
+    }
+
+    #[test]
+    fn test_reset_via_forget() {
+        let mut tracker = PrefetchTracker::new(PrefetchConfig::default());
+
+        for offset in [0u64, 4096, 8192, 12288] {
+            tracker.record_access(1, offset, 4096);
+        }
+
+        tracker.forget(1);
+        tracker.record_access(1, 0, 4096);
+
+        assert_eq!(tracker.get_pattern(1), AccessPattern::Random);
+    }
+
+    #[test]
+    fn test_backward_sequential_is_random() {
+        let mut history = AccessHistory::new(8);
+        for offset in [16384u64, 12288, 8192, 4096] {
+            history.push(offset);
+        }
+        assert_eq!(history.detect_pattern(4096), AccessPattern::Random);
+    }
+
+    #[test]
+    fn test_prefetch_hint_length() {
+        let config = PrefetchConfig {
+            prefetch_depth: 3,
+            ..Default::default()
+        };
+        let mut tracker = PrefetchTracker::new(config);
+
+        for offset in [0u64, 4096, 8192, 12288] {
+            tracker.record_access(1, offset, 4096);
+        }
+        let hints = tracker.record_access(1, 16384, 4096);
+
+        assert_eq!(hints.len(), 3);
+        for hint in &hints {
+            assert_eq!(hint.length, 4096);
+        }
+    }
+
+    #[test]
+    fn test_confidence_threshold() {
+        let config = PrefetchConfig {
+            sequential_confidence: 0.5,
+            ..Default::default()
+        };
+        let mut tracker = PrefetchTracker::new(config);
+
+        tracker.record_access(1, 0, 4096);
+        tracker.record_access(1, 4096, 4096);
+        tracker.record_access(1, 100000, 4096);
+        tracker.record_access(1, 8192, 4096);
+
+        assert_eq!(tracker.get_pattern(1), AccessPattern::Random);
+    }
 }

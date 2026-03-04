@@ -387,4 +387,95 @@ mod tests {
         assert_eq!(total_bytes, data.len());
         assert_eq!(stats.bytes_consumed, data.len() as u64);
     }
+
+    #[test]
+    fn test_chunk_slice_different_sizes() {
+        let config = StreamChunkerConfig {
+            min_chunk_size: 4096,
+            avg_chunk_size: 8192,
+            max_chunk_size: 16384,
+            read_buffer_size: 16384,
+        };
+        let chunker = StreamChunker::new(config);
+
+        let small: Vec<u8> = (0u8..=255u8).cycle().take(100).collect();
+        let (results, _) = chunker.chunk_slice(&small);
+        assert_eq!(results.len(), 1);
+
+        let medium: Vec<u8> = (0u8..=255u8).cycle().take(32 * 1024).collect();
+        let (results, _) = chunker.chunk_slice(&medium);
+        assert!(results.len() >= 2);
+    }
+
+    #[test]
+    fn test_streaming_stats_accuracy() {
+        let chunker = StreamChunker::new(StreamChunkerConfig::default());
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(500 * 1024).collect();
+
+        let (results, stats) = chunker.chunk_slice(&data);
+
+        assert_eq!(stats.chunks_produced, results.len() as u64);
+        assert!(stats.min_chunk_size_seen <= stats.max_chunk_size_seen);
+    }
+
+    #[test]
+    fn test_chunk_very_large_data() {
+        let chunker = StreamChunker::new(StreamChunkerConfig::default());
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(16 * 1024 * 1024).collect();
+
+        let (results, stats) = chunker.chunk_slice(&data);
+
+        assert!(results.len() > 10);
+        assert_eq!(stats.bytes_consumed, data.len() as u64);
+
+        let total: usize = results.iter().map(|r| r.length).sum();
+        assert_eq!(total, data.len());
+    }
+
+    #[test]
+    fn test_chunk_empty_stream_handling() {
+        let chunker = StreamChunker::new(StreamChunkerConfig::default());
+        let (results, stats) = chunker.chunk_slice(&[]);
+
+        assert!(results.is_empty());
+        assert_eq!(stats.chunks_produced, 0);
+        assert_eq!(stats.bytes_consumed, 0);
+        assert_eq!(stats.min_chunk_size_seen, 0);
+        assert_eq!(stats.max_chunk_size_seen, 0);
+    }
+
+    #[test]
+    fn test_chunk_exactly_min_size() {
+        let config = StreamChunkerConfig {
+            min_chunk_size: 4096,
+            avg_chunk_size: 8192,
+            max_chunk_size: 16384,
+            read_buffer_size: 16384,
+        };
+        let chunker = StreamChunker::new(config);
+
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(4096).collect();
+        let (results, _) = chunker.chunk_slice(&data);
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].length, 4096);
+    }
+
+    #[test]
+    fn test_chunk_exactly_max_size() {
+        let config = StreamChunkerConfig {
+            min_chunk_size: 4096,
+            avg_chunk_size: 32768,
+            max_chunk_size: 65536,
+            read_buffer_size: 65536,
+        };
+        let chunker = StreamChunker::new(config);
+
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(65536).collect();
+        let (results, stats) = chunker.chunk_slice(&data);
+
+        assert!(stats.max_chunk_size_seen <= 65536);
+        let total: usize = results.iter().map(|r| r.length).sum();
+        assert_eq!(total, 65536);
+    }
 }

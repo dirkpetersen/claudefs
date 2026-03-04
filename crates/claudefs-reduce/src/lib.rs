@@ -46,6 +46,9 @@ pub mod tenant_isolator;
 pub mod tiering;
 pub mod write_amplification;
 pub mod write_path;
+pub mod write_buffer;
+pub mod dedup_pipeline;
+pub mod compaction_scheduler;
 /// WORM compliance and retention policy enforcement.
 pub mod worm_reducer;
 
@@ -114,4 +117,14 @@ pub use stripe_coordinator::{
 };
 pub use read_planner::{
     CachedChunkInfo, ChunkFetchPlan, ReadPlan, ReadPlanner, ReadRequest,
+};
+pub use write_buffer::{
+    FlushReason, FlushResult, PendingWrite, WriteBuffer, WriteBufferConfig,
+};
+pub use dedup_pipeline::{
+    DedupPipeline, DedupPipelineConfig, DedupResult, DedupStats,
+};
+pub use compaction_scheduler::{
+    CompactionJob, CompactionPriority, CompactionScheduler, CompactionSchedulerConfig,
+    SchedulerStats,
 };
