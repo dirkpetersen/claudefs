@@ -6,6 +6,7 @@
 //! Read path:  Store → Decrypt → Decompress → Data
 
 pub mod async_meta_bridge;
+pub mod audit_log;
 pub mod background;
 pub mod checksum;
 pub mod compression;
@@ -23,6 +24,7 @@ pub mod recompressor;
 pub mod segment;
 pub mod similarity;
 pub mod snapshot;
+pub mod tiering;
 pub mod write_path;
 /// WORM compliance and retention policy enforcement.
 pub mod worm_reducer;
@@ -31,6 +33,7 @@ pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
     AsyncNullFingerprintStore,
 };
+pub use audit_log::{AuditEvent, AuditEventKind, AuditLog, AuditLogConfig};
 pub use checksum::{ChecksumAlgorithm, ChecksummedBlock, DataChecksum};
 pub use compression::CompressionAlgorithm;
 pub use dedupe::{CasIndex, Chunk, Chunker, ChunkerConfig};
@@ -47,4 +50,5 @@ pub use similarity::{DeltaCompressor, SimilarityIndex};
 pub use meta_bridge::{BlockLocation, FingerprintStore, LocalFingerprintStore, NullFingerprintStore};
 pub use recompressor::{RecompressedChunk, RecompressionStats, RecompressorConfig, Recompressor};
 pub use snapshot::{Snapshot, SnapshotConfig, SnapshotInfo, SnapshotManager};
+pub use tiering::{AccessRecord, TierClass, TierConfig, TierTracker};
 pub use write_path::{IntegratedWritePath, WritePathConfig, WritePathResult, WritePathStats};

@@ -3,10 +3,11 @@
 //! Provides retention policies for immutable data, legal holds, and
 //! time-based expiration enforcement.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// WORM mode defining the retention type for a data chunk.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum WormMode {
     /// No retention enforcement - data can be garbage collected.
     None,

@@ -97,7 +97,10 @@ impl KeyRotationScheduler {
 
     /// Schedules a key rotation to the target KEK version.
     pub fn schedule_rotation(&mut self, target_version: KeyVersion) -> Result<(), ReduceError> {
-        if !matches!(self.status, RotationStatus::Idle) {
+        if !matches!(
+            self.status,
+            RotationStatus::Idle | RotationStatus::Complete { .. }
+        ) {
             return Err(ReduceError::EncryptionFailed(
                 "rotation already scheduled".to_string(),
             ));
@@ -539,7 +542,7 @@ mod tests {
     }
 
     #[test]
-    fn test_schedule_rotation_from_complete_fails() {
+    fn test_schedule_rotation_from_complete_succeeds() {
         let mut scheduler = KeyRotationScheduler::new();
         let mut km = test_key_manager();
 
@@ -552,10 +555,12 @@ mod tests {
         scheduler.rewrap_next(&mut km).unwrap();
 
         let result = scheduler.schedule_rotation(KeyVersion(2));
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Encryption failed: rotation already scheduled"
-        );
+        assert!(result.is_ok());
+        assert!(matches!(
+            scheduler.status(),
+            RotationStatus::Scheduled {
+                target_version: KeyVersion(2)
+            }
+        ));
     }
 }
