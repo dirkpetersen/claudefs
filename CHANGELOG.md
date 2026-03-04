@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 12: FUSE Cache/Recovery & Replication Infrastructure (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1221 Total
+
+**Status:** ✅ 1221 security tests passing, 0 failures (+50 from 1171)
+
+**New Coverage — FUSE Cache & Recovery (25 tests):**
+- Cache Coherence (5 tests): lease grant/revoke, invalidation generation, version vector conflicts, remote write, is_coherent
+- Crash Recovery (5 tests): initial state, scan/record, replay progress, fail/reset, stale pending writes
+- Write Buffer (5 tests): buffer/take roundtrip, coalesce adjacent, discard, total buffered, dirty inodes
+- Data Cache (5 tests): insert/get, eviction on max files, invalidate, generation invalidation, max bytes
+- Session/Config (5 tests): session defaults, session stats, recovery config, writebuf config, datacache config
+
+**New Coverage — Replication Infrastructure (25 tests):**
+- Audit Trail (6 tests): record/count, query by kind, time range filter, site events, latest N, clear before
+- UID/GID Translation (6 tests): passthrough, explicit mapping, GID mapping, add/remove, root UID zero (FINDING), listing
+- Backpressure (7 tests): level ordering, delays, queue depth, error escalation, force halt, per-site, halted sites
+- Lag Monitoring (6 tests): OK/warning/critical/exceeded status, stats accumulation, clear samples
+
+**Key Findings (3 HIGH, 2 MEDIUM):**
+- CACHE-03 (HIGH): Version vector conflict detection correctly identifies divergent versions
+- UIDMAP-05 (HIGH): Root UID 0 can be remapped across sites — prevents privilege escalation
+- BP-05 (HIGH): Force halt immediately stops replication — emergency throttle works
+- LAG-04 (HIGH): Lag exceeding SLA max triggers Exceeded status for alerting
+
 ### A10: Security Audit — Phase 11: Storage Erasure & Gateway Infrastructure (2026-03-04)
 
 #### 2 New Test Modules — 49 New Tests, 1171 Total
