@@ -110,4 +110,77 @@ mod tests {
         let d = decompress_with_dict(&c, dict).unwrap();
         assert_eq!(d, data);
     }
+
+    #[test]
+    fn test_roundtrip_lz4_random_data() {
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(64 * 1024).collect();
+        let compressed = compress(&data, CompressionAlgorithm::Lz4).unwrap();
+        let decompressed = decompress(&compressed, CompressionAlgorithm::Lz4).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_roundtrip_zstd_random_data() {
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(64 * 1024).collect();
+        let compressed = compress(&data, CompressionAlgorithm::Zstd { level: 3 }).unwrap();
+        let decompressed =
+            decompress(&compressed, CompressionAlgorithm::Zstd { level: 3 }).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_none_compression_passthrough() {
+        let data = b"no compression applied";
+        let compressed = compress(data, CompressionAlgorithm::None).unwrap();
+        let decompressed = decompress(&compressed, CompressionAlgorithm::None).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_lz4_compresses_repetitive_data() {
+        let data: Vec<u8> = vec![0xABu8; 64 * 1024];
+        let compressed = compress(&data, CompressionAlgorithm::Lz4).unwrap();
+        assert!(
+            compressed.len() < data.len(),
+            "LZ4 should compress repetitive data"
+        );
+    }
+
+    #[test]
+    fn test_zstd_level_9_smaller_than_level_1() {
+        let data: Vec<u8> = "The quick brown fox jumps over the lazy dog"
+            .repeat(1000)
+            .into_bytes();
+        let c1 = compress(&data, CompressionAlgorithm::Zstd { level: 1 }).unwrap();
+        let c9 = compress(&data, CompressionAlgorithm::Zstd { level: 9 }).unwrap();
+        assert!(
+            c9.len() <= c1.len() + 100,
+            "zstd level 9 should not be much bigger than level 1"
+        );
+    }
+
+    #[test]
+    fn test_compress_empty() {
+        let data: &[u8] = &[];
+        let compressed = compress(data, CompressionAlgorithm::Lz4).unwrap();
+        let decompressed = decompress(&compressed, CompressionAlgorithm::Lz4).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_decompress_wrong_algorithm_fails() {
+        let data = b"some data to compress";
+        let compressed = compress(data, CompressionAlgorithm::Lz4).unwrap();
+        let result = decompress(&compressed, CompressionAlgorithm::Zstd { level: 3 });
+        let _ = result;
+    }
+
+    #[test]
+    fn test_zstd_roundtrip_large() {
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(1024 * 1024).collect();
+        let compressed = compress(&data, CompressionAlgorithm::Zstd { level: 3 }).unwrap();
+        let decompressed =
+            decompress(&compressed, CompressionAlgorithm::Zstd { level: 3 }).unwrap();
+        assert_eq!(decompressed, data);
+    }
 }

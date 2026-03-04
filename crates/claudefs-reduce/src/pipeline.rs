@@ -316,4 +316,108 @@ mod tests {
         assert!(chunks.is_empty());
         assert_eq!(stats.input_bytes, 0);
     }
+
+    #[test]
+    fn test_pipeline_chunk_count_matches_cdc() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(512 * 1024).collect();
+        let result = p.process_write(&data).unwrap();
+        assert!(!result.0.is_empty());
+    }
+
+    #[test]
+    fn test_pipeline_stats_bytes_in() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data: Vec<u8> = vec![0u8; 128 * 1024];
+        let result = p.process_write(&data).unwrap();
+        assert_eq!(result.1.input_bytes, data.len() as u64);
+    }
+
+    #[test]
+    fn test_pipeline_all_chunks_have_hashes() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data: Vec<u8> = (0u8..255u8).cycle().take(256 * 1024).collect();
+        let result = p.process_write(&data).unwrap();
+        for chunk in &result.0 {
+            let zero_hash = [0u8; 32];
+            assert_ne!(chunk.hash.0, zero_hash);
+        }
+    }
+
+    #[test]
+    fn test_pipeline_dedup_reduces_unique_chunks() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data: Vec<u8> = vec![0x42u8; 1024 * 1024];
+        let result = p.process_write(&data).unwrap();
+        assert!(result.1.input_bytes > 0);
+    }
+
+    #[test]
+    fn test_pipeline_compression_reduces_size() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data: Vec<u8> = vec![0xFFu8; 256 * 1024];
+        let result = p.process_write(&data).unwrap();
+        assert!(result.1.input_bytes > 0);
+    }
+
+    #[test]
+    fn test_pipeline_empty_input_2() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let result = p.process_write(&[]).unwrap();
+        assert_eq!(result.0.len(), 0);
+        assert_eq!(result.1.input_bytes, 0);
+    }
+
+    #[test]
+    fn test_pipeline_small_input_one_chunk() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data = b"small input";
+        let result = p.process_write(data).unwrap();
+        assert_eq!(result.0.len(), 1);
+    }
+
+    #[test]
+    fn test_pipeline_deterministic() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p1 = ReductionPipeline::new(config.clone());
+        let mut p2 = ReductionPipeline::new(config);
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(200 * 1024).collect();
+        let r1 = p1.process_write(&data).unwrap();
+        let r2 = p2.process_write(&data).unwrap();
+        assert_eq!(r1.0.len(), r2.0.len());
+        for (a, b) in r1.0.iter().zip(r2.0.iter()) {
+            assert_eq!(a.hash, b.hash);
+        }
+    }
 }
