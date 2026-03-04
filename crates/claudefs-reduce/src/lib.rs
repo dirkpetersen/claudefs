@@ -17,6 +17,7 @@ pub mod erasure_codec;
 pub mod quota_tracker;
 pub mod compression;
 pub mod data_classifier;
+pub mod dedup_bloom;
 pub mod dedupe;
 pub mod encryption;
 pub mod error;
@@ -24,6 +25,7 @@ pub mod eviction_scorer;
 pub mod fingerprint;
 pub mod gc;
 pub mod journal_segment;
+pub mod journal_replay;
 pub mod key_manager;
 pub mod key_rotation_scheduler;
 pub mod meta_bridge;
@@ -43,6 +45,7 @@ pub mod snapshot;
 pub mod stripe_coordinator;
 pub mod stream_chunker;
 pub mod tenant_isolator;
+pub mod namespace_tree;
 pub mod tiering;
 pub mod write_amplification;
 pub mod write_path;
@@ -202,3 +205,8 @@ pub use recovery_scanner::{
     RecoveryEntry, RecoveryError, RecoveryReport, RecoveryScanner, RecoveryScannerConfig,
     SegmentHeader,
 };
+pub use dedup_bloom::{BloomConfig, BloomStats, DedupBloom};
+pub use journal_replay::{
+    InodeReplayState, JournalReplayer, ReplayAction, ReplayConfig, ReplayState, ReplayStats,
+};
+pub use namespace_tree::{DirEntry, DirId, NamespaceTree};
