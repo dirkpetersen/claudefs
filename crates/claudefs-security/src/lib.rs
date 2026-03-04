@@ -222,3 +222,9 @@ pub mod reduce_bg_metrics_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod repl_engine_fanout_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_tier_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod repl_pipeline_security_tests;
