@@ -466,4 +466,173 @@ mod tests {
         let ns = tracker.namespaces();
         assert_eq!(ns, vec![1, 2, 3]);
     }
+
+    #[test]
+    fn test_quota_tracker_multiple_namespaces_isolated() {
+        let mut tracker = QuotaTracker::new();
+
+        tracker.set_quota(
+            1,
+            QuotaConfig {
+                max_logical_bytes: 100,
+                max_physical_bytes: 50,
+            },
+        );
+        tracker.set_quota(
+            2,
+            QuotaConfig {
+                max_logical_bytes: 200,
+                max_physical_bytes: 100,
+            },
+        );
+
+        tracker.record_write(1, 50, 25);
+        tracker.record_write(2, 100, 50);
+
+        let usage1 = tracker.usage(1);
+        let usage2 = tracker.usage(2);
+
+        assert_eq!(usage1.logical_bytes, 50);
+        assert_eq!(usage2.logical_bytes, 100);
+
+        // Namespace 1 should exceed with another 60 bytes, namespace 2 should not
+        assert!(tracker.check_write(1, 60, 30).is_err());
+        assert!(tracker.check_write(2, 60, 30).is_ok());
+    }
+
+    #[test]
+    fn test_quota_tracker_near_limit() {
+        let mut tracker = QuotaTracker::new();
+        tracker.set_quota(
+            1,
+            QuotaConfig {
+                max_logical_bytes: 100,
+                max_physical_bytes: 0,
+            },
+        );
+
+        tracker.record_write(1, 90, 45);
+
+        // 90 + 9 = 99 should be OK
+        assert!(tracker.check_write(1, 9, 5).is_ok());
+
+        // 90 + 11 = 101 should fail
+        assert!(tracker.check_write(1, 11, 5).is_err());
+    }
+
+    #[test]
+    fn test_quota_usage_percentage() {
+        let usage = QuotaUsage {
+            logical_bytes: 500,
+            physical_bytes: 125,
+            chunk_count: 10,
+            dedup_hits: 2,
+        };
+
+        // Reduction ratio = 500 / 125 = 4.0
+        let ratio = usage.reduction_ratio();
+        assert!((ratio - 4.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_quota_violation_details() {
+        let mut tracker = QuotaTracker::new();
+        tracker.set_quota(
+            42,
+            QuotaConfig {
+                max_logical_bytes: 100,
+                max_physical_bytes: 50,
+            },
+        );
+        tracker.record_write(42, 80, 40);
+
+        let result = tracker.check_write(42, 50, 25);
+        match result {
+            Err(QuotaViolation::LogicalQuotaExceeded {
+                namespace,
+                current,
+                limit,
+            }) => {
+                assert_eq!(namespace, 42);
+                assert_eq!(current, 130);
+                assert_eq!(limit, 100);
+            }
+            _ => panic!("expected LogicalQuotaExceeded"),
+        }
+    }
+
+    #[test]
+    fn test_namespace_id_equality() {
+        let ns1: NamespaceId = 1;
+        let ns2: NamespaceId = 1;
+        let ns3: NamespaceId = 2;
+
+        assert_eq!(ns1, ns2);
+        assert_ne!(ns1, ns3);
+    }
+
+    #[test]
+    fn test_quota_config_default_values() {
+        let config = QuotaConfig::default();
+        assert_eq!(config.max_logical_bytes, 0);
+        assert_eq!(config.max_physical_bytes, 0);
+    }
+
+    #[test]
+    fn test_quota_tracker_reset_usage() {
+        let mut tracker = QuotaTracker::new();
+        tracker.set_quota(
+            1,
+            QuotaConfig {
+                max_logical_bytes: 1000,
+                max_physical_bytes: 500,
+            },
+        );
+        tracker.record_write(1, 200, 100);
+        tracker.record_dedup_hit(1, 50);
+
+        assert_eq!(tracker.usage(1).logical_bytes, 250);
+        assert_eq!(tracker.usage(1).physical_bytes, 100);
+
+        tracker.reset_usage(1);
+
+        let usage = tracker.usage(1);
+        assert_eq!(usage.logical_bytes, 0);
+        assert_eq!(usage.physical_bytes, 0);
+        assert_eq!(usage.chunk_count, 0);
+        assert_eq!(usage.dedup_hits, 0);
+
+        // Quota config should still exist
+        assert!(tracker.get_quota(1).is_some());
+    }
+
+    #[test]
+    fn test_quota_usage_clone() {
+        let usage = QuotaUsage {
+            logical_bytes: 100,
+            physical_bytes: 50,
+            chunk_count: 5,
+            dedup_hits: 2,
+        };
+        let cloned = usage.clone();
+        assert_eq!(cloned.logical_bytes, 100);
+        assert_eq!(cloned.physical_bytes, 50);
+    }
+
+    #[test]
+    fn test_quota_config_clone() {
+        let config = QuotaConfig {
+            max_logical_bytes: 1000,
+            max_physical_bytes: 500,
+        };
+        let cloned = config.clone();
+        assert_eq!(cloned.max_logical_bytes, 1000);
+        assert_eq!(cloned.max_physical_bytes, 500);
+    }
+
+    #[test]
+    fn test_quota_tracker_default() {
+        let tracker = QuotaTracker::default();
+        assert!(tracker.namespaces().is_empty());
+    }
 }
