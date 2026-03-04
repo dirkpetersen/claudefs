@@ -100,6 +100,22 @@ This blocks ALL Rust code authoring (including adding doc comments). Filed as Gi
 
 ---
 
+### A10: Security Audit — Phase 23: Gateway pNFS-Flex/S3-Router & Meta WORM Compliance (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1771 Total
+
+**Status:** ✅ 1771 security tests passing, 0 failures (+50 from 1721)
+
+**New test modules:**
+- `gateway_pnfs_s3router_security_tests.rs` — 25 tests: pNFS Flexible File layout (stripe validation, segment range queries, mirror groups, layout server validation), S3 HTTP routing (path parsing, method dispatch, copy-source validation, response codes)
+- `meta_worm_security_tests.rs` — 25 tests: WORM retention policies, lock/unlock lifecycle, legal hold operations, audit trail completeness
+
+**Key findings (21 total, 8 HIGH, 9 MEDIUM, 4 LOW):**
+- FINDING-META-WORM-05 (HIGH): Unlock during active retention rejected — compliance violation prevented
+- FINDING-META-WORM-06 (HIGH): Legal hold prevents unlock — regulatory compliance enforced
+- FINDING-GW-PNFS-04 (HIGH): Layout server rejects invalid stripe units — client data corruption prevented
+- FINDING-GW-S3R-04 (HIGH): Malformed copy source rejected — path traversal prevented
+
 ### A10: Security Audit — Phase 22: Gateway Copy-Offload/Referral & Meta Transaction/Lease (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1721 Total
