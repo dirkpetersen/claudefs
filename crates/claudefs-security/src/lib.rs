@@ -48,3 +48,5 @@ pub mod supply_chain;
 pub mod operational_security;
 #[cfg(test)]
 pub mod advanced_fuzzing;
+#[cfg(test)]
+pub mod phase2_audit;
