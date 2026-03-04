@@ -181,7 +181,7 @@ mod tests {
         let mut pool = ChunkPool::new(PoolConfig::default());
         let buf1 = pool.acquire(1024);
         pool.release_with_buffer(buf1);
-        let buf2 = pool.acquire(1024);
+        let _buf2 = pool.acquire(1024);
         assert_eq!(pool.stats().pool_hits, 1);
     }
 

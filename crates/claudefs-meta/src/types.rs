@@ -255,6 +255,14 @@ pub enum MetaError {
     /// A lower-level I/O error occurred.
     #[error(transparent)]
     IoError(#[from] std::io::Error),
+
+    /// The requested resource was not found.
+    #[error("not found: {0}")]
+    NotFound(String),
+
+    /// The requested resource already exists.
+    #[error("already exists: {0}")]
+    AlreadyExists(String),
 }
 
 /// File type enumeration matching POSIX file types
