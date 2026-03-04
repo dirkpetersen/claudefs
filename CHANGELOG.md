@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 14: Chunk Rebalancer, Write Coalescer, EC Repair (2026-03-04)
+
+#### 3 New Modules — 70 New Tests, 1091 Total
+
+**Status:** ✅ 1091 tests passing, 0 failures, 0 clippy warnings (+70 from 1021)
+
+**New modules:**
+- `chunk_rebalancer.rs` — Rebalance chunks on node join/leave using load fractions
+- `write_coalescer.rs` — Coalesce adjacent small writes before the reduction pipeline
+- `ec_repair.rs` — EC shard repair planning for degraded segments (D1 4+2 tolerance)
+
+**Test expansions (+23):** write_amplification (+8), pipeline_monitor (+8), chunk_verifier (+7)
+
+## [Unreleased]
+
 ### A3: Data Reduction — Phase 13: Key Store, Bandwidth Throttle, Dedup Analytics (2026-03-04)
 
 #### 3 New Modules — 105 New Tests, 1021 Total
