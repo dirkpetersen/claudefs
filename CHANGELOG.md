@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 3: Production Readiness (2026-03-04)
+
+#### 2 New Modules — 52 New Tests, 245 Total
+
+**Status:** ✅ 245 tests passing, 0 failures, 0 clippy warnings (+52 from 193)
+
+**New modules:**
+- `tiering.rs` — 25 tests: Hot/Warm/Cold chunk classification based on access frequency.
+  `TierTracker` tracks per-chunk access counts and timestamps, classifies via configurable
+  thresholds (`hot_threshold=10`, `warm_threshold=3`, `cold_age=86400s`). Supports
+  `reset_counts()` for periodic decay and `evict_stale()` for memory reclaim.
+- `audit_log.rs` — 22 tests: WORM compliance audit trail using a ring-buffer `AuditLog`.
+  Records `PolicySet`, `HoldPlaced`, `HoldReleased`, `ExpiryChecked`, `GcSuppressed`,
+  and `PolicyRemoved` events with monotonic sequence numbers. Configurable max capacity
+  with automatic eviction of oldest events. Supports `events_since(seq)` for incremental
+  log tailing.
+
+**Bug fix:**
+- `key_rotation_scheduler.rs`: Fixed `schedule_rotation` to allow re-scheduling after
+  `Complete` state (enables sequential key rotations). Previously returned an error when
+  called after a completed rotation.
+
+**Also:**
+- Added `Serialize, Deserialize` derives to `WormMode` in `worm_reducer.rs` (required
+  for `AuditEventKind::PolicySet { mode: WormMode }` serialization)
+- Existing test `test_schedule_rotation_from_complete_fails` renamed to
+  `test_schedule_rotation_from_complete_succeeds` to reflect fixed behavior
+
+**Phase 3 Production Features:**
+- Intelligent tiering data layer: access-pattern tracking for hot/cold classification
+- WORM compliance audit trail: tamper-evident log of all retention policy events
+- Sequential key rotation: multiple rotation cycles without restart
+
+---
+
 ### A4: Transport — Session Assessment & Blocker (2026-03-04)
 
 #### BLOCKER: Fireworks API key invalid — OpenCode blocked
