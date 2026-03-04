@@ -114,4 +114,88 @@ mod tests {
             prop_assert_eq!(blake3_hash(&data), blake3_hash(&data));
         }
     }
+
+    #[test]
+    fn test_chunk_hash_to_hex() {
+        let hash = blake3_hash(b"test");
+        let hex = hash.to_hex();
+
+        assert_eq!(hex.len(), 64);
+        assert!(hex.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_chunk_hash_display() {
+        let hash = blake3_hash(b"test");
+        let display = format!("{}", hash);
+        let hex = hash.to_hex();
+
+        assert_eq!(display, hex);
+    }
+
+    #[test]
+    fn test_chunk_hash_as_bytes() {
+        let hash = blake3_hash(b"test");
+        let bytes = hash.as_bytes();
+
+        assert_eq!(bytes.len(), 32);
+        assert_eq!(&hash.0, bytes);
+    }
+
+    #[test]
+    fn test_super_features_is_similar_true() {
+        let features1 = SuperFeatures([1, 2, 3, 4]);
+        let features2 = SuperFeatures([1, 2, 3, 4]);
+
+        assert!(features1.is_similar(&features2));
+    }
+
+    #[test]
+    fn test_super_features_is_similar_false() {
+        let features1 = SuperFeatures([1, 2, 3, 4]);
+        let features2 = SuperFeatures([5, 6, 7, 8]);
+
+        assert!(!features1.is_similar(&features2));
+    }
+
+    #[test]
+    fn test_super_features_similarity_0() {
+        let features1 = SuperFeatures([1, 2, 3, 4]);
+        let features2 = SuperFeatures([5, 6, 7, 8]);
+
+        assert_eq!(features1.similarity(&features2), 0);
+    }
+
+    #[test]
+    fn test_super_features_similarity_4() {
+        let features1 = SuperFeatures([1, 2, 3, 4]);
+        let features2 = SuperFeatures([1, 2, 3, 4]);
+
+        assert_eq!(features1.similarity(&features2), 4);
+    }
+
+    #[test]
+    fn test_super_features_exactly_4_bytes() {
+        let data = [1u8, 2, 3, 4];
+        let features = super_features(&data);
+
+        // 4 bytes should be split into 4 regions of 1 byte each
+        assert_ne!(features.0, [0u64; 4]);
+    }
+
+    #[test]
+    fn test_super_features_large_data() {
+        let data: Vec<u8> = (0..1_048_576).map(|i| (i % 256) as u8).collect();
+        let features1 = super_features(&data);
+        let features2 = super_features(&data);
+
+        assert_eq!(features1, features2);
+    }
+
+    #[test]
+    fn test_blake3_hash_empty() {
+        let hash = blake3_hash(b"");
+
+        assert_ne!(hash.0, [0u8; 32]);
+    }
 }

@@ -304,4 +304,103 @@ mod tests {
         let decompressed = DeltaCompressor::decompress_delta(&compressed, &reference).unwrap();
         assert_eq!(decompressed, data);
     }
+
+    #[test]
+    fn test_insert_multiple_chunks() {
+        let index = SimilarityIndex::new();
+
+        for i in 0..5 {
+            let data = format!("chunk data number {}", i);
+            let hash = ChunkHash(*blake3::hash(data.as_bytes()).as_bytes());
+            let features = super_features(data.as_bytes());
+            index.insert(hash, features);
+        }
+
+        assert_eq!(index.entry_count(), 5);
+    }
+
+    #[test]
+    fn test_find_similar_empty_index() {
+        let index = SimilarityIndex::new();
+        let features = super_features(b"some data");
+
+        let result = index.find_similar(&features);
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_delta_compress_empty_data() {
+        let reference = b"reference data";
+        let result = DeltaCompressor::compress_delta(b"", reference, 3);
+
+        assert!(result.is_ok());
+        let compressed = result.unwrap();
+        let decompressed = DeltaCompressor::decompress_delta(&compressed, reference).unwrap();
+        assert!(decompressed.is_empty());
+    }
+
+    #[test]
+    fn test_delta_compress_empty_reference() {
+        let data = b"some data";
+        let result = DeltaCompressor::compress_delta(data, b"", 3);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delta_compress_identical() {
+        let data = b"identical data for compression test";
+        let compressed = DeltaCompressor::compress_delta(data, data, 3).unwrap();
+        let decompressed = DeltaCompressor::decompress_delta(&compressed, data).unwrap();
+
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_delta_compress_large_data() {
+        let data: Vec<u8> = (0..65536).map(|i| (i % 256) as u8).collect();
+        let reference: Vec<u8> = (0..65536).map(|i| ((i + 1) % 256) as u8).collect();
+
+        let compressed = DeltaCompressor::compress_delta(&data, &reference, 3).unwrap();
+        let decompressed = DeltaCompressor::decompress_delta(&compressed, &reference).unwrap();
+
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_similarity_index_thread_safety() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let index = Arc::new(SimilarityIndex::new());
+
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let idx = Arc::clone(&index);
+                thread::spawn(move || {
+                    let data = format!("thread data {}", i);
+                    let hash = ChunkHash(*blake3::hash(data.as_bytes()).as_bytes());
+                    let features = super_features(data.as_bytes());
+                    idx.insert(hash, features);
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        assert_eq!(index.entry_count(), 4);
+    }
+
+    #[test]
+    fn test_remove_nonexistent() {
+        let index = SimilarityIndex::new();
+        let nonexistent = ChunkHash([99u8; 32]);
+
+        index.remove(&nonexistent);
+
+        assert_eq!(index.entry_count(), 0);
+    }
 }

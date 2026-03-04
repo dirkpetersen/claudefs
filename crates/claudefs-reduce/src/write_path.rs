@@ -299,4 +299,112 @@ mod tests {
         assert!(!result.reduced_chunks.is_empty());
         assert!(result.stats.pipeline.input_bytes == 1_000_000);
     }
+
+    #[test]
+    fn test_write_path_stats_default() {
+        let stats = WritePathStats::default();
+
+        assert_eq!(stats.pipeline.input_bytes, 0);
+        assert_eq!(stats.segments_produced, 0);
+        assert_eq!(stats.distributed_dedup_hits, 0);
+    }
+
+    #[test]
+    fn test_total_input_bytes() {
+        let config = WritePathConfig::default();
+        let store = Arc::new(NullFingerprintStore::new());
+        let mut write_path = IntegratedWritePath::new(config, store);
+
+        let data = test_data(50_000);
+        let result = write_path.process_write(&data).unwrap();
+
+        assert_eq!(
+            result.stats.total_input_bytes(),
+            result.stats.pipeline.input_bytes
+        );
+    }
+
+    #[test]
+    fn test_overall_reduction_ratio_no_data() {
+        let stats = WritePathStats::default();
+
+        assert_eq!(stats.overall_reduction_ratio(), 1.0);
+    }
+
+    #[test]
+    fn test_write_path_empty_data() {
+        let config = WritePathConfig::default();
+        let store = Arc::new(NullFingerprintStore::new());
+        let mut write_path = IntegratedWritePath::new(config, store);
+
+        let result = write_path.process_write(&[]).unwrap();
+
+        assert_eq!(result.stats.pipeline.input_bytes, 0);
+    }
+
+    #[test]
+    fn test_write_path_small_data() {
+        let config = WritePathConfig::default();
+        let store = Arc::new(NullFingerprintStore::new());
+        let mut write_path = IntegratedWritePath::new(config, store);
+
+        let data: Vec<u8> = (0..1024).map(|i| (i % 256) as u8).collect();
+        let result = write_path.process_write(&data).unwrap();
+
+        assert!(!result.reduced_chunks.is_empty());
+        assert_eq!(result.stats.pipeline.input_bytes, 1024);
+    }
+
+    #[test]
+    fn test_write_path_large_data() {
+        let config = WritePathConfig::default();
+        let store = Arc::new(NullFingerprintStore::new());
+        let mut write_path = IntegratedWritePath::new(config, store);
+
+        let data: Vec<u8> = (0..1_048_576).map(|i| (i % 256) as u8).collect();
+        let result = write_path.process_write(&data).unwrap();
+
+        assert!(!result.reduced_chunks.is_empty());
+        assert_eq!(result.stats.pipeline.input_bytes, 1_048_576);
+    }
+
+    #[test]
+    fn test_write_path_with_dedup() {
+        let config = WritePathConfig::default();
+        let store = Arc::new(LocalFingerprintStore::new());
+
+        let mut write_path1 = IntegratedWritePath::new(config.clone(), store.clone());
+        let data = test_data(100_000);
+
+        let _result1 = write_path1.process_write(&data).unwrap();
+
+        let mut write_path2 = IntegratedWritePath::new(config, store);
+        let result2 = write_path2.process_write(&data).unwrap();
+
+        assert!(result2.stats.distributed_dedup_hits > 0);
+    }
+
+    #[test]
+    fn test_write_path_stats_segments_produced() {
+        let config = WritePathConfig {
+            segment: SegmentPackerConfig { target_size: 100 },
+            ..Default::default()
+        };
+        let store = Arc::new(NullFingerprintStore::new());
+        let mut write_path = IntegratedWritePath::new(config, store);
+
+        // Write some data
+        let data: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
+        let result = write_path.process_write(&data).unwrap();
+
+        // Flush should return any pending segments
+        let flushed = write_path.flush_segments();
+
+        // Either segments were produced during processing or from flush
+        let total = result.stats.segments_produced + result.sealed_segments.len() + flushed.len();
+        assert!(
+            total > 0,
+            "expected at least one segment to be produced or flushed"
+        );
+    }
 }

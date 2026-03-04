@@ -286,4 +286,91 @@ mod tests {
         assert!(stats.bytes_before > 0);
         assert!(stats.compression_ratio() >= 1.0);
     }
+
+    #[test]
+    fn test_recompressor_default_config() {
+        let config = RecompressorConfig::default();
+
+        assert_eq!(config.zstd_level, 3);
+        assert_eq!(config.min_improvement_pct, 5);
+    }
+
+    #[test]
+    fn test_stats_compression_ratio_no_data() {
+        let stats = RecompressionStats::default();
+
+        assert_eq!(stats.compression_ratio(), 1.0);
+    }
+
+    #[test]
+    fn test_stats_bytes_saved_positive() {
+        let stats = RecompressionStats {
+            bytes_before: 1000,
+            bytes_after: 500,
+            ..Default::default()
+        };
+
+        assert_eq!(stats.bytes_saved(), 500);
+    }
+
+    #[test]
+    fn test_stats_bytes_saved_negative() {
+        let stats = RecompressionStats {
+            bytes_before: 500,
+            bytes_after: 1000,
+            ..Default::default()
+        };
+
+        assert_eq!(stats.bytes_saved(), -500);
+    }
+
+    #[test]
+    fn test_recompress_incompressible() {
+        let recompressor = Recompressor::new(RecompressorConfig::default());
+        let hash = ChunkHash([0u8; 32]);
+
+        let data: Vec<u8> = (0..1000).map(|_| rand::random::<u8>()).collect();
+        let lz4_data = compress(&data, CompressionAlgorithm::Lz4).unwrap();
+
+        let result = recompressor.recompress_chunk(hash, &lz4_data).unwrap();
+
+        assert!(result.is_none() || result.unwrap().new_zstd_size >= lz4_data.len() * 95 / 100);
+    }
+
+    #[test]
+    fn test_recompress_highly_compressible() {
+        let recompressor = Recompressor::new(RecompressorConfig::default());
+        let hash = ChunkHash([0u8; 32]);
+
+        let data: Vec<u8> = vec![0xAB; 100_000];
+        let lz4_data = compress(&data, CompressionAlgorithm::Lz4).unwrap();
+
+        let result = recompressor.recompress_chunk(hash, &lz4_data).unwrap();
+
+        assert!(result.is_some());
+        let recompressed = result.unwrap();
+        assert!(recompressed.new_zstd_size < recompressed.original_lz4_size);
+    }
+
+    #[test]
+    fn test_recompress_batch_empty() {
+        let recompressor = Recompressor::new(RecompressorConfig::default());
+        let chunks: Vec<(ChunkHash, Vec<u8>)> = vec![];
+
+        let (improved, stats) = recompressor.recompress_batch(&chunks);
+
+        assert!(improved.is_empty());
+        assert_eq!(stats.chunks_processed, 0);
+    }
+
+    #[test]
+    fn test_stats_chunks_processed_count() {
+        let mut stats = RecompressionStats::default();
+
+        stats.chunks_processed += 1;
+        stats.chunks_processed += 1;
+        stats.chunks_processed += 1;
+
+        assert_eq!(stats.chunks_processed, 3);
+    }
 }
