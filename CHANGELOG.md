@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 4: Segment Read Path & Catalog (2026-03-04)
+
+#### 2 New Modules — 30 New Tests, 275 Total
+
+**Status:** ✅ 275 tests passing, 0 failures, 0 clippy warnings (+30 from 245)
+
+**New modules:**
+- `segment_reader.rs` — 12 tests: `SegmentReader` extracts individual chunks from sealed segments
+  by BLAKE3 hash. Provides `get_chunk()` (returns `&[u8]` slice), `get_chunk_owned()` (Vec copy),
+  `contains()`, `iter_chunks()`, `len()`, `is_empty()`. Validates offset+size bounds before slicing.
+- `segment_catalog.rs` — 18 tests: `SegmentCatalog` maintains an in-memory O(1) index mapping
+  `ChunkHash → ChunkLocation` across multiple segments. Supports `index_segment()`, `lookup()`,
+  `remove_segment()` (for GC), `clear()`, configurable `max_entries` with LRU eviction.
+  `ChunkLocation` records segment_id, offset, size, original_size for direct reads.
+
+**Also:**
+- Added `NotFound(String)` and `InvalidInput(String)` variants to `ReduceError` to support
+  chunk lookup failure and bounds-check errors.
+- Updated `lib.rs` re-exports for both new modules.
+
+**Phase 4 Read Path Features:**
+- Segment read path: can now locate and extract any chunk from its segment by hash
+- Segment catalog: fast cluster-wide chunk index, evicts oldest when capacity-bounded
+- Completes the write→store→read round-trip for the reduction pipeline
+
+---
+
 ### A3: Data Reduction — Phase 3: Production Readiness (2026-03-04)
 
 #### 2 New Modules — 52 New Tests, 245 Total
