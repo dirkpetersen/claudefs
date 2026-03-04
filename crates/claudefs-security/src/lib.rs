@@ -70,3 +70,6 @@ pub mod fuse_ext_security_tests;
 pub mod storage_encryption_tests;
 #[cfg(test)]
 pub mod mgmt_rbac_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_deep_security_tests;
