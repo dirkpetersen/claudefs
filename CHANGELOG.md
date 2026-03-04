@@ -6,6 +6,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 1 Complete (2026-03-04)
+
+#### Test Infrastructure Activation — 1576 Tests Passing in claudefs-tests
+
+**Status:** ✅ PHASE 1 COMPLETE — 1576 claudefs-tests passing, 0 failures. All workspace crates compile and test clean.
+
+**Session Achievements:**
+
+1. **Fixed cross-crate build errors blocking test suite**
+   - `claudefs-storage/hot_swap.rs`: Added missing `use crate::block::{BlockId, BlockSize}` import in test module
+   - `claudefs-gateway/s3_storage_class.rs`: Fixed `is_restored()` to return `true` for non-Glacier storage classes (Standard/IA always accessible without restore)
+   - `claudefs-gateway/gateway_conn_pool.rs`: Fixed `GatewayConnPool::checkout()` to return `None` when no healthy connections exist (removed fallback loop that incorrectly created connections)
+   - `claudefs-transport/multipath.rs`: Fixed `PathSelectionPolicy::default()` to return `LowestLatency` instead of `RoundRobin`
+
+2. **Activated 7 new test modules in claudefs-tests** (previously compiled but not declared in lib.rs)
+   - `crash_consistency_tests` — 20 tests for write journal crash injection
+   - `endurance_tests` — sustained operation endurance framework
+   - `performance_suite` — FIO-based performance test scaffolding
+   - `storage_new_modules_tests` — tests for atomic_write, block_cache, io_scheduler, SMART, write_journal
+   - `fuse_coherence_policy_tests` — cache coherence and security policy tests
+   - `mgmt_topology_audit_tests` — topology, audit trail, rebalance tests
+   - `transport_new_modules_tests` — congestion, multipath, conn_auth tests
+
+3. **Extended crash.rs API** (via OpenCode)
+   - `CrashPoint` refactored from offset-based struct to write-path enum: `BeforeWrite`, `AfterWrite`, `DuringFlush`, `AfterFlush`, `DuringReplication`, `AfterReplication`
+   - Added `CrashSimulator::set_crash_point()`, `clear_crash_point()`, `should_crash()`, `simulate_write_path()`
+   - Added `CrashError::SimulatedCrash { at: CrashPoint }` variant
+   - `CrashReport` redesigned with `crash_point`, `recovery_success`, `data_consistent`, `repaired_entries` fields
+   - Backward compatibility maintained via `CrashPoint::Custom { offset, description }` and `CrashPoint::new()`
+
+**Test Count Summary:**
+- `claudefs-tests`: 1576 passing (was 1251, +325 new tests)
+- `claudefs-storage`: 918 passing
+- `claudefs-meta`: 1121 passing
+- `claudefs-transport`: 758 passing
+- `claudefs-reduce`: 193 passing
+- `claudefs-repl`: 742 passing
+- `claudefs-gateway`: 605 passing (2 bugs fixed)
+- `claudefs-mgmt`: 667 passing
+- **Total workspace: ~6580 tests, 0 failures**
+
+**Phase 1 A9 Scope:**
+- Unit test harnesses: ✅ (harness.rs — TestEnv, TestCluster)
+- Property-based tests: ✅ (proptest_storage, proptest_reduce, proptest_transport)
+- POSIX test wrappers: ✅ (posix.rs — pjdfstest, fsx, xfstests runners)
+- Crash consistency framework: ✅ (crash.rs with full write-path crash injection)
+- Linearizability checker: ✅ (linearizability.rs — WGL-style model checker)
+- Jepsen framework: ✅ (jepsen.rs — Nemesis, history, checker infrastructure)
+- Chaos/fault injection: ✅ (chaos.rs — FaultInjector, NetworkTopology)
+- Benchmark framework: ✅ (bench.rs — FIO integration)
+- Soak test runner: ✅ (soak.rs — FileSoakTest)
+- Connectathon runner: ✅ (connectathon.rs)
+- CI matrix: ✅ (ci_matrix.rs)
+- Report generation: ✅ (report.rs — AggregateReport, TestSuiteReport)
+
 ### A7: Protocol Gateways — Phase 1 Test Fixes & Quality Pass (2026-03-04)
 
 **Status:** ✅ PHASE 1 STABLE — 1107 tests passing, 0 build warnings, 0 errors
@@ -75,6 +130,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Prometheus `/metrics` endpoint (not yet wired)
 - Parquet flushing to indexer (planned)
 - Integration with A2 metadata journal (blocked on A2 readiness)
+
+### A8: Management — Phase 2 Integration: Metadata Journal Consumer (2026-03-04)
+
+**Status:** ✅ PHASE 2 INITIATED — 822 tests passing, metadata indexing operational
+
+**Session Achievements:**
+
+1. **Metadata Journal Consumer Implementation** (new `metadata_consumer.rs`)
+   - Implements `MetadataConsumer` that polls the A2 metadata journal via `JournalTailer`
+   - Converts `MetaOp` entries (CreateInode, SetAttr, DeleteEntry, Rename, Link) → `MetadataRecord` structs
+   - Maintains in-memory inode cache for fast lookups and updates
+   - 4 unit tests: empty journal, cache tracking, SetAttr updates, delete tracking
+
+2. **Phase 2 Integration Architecture**
+   - Dependency added: `claudefs-meta` crate (A2 metadata service)
+   - Data flow: A2 Journal → Consumer → Parquet Indexer → DuckDB Analytics
+   - Consumer spawned as background task (5-sec poll interval) in `MetadataIndexer::start_consumer()`
+   - Async-safe: uses tokio::RwLock, Arc for thread-safe sharing
+
+3. **Parquet Indexer Integration**
+   - Updated `indexer.rs` with `start_consumer()` async method
+   - Records converted to `InodeState` and flushed to Parquet writer
+   - Error logging via `tracing` macros for operational visibility
+
+4. **Build & Test Status**
+   - ✅ `cargo build -p claudefs-mgmt` — clean compile, 0 errors, 3 warnings (missing_docs in main.rs)
+   - ✅ `cargo test -p claudefs-mgmt` — 822 tests passing (4 new metadata_consumer tests)
+   - ✅ Module export: `pub mod metadata_consumer` in lib.rs
+
+**Next Phase 2 Priorities (Not Yet Started):**
+- [ ] Wire metrics collection from A1 (IOPS/latency), A2 (replication lag), A3 (dedupe rate)
+- [ ] Implement full DuckDB analytics methods (top_users, top_dirs, reduction_stats, find_files)
+- [ ] React Web UI dashboard for real-time monitoring
+- [ ] A10 security audit of admin API auth/rate-limiting
+- [ ] Integration tests across A2 + A8 (end-to-end metadata flow)
+
+**Crate Statistics:**
+- Modules: 39 (added metadata_consumer.rs)
+- Lines of code: ~21.5k (Phase 1) + 284 (new consumer code)
+- Tests: 822 passing, 0 failures
+- Build warnings: ~1700 (mostly missing_docs, non-blocking)
 
 ---
 
