@@ -6,33 +6,52 @@
 use serde::{Deserialize, Serialize};
 use tracing::{debug, trace};
 
+/// Congestion control algorithm selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CongestionAlgorithm {
+    /// Additive Increase Multiplicative Decrease - simple, conservative.
     #[default]
     Aimd,
+    /// Cubic - TCP-friendly, optimized for high bandwidth-delay products.
     Cubic,
+    /// BBR - model-based, measures bandwidth and RTT explicitly.
     Bbr,
 }
 
+/// Congestion control state machine states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CongestionState {
+    /// Initial exponential growth phase until loss or ssthresh.
     #[default]
     SlowStart,
+    /// Linear growth phase after slow start.
     CongestionAvoidance,
+    /// Recovery state after packet loss.
     Recovery,
 }
 
+/// Configuration parameters for congestion control.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CongestionConfig {
+    /// Selected congestion control algorithm.
     pub algorithm: CongestionAlgorithm,
+    /// Initial congestion window size in bytes.
     pub initial_window: u64,
+    /// Minimum allowed window size in bytes.
     pub min_window: u64,
+    /// Maximum allowed window size in bytes.
     pub max_window: u64,
+    /// Bytes to add per ACK in AIMD congestion avoidance.
     pub aimd_increase: u64,
+    /// Factor to multiply window by on loss (0.5 = halve).
     pub aimd_decrease_factor: f64,
+    /// Cubic multiplicative decrease factor (typically 0.7).
     pub cubic_beta: f64,
+    /// Cubic scaling constant.
     pub cubic_c: f64,
+    /// Slow start threshold - if set, exit slow start at this window.
     pub slow_start_threshold: u64,
+    /// Alpha for EWMA RTT smoothing (0.125 = 1/8).
     pub rtt_smoothing_alpha: f64,
 }
 
@@ -53,20 +72,32 @@ impl Default for CongestionConfig {
     }
 }
 
+/// Snapshot of congestion window statistics for monitoring.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CongestionStats {
+    /// Current congestion window size in bytes.
     pub window_size: u64,
+    /// Slow start threshold.
     pub ssthresh: u64,
+    /// Bytes currently in flight (sent but not ACKed).
     pub bytes_in_flight: u64,
+    /// Smoothed RTT in microseconds.
     pub smoothed_rtt_us: u64,
+    /// Minimum observed RTT in microseconds.
     pub min_rtt_us: u64,
+    /// Total bytes sent since creation.
     pub total_sent: u64,
+    /// Total bytes acknowledged since creation.
     pub total_acked: u64,
+    /// Total bytes lost since creation.
     pub total_lost: u64,
+    /// Number of loss events detected.
     pub loss_events: u64,
+    /// Current state as a string for serialization.
     pub state: String,
 }
 
+/// Congestion window controller implementing multiple algorithms.
 pub struct CongestionWindow {
     config: CongestionConfig,
     state: CongestionState,
@@ -87,6 +118,7 @@ pub struct CongestionWindow {
 }
 
 impl CongestionWindow {
+    /// Create a new congestion window with the given configuration.
     pub fn new(config: CongestionConfig) -> Self {
         Self {
             config,
@@ -108,14 +140,17 @@ impl CongestionWindow {
         }
     }
 
+    /// Returns the available window space (window_size - bytes_in_flight).
     pub fn available_window(&self) -> u64 {
         self.window_size.saturating_sub(self.bytes_in_flight)
     }
 
+    /// Check if sending `bytes` would fit within the congestion window.
     pub fn can_send(&self, bytes: u64) -> bool {
         self.bytes_in_flight + bytes <= self.window_size
     }
 
+    /// Record that `bytes` were sent on the wire.
     pub fn on_send(&mut self, bytes: u64) {
         trace!(
             "Sending {} bytes, window={}, in_flight={}",
@@ -130,6 +165,7 @@ impl CongestionWindow {
         }
     }
 
+    /// Process an ACK for `bytes` with measured RTT `rtt_us` microseconds.
     pub fn on_ack(&mut self, bytes: u64, rtt_us: u64) {
         trace!(
             "ACK: {} bytes, rtt={}us, state={:?}",
@@ -243,6 +279,7 @@ impl CongestionWindow {
         x
     }
 
+    /// Process a loss event for `bytes`. Reduces window and enters recovery.
     pub fn on_loss(&mut self, bytes: u64) {
         trace!("Loss: {} bytes, state={:?}", bytes, self.state);
 
@@ -289,18 +326,22 @@ impl CongestionWindow {
         }
     }
 
+    /// Returns the current congestion control state.
     pub fn state(&self) -> &CongestionState {
         &self.state
     }
 
+    /// Returns the current congestion window size in bytes.
     pub fn window_size(&self) -> u64 {
         self.window_size
     }
 
+    /// Returns the smoothed RTT in microseconds.
     pub fn smoothed_rtt_us(&self) -> u64 {
         self.smoothed_rtt_us
     }
 
+    /// Returns a snapshot of current statistics for monitoring.
     pub fn stats(&self) -> CongestionStats {
         let state_str = match self.state {
             CongestionState::SlowStart => "SlowStart",
@@ -325,6 +366,7 @@ impl CongestionWindow {
         }
     }
 
+    /// Manually set the slow start threshold (used by tests and recovery).
     pub fn set_ssthresh(&mut self, ssthresh: u64) {
         self.ssthresh = ssthresh;
     }

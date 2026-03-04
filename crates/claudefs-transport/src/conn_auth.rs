@@ -2,33 +2,53 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Authentication level for connection security.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum AuthLevel {
+    /// No authentication required.
     None,
+    /// TLS encryption only, no client certificate validation.
     TlsOnly,
+    /// Mutual TLS with client certificate validation.
     #[default]
     MutualTls,
+    /// Mutual TLS with strict fingerprint whitelist enforcement.
     MutualTlsStrict,
 }
 
+/// Information extracted from an X.509 certificate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CertificateInfo {
+    /// Certificate subject distinguished name.
     pub subject: String,
+    /// Certificate issuer distinguished name.
     pub issuer: String,
+    /// Certificate serial number in hex.
     pub serial: String,
+    /// SHA-256 fingerprint of the certificate.
     pub fingerprint_sha256: String,
+    /// Certificate validity start time in milliseconds since epoch.
     pub not_before_ms: u64,
+    /// Certificate validity end time in milliseconds since epoch.
     pub not_after_ms: u64,
+    /// Whether this certificate is a CA certificate.
     pub is_ca: bool,
 }
 
+/// Configuration for connection authentication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
+    /// Required authentication level.
     pub level: AuthLevel,
+    /// List of allowed certificate subjects (DN patterns).
     pub allowed_subjects: Vec<String>,
+    /// List of allowed certificate SHA-256 fingerprints.
     pub allowed_fingerprints: Vec<String>,
+    /// Maximum age of certificates in days before rejection.
     pub max_cert_age_days: u32,
+    /// Whether to require certificates be issued by the cluster CA.
     pub require_cluster_ca: bool,
+    /// Expected cluster CA fingerprint for issuer validation.
     pub cluster_ca_fingerprint: Option<String>,
 }
 
@@ -45,26 +65,53 @@ impl Default for AuthConfig {
     }
 }
 
+/// Result of a certificate authentication attempt.
 #[derive(Debug, Clone)]
 pub enum AuthResult {
-    Allowed { identity: String },
-    Denied { reason: String },
-    CertificateExpired { subject: String, expired_at_ms: u64 },
-    CertificateRevoked { subject: String, serial: String },
+    /// Certificate accepted with the given identity.
+    Allowed {
+        /// Authenticated identity from certificate subject.
+        identity: String,
+    },
+    /// Certificate rejected with a specific reason.
+    Denied {
+        /// Human-readable reason for rejection.
+        reason: String,
+    },
+    /// Certificate has expired.
+    CertificateExpired {
+        /// Subject of the expired certificate.
+        subject: String,
+        /// Expiration timestamp in milliseconds since epoch.
+        expired_at_ms: u64,
+    },
+    /// Certificate has been revoked.
+    CertificateRevoked {
+        /// Subject of the revoked certificate.
+        subject: String,
+        /// Serial number of the revoked certificate.
+        serial: String,
+    },
 }
 
+/// List of revoked certificates tracked by serial and fingerprint.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RevocationList {
+    /// Revoked certificate serial numbers.
     pub revoked_serials: Vec<String>,
+    /// Revoked certificate SHA-256 fingerprints.
     pub revoked_fingerprints: Vec<String>,
+    /// Last update timestamp in milliseconds since epoch (0 = needs sync).
     pub last_updated_ms: u64,
 }
 
 impl RevocationList {
+    /// Creates a new empty revocation list.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Adds a certificate serial number to the revocation list.
     pub fn revoke_serial(&mut self, serial: String) {
         if !self.revoked_serials.contains(&serial) {
             self.revoked_serials.push(serial);
@@ -72,6 +119,7 @@ impl RevocationList {
         }
     }
 
+    /// Adds a certificate fingerprint to the revocation list.
     pub fn revoke_fingerprint(&mut self, fingerprint: String) {
         if !self.revoked_fingerprints.contains(&fingerprint) {
             self.revoked_fingerprints.push(fingerprint);
@@ -79,30 +127,39 @@ impl RevocationList {
         }
     }
 
+    /// Checks if a certificate serial is in the revocation list.
     pub fn is_revoked_serial(&self, serial: &str) -> bool {
         self.revoked_serials.contains(&serial.to_string())
     }
 
+    /// Checks if a certificate fingerprint is in the revocation list.
     pub fn is_revoked_fingerprint(&self, fingerprint: &str) -> bool {
         self.revoked_fingerprints.contains(&fingerprint.to_string())
     }
 
+    /// Returns the total number of revoked entries.
     pub fn len(&self) -> usize {
         self.revoked_serials.len() + self.revoked_fingerprints.len()
     }
 
+    /// Returns true if the revocation list is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
+/// Statistics for authentication operations.
 #[derive(Debug, Clone, Default)]
 pub struct AuthStats {
+    /// Total number of allowed authentications.
     pub total_allowed: u64,
+    /// Total number of denied authentications.
     pub total_denied: u64,
+    /// Number of entries in the revocation list.
     pub revoked_count: usize,
 }
 
+/// Authenticator for validating client certificates against configuration rules.
 pub struct ConnectionAuthenticator {
     config: AuthConfig,
     revocation_list: RevocationList,
@@ -112,6 +169,7 @@ pub struct ConnectionAuthenticator {
 }
 
 impl ConnectionAuthenticator {
+    /// Creates a new authenticator with the given configuration.
     pub fn new(config: AuthConfig) -> Self {
         Self {
             config,
@@ -122,6 +180,10 @@ impl ConnectionAuthenticator {
         }
     }
 
+    /// Authenticates a certificate against the configured rules.
+    ///
+    /// Checks revocation, expiration, validity window, allowed lists,
+    /// cluster CA requirements, and certificate age.
     pub fn authenticate(&mut self, cert: &CertificateInfo) -> AuthResult {
         if self.config.level == AuthLevel::None {
             self.total_allowed += 1;
@@ -208,18 +270,22 @@ impl ConnectionAuthenticator {
         }
     }
 
+    /// Revokes a certificate by serial number.
     pub fn revoke_serial(&mut self, serial: String) {
         self.revocation_list.revoke_serial(serial);
     }
 
+    /// Revokes a certificate by fingerprint.
     pub fn revoke_fingerprint(&mut self, fingerprint: String) {
         self.revocation_list.revoke_fingerprint(fingerprint);
     }
 
+    /// Sets the current time for certificate validity checks.
     pub fn set_time(&mut self, ms: u64) {
         self.current_time_ms = ms;
     }
 
+    /// Returns statistics for authentication operations.
     pub fn stats(&self) -> AuthStats {
         AuthStats {
             total_allowed: self.total_allowed,
