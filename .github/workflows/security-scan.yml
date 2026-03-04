@@ -1,0 +1,160 @@
+name: Security Scanning & Compliance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/**/Cargo.toml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/**/Cargo.toml'
+  schedule:
+    # Run daily at 02:00 UTC to catch new CVEs
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Dependency vulnerability audit
+  cargo-audit:
+    name: Cargo Audit (Dependency CVEs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit for all advisories
+        run: cargo audit --deny warnings
+        continue-on-error: false
+
+      - name: Generate audit report
+        run: cargo audit json > audit-report.json
+        continue-on-error: true
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-report.json
+          path: audit-report.json
+          retention-days: 7
+
+  # Stricter dependency checking with cargo-deny
+  cargo-deny:
+    name: Cargo Deny (Advisories & Licenses)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: Check for security advisories
+        run: cargo deny check advisories
+
+      - name: Check for license compliance
+        run: cargo deny check licenses
+
+      - name: Check for banned dependencies
+        run: cargo deny check bans
+
+  # Supply Chain: Generate SBOM (Software Bill of Materials)
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cargo-sbom
+        run: cargo install cargo-sbom
+
+      - name: Generate SBOM in CycloneDX format
+        run: cargo sbom -o claudefs-sbom.xml
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: claudefs-sbom.xml
+          path: claudefs-sbom.xml
+          retention-days: 90
+
+  # License summary
+  license-summary:
+    name: License Summary Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cargo-license
+        run: cargo install cargo-license
+
+      - name: Generate license report
+        run: cargo license -j > license-report.json
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report.json
+          path: license-report.json
+          retention-days: 90
+
+      - name: Print summary
+        run: |
+          echo "## License Summary"
+          cargo license --all-features | head -30
+
+  # Security policy check
+  security-policy:
+    name: Security Policy Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for SECURITY.md
+        run: |
+          if [ ! -f SECURITY.md ]; then
+            echo "⚠️  SECURITY.md not found. This should document security reporting procedures."
+            echo "See: https://docs.github.com/en/code-security/getting-started/adding-a-security-policy-to-your-repository"
+            exit 1
+          fi
+
+      - name: Check for .github/DEPENDABOT.yml
+        run: |
+          if [ ! -f .github/dependabot.yml ]; then
+            echo "⚠️  .github/dependabot.yml not found. Consider enabling automated dependency updates."
+            exit 0  # Warning only, don't fail
+          fi
