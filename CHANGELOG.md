@@ -121,6 +121,33 @@ Also added background_scheduler, device_health_monitor, prefetch_engine (committ
 - `write_fence.rs` — Write barrier for crash-consistent write ordering;
   tracks in-flight writes, auto-seals at limit, releases when all writes drain; 22 tests
 
+### A4: Transport — Phase 10: Write Pipeline, Splice Queue, Drain-Aware Connections (2026-03-04)
+
+**Status:** ✅ Complete — 1233 tests passing (57 new), 3 new modules
+
+#### New Modules
+
+1. **write_pipeline.rs** — Write pipeline stage tracker (18 tests)
+   - Tracks writes through D3/D8 stages: Received → JournalWritten → JournalReplicated → SegmentPacked → EcDistributed → S3Uploaded → Complete
+   - `client_ack_stage()` = JournalReplicated (per D3: 2x sync replication before ack)
+   - Per-stage timestamps for write latency breakdown (A8 monitoring)
+   - `pending_background_count()` = acked but not yet EC-distributed
+
+2. **splice_queue.rs** — Zero-copy splice operation queue (18 tests)
+   - Tracks NVMe→network splice ops for io_uring zero-copy data path
+   - Backpressure via max_entries and max_inflight limits
+   - Timeout detection for stalled in-flight splice operations
+   - Used by A1 (storage) and A5 (FUSE) for disk-to-network data movement
+
+3. **conn_drain_aware.rs** — Drain-aware connection state tracker (21 tests)
+   - Per-connection state: Active → Draining → Drained
+   - `begin_drain()` rejects new requests; drain completes when inflight reaches 0
+   - `ConnDrainManager` coordinates drain across all connections
+   - Used by A11 (Infrastructure) for graceful node shutdown
+
+#### Test Progression
+- P7: 1070 | P8: 1130 | P9: 1176 | **P10: 1233**
+
 ### A4: Transport — Phase 9: Replication State, Read Repair, Node Blacklist (2026-03-04)
 
 **Status:** ✅ Complete — 1176 tests passing (46 new), 3 new modules
