@@ -24,6 +24,7 @@ sha2 = "0.10"
 rand = "0.8"
 bytes = "1"
 async-trait = "0.1"
+reed-solomon-erasure = { version = "6", features = ["simd-accel"] }
 
 [dev-dependencies]
 proptest = "1"
