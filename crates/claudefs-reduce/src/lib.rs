@@ -78,6 +78,9 @@ pub mod pipeline_backpressure;
 pub mod ingest_pipeline;
 pub mod prefetch_manager;
 pub mod dedup_index;
+pub mod object_store_bridge;
+pub mod chunk_pool;
+pub mod recovery_scanner;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -190,4 +193,12 @@ pub use prefetch_manager::{
 };
 pub use dedup_index::{
     DedupIndex, DedupIndexConfig, DedupIndexEntry, DedupIndexStats,
+};
+pub use object_store_bridge::{
+    MemoryObjectStore, ObjectKey, ObjectMetadata, ObjectStoreStats, StoreResult,
+};
+pub use chunk_pool::{ChunkPool, PoolConfig, PoolStats, PooledBuffer};
+pub use recovery_scanner::{
+    RecoveryEntry, RecoveryError, RecoveryReport, RecoveryScanner, RecoveryScannerConfig,
+    SegmentHeader,
 };
