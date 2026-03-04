@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 15: Segment GC, Checksum Store, Pipeline Backpressure (2026-03-04)
+
+#### 3 New Modules — 78 New Tests, 1169 Total
+
+**Status:** ✅ 1169 tests passing, 0 failures, 0 clippy warnings (+78 from 1091)
+
+**New modules:**
+- `segment_gc.rs` — Segment-level GC: reclaim (all dead) or compact (partially dead) per alive ratio
+- `checksum_store.rs` — End-to-end data integrity tracking with CRC verification and failure recording
+- `pipeline_backpressure.rs` — Normal/Warning/Throttled/Stalled memory pressure state machine
+
+**Test expansions (+22):** eviction_scorer (+8), data_classifier (+7), segment_splitter (+7)
+
+## [Unreleased]
+
 ### A3: Data Reduction — Phase 14: Chunk Rebalancer, Write Coalescer, EC Repair (2026-03-04)
 
 #### 3 New Modules — 70 New Tests, 1091 Total
