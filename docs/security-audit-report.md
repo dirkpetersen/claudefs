@@ -1153,3 +1153,51 @@ Deep audit of transport crate connection layer: connection migration, stream mul
 3. Keep-Alive State Machine (5): initial state, timeout transitions, reset recovery, disabled state, is_alive check
 4. Deadline & Hedge (5): zero duration expired, encode/decode roundtrip, no deadline OK, hedge disabled, write exclusion
 5. Cancellation & Batch (5): token propagation, registry cancel-all, child independence, batch encode/decode, error tracking
+
+## 27. Phase 10: Management Extended & Reduce Extended Security
+
+Phase 10 extends security coverage to management subsystem alerting, cluster bootstrap, config sync, cost tracking, health/scaling, and reduce subsystem WORM policy enforcement, key rotation scheduling, GC extended, write path stats, and segment/snapshot extended.
+
+**Test Modules:** 2 new | **New Tests:** 50 | **Total:** 1122
+
+### 27.1 Management Extended Security
+
+Deep audit of mgmt crate alerting, cluster bootstrap, config sync, cost tracker, and node health/scaling modules.
+
+**Test Module:** `mgmt_extended_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| MGMT-EXT-02 | HIGH | NaN comparison always returns false per IEEE 754 — alert rules never fire on NaN input |
+| MGMT-EXT-14 | MEDIUM | Empty key accepted in ConfigStore — could cause lookup confusion |
+| MGMT-EXT-16 | HIGH | Negative costs reduce apparent spend — budget bypass risk |
+| MGMT-EXT-19 | MEDIUM | capacity_total=0 returns 0.0 (safe) but masks real capacity issues |
+| MGMT-EXT-22 | MEDIUM | Invalid state transitions (Drained→Active, Decommissioned→anything) correctly rejected |
+
+**Categories tested:**
+1. Alerting & Diagnostics (5): threshold boundary, NaN handling, severity ordering, diagnostic report, check builder
+2. Cluster Bootstrap Security (5): empty name, invalid erasure params, state transitions, empty nodes, duplicate node
+3. Config Sync (5): put/get roundtrip, version monotonicity, delete, entries_since, empty key
+4. Cost Tracking (5): total, budget exceeded, negative cost, daily total, budget thresholds
+5. Health & Node Scaling (5): capacity percent, thresholds, state transitions, role predicates, stale detection
+
+### 27.2 Reduce Extended Security
+
+Deep audit of reduce crate WORM policy enforcement, key rotation scheduling, GC mark/sweep edge cases, write path pipeline stats, and segment/snapshot extended.
+
+**Test Module:** `reduce_extended_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| WORM-01 | MEDIUM | RetentionPolicy::none() always expired — correct but requires caller awareness |
+| WORM-04 | HIGH | WORM policy upgrade allows legal_hold to override immutable — verify compliance intent |
+| GC-03 | HIGH | Empty mark phase deletes everything — no safety net for accidental full sweep |
+| STATS-03 | MEDIUM | Zero stored_bytes in reduction_ratio — verify no division-by-zero panic |
+| SEG-03 | MEDIUM | Sealing empty segment — document whether empty segments are valid |
+
+**Categories tested:**
+1. WORM Policy Enforcement (5): none always expired, legal hold never expires, immutable boundary, policy upgrade, active count
+2. Key Rotation Scheduler (5): initial idle, schedule from idle, double schedule fails, mark needs rotation, register chunk
+3. GC Extended Security (5): config defaults, initial stats, mark before sweep, mark and retain, multiple cycles
+4. Write Path & Pipeline Stats (5): pipeline config defaults, reduction ratio, zero stored bytes, chunker config, CAS duplicate
+5. Snapshot & Segment Extended (5): create and list, delete nonexistent, packer seal empty, entry integrity, config defaults
