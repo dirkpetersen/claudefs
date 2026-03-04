@@ -336,4 +336,176 @@ mod tests {
         let updated_stats = handle.stats();
         assert!(updated_stats.chunks_processed > 0);
     }
+
+    #[test]
+    fn test_background_config_default() {
+        let config = BackgroundConfig::default();
+        assert_eq!(config.channel_capacity, 1000);
+        assert_eq!(config.delta_compression_level, 3);
+        assert_eq!(config.similarity_threshold, 3);
+    }
+
+    #[test]
+    fn test_background_stats_default() {
+        let stats = BackgroundStats::default();
+        assert_eq!(stats.chunks_processed, 0);
+        assert_eq!(stats.similarity_hits, 0);
+        assert_eq!(stats.delta_compressed, 0);
+        assert_eq!(stats.gc_cycles, 0);
+        assert_eq!(stats.chunks_reclaimed, 0);
+        assert_eq!(stats.bytes_saved_delta, 0);
+    }
+
+    #[tokio::test]
+    async fn test_handle_is_running_true() {
+        let cas = Arc::new(Mutex::new(CasIndex::new()));
+        let config = BackgroundConfig::default();
+        let handle = BackgroundProcessor::start(config, cas);
+
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        assert!(handle.is_running());
+    }
+
+    #[tokio::test]
+    async fn test_process_chunk_increments_counter() {
+        let cas = Arc::new(Mutex::new(CasIndex::new()));
+        let config = BackgroundConfig::default();
+        let handle = BackgroundProcessor::start(config, cas);
+
+        for i in 0..5 {
+            let data = format!("test data chunk {}", i);
+            let hash = ChunkHash(*blake3::hash(data.as_bytes()).as_bytes());
+            let features = super_features(data.as_bytes());
+
+            handle
+                .send(BackgroundTask::ProcessChunk {
+                    hash,
+                    features,
+                    data: data.into_bytes(),
+                })
+                .await
+                .unwrap();
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let stats = handle.stats();
+        assert_eq!(stats.chunks_processed, 5);
+    }
+
+    #[tokio::test]
+    async fn test_gc_cycles_counter() {
+        let cas = Arc::new(Mutex::new(CasIndex::new()));
+        let config = BackgroundConfig::default();
+        let handle = BackgroundProcessor::start(config, cas);
+
+        for _ in 0..3 {
+            handle
+                .send(BackgroundTask::RunGc {
+                    reachable: vec![],
+                })
+                .await
+                .unwrap();
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let stats = handle.stats();
+        assert_eq!(stats.gc_cycles, 3);
+    }
+
+    #[tokio::test]
+    async fn test_stats_initial_similarity_hits_zero() {
+        let cas = Arc::new(Mutex::new(CasIndex::new()));
+        let config = BackgroundConfig::default();
+        let handle = BackgroundProcessor::start(config, cas);
+
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        let stats = handle.stats();
+        assert_eq!(stats.similarity_hits, 0);
+    }
+
+    #[tokio::test]
+    async fn test_background_handle_send_after_shutdown() {
+        let cas = Arc::new(Mutex::new(CasIndex::new()));
+        let config = BackgroundConfig::default();
+        let handle = BackgroundProcessor::start(config, cas);
+
+        handle.send(BackgroundTask::Shutdown).await.unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let data = b"test data";
+        let hash = ChunkHash(*blake3::hash(data).as_bytes());
+        let features = super_features(data);
+
+        let result = handle
+            .send(BackgroundTask::ProcessChunk {
+                hash,
+                features,
+                data: data.to_vec(),
+            })
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_custom_channel_capacity() {
+        let config = BackgroundConfig {
+            channel_capacity: 10,
+            delta_compression_level: 3,
+            similarity_threshold: 3,
+            gc_config: GcConfig::default(),
+        };
+        assert_eq!(config.channel_capacity, 10);
+    }
+
+    #[tokio::test]
+    async fn test_process_multiple_gc_and_chunks_interleaved() {
+        let cas = Arc::new(Mutex::new(CasIndex::new()));
+        let config = BackgroundConfig::default();
+        let handle = BackgroundProcessor::start(config, cas);
+
+        let data = b"interleaved test data";
+        let hash = ChunkHash(*blake3::hash(data).as_bytes());
+        let features = super_features(data);
+
+        handle
+            .send(BackgroundTask::ProcessChunk {
+                hash,
+                features,
+                data: data.to_vec(),
+            })
+            .await
+            .unwrap();
+
+        handle
+            .send(BackgroundTask::RunGc {
+                reachable: vec![hash],
+            })
+            .await
+            .unwrap();
+
+        let data2 = b"second chunk data";
+        let hash2 = ChunkHash(*blake3::hash(data2).as_bytes());
+        let features2 = super_features(data2);
+
+        handle
+            .send(BackgroundTask::ProcessChunk {
+                hash: hash2,
+                features: features2,
+                data: data2.to_vec(),
+            })
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let stats = handle.stats();
+        assert_eq!(stats.chunks_processed, 2);
+        assert_eq!(stats.gc_cycles, 1);
+    }
 }
