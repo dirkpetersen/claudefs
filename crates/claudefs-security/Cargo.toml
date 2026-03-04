@@ -34,3 +34,4 @@ hkdf.workspace = true
 blake3.workspace = true
 zeroize = { version = "1.7", features = ["derive"] }
 tempfile = "3"
+prost.workspace = true

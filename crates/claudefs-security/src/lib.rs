@@ -237,3 +237,6 @@ pub mod storage_segment_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod meta_pathres_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_server_security_tests;
