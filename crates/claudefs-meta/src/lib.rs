@@ -60,6 +60,8 @@ pub mod lease_renew;
 pub mod locking;
 /// SWIM-based cluster membership tracking
 pub mod membership;
+/// SWIM-based cross-site failure detector
+pub mod membership_failure_detector;
 /// Metadata service metrics collector
 pub mod metrics;
 /// Modification time tracking for inode updates
@@ -80,6 +82,8 @@ pub mod prefetch;
 pub mod qos;
 /// Per-user/group quota management
 pub mod quota;
+/// Quota integration service for write enforcement
+pub mod quota_integration;
 /// Persistent Raft log store for crash-safe consensus state
 pub mod raft_log;
 /// Raft-integrated metadata service (Phase 2)
@@ -118,6 +122,8 @@ pub mod transaction;
 pub mod types;
 /// UID/GID mapping for cross-site replication
 pub mod uidmap;
+/// POSIX umask and mode calculation
+pub mod umask;
 /// Watch/notify for directory change events
 pub mod watch;
 /// WORM (Write Once Read Many) compliance module
@@ -152,6 +158,9 @@ pub use lease::{LeaseManager, LeaseType};
 pub use lease_renew::{LeaseRenewConfig, LeaseRenewManager, RenewalAction};
 pub use locking::{LockManager, LockType};
 pub use membership::{MemberInfo, MembershipEvent, MembershipManager, NodeState};
+pub use membership_failure_detector::{
+    MemberInfo as FdMemberInfo, MemberState, MembershipFailureDetector,
+};
 pub use metrics::{MetadataMetrics, MetricOp, MetricsCollector, OpMetrics};
 pub use mtime_tracker::{MtimeBatch, MtimeReason, MtimeStore, MtimeUpdate};
 pub use multiraft::MultiRaftManager;

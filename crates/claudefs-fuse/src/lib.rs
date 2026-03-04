@@ -34,6 +34,8 @@ pub mod fallocate;
 pub mod filesystem;
 /// POSIX file locking (fcntl locks), lock table management.
 pub mod flock;
+/// Filesystem-wide info cache for statfs(2) / statvfs(2) results.
+pub mod fsinfo;
 /// Fsync write barriers, journal management, barrier state machine.
 pub mod fsync_barrier;
 /// Server health monitoring, failure detection, recovery triggering.
@@ -50,6 +52,8 @@ pub mod io_depth;
 pub mod io_priority;
 /// Low-level locking primitives, synchronization utilities.
 pub mod locking;
+/// Fast (parent_inode, name) -> (child_inode, FileType) lookup cache.
+pub mod lookup_cache;
 /// Data migration between tiers, migration tracking.
 pub mod migration;
 /// Memory-mapped file support, mmap coherence.
@@ -80,6 +84,8 @@ pub mod posix_acl;
 pub mod prefetch;
 /// Quota enforcement per user/group, soft/hard limits.
 pub mod quota_enforce;
+/// Byte-range POSIX lock table (fcntl/lockf byte-range locks).
+pub mod range_lock;
 /// Rate limiting and backpressure, per-class rate control.
 pub mod ratelimit;
 /// Readdir result caching, directory listing cache with TTL expiry.

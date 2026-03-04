@@ -51,6 +51,9 @@ pub mod prefetch_engine;
 pub mod write_path;
 pub mod read_path;
 pub mod storage_health;
+pub mod quota_enforcement;
+pub mod tier_rebalancer;
+pub mod pressure_cascade;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
@@ -152,4 +155,15 @@ pub use read_path::{
 pub use storage_health::{
     HealthEvent, HealthEventSeverity, StorageHealth, StorageHealthConfig,
     StorageHealthSnapshot, StorageHealthStatus,
+};
+pub use quota_enforcement::{
+    QuotaCheckResult, QuotaEnforcementConfig, QuotaEnforcementProxy, QuotaEnforcementStats,
+};
+pub use tier_rebalancer::{
+    EvictionReason, RebalanceJob, TierPlacement, TierRebalancer, TierRebalancerConfig,
+    TierRebalancerStats,
+};
+pub use pressure_cascade::{
+    BackpressureSignal, PressureCascade, PressureCascadeConfig, PressureCascadeStats,
+    PressureLevel,
 };

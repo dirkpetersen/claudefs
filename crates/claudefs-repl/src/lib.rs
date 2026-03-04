@@ -88,3 +88,9 @@ pub mod journal_source;
 pub mod sliding_window;
 /// Catch-up state machine for replicas that fall behind.
 pub mod catchup;
+/// Duplicate journal entry detection for cross-site replication.
+pub mod entry_dedup;
+/// Connection pool management for gRPC conduit connections.
+pub mod conduit_pool;
+/// Selective replication filter for per-site policies.
+pub mod repl_filter;

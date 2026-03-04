@@ -131,3 +131,19 @@ pub use compliance::{ComplianceError, ComplianceRegistry, RetentionPolicy, Reten
 pub mod live_config;
 pub use live_config::{LiveConfigStore, LiveConfigEntry, LiveConfigError, ReloadStatus, ConfigWatcher, validate_json, parse_entry};
 pub use ops_metrics::{OpsMetricsAggregator, NodeMetricsSnapshot, ClusterOpsMetrics, ClusterHealthScore, MetricTrend, TrendDirection, OpsMetricsError};
+
+/// Real-time tenant usage snapshots and burst detection
+pub mod usage_reporter;
+pub use usage_reporter::{UsageReporter, TenantUsageSnapshot, BurstDetector, BurstAlert, UsageReporterError};
+
+/// Hard quota enforcement and soft limit warnings
+pub mod resource_limiter;
+pub use resource_limiter::{ResourceLimiterRegistry, QuotaEnforcer, SoftLimitThreshold, LimitCheckResult, ResourceLimiterError};
+
+/// Per-operation latency tracking for SLA validation
+pub mod performance_tracker;
+pub use performance_tracker::{PerformanceTracker, OperationType, LatencySample, PercentileBucket, SlaComplianceStatus, PerformanceTrackerError};
+
+/// High-throughput event export to multiple backends
+pub mod event_sink;
+pub use event_sink::{EventSink, EventSinkBackend, ExportedEvent, EventSeverity, EventSinkError};

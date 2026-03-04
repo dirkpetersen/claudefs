@@ -129,6 +129,10 @@ pub mod compression_stats;
 pub mod delta_index;
 /// 64MB S3 blob assembler for tiered storage object packing.
 pub mod object_assembler;
+/// Flash defragmentation planner for slot consolidation (D6 priority).
+pub mod defrag_planner;
+/// Read amplification tracker for performance monitoring.
+pub mod read_amplification;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -315,4 +319,11 @@ pub use refcount_table::{
 pub use pipeline_orchestrator::{
     OrchestratorState, PipelineOrchestrator, PipelineOrchestratorConfig, PipelineStage,
     StageMetricsData,
+};
+pub use defrag_planner::{
+    DefragAction, DefragPlanner, DefragPlannerConfig, DefragPlannerStats, SegmentSlotInfo,
+    SlotState,
+};
+pub use read_amplification::{
+    ReadAmplificationConfig, ReadAmplificationStats, ReadAmplificationTracker, ReadEvent,
 };

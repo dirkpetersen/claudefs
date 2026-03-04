@@ -252,3 +252,15 @@ pub mod meta_node_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod fuse_secpolicy_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod fuse_crashrecov_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod fuse_workload_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_allocator_uring_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod transport_auth_tls_security_tests;
