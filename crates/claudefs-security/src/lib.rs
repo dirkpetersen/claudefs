@@ -72,6 +72,9 @@ pub mod repl_security_tests;
 #[cfg(test)]
 pub mod repl_phase2_security_tests;
 #[cfg(test)]
+#[allow(missing_docs)]
+pub mod repl_health_security_tests;
+#[cfg(test)]
 pub mod fuse_ext_security_tests;
 #[cfg(test)]
 pub mod storage_encryption_tests;
@@ -127,3 +130,6 @@ pub mod storage_qos_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod meta_fsck_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_device_ext_security_tests;
