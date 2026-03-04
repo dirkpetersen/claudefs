@@ -246,3 +246,9 @@ pub mod reduce_sim_recomp_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod gateway_rdp_cluster_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_node_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod fuse_secpolicy_security_tests;
