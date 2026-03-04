@@ -27,6 +27,7 @@ pub mod buffer;
 pub mod cancel;
 pub mod circuitbreaker;
 pub mod client;
+pub mod cluster_topology;
 pub mod compress;
 pub mod congestion;
 pub mod conn_auth;
@@ -38,6 +39,7 @@ pub mod drain;
 pub mod enrollment;
 pub mod error;
 pub use drain::{DrainConfig, DrainController, DrainGuard, DrainListener, DrainState, DrainStats};
+pub mod fault_inject;
 pub mod flowcontrol;
 pub mod gossip;
 pub mod health;
@@ -49,6 +51,7 @@ pub mod metrics;
 pub mod multipath;
 pub mod mux;
 pub mod observability;
+pub mod otel;
 pub mod pool;
 pub mod pipeline;
 pub mod priority;
@@ -178,4 +181,15 @@ pub use repl_channel::{
 pub use pnfs_layout::{
     DataLayout, DeviceAddr, DeviceId, IoMode, LayoutCache, LayoutError, LayoutSegment,
     LayoutStateId, LayoutTypeTag, StripePattern,
+};
+pub use cluster_topology::{
+    ClusterTopology, DatacenterId, Proximity, RackId, TopologyLabel, TopologyStatsSnapshot,
+};
+pub use fault_inject::{
+    ConnectAction, FaultConfig, FaultInjector, FaultInjectorStatsSnapshot, FaultKind, FaultSpec,
+    RecvAction, SendAction, corrupt_payload,
+};
+pub use otel::{
+    OtlpAttribute, OtlpConfig, OtlpEvent, OtlpExporter, OtlpExporterStatsSnapshot, OtlpSpan,
+    OtlpStatusCode, OtlpValue, inject_trace_context, span_to_otlp,
 };
