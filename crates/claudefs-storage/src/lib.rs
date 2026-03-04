@@ -22,6 +22,8 @@ pub mod fdp;
 pub mod flush;
 pub mod io_uring_bridge;
 pub mod io_scheduler;
+pub mod block_verifier;
+pub mod compaction_manager;
 pub mod io_accounting;
 pub mod metrics;
 pub mod quota;
@@ -128,4 +130,13 @@ pub use device_health_monitor::{
 };
 pub use prefetch_engine::{
     PrefetchConfig, PrefetchEngine, PrefetchHint, PrefetchStats,
+};
+pub use block_verifier::{
+    VerificationResult, BlockToVerify, VerifierStats, VerifierConfig,
+    VerifierAlgorithm, BlockVerifier,
+};
+pub use compaction_manager::{
+    CompactionJobState, CompactionJobId, CompactionJob,
+    CompactionManagerStats, CompactionManagerConfig, CompactionManager,
+    CompactionError,
 };
