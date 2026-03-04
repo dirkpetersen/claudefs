@@ -48,6 +48,8 @@ pub mod nfs_v4_session;
 pub mod nfs_write;
 /// Async TCP listener for NFSv3 RPC connections.
 pub mod nfs_listener;
+/// ClaudeFS cluster VfsBackend: NFS gateway wired to A2 metadata + A4 transport.
+pub mod cluster_backend;
 /// Performance configuration for gateway.
 pub mod perf_config;
 /// pNFS layout handling.
