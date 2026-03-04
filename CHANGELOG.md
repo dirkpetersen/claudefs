@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 2 Complete: Zero Clippy Warnings (2026-03-04)
+
+#### Documentation Pass — 393 Missing Doc Comments Fixed
+
+**Status:** ✅ 667 tests passing, 0 failures, 0 clippy warnings
+
+**Session Achievements:**
+- Fixed all 393 `missing_docs` warnings across 10 modules using OpenCode/Fireworks glm-5 model
+- Modules fixed: `bandwidth.rs` (26), `splice.rs` (13), `enrollment.rs` (19), `request_dedup.rs` (31),
+  `adaptive.rs` (36), `connmigrate.rs` (40), `congestion.rs` (42), `conn_auth.rs` (53),
+  `multipath.rs` (61), `observability.rs` (72)
+- All 51 transport modules now have complete public API documentation
+- Zero clippy warnings across the entire crate (`cargo clippy -p claudefs-transport`)
+- Unblocked by new Fireworks API key — previous session blocked on invalid key
+
+**Transport Layer Capabilities (51 modules, 667 tests):**
+- Custom binary RPC protocol with frame-based messaging and multiplexing
+- TCP + TLS transport with zero-copy splice/sendfile optimizations
+- RDMA simulation layer (production RDMA via libfabric planned Phase 3)
+- Connection pooling, lifecycle management, keepalive
+- mTLS with cluster CA and one-time token enrollment (per D7)
+- Multi-tenant traffic isolation with per-tenant bandwidth allocation
+- QoS scheduling, priority queues, request cancellation, hedged requests
+- Adaptive timeout tuning, backpressure propagation, coordinated drain
+- Consistent hash routing, service discovery, connection migration
+- OpenTelemetry-style observability (spans, events, attributes)
+- Congestion control (AIMD, Cubic, BBR), circuit breakers, load shedding
+- Request deduplication for exactly-once semantics
+
+---
+
 ### A3: Data Reduction — Phase 4: Segment Read Path & Catalog (2026-03-04)
 
 #### 2 New Modules — 30 New Tests, 275 Total

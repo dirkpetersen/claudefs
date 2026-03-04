@@ -11,29 +11,40 @@ pub struct SpanId(pub u64);
 /// Span status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpanStatus {
+    /// Span completed successfully.
     Ok,
+    /// Span encountered an error.
     Error,
+    /// Span timed out.
     Timeout,
+    /// Span was cancelled.
     Cancelled,
 }
 
 /// Severity level for events within a span.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EventSeverity {
+    /// Debug-level event for detailed diagnostics.
     Debug,
+    /// Informational event.
     Info,
+    /// Warning event indicating potential issues.
     Warn,
+    /// Error event indicating a failure.
     Error,
 }
 
 /// A key-value attribute on a span or event.
 #[derive(Debug, Clone)]
 pub struct Attribute {
+    /// Attribute key name.
     pub key: String,
+    /// Attribute value.
     pub value: AttributeValue,
 }
 
 impl Attribute {
+    /// Creates a new attribute with the given key and value.
     pub fn new(key: impl Into<String>, value: AttributeValue) -> Self {
         Self {
             key: key.into(),
@@ -45,25 +56,33 @@ impl Attribute {
 /// Value types for attributes.
 #[derive(Debug, Clone)]
 pub enum AttributeValue {
+    /// String value.
     String(String),
+    /// Integer value.
     Int(i64),
+    /// Floating-point value.
     Float(f64),
+    /// Boolean value.
     Bool(bool),
 }
 
 impl AttributeValue {
+    /// Creates a string attribute value.
     pub fn string(value: impl Into<String>) -> Self {
         Self::String(value.into())
     }
 
+    /// Creates an integer attribute value.
     pub fn int(value: i64) -> Self {
         Self::Int(value)
     }
 
+    /// Creates a floating-point attribute value.
     pub fn float(value: f64) -> Self {
         Self::Float(value)
     }
 
+    /// Creates a boolean attribute value.
     pub fn bool(value: bool) -> Self {
         Self::Bool(value)
     }
@@ -72,13 +91,18 @@ impl AttributeValue {
 /// An event recorded within a span.
 #[derive(Debug, Clone)]
 pub struct SpanEvent {
+    /// Event name.
     pub name: String,
+    /// Event severity level.
     pub severity: EventSeverity,
+    /// Event timestamp in microseconds since Unix epoch.
     pub timestamp_us: u64,
+    /// Event attributes.
     pub attributes: Vec<Attribute>,
 }
 
 impl SpanEvent {
+    /// Creates a new span event with the given name, severity, and timestamp.
     pub fn new(name: impl Into<String>, severity: EventSeverity, timestamp_us: u64) -> Self {
         Self {
             name: name.into(),
@@ -88,6 +112,7 @@ impl SpanEvent {
         }
     }
 
+    /// Adds attributes to the event.
     pub fn with_attributes(mut self, attributes: Vec<Attribute>) -> Self {
         self.attributes = attributes;
         self
@@ -97,17 +122,26 @@ impl SpanEvent {
 /// A completed span with timing and metadata.
 #[derive(Debug, Clone)]
 pub struct Span {
+    /// Unique span identifier.
     pub id: SpanId,
+    /// Parent span ID, if any.
     pub parent_id: Option<SpanId>,
+    /// Span name.
     pub name: String,
+    /// Span completion status.
     pub status: SpanStatus,
+    /// Start timestamp in microseconds since Unix epoch.
     pub start_us: u64,
+    /// End timestamp in microseconds since Unix epoch.
     pub end_us: u64,
+    /// Span attributes.
     pub attributes: Vec<Attribute>,
+    /// Events recorded within the span.
     pub events: Vec<SpanEvent>,
 }
 
 impl Span {
+    /// Creates a new span with the given ID, optional parent, name, and start time.
     pub fn new(id: SpanId, parent_id: Option<SpanId>, name: String, start_us: u64) -> Self {
         Self {
             id,
@@ -121,15 +155,18 @@ impl Span {
         }
     }
 
+    /// Adds attributes to the span.
     pub fn with_attributes(mut self, attributes: Vec<Attribute>) -> Self {
         self.attributes = attributes;
         self
     }
 
+    /// Adds an event to the span.
     pub fn add_event(&mut self, event: SpanEvent) {
         self.events.push(event);
     }
 
+    /// Returns the span duration in microseconds.
     pub fn duration_us(&self) -> u64 {
         self.end_us.saturating_sub(self.start_us)
     }
@@ -138,10 +175,15 @@ impl Span {
 /// Configuration for observability.
 #[derive(Debug, Clone)]
 pub struct ObservabilityConfig {
+    /// Maximum number of completed spans to retain.
     pub max_spans: usize,
+    /// Maximum events allowed per span.
     pub max_events_per_span: usize,
+    /// Maximum attributes per event.
     pub max_attributes: usize,
+    /// Sampling rate (0.0 to 1.0).
     pub sample_rate: f64,
+    /// Whether observability is enabled.
     pub enabled: bool,
 }
 
@@ -166,6 +208,7 @@ pub struct SpanBuilder {
 }
 
 impl SpanBuilder {
+    /// Creates a new span builder with the given name.
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -175,45 +218,53 @@ impl SpanBuilder {
         }
     }
 
+    /// Sets the parent span ID.
     pub fn parent(mut self, parent_id: SpanId) -> Self {
         self.parent_id = Some(parent_id);
         self
     }
 
+    /// Adds a typed attribute to the span.
     pub fn attribute(mut self, key: impl Into<String>, value: AttributeValue) -> Self {
         self.attributes.push(Attribute::new(key, value));
         self
     }
 
+    /// Adds a string attribute to the span.
     pub fn string_attr(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.attributes
             .push(Attribute::new(key, AttributeValue::string(value)));
         self
     }
 
+    /// Adds an integer attribute to the span.
     pub fn int_attr(mut self, key: impl Into<String>, value: i64) -> Self {
         self.attributes
             .push(Attribute::new(key, AttributeValue::int(value)));
         self
     }
 
+    /// Adds a boolean attribute to the span.
     pub fn bool_attr(mut self, key: impl Into<String>, value: bool) -> Self {
         self.attributes
             .push(Attribute::new(key, AttributeValue::bool(value)));
         self
     }
 
+    /// Adds a float attribute to the span.
     pub fn float_attr(mut self, key: impl Into<String>, value: f64) -> Self {
         self.attributes
             .push(Attribute::new(key, AttributeValue::float(value)));
         self
     }
 
+    /// Sets a custom start timestamp.
     pub fn start_us(mut self, time_us: u64) -> Self {
         self.start_us = time_us;
         self
     }
 
+    /// Builds the span with the given ID.
     pub fn build(self, span_id: SpanId) -> Span {
         Span::new(span_id, self.parent_id, self.name, self.start_us)
             .with_attributes(self.attributes)
@@ -243,6 +294,7 @@ impl Default for ObservabilityStats {
 }
 
 impl ObservabilityStats {
+    /// Creates a new stats tracker with all counters initialized to zero.
     pub fn new() -> Self {
         Self {
             spans_created: AtomicU64::new(0),
@@ -253,26 +305,32 @@ impl ObservabilityStats {
         }
     }
 
+    /// Increments the spans created counter.
     pub fn inc_spans_created(&self) {
         self.spans_created.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the spans completed counter.
     pub fn inc_spans_completed(&self) {
         self.spans_completed.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the spans dropped counter.
     pub fn inc_spans_dropped(&self) {
         self.spans_dropped.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the events recorded counter.
     pub fn inc_events_recorded(&self) {
         self.events_recorded.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Increments the error spans counter.
     pub fn inc_error_spans(&self) {
         self.error_spans.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Returns a snapshot of the current stats.
     pub fn snapshot(&self) -> ObservabilityStatsSnapshot {
         ObservabilityStatsSnapshot {
             spans_created: self.spans_created.load(Ordering::Relaxed),
@@ -287,10 +345,15 @@ impl ObservabilityStats {
 /// Snapshot of observability stats.
 #[derive(Debug, Clone)]
 pub struct ObservabilityStatsSnapshot {
+    /// Total spans created.
     pub spans_created: u64,
+    /// Total spans completed.
     pub spans_completed: u64,
+    /// Total spans dropped due to buffer limits.
     pub spans_dropped: u64,
+    /// Total events recorded.
     pub events_recorded: u64,
+    /// Total spans with error status.
     pub error_spans: u64,
 }
 
@@ -304,6 +367,7 @@ pub struct SpanCollector {
 }
 
 impl SpanCollector {
+    /// Creates a new span collector with the given configuration.
     pub fn new(config: ObservabilityConfig) -> Self {
         Self {
             config,
@@ -314,6 +378,7 @@ impl SpanCollector {
         }
     }
 
+    /// Starts a new span from a builder, returning the span ID.
     pub fn start_span(&self, builder: SpanBuilder) -> SpanId {
         if !self.config.enabled {
             return SpanId(self.next_span_id.fetch_add(1, Ordering::Relaxed));
@@ -342,6 +407,7 @@ impl SpanCollector {
         span_id
     }
 
+    /// Adds an event to a span without attributes.
     pub fn add_event(
         &self,
         span_id: SpanId,
@@ -351,6 +417,7 @@ impl SpanCollector {
         self.add_event_with_attrs(span_id, name, severity, Vec::new())
     }
 
+    /// Adds an event with attributes to a span.
     pub fn add_event_with_attrs(
         &self,
         span_id: SpanId,
@@ -381,6 +448,7 @@ impl SpanCollector {
         false
     }
 
+    /// Ends a span with the given status.
     pub fn end_span(&self, span_id: SpanId, status: SpanStatus) -> bool {
         if !self.config.enabled {
             return true;
@@ -417,6 +485,7 @@ impl SpanCollector {
         false
     }
 
+    /// Returns a copy of an in-progress span, if it exists.
     pub fn get_span(&self, span_id: SpanId) -> Option<Span> {
         if let Ok(in_progress) = self.in_progress.lock() {
             if let Some(span) = in_progress.get(&span_id) {
@@ -427,6 +496,7 @@ impl SpanCollector {
         None
     }
 
+    /// Drains and returns all completed spans.
     pub fn drain_completed(&self) -> Vec<Span> {
         if let Ok(mut completed) = self.completed_spans.lock() {
             let drained: Vec<Span> = completed.drain(..).collect();
@@ -435,6 +505,7 @@ impl SpanCollector {
         Vec::new()
     }
 
+    /// Returns the count of completed spans currently held.
     pub fn completed_count(&self) -> usize {
         if let Ok(completed) = self.completed_spans.lock() {
             return completed.len();
@@ -442,6 +513,7 @@ impl SpanCollector {
         0
     }
 
+    /// Returns a snapshot of observability stats.
     pub fn stats(&self) -> ObservabilityStatsSnapshot {
         self.stats.snapshot()
     }

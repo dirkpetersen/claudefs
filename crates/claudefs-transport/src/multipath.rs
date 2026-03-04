@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::debug;
 
+/// Unique identifier for a network path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PathId(#[allow(dead_code)] u64);
 
@@ -18,10 +19,12 @@ impl Default for PathId {
 }
 
 impl PathId {
+    /// Creates a new path identifier from a raw u64.
     pub fn new(id: u64) -> Self {
         PathId(id)
     }
 
+    /// Returns the raw u64 value of this path identifier.
     pub fn as_u64(self) -> u64 {
         self.0
     }
@@ -39,11 +42,16 @@ impl From<PathId> for u64 {
     }
 }
 
+/// Operational state of a network path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PathState {
+    /// Path is fully operational and accepting traffic.
     Active,
+    /// Path is experiencing elevated loss or latency but still usable.
     Degraded,
+    /// Path has failed and should not be used.
     Failed,
+    /// Path is being drained of existing connections before removal.
     Draining,
 }
 
@@ -53,46 +61,76 @@ impl PathState {
     }
 }
 
+/// Performance and health metrics for a network path.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PathMetrics {
+    /// Current round-trip latency in microseconds (EWMA smoothed).
     pub latency_us: u64,
+    /// Minimum observed latency in microseconds.
     pub min_latency_us: u64,
+    /// Latency jitter (variation) in microseconds.
     pub jitter_us: u64,
+    /// Packet loss rate (0.0 to 1.0).
     pub loss_rate: f64,
+    /// Available bandwidth in bits per second.
     pub bandwidth_bps: u64,
+    /// Total bytes sent on this path.
     pub bytes_sent: u64,
+    /// Total bytes received on this path.
     pub bytes_received: u64,
+    /// Number of transmission errors encountered.
     pub errors: u64,
+    /// Timestamp of last probe in microseconds since epoch.
     pub last_probe_us: u64,
 }
 
+/// Complete information about a registered network path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathInfo {
+    /// Unique identifier for this path.
     pub id: PathId,
+    /// Human-readable name for this path (e.g., "eth0", "rdma1").
     pub name: String,
+    /// Current operational state.
     pub state: PathState,
+    /// Performance and health metrics.
     pub metrics: PathMetrics,
+    /// Selection weight for weighted random policy (higher = more traffic).
     pub weight: u32,
+    /// Priority for failover policy (lower = preferred).
     pub priority: u32,
 }
 
+/// Policy for selecting which path to use for a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum PathSelectionPolicy {
+    /// Rotate through available paths in order.
     RoundRobin,
+    /// Always select the path with lowest latency (default).
     #[default]
     LowestLatency,
+    /// Randomly select paths weighted by their weight value.
     WeightedRandom,
+    /// Always use the highest-priority (lowest priority number) available path.
     Failover,
 }
 
+/// Configuration for the multipath router.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultipathConfig {
+    /// Path selection policy to use.
     pub policy: PathSelectionPolicy,
+    /// Maximum number of paths that can be registered.
     pub max_paths: usize,
+    /// Interval between health probes in milliseconds.
     pub probe_interval_ms: u64,
+    /// Consecutive failures before marking a path as failed.
     pub failure_threshold: u32,
+    /// Consecutive successes before recovering a failed path.
     pub recovery_threshold: u32,
+    /// Alpha factor for latency EWMA smoothing (0.0 to 1.0).
     pub latency_ewma_alpha: f64,
+    /// Maximum acceptable loss rate before marking path as degraded.
     pub max_loss_rate: f64,
 }
 
@@ -110,26 +148,38 @@ impl Default for MultipathConfig {
     }
 }
 
+/// Snapshot statistics for the multipath router.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultipathStats {
+    /// Total number of registered paths.
     pub total_paths: usize,
+    /// Number of paths currently in Active state.
     pub active_paths: usize,
+    /// Number of paths currently in Failed state.
     pub failed_paths: usize,
+    /// Total number of path selection requests made.
     pub total_requests: u64,
+    /// Number of times traffic was moved to a different path due to failure.
     pub failover_events: u64,
+    /// Detailed information for all registered paths.
     pub paths: Vec<PathInfo>,
 }
 
+/// Errors that can occur during multipath operations.
 #[derive(Debug, Error)]
 pub enum MultipathError {
+    /// The specified path ID was not found.
     #[error("path not found: {0:?}")]
     PathNotFound(PathId),
+    /// Attempted to register more than the configured maximum paths.
     #[error("max paths exceeded: max={0}")]
     MaxPathsExceeded(usize),
+    /// No paths are available for selection.
     #[error("no available paths")]
     NoAvailablePaths,
 }
 
+/// Router that manages multiple network paths with health monitoring and selection.
 pub struct MultipathRouter {
     config: MultipathConfig,
     paths: Vec<PathInfo>,
@@ -142,6 +192,7 @@ pub struct MultipathRouter {
 }
 
 impl MultipathRouter {
+    /// Creates a new multipath router with the given configuration.
     pub fn new(config: MultipathConfig) -> Self {
         MultipathRouter {
             config,
@@ -155,6 +206,7 @@ impl MultipathRouter {
         }
     }
 
+    /// Registers a new network path and returns its unique identifier.
     pub fn add_path(&mut self, name: String, weight: u32, priority: u32) -> PathId {
         let id = PathId(self.next_path_id);
         self.next_path_id += 1;
@@ -172,6 +224,7 @@ impl MultipathRouter {
         id
     }
 
+    /// Removes a path by its identifier. Returns true if the path was found and removed.
     pub fn remove_path(&mut self, id: PathId) -> bool {
         if let Some(pos) = self.paths.iter().position(|p| p.id == id) {
             self.paths.remove(pos);
@@ -183,6 +236,7 @@ impl MultipathRouter {
         }
     }
 
+    /// Selects a path according to the configured policy. Returns None if no paths are available.
     pub fn select_path(&mut self) -> Option<PathId> {
         self.total_requests += 1;
 
@@ -287,6 +341,7 @@ impl MultipathRouter {
         active_paths.iter().min_by_key(|p| p.priority).map(|p| p.id)
     }
 
+    /// Records a successful transmission on the specified path, updating metrics.
     pub fn record_success(&mut self, id: PathId, latency_us: u64, bytes: u64) {
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             let alpha = self.config.latency_ewma_alpha;
@@ -328,6 +383,7 @@ impl MultipathRouter {
         }
     }
 
+    /// Records a failed transmission on the specified path, updating metrics and state.
     pub fn record_failure(&mut self, id: PathId, bytes: u64) {
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             path.metrics.errors += 1;
@@ -357,6 +413,7 @@ impl MultipathRouter {
         }
     }
 
+    /// Manually marks a path as failed regardless of its current state.
     pub fn mark_failed(&mut self, id: PathId) {
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             path.state = PathState::Failed;
@@ -364,6 +421,7 @@ impl MultipathRouter {
         }
     }
 
+    /// Manually marks a path as active, clearing any failure counters.
     pub fn mark_active(&mut self, id: PathId) {
         if let Some(path) = self.paths.iter_mut().find(|p| p.id == id) {
             path.state = PathState::Active;
@@ -371,6 +429,7 @@ impl MultipathRouter {
         }
     }
 
+    /// Returns a list of all path IDs currently in Active state.
     pub fn active_paths(&self) -> Vec<PathId> {
         self.paths
             .iter()
@@ -379,10 +438,12 @@ impl MultipathRouter {
             .collect()
     }
 
+    /// Returns information about a specific path, or None if not found.
     pub fn path_info(&self, id: PathId) -> Option<&PathInfo> {
         self.paths.iter().find(|p| p.id == id)
     }
 
+    /// Returns a snapshot of current router statistics.
     pub fn stats(&self) -> MultipathStats {
         let active_count = self
             .paths
