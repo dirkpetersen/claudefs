@@ -422,4 +422,77 @@ mod tests {
             crate::error::ReduceError::ChecksumMissing
         ));
     }
+
+    #[test]
+    fn test_segment_entry_fields() {
+        let entry = SegmentEntry {
+            hash: ChunkHash([1u8; 32]),
+            offset_in_segment: 100,
+            payload_size: 256,
+            original_size: 512,
+        };
+        assert_eq!(entry.offset_in_segment, 100);
+        assert_eq!(entry.payload_size, 256);
+        assert_eq!(entry.original_size, 512);
+    }
+
+    #[test]
+    fn test_segment_packer_config_default() {
+        let config = SegmentPackerConfig::default();
+        assert_eq!(config.target_size, DEFAULT_SEGMENT_SIZE);
+    }
+
+    #[test]
+    fn test_segment_packer_new_is_empty() {
+        let packer = SegmentPacker::new(SegmentPackerConfig::default());
+        assert!(packer.is_empty());
+    }
+
+    #[test]
+    fn test_segment_packer_add_chunk() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 10000 });
+        let (hash, payload) = make_chunk(100);
+        packer.add_chunk(hash, &payload, payload.len() as u32);
+        assert_eq!(packer.current_size(), 100);
+    }
+
+    #[test]
+    fn test_segment_seals_when_full() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 100 });
+        let (hash, payload) = make_chunk(150);
+        let result = packer.add_chunk(hash, &payload, payload.len() as u32);
+        assert!(result.is_some());
+        let segment = result.unwrap();
+        assert!(segment.sealed);
+    }
+
+    #[test]
+    fn test_sealed_segment_immutable() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 100 });
+        let (hash, payload) = make_chunk(150);
+        let _sealed = packer.add_chunk(hash, &payload, payload.len() as u32);
+        assert!(packer.is_empty());
+    }
+
+    #[test]
+    fn test_segment_entry_count() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 10000 });
+        let (hash1, payload1) = make_chunk(50);
+        let (hash2, payload2) = make_chunk(50);
+        packer.add_chunk(hash1, &payload1, payload1.len() as u32);
+        packer.add_chunk(hash2, &payload2, payload2.len() as u32);
+        let segment = packer.flush().unwrap();
+        assert_eq!(segment.total_chunks(), 2);
+    }
+
+    #[test]
+    fn test_segment_total_bytes_sums_correctly() {
+        let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 10000 });
+        let (hash1, payload1) = make_chunk(100);
+        let (hash2, payload2) = make_chunk(200);
+        packer.add_chunk(hash1, &payload1, payload1.len() as u32);
+        packer.add_chunk(hash2, &payload2, payload2.len() as u32);
+        let segment = packer.flush().unwrap();
+        assert_eq!(segment.total_payload_bytes(), 300);
+    }
 }

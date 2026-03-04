@@ -8,6 +8,7 @@
 pub mod async_meta_bridge;
 pub mod audit_log;
 pub mod background;
+pub mod block_map;
 pub mod checksum;
 pub mod chunk_verifier;
 pub mod compaction;
@@ -21,6 +22,7 @@ pub mod error;
 pub mod eviction_scorer;
 pub mod fingerprint;
 pub mod gc;
+pub mod journal_segment;
 pub mod key_manager;
 pub mod key_rotation_scheduler;
 pub mod meta_bridge;
@@ -37,6 +39,7 @@ pub mod segment_splitter;
 pub mod similarity;
 pub mod snapshot;
 pub mod stream_chunker;
+pub mod tenant_isolator;
 pub mod tiering;
 pub mod write_amplification;
 pub mod write_path;
@@ -92,4 +95,11 @@ pub use eviction_scorer::{
 };
 pub use segment_splitter::{
     ChunkRef, SegmentPlan, SegmentSplitter, SplitStats, SplitterConfig,
+};
+pub use block_map::{BlockEntry, BlockMap, BlockMapStore, LogicalRange};
+pub use journal_segment::{
+    JournalConfig, JournalEntry, JournalError, JournalSegment, JournalState,
+};
+pub use tenant_isolator::{
+    TenantError, TenantId, TenantIsolator, TenantPolicy, TenantPriority, TenantUsage,
 };

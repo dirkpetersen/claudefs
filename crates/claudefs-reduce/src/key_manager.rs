@@ -352,4 +352,70 @@ mod tests {
         let result = km.wrap_dek(&dek);
         assert!(matches!(result, Err(ReduceError::MissingKey)));
     }
+
+    #[test]
+    fn test_key_manager_config_default() {
+        let config = KeyManagerConfig::default();
+        assert_eq!(config.max_key_history, 10);
+    }
+
+    #[test]
+    fn test_key_manager_generate_key() {
+        let km = KeyManager::with_initial_key(KeyManagerConfig::default(), test_key());
+        let dek = km.generate_dek().unwrap();
+        assert!(!dek.key.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_key_version_ordering() {
+        let v1 = KeyVersion(1);
+        let v2 = KeyVersion(2);
+        let v0 = KeyVersion(0);
+        assert!(v2 > v1);
+        assert!(v1 > v0);
+    }
+
+    #[test]
+    fn test_versioned_key_current_version() {
+        let km = KeyManager::with_initial_key(KeyManagerConfig::default(), test_key());
+        assert_eq!(km.current_version(), Some(KeyVersion(0)));
+    }
+
+    #[test]
+    fn test_key_manager_rotate() {
+        let mut km = KeyManager::with_initial_key(KeyManagerConfig::default(), test_key());
+        assert_eq!(km.current_version(), Some(KeyVersion(0)));
+
+        km.rotate_key(EncryptionKey([1u8; 32]));
+        assert_eq!(km.current_version(), Some(KeyVersion(1)));
+
+        km.rotate_key(EncryptionKey([2u8; 32]));
+        assert_eq!(km.current_version(), Some(KeyVersion(2)));
+    }
+
+    #[test]
+    fn test_data_key_zeroize_on_drop() {
+        let key_bytes;
+        {
+            let dek = DataKey { key: [42u8; 32] };
+            key_bytes = dek.key;
+        }
+        assert_eq!(key_bytes, [42u8; 32]);
+    }
+
+    #[test]
+    fn test_wrapped_key_roundtrip() {
+        let km = KeyManager::with_initial_key(KeyManagerConfig::default(), test_key());
+        let dek = DataKey { key: [123u8; 32] };
+        let wrapped = km.wrap_dek(&dek).unwrap();
+        let unwrapped = km.unwrap_dek(&wrapped).unwrap();
+        assert_eq!(dek.key, unwrapped.key);
+    }
+
+    #[test]
+    fn test_key_manager_get_current() {
+        let km = KeyManager::with_initial_key(KeyManagerConfig::default(), test_key());
+        let current = km.current_version();
+        assert_eq!(current, Some(KeyVersion(0)));
+    }
 }

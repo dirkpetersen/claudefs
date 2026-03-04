@@ -305,4 +305,77 @@ mod tests {
             assert_eq!(chunk.hash, expected);
         }
     }
+
+    #[test]
+    fn test_cas_index_insert_twice_same_hash() {
+        let mut cas = CasIndex::new();
+        let hash = ChunkHash(*blake3::hash(b"test").as_bytes());
+        cas.insert(hash);
+        cas.insert(hash);
+        assert_eq!(cas.refcount(&hash), 2);
+    }
+
+    #[test]
+    fn test_cas_index_len() {
+        let mut cas = CasIndex::new();
+        assert_eq!(cas.len(), 0);
+        cas.insert(ChunkHash(*blake3::hash(b"a").as_bytes()));
+        assert_eq!(cas.len(), 1);
+        cas.insert(ChunkHash(*blake3::hash(b"b").as_bytes()));
+        assert_eq!(cas.len(), 2);
+    }
+
+    #[test]
+    fn test_cas_index_is_empty() {
+        let cas = CasIndex::new();
+        assert!(cas.is_empty());
+    }
+
+    #[test]
+    fn test_chunk_hash_is_deterministic() {
+        let data = b"consistent data for hashing";
+        let hash1 = blake3_hash(data);
+        let hash2 = blake3_hash(data);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_chunker_config_default() {
+        let config = ChunkerConfig::default();
+        assert_eq!(config.min_size, 32 * 1024);
+        assert_eq!(config.avg_size, 64 * 1024);
+        assert_eq!(config.max_size, 512 * 1024);
+    }
+
+    #[test]
+    fn test_chunker_produces_chunks() {
+        let chunker = Chunker::new();
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(1024 * 1024).collect();
+        let chunks = chunker.chunk(&data);
+        assert!(!chunks.is_empty());
+        let total: usize = chunks.iter().map(|c| c.data.len()).sum();
+        assert_eq!(total, data.len());
+    }
+
+    #[test]
+    fn test_chunker_chunk_sizes_in_range() {
+        let config = ChunkerConfig::default();
+        let chunker = Chunker::with_config(config.clone());
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(1024 * 1024).collect();
+        let chunks = chunker.chunk(&data);
+        for chunk in &chunks {
+            assert!(chunk.data.len() >= config.min_size || chunks.len() == 1);
+            assert!(chunk.data.len() <= config.max_size);
+        }
+    }
+
+    #[test]
+    fn test_cas_refcount_multiple_inserts() {
+        let mut cas = CasIndex::new();
+        let hash = ChunkHash(*blake3::hash(b"multi").as_bytes());
+        cas.insert(hash);
+        cas.insert(hash);
+        cas.insert(hash);
+        assert_eq!(cas.refcount(&hash), 3);
+    }
 }
