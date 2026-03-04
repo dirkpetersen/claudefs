@@ -1009,3 +1009,57 @@ Deep audit of reduce crate: encryption/key management, dedup/fingerprinting, com
 3. Compression Security (5): LZ4/Zstd roundtrip, none passthrough, compressible detection, empty data
 4. Checksum & Integrity (5): BLAKE3 corruption, CRC32C collision risk, ChecksummedBlock, algorithm downgrade, empty data
 5. Pipeline & GC Security (5): pipeline roundtrip, dedup detection, GC sweep, snapshot limit, segment packing
+
+---
+
+## 24. Phase 7: FUSE Deep Security & Storage Deep Security v2 (2026-03-04)
+
+### 24.1 FUSE Deep Security Audit
+
+Deep audit of FUSE crate: buffer pool memory safety, passthrough FD management, capability negotiation, mount options, rate limiting, quota enforcement, and WORM immutability.
+
+**Test Module:** `fuse_deep_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| FUSE-DEEP-01 | HIGH | Buffer.clear() only zeroes first 64 bytes — sensitive data leakage in recycled buffers |
+| FUSE-DEEP-02 | MEDIUM | Buffer pool allocates beyond max_4k limit — no hard capacity enforcement |
+| FUSE-DEEP-04 | HIGH | Negative FD (-1) accepted by register_fd without validation |
+| FUSE-DEEP-05 | HIGH | FD table grows unbounded (10,000+ entries) — memory exhaustion vector |
+| FUSE-DEEP-06 | MEDIUM | capabilities() panics if called before negotiate() — crash risk |
+| FUSE-DEEP-07 | MEDIUM | default_permissions=false by default — kernel permission checks disabled |
+| FUSE-DEEP-08 | LOW | direct_io + kernel_cache conflicting options accepted without warning |
+| FUSE-DEEP-09 | MEDIUM | Empty source/target paths passed to FUSE args without validation |
+| FUSE-DEEP-10 | LOW | max_background=0 accepted — potential request stall vector |
+| FUSE-DEEP-12 | MEDIUM | Zero refill rate creates permanent token denial |
+| FUSE-DEEP-13 | HIGH | WORM mode can be downgraded (Immutable → None) — no unidirectional enforcement |
+
+**Categories tested:**
+1. Buffer Pool Memory Safety (5): partial clear, pool exhaustion, ID uniqueness, size correctness, stats accuracy
+2. Passthrough & Capability (5): negative FD, unbounded growth, panic risk, version parsing, kernel boundary
+3. Mount Options & Session (5): default_permissions, conflicting options, fuse args, empty paths, zero background
+4. Rate Limiting & Quota (5): refill overflow, over-consume, quota boundary, burst factor, zero refill
+5. WORM & Immutability (5): immutable blocks all, append-only allows append, none allows all, legal hold, mode change
+
+### 24.2 Storage Deep Security v2 Audit
+
+Deep audit of storage crate: allocator boundaries, block cache poisoning, quota enforcement, wear leveling bias, and hot swap state machine.
+
+**Test Module:** `storage_deep_security_tests_v2.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| STOR-DEEP2-01 | MEDIUM | Allocator stats may not reflect actual allocation behavior precisely |
+| STOR-DEEP2-05 | MEDIUM | Zero-capacity allocator accepted without error |
+| STOR-DEEP2-10 | MEDIUM | Pinned cache entries survive eviction — could exhaust cache if unlimited |
+| STOR-DEEP2-13 | MEDIUM | Zero hard quota limit permanently blocks all allocation |
+| STOR-DEEP2-14 | LOW | Hard limit boundary: usage == hard_limit behavior documented |
+| STOR-DEEP2-24 | HIGH | Active device can be removed without drain — data loss risk |
+| STOR-DEEP2-25 | MEDIUM | Failed device drain behavior — state machine allows drain of failed device |
+
+**Categories tested:**
+1. Allocator Boundary (5): stats after alloc/free, exhaust capacity, large block alignment, free returns to pool, zero capacity
+2. Block Cache Poisoning (5): insert/get roundtrip, eviction at capacity, dirty tracking, checksum stored, pinned survives eviction
+3. Storage Quota (5): hard limit blocks, soft limit grace, zero limits, usage at hard boundary, stats tracking
+4. Wear Leveling (5): hot zone detection, wear advice, alert severity, no-writes no-alerts, write pattern tracking
+5. Hot Swap State Machine (5): register and drain, drain unregistered, double register, remove active, fail device state
