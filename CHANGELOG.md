@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 12: Snapshot Catalog, Chunk Scheduler, Tier Migration (2026-03-04)
+
+#### 3 New Modules — 85 New Tests, 916 Total
+
+**Status:** ✅ 916 tests passing, 0 failures, 0 clippy warnings (+85 from 831)
+
+**New modules:**
+- `snapshot_catalog.rs` — Snapshot space accounting (unique/shared bytes, oldest/newest queries)
+- `chunk_scheduler.rs` — Priority I/O scheduling: Interactive > Prefetch > Background with anti-starvation
+- `tier_migration.rs` — Flash↔S3 migration scoring per D5 (age-based eviction, access-count promotion)
+
+**Test expansions (+16):** tiering (+8), quota_tracker (+8)
+
+## [Unreleased]
+
 ### A3: Data Reduction — Phase 11: Write Buffer, Dedup Pipeline, Compaction Scheduler (2026-03-04)
 
 #### 3 New Modules — 75 New Tests, 831 Total
