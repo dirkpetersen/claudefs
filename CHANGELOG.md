@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 10: Cache Coherency, Stripe Coordinator, Read Planner (2026-03-04)
+
+#### 3 New Modules — 80 New Tests, 756 Total
+
+**Status:** ✅ 756 tests passing, 0 failures, 0 clippy warnings (+80 from 676)
+
+**New modules:**
+- `cache_coherency.rs` — Cache invalidation tracking for FUSE client multi-level cache.
+  `CoherencyTracker` registers `CacheEntry` records keyed by `(inode_id, chunk_index)`.
+  `invalidate(event)` applies `ChunkInvalidated`, `InodeInvalidated`, or `AllInvalidated` events
+  and returns the list of stale keys. `is_valid(key, version)` enables optimistic reads.
+- `stripe_coordinator.rs` — EC 4+2 stripe placement across nodes (D1/D8 architecture).
+  `StripeCoordinator` uses consistent hash to assign shards to `NodeId`s deterministically.
+  `plan_stripe(segment_id)` always produces the same `StripePlan` for the same segment.
+  `can_tolerate_failures()` checks if failed nodes exceed parity_shards threshold.
+- `read_planner.rs` — Read request planning with cache-hit/miss tracking.
+  `ReadPlanner::plan()` maps `ReadRequest` (inode, offset, length) to `Vec<ChunkFetchPlan>`.
+  Tracks cache_hits vs cache_misses. `estimate_latency_us()` models expected read latency.
+  Ready for A5 FUSE integration.
+
+**Test expansions (+45 tests):**
+- `async_meta_bridge.rs` (+10): full async store API, dedup bytes tracking
+- `checksum.rs` (+9): algorithm variants, verify ok/corrupted, determinism
+- `compression.rs` (+7): empty data, zstd levels, invalid decompression
+- `pipeline.rs` (+9): config defaults, tiny data, dedup, stats accumulation
+
+
 ### A3: Data Reduction — Phase 9: Block Map, Journal Segment, Tenant Isolator (2026-03-04)
 
 #### 3 New Modules — 85 New Tests, 676 Total
