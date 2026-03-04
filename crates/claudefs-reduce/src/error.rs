@@ -33,4 +33,10 @@ pub enum ReduceError {
     /// No checksum available for integrity verification (segment not yet sealed)
     #[error("checksum missing — segment has no integrity checksum")]
     ChecksumMissing,
+    /// Chunk not found in segment or catalog
+    #[error("chunk not found: {0}")]
+    NotFound(String),
+    /// Invalid input (e.g., offset+size out of bounds)
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
 }

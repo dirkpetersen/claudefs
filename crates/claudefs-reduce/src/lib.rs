@@ -22,6 +22,8 @@ pub mod metrics;
 pub mod pipeline;
 pub mod recompressor;
 pub mod segment;
+pub mod segment_catalog;
+pub mod segment_reader;
 pub mod similarity;
 pub mod snapshot;
 pub mod tiering;
@@ -46,6 +48,8 @@ pub use metrics::{MetricKind, MetricValue, MetricsHandle, MetricsSnapshot, Reduc
 pub use pipeline::{PipelineConfig, ReducedChunk, ReductionPipeline, ReductionStats};
 pub use background::{BackgroundConfig, BackgroundHandle, BackgroundProcessor, BackgroundStats, BackgroundTask};
 pub use segment::{Segment, SegmentEntry, SegmentPacker, SegmentPackerConfig};
+pub use segment_catalog::{CatalogConfig, ChunkLocation, SegmentCatalog};
+pub use segment_reader::SegmentReader;
 pub use similarity::{DeltaCompressor, SimilarityIndex};
 pub use meta_bridge::{BlockLocation, FingerprintStore, LocalFingerprintStore, NullFingerprintStore};
 pub use recompressor::{RecompressedChunk, RecompressionStats, RecompressorConfig, Recompressor};
