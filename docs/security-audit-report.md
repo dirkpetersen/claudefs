@@ -1298,3 +1298,49 @@ Deep audit of replication audit trail, UID/GID translation, backpressure throttl
 2. UID/GID Translation (6): passthrough mode, explicit mapping, GID mapping, add/remove, root UID zero, listing
 3. Backpressure Throttling (7): level ordering, suggested delays, queue depth thresholds, error escalation, force halt, per-site, halted sites
 4. Lag Monitoring (6): OK status, warning, critical, exceeded SLA, stats accumulation, clear samples
+
+## 30. Phase 13: Storage QoS & Meta Integrity Security
+
+Phase 13 extends security coverage to storage QoS enforcement, I/O scheduling priority, capacity watermarks, metadata fsck integrity checking, quota enforcement, and multi-tenant namespace isolation.
+
+**Test Modules:** 2 new | **New Tests:** 50 | **Total:** 1271
+
+### 30.1 Storage QoS & Scheduling Security
+
+Deep audit of storage QoS enforcer with token bucket rate limiting, I/O scheduler priority queue, and capacity tracker watermark transitions.
+
+**Test Module:** `storage_qos_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| QOS-08 | HIGH | Missing QoS policy defaults to Allow — no restriction on unknown tenants |
+| QOS-13 | HIGH | Queue depth limit prevents memory exhaustion DoS |
+| QOS-18 | MEDIUM | Capacity eviction trigger fires at correct watermark threshold |
+| QOS-23 | MEDIUM | Zero total capacity edge case — verify no division-by-zero |
+
+**Categories tested:**
+1. Token Bucket & Bandwidth (5): consume, refill, bandwidth tracking, policy defaults, workload class
+2. QoS Enforcer (5): allow within limits, throttle exceeded, no-policy allow, stats tracking, remove policy
+3. I/O Scheduler Priority (5): priority ordering, dequeue by priority, max queue depth, inflight tracking, drain priority
+4. Capacity Watermarks (5): normal level, transitions, eviction trigger, segment registration, eviction candidates
+5. Config Defaults & Edge Cases (5): scheduler config, watermark config, zero capacity, empty dequeue, reset stats
+
+### 30.2 Meta Integrity & Tenant Security
+
+Deep audit of filesystem integrity checker (fsck), quota enforcement edge cases, and multi-tenant namespace isolation.
+
+**Test Module:** `meta_fsck_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| FSCK-05 | MEDIUM | Repair updates link count to actual (not expected) — verify correctness intent |
+| QUOTA-08 | HIGH | Quota check_quota correctly blocks writes exceeding limits |
+| TENANT-12 | HIGH | Tenant authorization correctly checks both UID and GID lists |
+| TENANT-15 | MEDIUM | Verify inode assignments cleaned up on tenant removal |
+
+**Categories tested:**
+1. Fsck Integrity Checks (5): config defaults, clean report, severity check, orphan repair, link mismatch repair
+2. Quota Enforcement (5): unlimited, over quota, set/check, update usage, over quota targets
+3. Tenant Isolation (5): create/list, authorization, quota check, inode assignment, removal
+4. Fsck Issues & Repair (5): dangling entry, duplicate entry, disconnected subtree, finding display, report accumulation
+5. Quota & Tenant Edge Cases (5): saturating add, remove/recheck, duplicate create, usage tracking, group enforcement

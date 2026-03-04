@@ -116,3 +116,9 @@ pub mod fuse_cache_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod repl_infra_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_qos_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_fsck_security_tests;
