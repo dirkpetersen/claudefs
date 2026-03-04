@@ -23,6 +23,9 @@ rand.workspace = true
 sha2.workspace = true
 base64 = "0.22"
 
+[dev-dependencies]
+proptest = "1.4"
+
 [lib]
 name = "claudefs_gateway"
 path = "src/lib.rs"
