@@ -147,6 +147,36 @@ Also added background_scheduler, device_health_monitor, prefetch_engine (committ
 - `write_fence.rs` — Write barrier for crash-consistent write ordering;
   tracks in-flight writes, auto-seals at limit, releases when all writes drain; 22 tests
 
+### A4: Transport — Phase 11: Lease Manager, Shard Map, Timeout Budget (2026-03-04)
+
+**Status:** ✅ Complete — 1304 tests passing (71 new), 3 new modules
+
+#### New Modules
+
+1. **lease.rs** — Distributed lease manager (23 tests)
+   - Grant/release/renew/recall/revoke leases on named resources
+   - Exclusive leases block all others; multiple shared leases allowed
+   - Used by A2 (Metadata) for client-side inode caching leases
+   - Used by A5 (FUSE) for open-file delegation
+   - Used by A7 (pNFS) for layout leases
+
+2. **shard_map.rs** — Virtual shard → node mapping (24 tests)
+   - Maps 256 virtual shards (D4) to their Raft replica sets
+   - `shard_for_key(key)` = `key % num_shards` (consistent with D4 hash routing)
+   - Tracks leader/follower/learner roles per shard
+   - `update_leader()` for Raft leader election events
+   - `remove_node()` for node departure, returns affected shards
+   - Used by A2 Metadata for inode operation routing
+
+3. **timeout_budget.rs** — Cascading RPC timeout budget (24 tests)
+   - Tracks remaining time budget through nested RPC chains
+   - `child()` subtracts per-hop overhead, caps at max_sub_ms
+   - Prevents sub-requests from outliving parent deadline
+   - Integrates with existing `deadline.rs` wire format
+
+#### Test Progression
+- P8: 1130 | P9: 1176 | P10: 1233 | **P11: 1304**
+
 ### A4: Transport — Phase 10: Write Pipeline, Splice Queue, Drain-Aware Connections (2026-03-04)
 
 **Status:** ✅ Complete — 1233 tests passing (57 new), 3 new modules
