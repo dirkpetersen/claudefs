@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A1: Storage Engine — Module Exports and Test Fix (2026-03-04)
+
+#### Status: ✅ 744 tests passing (716 lib + 28 proptest), 0 clippy warnings
+
+**Session Achievements:**
+
+1. **Exposed 4 previously-implemented but unexported modules in lib.rs**
+   - `erasure` — Reed-Solomon EC engine (D1: 4+2 stripes, ErasureCodingEngine, EcStripe, EcConfig, EcStats)
+   - `node_rebalance` — Online node scaling (Priority 1 feature: RebalanceEngine, MigrationTask, ShardId)
+   - `nvme_passthrough` — NVMe queue pair management (PassthroughManager, QueuePair, SubmissionEntry)
+   - `tracing_storage` — Distributed tracing (StorageTracer, TraceContext, W3CTraceparent)
+
+2. **Fixed failing test in `node_rebalance::tests::test_progress_pct_all_done`**
+   - Test was calling `complete_rebalance()` without advancing migration tasks to completion first
+   - Added 3 `advance_migration()` calls (Queued → Transferring → Verifying → Completed) before completion
+   - Now matches the pattern used in `test_complete_rebalance_all_done`
+
+3. **Removed unused import in `nvme_passthrough.rs`**
+   - Eliminated clippy warning: `unused import: thiserror::Error`
+
+**Test Count: 744 (716 lib + 28 integration proptest-based)**
+**Clippy: 0 warnings**
+**All Rust code changes delegated to OpenCode (Fireworks minimax-m2p5)**
+
 ### A10: Security Audit — Phase 3 Deep Audit Complete (2026-03-04)
 
 #### Metadata + Gateway Security Audit, 53 New Tests, 42 Findings
