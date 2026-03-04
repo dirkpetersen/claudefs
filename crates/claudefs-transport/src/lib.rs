@@ -36,6 +36,7 @@ pub mod connection;
 pub mod deadline;
 pub mod discovery;
 pub mod drain;
+pub mod endpoint_registry;
 pub mod enrollment;
 pub mod error;
 pub use drain::{DrainConfig, DrainController, DrainGuard, DrainListener, DrainState, DrainStats};
@@ -159,6 +160,10 @@ pub use splice::{
 pub use enrollment::{
     CertificateBundle, ClusterCA, EnrollmentConfig, EnrollmentError, EnrollmentService,
     EnrollmentStats, EnrollmentToken, RevocationEntry, RevocationReason,
+};
+pub use endpoint_registry::{
+    EndpointList, EndpointRegistry, EndpointRegistryConfig, EndpointRegistryStats,
+    ProtocolPreference, TransportAddr,
 };
 pub use session::{
     Session, SessionConfig, SessionError, SessionId, SessionManager, SessionState,
