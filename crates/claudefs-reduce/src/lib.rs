@@ -9,6 +9,7 @@ pub mod async_meta_bridge;
 pub mod audit_log;
 pub mod background;
 pub mod block_map;
+pub mod cache_coherency;
 pub mod checksum;
 pub mod chunk_verifier;
 pub mod compaction;
@@ -31,6 +32,7 @@ pub mod pipeline;
 pub mod pipeline_monitor;
 pub mod prefetch;
 pub mod read_cache;
+pub mod read_planner;
 pub mod recompressor;
 pub mod segment;
 pub mod segment_catalog;
@@ -38,6 +40,7 @@ pub mod segment_reader;
 pub mod segment_splitter;
 pub mod similarity;
 pub mod snapshot;
+pub mod stripe_coordinator;
 pub mod stream_chunker;
 pub mod tenant_isolator;
 pub mod tiering;
@@ -102,4 +105,13 @@ pub use journal_segment::{
 };
 pub use tenant_isolator::{
     TenantError, TenantId, TenantIsolator, TenantPolicy, TenantPriority, TenantUsage,
+};
+pub use cache_coherency::{
+    CacheEntry, CacheKey, CacheVersion, CoherencyTracker, InvalidationEvent,
+};
+pub use stripe_coordinator::{
+    EcConfig, NodeId, ShardPlacement, StripeCoordinator, StripePlan, StripeStats,
+};
+pub use read_planner::{
+    CachedChunkInfo, ChunkFetchPlan, ReadPlan, ReadPlanner, ReadRequest,
 };

@@ -599,4 +599,138 @@ mod tests {
         AsyncFingerprintStore::insert(&*store, [1u8; 32], loc).await;
         assert_eq!(AsyncFingerprintStore::entry_count(&*store).await, 2);
     }
+
+    #[tokio::test]
+    async fn test_async_store_empty_initially() {
+        let store = AsyncLocalFingerprintStore::new();
+        assert_eq!(AsyncFingerprintStore::entry_count(&store).await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_async_store_insert_and_lookup() {
+        let store = AsyncLocalFingerprintStore::new();
+        let loc = BlockLocation {
+            node_id: 5,
+            block_offset: 1024,
+            size: 8192,
+        };
+        let hash = [42u8; 32];
+
+        let was_new = AsyncFingerprintStore::insert(&store, hash, loc).await;
+        assert!(was_new);
+
+        let found = AsyncFingerprintStore::lookup(&store, &hash).await;
+        assert!(found.is_some());
+        let found_loc = found.unwrap();
+        assert_eq!(found_loc.node_id, 5);
+        assert_eq!(found_loc.block_offset, 1024);
+        assert_eq!(found_loc.size, 8192);
+    }
+
+    #[tokio::test]
+    async fn test_async_store_lookup_missing() {
+        let store = AsyncLocalFingerprintStore::new();
+        let hash = [99u8; 32];
+        let result = AsyncFingerprintStore::lookup(&store, &hash).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_async_store_increment_ref() {
+        let store = AsyncLocalFingerprintStore::new();
+        let loc = BlockLocation {
+            node_id: 1,
+            block_offset: 0,
+            size: 4096,
+        };
+        let hash = [1u8; 32];
+
+        AsyncFingerprintStore::insert(&store, hash, loc).await;
+        let ok = AsyncFingerprintStore::increment_ref(&store, &hash).await;
+        assert!(ok);
+    }
+
+    #[tokio::test]
+    async fn test_async_store_decrement_ref() {
+        let store = AsyncLocalFingerprintStore::new();
+        let loc = BlockLocation {
+            node_id: 1,
+            block_offset: 0,
+            size: 4096,
+        };
+        let hash = [1u8; 32];
+
+        AsyncFingerprintStore::insert(&store, hash, loc).await;
+        AsyncFingerprintStore::increment_ref(&store, &hash).await;
+        let count = AsyncFingerprintStore::decrement_ref(&store, &hash).await;
+        assert_eq!(count, Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_async_store_decrement_to_zero() {
+        let store = AsyncLocalFingerprintStore::new();
+        let loc = BlockLocation {
+            node_id: 1,
+            block_offset: 0,
+            size: 4096,
+        };
+        let hash = [1u8; 32];
+
+        AsyncFingerprintStore::insert(&store, hash, loc).await;
+        let count = AsyncFingerprintStore::decrement_ref(&store, &hash).await;
+        assert_eq!(count, Some(0));
+        let count = AsyncFingerprintStore::decrement_ref(&store, &hash).await;
+        assert_eq!(count, None);
+    }
+
+    #[tokio::test]
+    async fn test_async_null_store_lookup_none() {
+        let store = AsyncNullFingerprintStore::new();
+        let result = AsyncFingerprintStore::lookup(&store, &[0u8; 32]).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_async_null_store_insert_true() {
+        let store = AsyncNullFingerprintStore::new();
+        let loc = BlockLocation {
+            node_id: 1,
+            block_offset: 0,
+            size: 4096,
+        };
+        let was_new = AsyncFingerprintStore::insert(&store, [1u8; 32], loc).await;
+        assert!(was_new);
+    }
+
+    #[tokio::test]
+    async fn test_async_store_entry_count_2() {
+        let store = AsyncLocalFingerprintStore::new();
+        let loc = BlockLocation {
+            node_id: 1,
+            block_offset: 0,
+            size: 4096,
+        };
+
+        AsyncFingerprintStore::insert(&store, [1u8; 32], loc).await;
+        AsyncFingerprintStore::insert(&store, [2u8; 32], loc).await;
+        AsyncFingerprintStore::insert(&store, [3u8; 32], loc).await;
+
+        assert_eq!(AsyncFingerprintStore::entry_count(&store).await, 3);
+    }
+
+    #[tokio::test]
+    async fn test_async_store_total_deduplicated_bytes_2() {
+        let store = AsyncLocalFingerprintStore::new();
+        let loc = BlockLocation {
+            node_id: 1,
+            block_offset: 0,
+            size: 1024,
+        };
+
+        AsyncFingerprintStore::insert(&store, [1u8; 32], loc).await;
+        AsyncFingerprintStore::insert(&store, [1u8; 32], loc).await;
+
+        let bytes = store.total_deduplicated_bytes().await;
+        assert_eq!(bytes, 1024);
+    }
 }

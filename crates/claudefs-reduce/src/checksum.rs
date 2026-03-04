@@ -363,4 +363,82 @@ mod tests {
             assert_eq!(checksum1.bytes, checksum2.bytes);
         }
     }
+
+    #[test]
+    fn test_checksum_algorithm_variants() {
+        assert_eq!(ChecksumAlgorithm::Blake3, ChecksumAlgorithm::default());
+        assert_ne!(ChecksumAlgorithm::Blake3, ChecksumAlgorithm::Crc32c);
+        assert_ne!(ChecksumAlgorithm::Crc32c, ChecksumAlgorithm::Xxhash64);
+    }
+
+    #[test]
+    fn test_data_checksum_blake3() {
+        let data = b"test data for blake3";
+        let checksum = compute(data, ChecksumAlgorithm::Blake3);
+        assert_eq!(checksum.algorithm, ChecksumAlgorithm::Blake3);
+        assert_eq!(checksum.bytes.len(), 32);
+    }
+
+    #[test]
+    fn test_data_checksum_crc32c() {
+        let data = b"test data for crc32c";
+        let checksum = compute(data, ChecksumAlgorithm::Crc32c);
+        assert_eq!(checksum.algorithm, ChecksumAlgorithm::Crc32c);
+        assert_eq!(checksum.bytes.len(), 4);
+    }
+
+    #[test]
+    fn test_checksummed_block_verify_ok() {
+        let data = b"intact data".to_vec();
+        let block = ChecksummedBlock::new(data.clone(), ChecksumAlgorithm::Blake3);
+        assert!(block.verify().is_ok());
+    }
+
+    #[test]
+    fn test_checksummed_block_verify_corrupted() {
+        let data = b"original data".to_vec();
+        let mut block = ChecksummedBlock::new(data, ChecksumAlgorithm::Crc32c);
+        block.data[0] ^= 0xFF;
+        assert!(block.verify().is_err());
+    }
+
+    #[test]
+    fn test_checksum_deterministic() {
+        let data = b"deterministic test data";
+        let c1 = compute(data, ChecksumAlgorithm::Blake3);
+        let c2 = compute(data, ChecksumAlgorithm::Blake3);
+        assert_eq!(c1.bytes, c2.bytes);
+
+        let c3 = compute(data, ChecksumAlgorithm::Crc32c);
+        let c4 = compute(data, ChecksumAlgorithm::Crc32c);
+        assert_eq!(c3.bytes, c4.bytes);
+    }
+
+    #[test]
+    fn test_checksummed_block_roundtrip() {
+        let original = b"roundtrip test data".to_vec();
+        let block = ChecksummedBlock::new(original.clone(), ChecksumAlgorithm::Blake3);
+        assert_eq!(block.data, original);
+        assert!(block.verify().is_ok());
+    }
+
+    #[test]
+    fn test_different_data_different_checksum() {
+        let data1 = b"data one";
+        let data2 = b"data two";
+        let c1 = compute(data1, ChecksumAlgorithm::Blake3);
+        let c2 = compute(data2, ChecksumAlgorithm::Blake3);
+        assert_ne!(c1.bytes, c2.bytes);
+    }
+
+    #[test]
+    fn test_checksum_empty_data() {
+        let empty: &[u8] = &[];
+        let c_blake3 = compute(empty, ChecksumAlgorithm::Blake3);
+        assert_eq!(c_blake3.bytes.len(), 32);
+        assert!(verify(empty, &c_blake3).is_ok());
+
+        let c_crc = compute(empty, ChecksumAlgorithm::Crc32c);
+        assert!(verify(empty, &c_crc).is_ok());
+    }
 }
