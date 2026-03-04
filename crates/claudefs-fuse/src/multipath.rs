@@ -1,39 +1,67 @@
+//! Multipath routing for FUSE client connections.
+//!
+//! This module provides load balancing and failover across multiple network paths
+//! to storage nodes. It supports three policies: round-robin, least-latency, and
+//! primary/failover. Paths are tracked with health state and performance metrics.
+
 use crate::error::Result;
 
+/// Unique identifier for a network path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PathId(pub u64);
 
+/// Health state of a network path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PathState {
+    /// Path is healthy and fully operational.
     Active,
+    /// Path is experiencing errors but still usable.
     Degraded,
+    /// Path has failed and is not usable.
     Failed,
+    /// Path is attempting to reconnect.
     Reconnecting,
 }
 
 impl PathState {
+    /// Returns `true` if the path can be used for I/O.
+    ///
+    /// `Active` and `Degraded` states are usable; `Failed` and `Reconnecting` are not.
     pub fn is_usable(&self) -> bool {
         matches!(self, PathState::Active | PathState::Degraded)
     }
 }
 
+/// Priority value for path selection in primary/failover mode.
+///
+/// Higher values indicate higher priority. The default is 100.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PathPriority(pub u8);
 
 impl PathPriority {
+    /// Default priority value for paths.
     pub const DEFAULT: u8 = 100;
 }
 
+/// Performance and error metrics for a network path.
 #[derive(Debug, Clone)]
 pub struct PathMetrics {
+    /// Exponential moving average of latency in microseconds.
     pub latency_us: u64,
+    /// Cumulative count of errors encountered on this path.
     pub error_count: u64,
+    /// Total bytes sent on this path.
     pub bytes_sent: u64,
+    /// Total bytes received on this path.
     pub bytes_recv: u64,
+    /// Unix timestamp (seconds) of the most recent error.
     pub last_error_at_secs: u64,
 }
 
 impl PathMetrics {
+    /// Creates a new `PathMetrics` with default initial values.
+    ///
+    /// Initial latency is set to 1000µs (1ms) with zero errors and traffic.
     pub fn new() -> Self {
         Self {
             latency_us: 1000,
@@ -44,15 +72,24 @@ impl PathMetrics {
         }
     }
 
+    /// Records a successful I/O operation with the given latency.
+    ///
+    /// Updates the latency using an exponential moving average (7/8 old + 1/8 new).
     pub fn record_success(&mut self, latency_us: u64) {
         self.latency_us = (7 * self.latency_us + latency_us) / 8;
     }
 
+    /// Records an error on this path.
+    ///
+    /// Increments the error count and updates the timestamp of the most recent error.
     pub fn record_error(&mut self, now_secs: u64) {
         self.error_count += 1;
         self.last_error_at_secs = now_secs;
     }
 
+    /// Returns a simple error rate indicator for the recent time window.
+    ///
+    /// Returns 1.0 if there was an error within `window_secs` of `now_secs`, else 0.0.
     pub fn error_rate_recent(&self, now_secs: u64, window_secs: u64) -> f64 {
         if self.last_error_at_secs >= now_secs.saturating_sub(window_secs) && self.error_count > 0 {
             1.0
@@ -61,6 +98,9 @@ impl PathMetrics {
         }
     }
 
+    /// Computes a score for path selection (lower is better).
+    ///
+    /// Score = latency + (error_count × 1000 penalty per error).
     pub fn score(&self) -> u64 {
         self.latency_us + self.error_count * 1000
     }
@@ -72,16 +112,25 @@ impl Default for PathMetrics {
     }
 }
 
+/// Information about a single network path.
 #[derive(Debug, Clone)]
 pub struct PathInfo {
+    /// Unique identifier for this path.
     pub id: PathId,
+    /// Current health state of the path.
     pub state: PathState,
+    /// Priority for primary/failover selection (higher = preferred).
     pub priority: u8,
+    /// Remote address string (e.g., "192.168.1.1:8000").
     pub remote_addr: String,
+    /// Performance and error metrics.
     pub metrics: PathMetrics,
 }
 
 impl PathInfo {
+    /// Creates a new `PathInfo` with the given ID, address, and priority.
+    ///
+    /// The path starts in `Active` state with fresh metrics.
     pub fn new(id: PathId, remote_addr: String, priority: u8) -> Self {
         Self {
             id,
@@ -92,34 +141,44 @@ impl PathInfo {
         }
     }
 
+    /// Marks the path as degraded.
     pub fn mark_degraded(&mut self) {
         self.state = PathState::Degraded;
     }
 
+    /// Marks the path as failed.
     pub fn mark_failed(&mut self) {
         self.state = PathState::Failed;
     }
 
+    /// Marks the path as reconnecting.
     pub fn mark_reconnecting(&mut self) {
         self.state = PathState::Reconnecting;
     }
 
+    /// Marks the path as active.
     pub fn mark_active(&mut self) {
         self.state = PathState::Active;
     }
 
+    /// Returns `true` if the path is usable for I/O.
     pub fn is_usable(&self) -> bool {
         self.state.is_usable()
     }
 }
 
+/// Policy for selecting among multiple paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoadBalancePolicy {
+    /// Cycle through usable paths in order.
     RoundRobin,
+    /// Select the path with the lowest latency score.
     LeastLatency,
+    /// Always use the highest-priority usable path.
     Primary,
 }
 
+/// Router that selects among multiple network paths.
 pub struct MultipathRouter {
     policy: LoadBalancePolicy,
     paths: Vec<PathInfo>,
@@ -127,6 +186,7 @@ pub struct MultipathRouter {
 }
 
 impl MultipathRouter {
+    /// Creates a new router with the given load balancing policy.
     pub fn new(policy: LoadBalancePolicy) -> Self {
         Self {
             policy,
@@ -135,6 +195,10 @@ impl MultipathRouter {
         }
     }
 
+    /// Adds a path to the router.
+    ///
+    /// Returns an error if the maximum of 16 paths is exceeded,
+    /// or if a path with the same ID already exists.
     pub fn add_path(&mut self, info: PathInfo) -> Result<()> {
         if self.paths.len() >= 16 {
             return Err(crate::error::FuseError::InvalidArgument {
@@ -152,6 +216,9 @@ impl MultipathRouter {
         Ok(())
     }
 
+    /// Removes a path from the router by ID.
+    ///
+    /// Returns an error if no path with the given ID exists.
     pub fn remove_path(&mut self, id: PathId) -> Result<()> {
         let pos = self
             .paths
@@ -170,6 +237,9 @@ impl MultipathRouter {
         self.paths.iter().filter(|p| p.is_usable()).collect()
     }
 
+    /// Selects a path for the next I/O operation based on the policy.
+    ///
+    /// Returns `None` if no usable paths are available.
     pub fn select_path(&mut self) -> Option<PathId> {
         let usable = self.usable_paths();
         if usable.is_empty() {
@@ -200,6 +270,9 @@ impl MultipathRouter {
         }
     }
 
+    /// Records a successful I/O operation on the given path.
+    ///
+    /// Updates the path's latency metric. Returns an error if the path ID is not found.
     pub fn record_success(&mut self, id: PathId, latency_us: u64) -> Result<()> {
         let path = self
             .paths
@@ -211,6 +284,11 @@ impl MultipathRouter {
         Ok(())
     }
 
+    /// Records an error on the given path.
+    ///
+    /// Updates the path's error metrics and may transition the path to `Degraded`
+    /// (after 3 errors) or `Failed` (after 10 errors). Returns an error if the path ID
+    /// is not found.
     pub fn record_error(&mut self, id: PathId, now_secs: u64) -> Result<()> {
         let path = self
             .paths
@@ -229,6 +307,9 @@ impl MultipathRouter {
         Ok(())
     }
 
+    /// Marks the given path as reconnecting.
+    ///
+    /// Returns an error if the path ID is not found.
     pub fn mark_reconnecting(&mut self, id: PathId) -> Result<()> {
         let path = self
             .paths
@@ -240,6 +321,9 @@ impl MultipathRouter {
         Ok(())
     }
 
+    /// Marks the given path as active and clears its error count.
+    ///
+    /// Returns an error if the path ID is not found.
     pub fn mark_active(&mut self, id: PathId) -> Result<()> {
         let path = self
             .paths
@@ -252,14 +336,17 @@ impl MultipathRouter {
         Ok(())
     }
 
+    /// Returns the total number of paths (including failed/reconnecting).
     pub fn path_count(&self) -> usize {
         self.paths.len()
     }
 
+    /// Returns the number of usable paths (active or degraded).
     pub fn usable_path_count(&self) -> usize {
         self.usable_paths().len()
     }
 
+    /// Returns `true` if all registered paths are in the `Failed` state.
     pub fn all_paths_failed(&self) -> bool {
         !self.paths.is_empty() && self.paths.iter().all(|p| p.state == PathState::Failed)
     }

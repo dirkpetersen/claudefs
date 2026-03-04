@@ -1,3 +1,8 @@
+//! Path resolution and caching for the FUSE filesystem.
+//!
+//! This module provides efficient path-to-inode resolution with generation-based
+//! cache invalidation to detect TOCTOU (time-of-check-time-of-use) races.
+
 #![allow(dead_code)]
 
 use crate::inode::InodeId;
@@ -5,23 +10,43 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tracing::debug;
 
+/// A single resolved component of a path.
+///
+/// Represents one segment in a resolved path, tracking its inode,
+/// parent inode, and generation for staleness detection.
 #[derive(Debug, Clone)]
 pub struct ResolvedComponent {
+    /// The name of this path component.
     pub name: String,
+    /// The inode number of this component.
     pub ino: InodeId,
+    /// The inode number of the parent directory.
     pub parent_ino: InodeId,
+    /// The generation number for staleness detection.
     pub generation: u64,
 }
 
+/// A fully resolved path with all its components.
+///
+/// Contains the complete path string, all resolved components, the final
+/// inode, and the timestamp when resolution occurred.
 #[derive(Debug, Clone)]
 pub struct ResolvedPath {
+    /// The full path string that was resolved.
     pub path: String,
+    /// All components in the path from root to leaf.
     pub components: Vec<ResolvedComponent>,
+    /// The inode number of the final component.
     pub final_ino: InodeId,
+    /// The instant when this path was resolved.
     pub resolved_at: Instant,
 }
 
 impl ResolvedPath {
+    /// Checks if any component in this path has become stale.
+    ///
+    /// Compares the generation of each component against the current
+    /// generations tracked by the given `GenerationTracker`.
     pub fn is_stale(&self, generations: &GenerationTracker) -> bool {
         for comp in &self.components {
             if generations.get(comp.ino) != comp.generation {
@@ -31,29 +56,56 @@ impl ResolvedPath {
         false
     }
 
+    /// Returns the depth of this path (number of components).
     pub fn depth(&self) -> usize {
         self.components.len()
     }
 }
 
+/// Errors that can occur during path resolution.
 #[derive(Debug, thiserror::Error)]
 pub enum PathResolveError {
+    /// A path component was not found in the parent directory.
     #[error("Component not found: {name} in parent {parent}")]
-    ComponentNotFound { name: String, parent: InodeId },
+    ComponentNotFound {
+        /// The name of the missing component.
+        name: String,
+        /// The inode of the parent directory.
+        parent: InodeId,
+    },
+    /// The path depth exceeds the configured limit.
     #[error("Path too deep: depth {depth} exceeds limit {limit}")]
-    TooDeep { depth: usize, limit: usize },
+    TooDeep {
+        /// The actual depth of the path.
+        depth: usize,
+        /// The maximum allowed depth.
+        limit: usize,
+    },
+    /// The path component is stale due to a TOCTOU race.
     #[error("Path component is stale (TOCTOU): {name}")]
-    Stale { name: String },
+    Stale {
+        /// The name of the stale component.
+        name: String,
+    },
+    /// The path is invalid (empty, absolute, or contains "..").
     #[error("Invalid path: {reason}")]
-    InvalidPath { reason: String },
+    InvalidPath {
+        /// The reason the path is invalid.
+        reason: String,
+    },
 }
 
+/// Result type for path resolution operations.
 pub type PathResolveResult<T> = Result<T, PathResolveError>;
 
+/// Configuration options for the path resolver.
 #[derive(Debug, Clone)]
 pub struct PathResolverConfig {
+    /// Maximum allowed path depth.
     pub max_depth: usize,
+    /// Maximum number of entries in the resolution cache.
     pub cache_capacity: usize,
+    /// Time-to-live for cached entries.
     pub ttl: Duration,
 }
 
@@ -67,31 +119,41 @@ impl Default for PathResolverConfig {
     }
 }
 
+/// Tracks generation numbers for inodes to detect staleness.
+///
+/// Each inode has a generation number that increments when the inode
+/// is modified. This enables detection of stale cached paths.
+#[derive(Debug, Clone)]
 pub struct GenerationTracker {
     generations: HashMap<InodeId, u64>,
 }
 
 impl GenerationTracker {
+    /// Creates a new empty generation tracker.
     pub fn new() -> Self {
         Self {
             generations: HashMap::new(),
         }
     }
 
+    /// Gets the generation for an inode, returning 0 if not tracked.
     pub fn get(&self, ino: InodeId) -> u64 {
         self.generations.get(&ino).copied().unwrap_or(0)
     }
 
+    /// Increments the generation for an inode and returns the new value.
     pub fn bump(&mut self, ino: InodeId) -> u64 {
         let new_gen = self.generations.get(&ino).copied().unwrap_or(0) + 1;
         self.generations.insert(ino, new_gen);
         new_gen
     }
 
+    /// Sets the generation for an inode to a specific value.
     pub fn set(&mut self, ino: InodeId, gen: u64) {
         self.generations.insert(ino, gen);
     }
 
+    /// Removes an inode from tracking.
     pub fn remove(&mut self, ino: InodeId) {
         self.generations.remove(&ino);
     }
@@ -103,15 +165,25 @@ impl Default for GenerationTracker {
     }
 }
 
+/// Statistics for the path resolver cache.
 #[derive(Debug, Default, Clone)]
 pub struct PathResolverStats {
+    /// Number of cache hits.
     pub cache_hits: u64,
+    /// Number of cache misses.
     pub cache_misses: u64,
+    /// Number of cache hits that were stale.
     pub stale_hits: u64,
+    /// Number of TOCTOU races detected.
     pub toctou_detected: u64,
+    /// Number of explicit cache invalidations.
     pub invalidations: u64,
 }
 
+/// Path resolver with caching and generation-based invalidation.
+///
+/// Resolves relative paths to inodes while maintaining a cache
+/// for performance and detecting TOCTOU races via generation tracking.
 pub struct PathResolver {
     config: PathResolverConfig,
     cache: HashMap<String, ResolvedPath>,
@@ -120,6 +192,7 @@ pub struct PathResolver {
 }
 
 impl PathResolver {
+    /// Creates a new path resolver with the given configuration.
     pub fn new(config: PathResolverConfig) -> Self {
         Self {
             config,
@@ -129,6 +202,10 @@ impl PathResolver {
         }
     }
 
+    /// Inserts a resolved path into the cache.
+    ///
+    /// If the cache is at capacity, evicts the oldest entry.
+    /// Also updates generation tracking for any new inodes.
     pub fn insert(&mut self, path: &str, resolved: ResolvedPath) {
         if self.cache.len() >= self.config.cache_capacity {
             let keys: Vec<_> = self.cache.keys().cloned().collect();
@@ -145,6 +222,10 @@ impl PathResolver {
         debug!("path_resolver: cached path {}", path);
     }
 
+    /// Looks up a path in the cache.
+    ///
+    /// Returns `None` if the path is not cached or is stale.
+    /// Updates statistics for hits, misses, and stale hits.
     pub fn lookup(&mut self, path: &str) -> Option<ResolvedPath> {
         if let Some(resolved) = self.cache.get(path).cloned() {
             if resolved.is_stale(&self.generations) {
@@ -161,8 +242,12 @@ impl PathResolver {
         }
     }
 
+    /// Records a resolved component (currently a no-op placeholder).
     pub fn record_component(&mut self, _component: ResolvedComponent) {}
 
+    /// Invalidates all cached paths that start with the given prefix.
+    ///
+    /// Both exact matches and paths under the prefix directory are removed.
     pub fn invalidate_prefix(&mut self, path_prefix: &str) {
         let prefix = if path_prefix.ends_with('/') {
             path_prefix.to_string()
@@ -188,6 +273,9 @@ impl PathResolver {
         }
     }
 
+    /// Bumps the generation for an inode, invalidating stale cache entries.
+    ///
+    /// Returns the new generation number.
     pub fn bump_generation(&mut self, ino: InodeId) -> u64 {
         let gen = self.generations.bump(ino);
         let new_gen = self.generations.get(ino);
@@ -205,10 +293,14 @@ impl PathResolver {
         gen
     }
 
+    /// Checks if a given generation matches the current generation for an inode.
     pub fn is_generation_current(&self, ino: InodeId, gen: u64) -> bool {
         self.generations.get(ino) == gen
     }
 
+    /// Validates a path string and returns its segments.
+    ///
+    /// Rejects empty paths, absolute paths, and paths containing "..".
     pub fn validate_path(path: &str) -> PathResolveResult<Vec<&str>> {
         if path.is_empty() {
             return Err(PathResolveError::InvalidPath {
@@ -234,6 +326,7 @@ impl PathResolver {
         Ok(segments)
     }
 
+    /// Returns a reference to the resolver statistics.
     pub fn stats(&self) -> &PathResolverStats {
         &self.stats
     }

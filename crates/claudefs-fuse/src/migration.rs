@@ -1,29 +1,56 @@
+//! Migration module for tracking file system entry migration between storage tiers.
+//!
+//! This module provides types for managing the migration of files and directories
+//! from one storage location to another, with support for checkpointing, verification,
+//! and resume capability.
+
 use crate::inode::{InodeId, InodeKind};
 
+/// Represents a single file system entry (file or directory) being migrated.
 #[derive(Debug, Clone)]
 pub struct MigrationEntry {
+    /// Unique identifier for the inode.
     pub ino: InodeId,
+    /// The kind of entry (file or directory).
     pub kind: InodeKind,
+    /// Absolute path of the entry in the file system.
     pub path: String,
+    /// Size of the file in bytes (0 for directories).
     pub size: u64,
+    /// Optional checksum for data integrity verification.
     pub checksum: Option<u64>,
 }
 
+/// Represents the current phase of a migration operation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MigrationPhase {
+    /// No migration in progress; initial state.
     Idle,
+    /// Scanning the source file system to discover entries.
     Scanning,
+    /// Copying entries from source to destination.
     Copying,
+    /// Verifying migrated entries (checksums, integrity).
     Verifying,
+    /// Migration completed successfully.
     Done,
-    Failed { reason: String },
+    /// Migration failed with an error reason.
+    Failed {
+        /// Description of why the migration failed.
+        reason: String,
+    },
 }
 
+/// Configuration options for migration operations.
 #[derive(Debug, Clone)]
 pub struct MigrationConfig {
+    /// Maximum number of entries to track in memory before checkpointing.
     pub max_entries: usize,
+    /// Whether to verify checksums after copying.
     pub verify_checksums: bool,
+    /// Whether to skip empty directories during migration.
     pub skip_empty_dirs: bool,
+    /// Number of entries to process before creating a checkpoint.
     pub checkpoint_interval: u64,
 }
 
@@ -38,16 +65,23 @@ impl Default for MigrationConfig {
     }
 }
 
+/// Checkpoint state for tracking migration progress and enabling resume.
 #[derive(Debug, Clone)]
 pub struct MigrationCheckpoint {
+    /// Total number of entries scanned so far.
     pub entries_scanned: u64,
+    /// Number of entries successfully copied.
     pub entries_copied: u64,
+    /// Total bytes copied so far.
     pub bytes_copied: u64,
+    /// Last successfully copied entry path (for resume point).
     pub last_path: String,
+    /// List of errors encountered during migration.
     pub errors: Vec<String>,
 }
 
 impl MigrationCheckpoint {
+    /// Creates a new checkpoint with zeroed values.
     pub fn new() -> Self {
         MigrationCheckpoint {
             entries_scanned: 0,
@@ -58,16 +92,19 @@ impl MigrationCheckpoint {
         }
     }
 
+    /// Records a successfully copied entry, updating counters and last path.
     pub fn record_copied(&mut self, path: &str, bytes: u64) {
         self.entries_copied += 1;
         self.bytes_copied += bytes;
         self.last_path = path.to_string();
     }
 
+    /// Adds an error message to the checkpoint.
     pub fn add_error(&mut self, err: &str) {
         self.errors.push(err.to_string());
     }
 
+    /// Returns true if the checkpoint can be used to resume migration.
     pub fn is_resumable(&self) -> bool {
         self.entries_scanned > 0
     }
@@ -79,6 +116,7 @@ impl Default for MigrationCheckpoint {
     }
 }
 
+/// Manages the overall migration process, tracking state and entries.
 pub struct MigrationManager {
     #[allow(dead_code)]
     config: MigrationConfig,
@@ -88,6 +126,7 @@ pub struct MigrationManager {
 }
 
 impl MigrationManager {
+    /// Creates a new migration manager with the given configuration.
     pub fn new(config: MigrationConfig) -> Self {
         MigrationManager {
             config,
@@ -97,65 +136,80 @@ impl MigrationManager {
         }
     }
 
+    /// Creates a new migration manager with default configuration.
     pub fn with_default_config() -> Self {
         Self::new(MigrationConfig::default())
     }
 
+    /// Adds a scanned entry to the migration and increments scanned count.
     pub fn add_scanned_entry(&mut self, entry: MigrationEntry) {
         self.scanned_entries.push(entry);
         self.checkpoint.entries_scanned += 1;
     }
 
+    /// Begins the scanning phase of migration.
     pub fn begin_scan(&mut self) {
         self.phase = MigrationPhase::Scanning;
     }
 
+    /// Finishes scanning and transitions to the copying phase.
     pub fn finish_scan(&mut self) {
         self.phase = MigrationPhase::Copying;
     }
 
+    /// Records a successful copy operation, updating checkpoint counters.
     pub fn record_copied(&mut self, path: &str, bytes: u64) {
         self.checkpoint.record_copied(path, bytes);
     }
 
+    /// Begins the verification phase of migration.
     pub fn begin_verify(&mut self) {
         self.phase = MigrationPhase::Verifying;
     }
 
+    /// Marks migration as completed successfully.
     pub fn complete(&mut self) {
         self.phase = MigrationPhase::Done;
     }
 
+    /// Marks migration as failed with the given reason.
     pub fn fail(&mut self, reason: &str) {
         self.phase = MigrationPhase::Failed {
             reason: reason.to_string(),
         };
     }
 
+    /// Returns the current migration phase.
     pub fn phase(&self) -> &MigrationPhase {
         &self.phase
     }
 
+    /// Returns the current checkpoint state.
     pub fn checkpoint(&self) -> &MigrationCheckpoint {
         &self.checkpoint
     }
 
+    /// Returns the number of entries scanned so far.
     pub fn scanned_count(&self) -> usize {
         self.scanned_entries.len()
     }
 
+    /// Returns the number of entries successfully copied.
     pub fn copied_count(&self) -> u64 {
         self.checkpoint.entries_copied
     }
 
+    /// Returns the total number of bytes copied.
     pub fn bytes_copied(&self) -> u64 {
         self.checkpoint.bytes_copied
     }
 
+    /// Returns the number of errors encountered.
     pub fn error_count(&self) -> usize {
         self.checkpoint.errors.len()
     }
 
+    /// Returns all scanned file entries (excludes directories).
     pub fn files(&self) -> Vec<&MigrationEntry> {
         self.scanned_entries
             .iter()
@@ -163,6 +217,7 @@ impl MigrationManager {
             .collect()
     }
 
+    /// Returns all scanned directory entries (excludes files).
     pub fn directories(&self) -> Vec<&MigrationEntry> {
         self.scanned_entries
             .iter()
@@ -170,6 +225,7 @@ impl MigrationManager {
             .collect()
     }
 
+    /// Computes a checksum for the given data using a simple weighted sum.
     pub fn compute_checksum(data: &[u8]) -> u64 {
         let mut sum: u64 = 0;
         for (i, &byte) in data.iter().enumerate() {
@@ -180,6 +236,7 @@ impl MigrationManager {
         sum
     }
 
+    /// Returns true if migration can be resumed from the current checkpoint.
     pub fn can_resume(&self) -> bool {
         self.checkpoint.entries_scanned > 0 && !self.checkpoint.last_path.is_empty()
     }
