@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 19: Gateway Wire/Audit/Access-Log & Meta Access/XAttr/Inode-Gen (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1571 Total
+
+**Status:** ✅ 1571 security tests passing, 0 failures (+50 from 1521)
+
+**New Coverage — Gateway Wire Validation, Audit Trail, Access Log (25 tests):**
+- Wire NFS Validation (5 tests): file handle size, filename sanitization, path validation, count bounds, mode format/parse
+- Wire S3 & Utility (5 tests): S3 key/size validation, part number/upload ID, ETag computation, ISO8601, request ID
+- Audit Trail Recording (5 tests): severity ordering, event type mapping, record/query, disabled, min severity filter
+- Audit Ring Buffer (5 tests): eviction, record fields, config defaults, clear, monotonic IDs
+- Access Log Stats (5 tests): entry builder, ring buffer, stats tracking, protocol/client filtering, avg/rate safety
+
+**New Coverage — Meta POSIX Access Control, XAttr, NFS File Handles (25 tests):**
+- POSIX Access Control (5 tests): root bypass, owner/group/other permissions, PermissionDenied
+- Sticky Bit & Directory Ops (5 tests): sticky owner/dir-owner delete, non-owner blocked, can_create_in/delete_from
+- Extended Attributes (5 tests): set/get roundtrip, nonexistent error, list/remove, remove_all, inode isolation
+- NFS File Handle & Generation (5 tests): generation default/next, serialization, allocate/reuse, stale detection, export/import
+- Integration & Edge Cases (5 tests): AccessMode flags, supplementary groups, xattr overwrite, clear, unknown inode
+
+**Key Findings (6 HIGH, 1 CRITICAL, 4 MEDIUM):**
+- META-ACC-19 (CRITICAL): Stale NFS handles correctly detected after inode recycling
+- GW-WIRE-01 (HIGH): NFS file handle size enforced 1-64 bytes per NFSv3 spec
+- GW-WIRE-02 (HIGH): Filename rejects path separator and null byte injection
+- META-ACC-03 (HIGH): Supplementary groups correctly checked for group permissions
+- META-ACC-15 (HIGH): XAttr operations correctly inode-scoped — no cross-inode leakage
+
 ### A10: Security Audit — Phase 18: Gateway S3 Versioning/Multipart & Repl Failover/Bootstrap (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1521 Total
