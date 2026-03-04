@@ -183,4 +183,64 @@ mod tests {
             decompress(&compressed, CompressionAlgorithm::Zstd { level: 3 }).unwrap();
         assert_eq!(decompressed, data);
     }
+
+    #[test]
+    fn test_compress_lz4_empty() {
+        let data: &[u8] = &[];
+        let compressed = compress(data, CompressionAlgorithm::Lz4).unwrap();
+        let decompressed = decompress(&compressed, CompressionAlgorithm::Lz4).unwrap();
+        assert!(decompressed.is_empty());
+    }
+
+    #[test]
+    fn test_compress_zstd_level_1() {
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(64 * 1024).collect();
+        let compressed = compress(&data, CompressionAlgorithm::Zstd { level: 1 }).unwrap();
+        let decompressed =
+            decompress(&compressed, CompressionAlgorithm::Zstd { level: 1 }).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_compress_zstd_level_19() {
+        let data: Vec<u8> = "repeating pattern for best compression"
+            .repeat(1000)
+            .into_bytes();
+        let compressed = compress(&data, CompressionAlgorithm::Zstd { level: 19 }).unwrap();
+        let decompressed =
+            decompress(&compressed, CompressionAlgorithm::Zstd { level: 19 }).unwrap();
+        assert_eq!(decompressed, data);
+        assert!(compressed.len() < data.len());
+    }
+
+    #[test]
+    fn test_compress_binary_data() {
+        let mut data = vec![0u8; 64 * 1024];
+        for (i, byte) in data.iter_mut().enumerate() {
+            *byte = ((i * 251) % 256) as u8;
+        }
+        let compressed = compress(&data, CompressionAlgorithm::Lz4).unwrap();
+        let decompressed = decompress(&compressed, CompressionAlgorithm::Lz4).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_decompress_invalid_data_returns_error() {
+        let invalid = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        let result = decompress(&invalid, CompressionAlgorithm::Lz4);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_lz4_vs_zstd_same_data() {
+        let data: Vec<u8> = (0u8..=255u8).cycle().take(64 * 1024).collect();
+        let lz4_compressed = compress(&data, CompressionAlgorithm::Lz4).unwrap();
+        let zstd_compressed = compress(&data, CompressionAlgorithm::Zstd { level: 3 }).unwrap();
+        let lz4_decompressed = decompress(&lz4_compressed, CompressionAlgorithm::Lz4).unwrap();
+        let zstd_decompressed =
+            decompress(&zstd_compressed, CompressionAlgorithm::Zstd { level: 3 }).unwrap();
+        assert_eq!(lz4_decompressed, data);
+        assert_eq!(zstd_decompressed, data);
+        assert_eq!(lz4_decompressed, zstd_decompressed);
+    }
 }

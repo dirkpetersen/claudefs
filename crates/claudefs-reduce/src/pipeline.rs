@@ -420,4 +420,125 @@ mod tests {
             assert_eq!(a.hash, b.hash);
         }
     }
+
+    #[test]
+    fn test_pipeline_config_default() {
+        let config = PipelineConfig::default();
+        assert!(config.dedup_enabled);
+        assert!(config.compression_enabled);
+        assert!(!config.encryption_enabled);
+    }
+
+    #[test]
+    fn test_pipeline_stats_default() {
+        let stats = ReductionStats::default();
+        assert_eq!(stats.input_bytes, 0);
+        assert_eq!(stats.chunks_total, 0);
+        assert_eq!(stats.chunks_deduplicated, 0);
+    }
+
+    #[test]
+    fn test_pipeline_process_tiny_data() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data = b"tiny";
+        let (chunks, _stats) = p.process_write(data).unwrap();
+        assert_eq!(chunks.len(), 1);
+    }
+
+    #[test]
+    fn test_pipeline_process_exactly_min_chunk() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let min_size = p.config().chunker.min_size;
+        let data: Vec<u8> = vec![0x42u8; min_size];
+        let (chunks, stats) = p.process_write(&data).unwrap();
+        assert!(!chunks.is_empty());
+        assert_eq!(stats.input_bytes, min_size as u64);
+    }
+
+    #[test]
+    fn test_pipeline_reduction_ratio() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data: Vec<u8> = vec![0xAAu8; 64 * 1024];
+        let (_, stats) = p.process_write(&data).unwrap();
+        assert!(stats.compression_ratio >= 1.0);
+    }
+
+    #[test]
+    fn test_pipeline_multiple_identical_chunks() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let chunk_data: Vec<u8> = vec![0x42u8; 32 * 1024];
+        let mut data = chunk_data.clone();
+        data.extend_from_slice(&chunk_data);
+
+        let (chunks1, stats1) = p.process_write(&data).unwrap();
+        let (_chunks2, stats2) = p.process_write(&data).unwrap();
+
+        assert!(
+            stats1.chunks_deduplicated < stats2.chunks_deduplicated
+                || stats2.chunks_deduplicated > 0
+        );
+    }
+
+    #[test]
+    fn test_reduced_chunk_fields() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data = b"test data for reduced chunk";
+        let (chunks, _) = p.process_write(data).unwrap();
+        let chunk = &chunks[0];
+        assert!(chunk.original_size > 0);
+        assert_eq!(chunk.is_duplicate, false);
+    }
+
+    #[test]
+    fn test_pipeline_stats_accumulate() {
+        let config = PipelineConfig {
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data: Vec<u8> = vec![0x42u8; 64 * 1024];
+
+        let _ = p.process_write(&data).unwrap();
+        let (_, stats) = p.process_write(&data).unwrap();
+
+        assert!(stats.chunks_deduplicated > 0);
+    }
+
+    #[test]
+    fn test_pipeline_with_disabled_compression() {
+        let config = PipelineConfig {
+            compression_enabled: false,
+            encryption_enabled: false,
+            ..Default::default()
+        };
+        let mut p = ReductionPipeline::new(config);
+        let data: Vec<u8> = vec![0x42u8; 64 * 1024];
+        let (chunks, _) = p.process_write(&data).unwrap();
+        assert!(!chunks.is_empty());
+        for chunk in &chunks {
+            if !chunk.is_duplicate {
+                assert_eq!(chunk.compression, CompressionAlgorithm::None);
+            }
+        }
+    }
 }
