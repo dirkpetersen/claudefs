@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 8: Fanout, Quorum, Segment Router (2026-03-04)
+
+**Status:** ✅ Complete — 1130 tests passing (60 new), 3 new modules
+
+#### New Modules
+
+1. **fanout.rs** — Parallel request fanout tracker (19 tests)
+   - `FanoutOp`: tracks in-flight requests to multiple nodes with quorum logic
+   - `FanoutManager`: manages concurrent fanout operations
+   - State: InFlight → Succeeded/Failed/TimedOut
+   - Used for journal replication (D3: 2x sync) and EC stripe writes (D1: 4+2)
+
+2. **quorum.rs** — Distributed consensus voting (20 tests)
+   - `QuorumRound`: votes with Majority/All/AtLeast(N) policies
+   - `achievable()` fast-path — fail early if quorum is impossible
+   - Used by A2 (Metadata) for Raft operations and shard leader election (D4)
+
+3. **segment_router.rs** — EC stripe-aware segment routing (21 tests)
+   - FourPlusTwo (4+2, 6+ nodes) and TwoPlusOne (2+1, 3-5 nodes) configs
+   - Deterministic placement via FNV-1a hash of segment_id + shard_index
+   - `can_reconstruct()` checks recoverability with N failed nodes
+   - Used by A5 (FUSE) for parallel reads, A1 (storage) for write distribution (D8)
+
+#### Test Progression
+- P1: 667 | P2: 667 | P3: 734 | P4: 817 | P5: 900 | P6: 1013 | P7: 1070 | **P8: 1130**
+
 ### A4: Transport — Phase 7: Wire Diagnostics, Credit Window, Multicast Groups (2026-03-04)
 
 **Status:** ✅ Complete — 1070 tests passing (57 new), 3 new modules
