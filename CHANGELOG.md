@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 7: FUSE Deep & Storage Deep v2 (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 972 Total
+
+**Status:** ✅ 972 security tests passing, 0 failures (+50 from 922)
+
+**New Coverage — FUSE Deep Security (25 tests):**
+- Buffer Pool Memory Safety (5 tests): partial clear (FINDING), pool exhaustion, ID uniqueness, size correctness, stats
+- Passthrough & Capability (5 tests): negative FD (FINDING), unbounded growth (FINDING), panic risk, version parsing, kernel boundary
+- Mount Options & Session (5 tests): default_permissions false (FINDING), conflicting options, fuse args, empty paths, zero background
+- Rate Limiting & Quota (5 tests): refill overflow, over-consume, quota boundary, burst factor, zero refill
+- WORM & Immutability (5 tests): immutable blocks all, append-only, none mode, legal hold, mode downgrade (FINDING)
+
+**New Coverage — Storage Deep v2 Security (25 tests):**
+- Allocator Boundary (5 tests): stats, capacity exhaustion, large block alignment, free roundtrip, zero capacity
+- Block Cache Poisoning (5 tests): insert/get roundtrip, eviction, dirty tracking, checksum integrity, pinned entries
+- Storage Quota (5 tests): hard limit, soft limit grace, zero limits, boundary behavior, stats tracking
+- Wear Leveling (5 tests): hot zone detection, wear advice, alert severity, no-writes baseline, write pattern tracking
+- Hot Swap State Machine (5 tests): register/drain, unregistered drain, double register, remove active (FINDING), fail device
+
+**Key Findings (4 HIGH, 7 MEDIUM):**
+- FUSE-DEEP-01 (HIGH): Buffer.clear() only zeroes first 64 bytes — sensitive data leakage
+- FUSE-DEEP-04 (HIGH): Negative FD accepted without validation
+- FUSE-DEEP-05 (HIGH): FD table unbounded growth — memory exhaustion
+- FUSE-DEEP-13 (HIGH): WORM mode can be downgraded — no unidirectional enforcement
+- STOR-DEEP2-24 (HIGH): Active device removable without drain — data loss risk
+
 ### A10: Security Audit — Phase 6: Transport & Reduce Deep Security (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 922 Total
