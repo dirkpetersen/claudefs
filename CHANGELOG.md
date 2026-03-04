@@ -228,9 +228,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
      mkdir/rmdir, unlink, rename, opendir/readdir/closedir, fsync, ftruncate, disk_free
    - C FFI header matches claudefs-transport error code enum
 
+5. **`ClusterVfsBackend`** (`cluster_backend.rs`, 388 lines, new module)
+   - `VfsBackend` implementation wired to `GatewayConnPool` for A2/A4 integration
+   - `ClusterStats`: total_rpc_calls, successful/failed RPCs, bytes_read/written, last_success
+   - All 15 VfsBackend methods with tracing spans and NotImplemented stubs
+   - `with_cluster_name()` builder for multi-cluster deployments
+   - 7 unit tests validating stub behavior, stats tracking, and RPC accounting
+   - Clean integration path: when A2/A4 APIs stabilize, only this module changes
+
 **Updated Crate Statistics:**
-- Source files: 54 `.rs` files, ~29,500 lines total
-- Tests: 1121 passing (1107 lib + 14 new)
+- Source files: 55 `.rs` files, ~29,900 lines total
+- Tests: 1128 passing (+21 from Phase 2 start)
 - Build: 0 errors, 0 warnings
 
 ### A8: Management — Phase 1 Documentation & Analytics Planning (2026-03-04)
