@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 18: Gateway S3 Versioning/Multipart & Repl Failover/Bootstrap (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1521 Total
+
+**Status:** ✅ 1521 security tests passing, 0 failures (+50 from 1471)
+
+**New Coverage — Gateway S3 Versioning & Multipart Uploads (25 tests):**
+- S3 Versioning IDs (5 tests): unique IDs, version list ordering, delete markers, latest version, filtering
+- S3 Versioning State Machine (5 tests): initial state, enable/suspend transitions, registry, put versioned, list
+- S3 Delete & Edge Cases (5 tests): delete creates marker, suspended versioning, registry stats, config, count
+- Multipart State Machine (5 tests): create upload, add parts, complete, abort, state transitions
+- Multipart Validation (5 tests): part number range, contiguous parts, manager lifecycle, concurrent, stats
+
+**New Coverage — Replication Failover & Bootstrap Coordinator (25 tests):**
+- Failover State Machine (5 tests): initial normal, site down degrades, split brain, recovery, manual failover
+- Failover Edge Cases (5 tests): replication lag, stats tracking, stats default, same site twice, is_degraded
+- Bootstrap Phase Machine (5 tests): initial idle, enroll→snapshot, snapshot→catchup, catchup→complete, failure
+- Bootstrap Progress & Stats (5 tests): progress idle, enrolling, snapshot, stats default, multiple attempts
+- Integration & Cross-Module (5 tests): event serialization, enrollment record, state clone, catchup, phases
+
+**Key Findings (5 HIGH, 1 CRITICAL, 3 MEDIUM):**
+- REPL-FAIL-03 (CRITICAL): Split brain state correctly detected when both sites fail
+- GW-S3-05 (HIGH): Versioning state machine enforces valid transitions only
+- GW-S3-12 (HIGH): Multipart state machine prevents double-complete or complete-after-abort
+- REPL-FAIL-05 (HIGH): Manual failover with explicit target prevents ambiguous primary election
+- REPL-BOOT-12 (HIGH): Bootstrap phase machine enforces sequential progression
+
 ### A10: Security Audit — Phase 17: Repl QoS/GC & FUSE Prefetch/Health (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1471 Total
