@@ -305,9 +305,8 @@ impl GossipNode {
             match &event {
                 GossipEvent::Joined { node_id, addr } => {
                     let should_add = if let Some(existing) = self.members.get(node_id) {
-                        // Higher incarnation wins
-                        existing.incarnation < 1
-                            || (existing.state == MemberState::Dead && existing.incarnation < 1)
+                        // Accept rejoins: allow if member is dead or left
+                        existing.state == MemberState::Dead || existing.state == MemberState::Left
                     } else {
                         true
                     };
@@ -457,7 +456,7 @@ impl GossipNode {
         // Increment probe_count based on probe_interval_ms
         let intervals_passed = (self.current_time_ms / self.config.probe_interval_ms)
             .saturating_sub(old_time / self.config.probe_interval_ms);
-        self.probe_count += intervals_passed as u64;
+        self.probe_count += intervals_passed;
     }
 }
 
