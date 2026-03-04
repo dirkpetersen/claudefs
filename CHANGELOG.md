@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 16: Gateway Delegation/Cache & FUSE Barrier/Policy (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1421 Total
+
+**Status:** ✅ 1421 security tests passing, 0 failures (+50 from 1371)
+
+**New Coverage — Gateway Delegation, NFS Cache, SMB Multichannel (25 tests):**
+- NFSv4 Delegation (5 tests): write conflict, recall state machine, revoke client, double return, ID uniqueness
+- NFS Attr Cache (5 tests): insert/get, capacity eviction, hit rate, invalidation, custom TTL
+- SMB Multichannel Config (5 tests): defaults, builder, NIC capabilities, interface caps, disabled enforcement
+- SMB Interface Selection (5 tests): duplicate detection (FINDING), weighted speed, prefer RDMA, pin to interface, remove
+- SMB Sessions (5 tests): lifecycle, stats, available filters, delegation counts, file delegations
+
+**New Coverage — FUSE Fsync Barrier & Security Policy (25 tests):**
+- Write Barrier State Machine (5 tests): state transitions, failure path, manager create/flush, invalid ID, display
+- Fsync Journal (5 tests): append/commit, full rejection (FINDING), entries for inode, manager record, mode default
+- Capability Set (5 tests): fuse minimal, add/remove, contains, hardened profile, default permissive
+- Syscall Policy (5 tests): FUSE allowlist (FINDING), enforcer blocks, violation limit, recent violations, namespace
+- File Attributes (5 tests): new file, new dir, new symlink, file type variants, violation types
+
+**Key Findings (5 HIGH, 4 MEDIUM):**
+- GW-DELEG-01 (HIGH): Write delegation enforces file-level exclusivity
+- FUSE-BARRIER-07 (HIGH): Journal capacity limit prevents unbounded memory allocation
+- FUSE-BARRIER-16 (HIGH): io_uring syscalls included in FUSE allowlist
+- FUSE-BARRIER-18 (HIGH): Violation limit prevents log flooding DoS
+- GW-DELEG-15 (HIGH): Disabled multichannel prevents unauthorized channel allocation
+
 ### A10: Security Audit — Phase 15: Repl Health & Storage Device Extensions (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1371 Total

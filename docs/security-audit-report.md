@@ -1435,3 +1435,48 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 3. SMART Health Monitoring (5): healthy device, temperature warning, critical spare, alert generation, temp conversion
 4. Defragmentation (5): config defaults, initial stats, record operations, can_run cooldown, empty plan
 5. Write-Ahead Journal (5): append/pending, state transitions, pending by state, config defaults, stats
+
+---
+
+## Section 33: Phase 16 — Gateway Delegation/Cache & FUSE Barrier/Policy
+
+**Test Modules:** `gateway_deleg_cache_security_tests.rs` (25 tests), `fuse_barrier_policy_security_tests.rs` (25 tests)
+**Total Tests After Phase 16:** 1421 passing, 0 failures
+
+### Gateway Delegation, NFS Cache, SMB Multichannel (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| GW-DELEG-01 | HIGH | Write delegation enforces file-level exclusivity — blocks both read and write grants |
+| GW-DELEG-04 | HIGH | Double return of delegation correctly rejected (AlreadyReturned error) |
+| GW-DELEG-07 | MEDIUM | Attribute cache capacity limit prevents unbounded memory growth |
+| GW-DELEG-10 | MEDIUM | Per-entry TTL override works correctly for short-lived cache entries |
+| GW-DELEG-15 | HIGH | Disabled multichannel prevents channel allocation — config enforcement |
+| GW-DELEG-16 | MEDIUM | Duplicate interface detection prevents SMB multichannel confusion |
+| GW-DELEG-25 | MEDIUM | File-scoped delegation queries filter correctly by file ID |
+
+**Categories tested:**
+1. NFSv4 Delegation (5): write conflict, recall state machine, revoke client, double return, ID uniqueness
+2. NFS Attr Cache (5): insert/get, capacity eviction, hit rate, invalidation, custom TTL
+3. SMB Config (5): config defaults, builder, NIC capabilities, interface capabilities, disabled returns empty
+4. SMB Interface Selection (5): duplicate interface, weighted by speed, prefer RDMA, pin to interface, remove
+5. SMB Sessions (5): session lifecycle, session stats, available filters, delegation counts, file delegations
+
+### FUSE Fsync Barrier, Security Policy, File Attributes (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FUSE-BARRIER-02 | HIGH | Failed barriers are terminal state — no silent recovery |
+| FUSE-BARRIER-04 | HIGH | Invalid barrier IDs rejected — prevents state corruption |
+| FUSE-BARRIER-07 | HIGH | Journal capacity limit prevents unbounded memory allocation |
+| FUSE-BARRIER-12 | MEDIUM | Duplicate capability add is idempotent — prevents privilege set bloat |
+| FUSE-BARRIER-16 | HIGH | io_uring syscalls included in FUSE allowlist — modern kernel support |
+| FUSE-BARRIER-18 | HIGH | Violation limit prevents log flooding DoS attack |
+| FUSE-BARRIER-22 | MEDIUM | Directory nlink starts at 2 (. and ..) — POSIX compliance verified |
+
+**Categories tested:**
+1. Write Barrier State Machine (5): state transitions, failure path, manager create/flush, invalid ID, ID display
+2. Fsync Journal (5): append/commit, full rejection, entries for inode, manager record, mode default
+3. Capability Set (5): fuse minimal, add/remove, contains, hardened profile, default permissive
+4. Syscall Policy (5): FUSE allowlist, enforcer blocks, violation limit, recent violations, mount namespace
+5. File Attributes (5): new file, new dir, new symlink, file type variants, violation types

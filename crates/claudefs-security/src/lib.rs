@@ -59,21 +59,8 @@ pub mod gateway_security_tests;
 #[cfg(test)]
 pub mod fuse_security_tests;
 #[cfg(test)]
-pub mod transport_security_tests;
-#[cfg(test)]
-pub mod reduce_security_tests;
-#[cfg(test)]
-pub mod reduce_deep_security_tests;
-#[cfg(test)]
 #[allow(missing_docs)]
-pub mod reduce_extended_security_tests;
-#[cfg(test)]
-pub mod repl_security_tests;
-#[cfg(test)]
-pub mod repl_phase2_security_tests;
-#[cfg(test)]
-#[allow(missing_docs)]
-pub mod repl_health_security_tests;
+pub mod fuse_barrier_policy_security_tests;
 #[cfg(test)]
 pub mod fuse_ext_security_tests;
 #[cfg(test)]
@@ -133,3 +120,27 @@ pub mod meta_fsck_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod storage_device_ext_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_deleg_cache_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod reduce_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod reduce_deep_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod reduce_extended_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod repl_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod repl_phase2_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod repl_health_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod transport_security_tests;
