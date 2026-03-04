@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 10: Mgmt Extended & Reduce Extended (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1122 Total
+
+**Status:** ✅ 1122 security tests passing, 0 failures (+50 from 1072)
+
+**New Coverage — Management Extended Security (25 tests):**
+- Alerting & Diagnostics (5 tests): threshold boundary, NaN handling (FINDING), severity ordering, diagnostic report, check builder
+- Cluster Bootstrap (5 tests): empty name validation, invalid erasure params, state transitions, empty nodes, duplicate node
+- Config Sync (5 tests): put/get roundtrip, version monotonicity, delete, entries_since, empty key (FINDING)
+- Cost Tracking (5 tests): total, budget exceeded, negative cost (FINDING), daily total, budget thresholds
+- Health & Node Scaling (5 tests): capacity percent, thresholds, state transitions, role predicates, stale detection
+
+**New Coverage — Reduce Extended Security (25 tests):**
+- WORM Policy Enforcement (5 tests): none always expired, legal hold never expires, immutable boundary, policy upgrade (FINDING), active count
+- Key Rotation Scheduler (5 tests): initial idle, schedule from idle, double schedule fails, mark needs rotation, register chunk
+- GC Extended (5 tests): config defaults, initial stats, mark before sweep (FINDING), mark and retain, multiple cycles
+- Write Path Stats (5 tests): pipeline config defaults, reduction ratio, zero stored bytes, chunker config, CAS duplicate
+- Snapshot & Segment Extended (5 tests): create and list, delete nonexistent, seal empty, entry integrity, config defaults
+
+**Key Findings (2 HIGH, 3 MEDIUM):**
+- MGMT-EXT-02 (HIGH): NaN never triggers alert rules — IEEE 754 comparison edge case
+- MGMT-EXT-16 (HIGH): Negative costs reduce apparent spend — budget bypass risk
+- WORM-04 (HIGH): WORM policy upgrade allows legal_hold override — verify compliance intent
+- GC-03 (HIGH): Empty mark phase deletes everything — no safety net
+
 ### A10: Security Audit — Phase 9: Meta Consensus & Transport Connection (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1072 Total
