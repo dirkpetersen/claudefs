@@ -24,15 +24,25 @@ pub struct RemoteRef {
 /// Result of a remote lookup operation
 #[derive(Debug, Clone)]
 pub struct LookupResult {
+    /// Inode ID of the looked-up entry
     pub ino: InodeId,
+    /// Whether this is a file, directory, or symlink
     pub kind: InodeKind,
+    /// File size in bytes
     pub size: u64,
+    /// Owner user ID
     pub uid: u32,
+    /// Owner group ID
     pub gid: u32,
+    /// Permission bits (e.g., 0o755)
     pub mode: u32,
+    /// Hard link count
     pub nlink: u32,
+    /// Last access time
     pub atime: SystemTime,
+    /// Last modification time
     pub mtime: SystemTime,
+    /// Last metadata change time
     pub ctime: SystemTime,
 }
 
@@ -52,6 +62,7 @@ pub struct TransportConfig {
 }
 
 impl Default for TransportConfig {
+    /// Returns default transport configuration with reasonable timeouts.
     fn default() -> Self {
         Self {
             servers: Vec::new(),
