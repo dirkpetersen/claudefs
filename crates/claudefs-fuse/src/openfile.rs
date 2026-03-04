@@ -1,16 +1,27 @@
+//! Open file tracking for the FUSE filesystem.
+//!
+//! This module provides the [`OpenFileTable`] for managing open file handles,
+//! tracking read/write modes, offsets, and dirty state for each open file.
+
 use crate::inode::InodeId;
 use std::collections::HashMap;
 
+/// Unique identifier for an open file handle.
 pub type FileHandle = u64;
 
+/// Access mode flags for an open file.
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpenFlags {
+    /// File opened for read-only access.
     ReadOnly,
+    /// File opened for write-only access.
     WriteOnly,
+    /// File opened for both reading and writing.
     ReadWrite,
 }
 
 impl OpenFlags {
+    /// Returns `true` if the file can be read from.
     pub fn is_readable(&self) -> bool {
         match self {
             OpenFlags::ReadOnly | OpenFlags::ReadWrite => true,
@@ -18,6 +29,7 @@ impl OpenFlags {
         }
     }
 
+    /// Returns `true` if the file can be written to.
     pub fn is_writable(&self) -> bool {
         match self {
             OpenFlags::WriteOnly | OpenFlags::ReadWrite => true,
@@ -25,6 +37,12 @@ impl OpenFlags {
         }
     }
 
+    /// Converts a libc `O_RDONLY`/`O_WRONLY`/`O_RDWR` value to `OpenFlags`.
+    ///
+    /// The low two bits of the flags determine the mode:
+    /// - `0` → `ReadOnly`
+    /// - `1` → `WriteOnly`
+    /// - `2` → `ReadWrite`
     pub fn from_libc(flags: i32) -> Self {
         match flags & 0o3 {
             0 => OpenFlags::ReadOnly,
@@ -35,21 +53,32 @@ impl OpenFlags {
     }
 }
 
+/// Entry representing a single open file in the table.
 #[derive(Debug, Clone)]
 pub struct OpenFileEntry {
+    /// The file handle assigned to this open file.
     pub fh: FileHandle,
+    /// The inode number of the opened file.
     pub ino: InodeId,
+    /// The access mode flags for this open file.
     pub flags: OpenFlags,
+    /// The current read/write offset within the file.
     pub offset: u64,
+    /// Whether the file has been modified since being opened.
     pub dirty: bool,
 }
 
+/// Table tracking all currently open files in the filesystem.
+///
+/// The table assigns unique file handles, tracks offsets and dirty state,
+/// and allows lookup by handle or by inode.
 pub struct OpenFileTable {
     next_fh: FileHandle,
     entries: HashMap<FileHandle, OpenFileEntry>,
 }
 
 impl OpenFileTable {
+    /// Creates a new empty open file table.
     pub fn new() -> Self {
         tracing::debug!("Creating new open file table");
         Self {
@@ -58,6 +87,9 @@ impl OpenFileTable {
         }
     }
 
+    /// Opens a file and returns a new file handle.
+    ///
+    /// The handle is unique and monotonically increasing.
     pub fn open(&mut self, ino: InodeId, flags: OpenFlags) -> FileHandle {
         let fh = self.next_fh;
         self.next_fh += 1;
@@ -83,14 +115,19 @@ impl OpenFileTable {
         fh
     }
 
+    /// Returns a reference to the entry for the given file handle.
     pub fn get(&self, fh: FileHandle) -> Option<&OpenFileEntry> {
         self.entries.get(&fh)
     }
 
+    /// Returns a mutable reference to the entry for the given file handle.
     pub fn get_mut(&mut self, fh: FileHandle) -> Option<&mut OpenFileEntry> {
         self.entries.get_mut(&fh)
     }
 
+    /// Closes the file handle and removes it from the table.
+    ///
+    /// Returns the removed entry if the handle existed.
     pub fn close(&mut self, fh: FileHandle) -> Option<OpenFileEntry> {
         let entry = self.entries.remove(&fh);
 
@@ -101,6 +138,9 @@ impl OpenFileTable {
         entry
     }
 
+    /// Sets the offset for the given file handle.
+    ///
+    /// Returns `true` if the handle exists, `false` otherwise.
     pub fn seek(&mut self, fh: FileHandle, offset: u64) -> bool {
         match self.entries.get_mut(&fh) {
             Some(entry) => {
@@ -115,6 +155,9 @@ impl OpenFileTable {
         }
     }
 
+    /// Marks the given file handle as dirty (modified).
+    ///
+    /// Returns `true` if the handle exists, `false` otherwise.
     pub fn mark_dirty(&mut self, fh: FileHandle) -> bool {
         match self.entries.get_mut(&fh) {
             Some(entry) => {
@@ -129,6 +172,9 @@ impl OpenFileTable {
         }
     }
 
+    /// Marks the given file handle as clean (not modified).
+    ///
+    /// Returns `true` if the handle exists, `false` otherwise.
     pub fn mark_clean(&mut self, fh: FileHandle) -> bool {
         match self.entries.get_mut(&fh) {
             Some(entry) => {
@@ -146,6 +192,7 @@ impl OpenFileTable {
         }
     }
 
+    /// Returns all file handles that reference the given inode.
     pub fn handles_for_inode(&self, ino: InodeId) -> Vec<FileHandle> {
         self.entries
             .values()
@@ -154,10 +201,12 @@ impl OpenFileTable {
             .collect()
     }
 
+    /// Returns the number of currently open file handles.
     pub fn count(&self) -> usize {
         self.entries.len()
     }
 
+    /// Returns the number of open file handles that are marked dirty.
     pub fn dirty_count(&self) -> usize {
         self.entries.values().filter(|e| e.dirty).count()
     }

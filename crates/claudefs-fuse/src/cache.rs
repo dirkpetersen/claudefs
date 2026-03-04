@@ -1,12 +1,21 @@
+//! Metadata cache for FUSE operations.
+//!
+//! Provides LRU-based caching for file attributes and negative lookups
+//! to reduce round-trips to the metadata service.
+
 use crate::attr::FileAttr;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
+/// Configuration for the metadata cache.
 #[derive(Debug, Clone)]
 pub struct CacheConfig {
+    /// Maximum number of entries in the cache.
     pub capacity: usize,
+    /// Time-to-live for positive cache entries, in seconds.
     pub ttl_secs: u64,
+    /// Time-to-live for negative cache entries, in seconds.
     pub negative_ttl_secs: u64,
 }
 
@@ -20,18 +29,24 @@ impl Default for CacheConfig {
     }
 }
 
+/// A cache entry with associated metadata for TTL expiration.
 pub struct CacheEntry<V> {
+    /// The cached value.
     pub value: V,
+    /// Timestamp when this entry was inserted.
     pub inserted_at: Instant,
+    /// Time-to-live for this entry, in seconds.
     pub ttl_secs: u64,
 }
 
 impl<V> CacheEntry<V> {
+    /// Returns `true` if this entry has exceeded its TTL.
     fn is_expired(&self) -> bool {
         self.inserted_at.elapsed() > Duration::from_secs(self.ttl_secs)
     }
 }
 
+/// LRU cache for file metadata with TTL and negative caching support.
 pub struct MetadataCache {
     attrs: LruCache<u64, CacheEntry<FileAttr>>,
     negative_cache: LruCache<(u64, String), Instant>,
@@ -39,15 +54,21 @@ pub struct MetadataCache {
     stats: CacheStats,
 }
 
+/// Statistics for cache operations.
 #[derive(Debug, Default, Clone)]
 pub struct CacheStats {
+    /// Number of cache hits.
     pub hits: u64,
+    /// Number of cache misses.
     pub misses: u64,
+    /// Number of entries evicted due to capacity.
     pub evictions: u64,
+    /// Current number of entries in the cache.
     pub size: usize,
 }
 
 impl MetadataCache {
+    /// Creates a new metadata cache with the given configuration.
     pub fn new(config: CacheConfig) -> Self {
         let capacity =
             NonZeroUsize::new(config.capacity).unwrap_or(NonZeroUsize::new(10_000).unwrap());
@@ -59,6 +80,10 @@ impl MetadataCache {
         }
     }
 
+    /// Retrieves a file attribute from the cache if present and not expired.
+    ///
+    /// Updates hit/miss statistics. Returns `None` if the entry is missing
+    /// or has exceeded its TTL.
     pub fn get_attr(&mut self, ino: u64) -> Option<FileAttr> {
         if let Some(entry) = self.attrs.get(&ino) {
             if entry.is_expired() {
@@ -75,6 +100,9 @@ impl MetadataCache {
         }
     }
 
+    /// Inserts a file attribute into the cache with the configured TTL.
+    ///
+    /// If the cache is at capacity, the least-recently-used entry is evicted.
     pub fn insert_attr(&mut self, ino: u64, attr: FileAttr) {
         let prev_len = self.attrs.len();
         self.attrs.push(
@@ -90,19 +118,26 @@ impl MetadataCache {
         }
     }
 
+    /// Removes the entry for the given inode from the cache.
     pub fn invalidate(&mut self, ino: u64) {
         self.attrs.pop(&ino);
     }
 
+    /// Clears all entries from the attribute cache.
+    ///
+    /// Note: This is a conservative implementation that clears the entire
+    /// cache rather than filtering by parent inode.
     pub fn invalidate_children(&mut self, _parent_ino: u64) {
         self.attrs.clear();
     }
 
+    /// Records a negative cache entry for a nonexistent name in a directory.
     pub fn insert_negative(&mut self, parent_ino: u64, name: &str) {
         self.negative_cache
             .push((parent_ino, name.to_string()), Instant::now());
     }
 
+    /// Returns `true` if a negative cache entry exists and has not expired.
     pub fn is_negative(&mut self, parent_ino: u64, name: &str) -> bool {
         if let Some(instant) = self.negative_cache.get(&(parent_ino, name.to_string())) {
             if instant.elapsed() > Duration::from_secs(self.config.negative_ttl_secs) {
@@ -116,6 +151,7 @@ impl MetadataCache {
         }
     }
 
+    /// Returns a snapshot of current cache statistics.
     pub fn stats(&self) -> CacheStats {
         CacheStats {
             hits: self.stats.hits,
@@ -125,15 +161,18 @@ impl MetadataCache {
         }
     }
 
+    /// Clears both the attribute cache and negative cache.
     pub fn clear(&mut self) {
         self.attrs.clear();
         self.negative_cache.clear();
     }
 
+    /// Returns the number of entries in the attribute cache.
     pub fn len(&self) -> usize {
         self.attrs.len()
     }
 
+    /// Returns `true` if the attribute cache contains no entries.
     pub fn is_empty(&self) -> bool {
         self.attrs.is_empty()
     }

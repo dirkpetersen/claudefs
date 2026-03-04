@@ -1,28 +1,57 @@
+//! FUSE request interrupt handling.
+//!
+//! Tracks pending FUSE requests and handles `FUSE_INTERRUPT` operations.
+//! The kernel may send an interrupt for a previously issued request,
+//! typically when the calling process receives a signal.
+
 use crate::error::{FuseError, Result};
 use std::collections::HashMap;
 
+/// Unique identifier for a FUSE request.
+///
+/// Wraps the kernel-provided `unique` value for each request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RequestId(pub u64);
 
+/// Lifecycle state of a tracked request.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RequestState {
+    /// Request is queued but not yet being processed.
     Pending,
+    /// Request is currently being processed by a worker.
     Processing,
+    /// Request was interrupted by the kernel before completion.
     Interrupted,
+    /// Request finished successfully or with an error.
     Completed,
 }
 
+/// Record of a tracked FUSE request.
 #[derive(Debug, Clone)]
 pub struct RequestRecord {
+    /// The unique request identifier.
     pub id: RequestId,
+    /// The FUSE opcode (e.g., `FUSE_READ`, `FUSE_WRITE`).
     pub opcode: u32,
+    /// Process ID of the requesting process.
     pub pid: u32,
+    /// Current lifecycle state of the request.
     pub state: RequestState,
+    /// Timestamp (ms) when the request was enqueued.
     pub enqueued_at_ms: u64,
+    /// Timestamp (ms) when processing started, if any.
     pub started_at_ms: Option<u64>,
 }
 
 impl RequestRecord {
+    /// Creates a new request record in the `Pending` state.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique request identifier.
+    /// * `opcode` - FUSE operation code.
+    /// * `pid` - Process ID of the caller.
+    /// * `now_ms` - Current timestamp in milliseconds.
     pub fn new(id: RequestId, opcode: u32, pid: u32, now_ms: u64) -> Self {
         RequestRecord {
             id,
@@ -34,10 +63,16 @@ impl RequestRecord {
         }
     }
 
+    /// Returns how long this request has been waiting (ms).
+    ///
+    /// Uses saturating subtraction to handle clock skew.
     pub fn wait_ms(&self, now_ms: u64) -> u64 {
         now_ms.saturating_sub(self.enqueued_at_ms)
     }
 
+    /// Returns `true` if the request is no longer active.
+    ///
+    /// Both interrupted and completed requests are considered done.
     pub fn is_done(&self) -> bool {
         matches!(
             self.state,
@@ -46,6 +81,10 @@ impl RequestRecord {
     }
 }
 
+/// Tracks pending FUSE requests and handles interrupts.
+///
+/// Used to detect and handle `FUSE_INTERRUPT` requests from the kernel.
+/// Workers should check `is_interrupted` during long-running operations.
 pub struct InterruptTracker {
     pending: HashMap<RequestId, RequestRecord>,
     max_pending: usize,
@@ -54,6 +93,11 @@ pub struct InterruptTracker {
 }
 
 impl InterruptTracker {
+    /// Creates a new tracker with a maximum pending request count.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_pending` - Maximum number of concurrent requests to track.
     pub fn new(max_pending: usize) -> Self {
         InterruptTracker {
             pending: HashMap::new(),
@@ -63,6 +107,16 @@ impl InterruptTracker {
         }
     }
 
+    /// Registers a new request for tracking.
+    ///
+    /// Returns an error if the tracker is at capacity.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique request identifier.
+    /// * `opcode` - FUSE operation code.
+    /// * `pid` - Process ID of the caller.
+    /// * `now_ms` - Current timestamp in milliseconds.
     pub fn register(&mut self, id: RequestId, opcode: u32, pid: u32, now_ms: u64) -> Result<()> {
         if self.pending.len() >= self.max_pending {
             return Err(FuseError::InvalidArgument {
@@ -75,6 +129,9 @@ impl InterruptTracker {
         Ok(())
     }
 
+    /// Marks a request as being processed by a worker.
+    ///
+    /// Returns `true` if the request was found and updated.
     pub fn start(&mut self, id: RequestId, now_ms: u64) -> bool {
         if let Some(record) = self.pending.get_mut(&id) {
             record.state = RequestState::Processing;
@@ -85,6 +142,10 @@ impl InterruptTracker {
         }
     }
 
+    /// Marks a request as interrupted by the kernel.
+    ///
+    /// Returns `true` if the request was found and marked.
+    /// Increments the interrupted counter.
     pub fn interrupt(&mut self, id: RequestId) -> bool {
         if let Some(record) = self.pending.get_mut(&id) {
             record.state = RequestState::Interrupted;
@@ -95,6 +156,10 @@ impl InterruptTracker {
         }
     }
 
+    /// Removes a completed request from tracking.
+    ///
+    /// Returns `true` if the request was found and removed.
+    /// Increments the completed counter.
     pub fn complete(&mut self, id: RequestId) -> bool {
         if self.pending.remove(&id).is_some() {
             self.total_completed += 1;
@@ -104,6 +169,9 @@ impl InterruptTracker {
         }
     }
 
+    /// Checks if a request has been interrupted.
+    ///
+    /// Returns `false` for unknown request IDs.
     pub fn is_interrupted(&self, id: RequestId) -> bool {
         self.pending
             .get(&id)
@@ -111,18 +179,22 @@ impl InterruptTracker {
             .unwrap_or(false)
     }
 
+    /// Returns the current number of pending requests.
     pub fn pending_count(&self) -> usize {
         self.pending.len()
     }
 
+    /// Returns the total number of interrupted requests.
     pub fn total_interrupted(&self) -> u64 {
         self.total_interrupted
     }
 
+    /// Returns the total number of completed requests.
     pub fn total_completed(&self) -> u64 {
         self.total_completed
     }
 
+    /// Returns IDs of all currently interrupted requests.
     pub fn interrupted_ids(&self) -> Vec<RequestId> {
         self.pending
             .values()
@@ -131,6 +203,16 @@ impl InterruptTracker {
             .collect()
     }
 
+    /// Removes and returns requests that have exceeded a timeout.
+    ///
+    /// # Arguments
+    ///
+    /// * `now_ms` - Current timestamp in milliseconds.
+    /// * `timeout_ms` - Maximum wait time before a request is considered stale.
+    ///
+    /// # Returns
+    ///
+    /// Vector of timed-out request IDs (removed from tracking).
     pub fn drain_timed_out(&mut self, now_ms: u64, timeout_ms: u64) -> Vec<RequestId> {
         let timed_out: Vec<RequestId> = self
             .pending

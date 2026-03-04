@@ -1,19 +1,38 @@
+//! Token bucket rate limiting for I/O operations.
+//!
+//! Provides configurable rate limiting for both bandwidth (bytes/sec) and
+//! operation rate (ops/sec) using token bucket algorithm with burst support.
+
+/// Decision returned by the rate limiter for each I/O request.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RateLimitDecision {
+    /// Request is allowed to proceed immediately.
     Allow,
-    Throttle { wait_ms: u64 },
+    /// Request should be delayed before retry.
+    Throttle {
+        /// Milliseconds to wait before retrying the request.
+        wait_ms: u64,
+    },
+    /// Request is rejected due to low token bucket fill level.
     Reject,
 }
 
+/// Configuration for an I/O rate limiter.
 #[derive(Debug, Clone)]
 pub struct RateLimiterConfig {
+    /// Maximum bytes per second. Zero means unlimited.
     pub bytes_per_sec: u64,
+    /// Maximum operations per second. Zero means unlimited.
     pub ops_per_sec: u64,
+    /// Burst capacity multiplier. Bucket capacity = rate * burst_factor.
     pub burst_factor: f64,
+    /// Reject requests when bucket fill level drops below this threshold (0.0-1.0).
+    /// Zero means never reject, only throttle.
     pub reject_threshold: f64,
 }
 
 impl Default for RateLimiterConfig {
+    /// Returns an unlimited configuration (no rate limiting).
     fn default() -> Self {
         Self {
             bytes_per_sec: 0,
@@ -24,6 +43,11 @@ impl Default for RateLimiterConfig {
     }
 }
 
+/// Token bucket for rate limiting with burst support.
+///
+/// Tokens accumulate at a fixed rate up to a maximum capacity.
+/// Requests consume tokens; if insufficient tokens are available,
+/// the request must wait or be rejected.
 pub struct TokenBucket {
     tokens: f64,
     capacity: f64,
@@ -32,6 +56,11 @@ pub struct TokenBucket {
 }
 
 impl TokenBucket {
+    /// Creates a new token bucket.
+    ///
+    /// # Arguments
+    /// * `rate_per_sec` - Token refill rate per second. Zero creates an unlimited bucket.
+    /// * `burst_factor` - Multiplier for burst capacity (capacity = rate * burst_factor).
     pub fn new(rate_per_sec: u64, burst_factor: f64) -> Self {
         if rate_per_sec == 0 {
             TokenBucket {
@@ -51,6 +80,13 @@ impl TokenBucket {
         }
     }
 
+    /// Refills tokens based on elapsed time.
+    ///
+    /// # Arguments
+    /// * `now_ms` - Current time in milliseconds.
+    ///
+    /// # Returns
+    /// The current token count after refilling.
     pub fn refill(&mut self, now_ms: u64) -> f64 {
         if self.capacity == 0.0 {
             return 0.0;
@@ -67,6 +103,15 @@ impl TokenBucket {
         self.tokens
     }
 
+    /// Attempts to consume tokens from the bucket.
+    ///
+    /// # Arguments
+    /// * `amount` - Number of tokens to consume.
+    /// * `now_ms` - Current time in milliseconds.
+    ///
+    /// # Returns
+    /// `true` if tokens were successfully consumed, `false` if insufficient tokens.
+    /// Always returns `true` for unlimited buckets.
     pub fn try_consume(&mut self, amount: f64, now_ms: u64) -> bool {
         if self.capacity == 0.0 {
             return true;
@@ -82,6 +127,14 @@ impl TokenBucket {
         }
     }
 
+    /// Calculates wait time needed to accumulate required tokens.
+    ///
+    /// # Arguments
+    /// * `amount` - Number of tokens needed.
+    ///
+    /// # Returns
+    /// Milliseconds to wait before the requested amount would be available.
+    /// Returns 0 if already available, or `u64::MAX` if the bucket has no refill rate.
     pub fn wait_ms_for(&self, amount: f64) -> u64 {
         if self.capacity == 0.0 {
             return 0;
@@ -99,6 +152,10 @@ impl TokenBucket {
         (wait_sec * 1000.0).ceil() as u64
     }
 
+    /// Returns the current fill level as a fraction of capacity.
+    ///
+    /// # Returns
+    /// Value between 0.0 and 1.0, or 0.0 for unlimited buckets.
     pub fn fill_level(&self) -> f64 {
         if self.capacity == 0.0 {
             0.0
@@ -107,11 +164,16 @@ impl TokenBucket {
         }
     }
 
+    /// Returns whether this bucket has no rate limit.
     pub fn is_unlimited(&self) -> bool {
         self.capacity == 0.0
     }
 }
 
+/// I/O rate limiter combining byte and operation rate limits.
+///
+/// Maintains separate token buckets for bandwidth and operation rate,
+/// allowing independent configuration and enforcement.
 pub struct IoRateLimiter {
     config: RateLimiterConfig,
     bytes_bucket: Option<TokenBucket>,
@@ -122,6 +184,7 @@ pub struct IoRateLimiter {
 }
 
 impl IoRateLimiter {
+    /// Creates a new rate limiter with the given configuration.
     pub fn new(config: RateLimiterConfig) -> Self {
         let bytes_bucket = if config.bytes_per_sec > 0 {
             Some(TokenBucket::new(config.bytes_per_sec, config.burst_factor))
@@ -145,6 +208,17 @@ impl IoRateLimiter {
         }
     }
 
+    /// Checks whether an I/O operation with the given byte count is allowed.
+    ///
+    /// Checks both byte and operation rate limits. Returns the most restrictive
+    /// decision (Reject > Throttle > Allow).
+    ///
+    /// # Arguments
+    /// * `bytes` - Number of bytes in the I/O operation.
+    /// * `now_ms` - Current time in milliseconds.
+    ///
+    /// # Returns
+    /// The rate limit decision for this operation.
     pub fn check_io(&mut self, bytes: u64, now_ms: u64) -> RateLimitDecision {
         if let Some(ref mut bucket) = self.bytes_bucket {
             if self.config.reject_threshold > 0.0 {
@@ -182,6 +256,15 @@ impl IoRateLimiter {
         RateLimitDecision::Allow
     }
 
+    /// Checks whether a metadata-only operation is allowed.
+    ///
+    /// Only checks the operation rate limit (not byte limit).
+    ///
+    /// # Arguments
+    /// * `now_ms` - Current time in milliseconds.
+    ///
+    /// # Returns
+    /// The rate limit decision for this operation.
     pub fn check_op(&mut self, now_ms: u64) -> RateLimitDecision {
         if let Some(ref mut bucket) = self.ops_bucket {
             if self.config.reject_threshold > 0.0 {
@@ -203,18 +286,22 @@ impl IoRateLimiter {
         RateLimitDecision::Allow
     }
 
+    /// Returns the total number of allowed operations.
     pub fn total_allowed(&self) -> u64 {
         self.total_allowed
     }
 
+    /// Returns the total number of throttled operations.
     pub fn total_throttled(&self) -> u64 {
         self.total_throttled
     }
 
+    /// Returns the total number of rejected operations.
     pub fn total_rejected(&self) -> u64 {
         self.total_rejected
     }
 
+    /// Returns whether any rate limiting is configured.
     pub fn is_limited(&self) -> bool {
         self.config.bytes_per_sec > 0 || self.config.ops_per_sec > 0
     }

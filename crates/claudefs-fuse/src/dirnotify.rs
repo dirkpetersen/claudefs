@@ -1,28 +1,50 @@
+//! Directory change notification subsystem.
+//!
+//! Provides a queuing mechanism for directory change events (create, delete, rename,
+//! attribute changes) to support FUSE notify APIs. Events are queued per-directory
+//! with configurable limits, and clients can drain events for processing.
+
 use crate::inode::InodeId;
 use std::collections::{HashMap, HashSet, VecDeque};
 
+/// Directory change event types for notification.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DirEvent {
+    /// A new entry was created in the directory.
     Created {
+        /// Inode number of the created entry.
         ino: InodeId,
+        /// Name of the created entry.
         name: String,
     },
+    /// An entry was deleted from the directory.
     Deleted {
+        /// Inode number of the deleted entry.
         ino: InodeId,
+        /// Name of the deleted entry.
         name: String,
     },
+    /// An entry was renamed within the directory.
     Renamed {
+        /// Original name of the entry.
         old_name: String,
+        /// New name of the entry.
         new_name: String,
+        /// Inode number of the renamed entry.
         ino: InodeId,
     },
+    /// An entry's attributes changed.
     Attrib {
+        /// Inode number of the entry with changed attributes.
         ino: InodeId,
     },
 }
 
+/// Configuration for the directory notification subsystem.
 pub struct NotifyConfig {
+    /// Maximum number of events queued per directory before oldest is dropped.
     pub max_queue_per_dir: usize,
+    /// Maximum number of directories that can be watched simultaneously.
     pub max_dirs_tracked: usize,
 }
 
@@ -35,6 +57,10 @@ impl Default for NotifyConfig {
     }
 }
 
+/// Directory change notification manager.
+///
+/// Tracks watched directories and maintains per-directory event queues.
+/// Events are dropped oldest-first when queue limits are exceeded.
 pub struct DirNotify {
     config: NotifyConfig,
     queues: HashMap<InodeId, VecDeque<DirEvent>>,
@@ -42,6 +68,7 @@ pub struct DirNotify {
 }
 
 impl DirNotify {
+    /// Creates a new directory notification manager with the given configuration.
     pub fn new(config: NotifyConfig) -> Self {
         tracing::debug!(
             "Initializing dir notify: max_queue={}, max_dirs={}",
@@ -56,6 +83,11 @@ impl DirNotify {
         }
     }
 
+    /// Registers a directory for change notifications.
+    ///
+    /// Returns `true` if the directory is now watched (was not already watched
+    /// and limit not exceeded). Returns `false` if the maximum tracked directories
+    /// limit would be exceeded.
     pub fn watch(&mut self, dir_ino: InodeId) -> bool {
         if self.watched.contains(&dir_ino) {
             tracing::debug!("Directory {} already watched", dir_ino);
@@ -79,6 +111,7 @@ impl DirNotify {
         true
     }
 
+    /// Removes a directory from the watched set and clears its event queue.
     pub fn unwatch(&mut self, dir_ino: InodeId) {
         self.watched.remove(&dir_ino);
         self.queues.remove(&dir_ino);
@@ -86,6 +119,10 @@ impl DirNotify {
         tracing::debug!("Unwatched directory: ino={}", dir_ino);
     }
 
+    /// Posts an event to a directory's notification queue.
+    ///
+    /// Silently ignored if the directory is not being watched.
+    /// Drops the oldest event if the queue is at capacity.
     pub fn post(&mut self, dir_ino: InodeId, event: DirEvent) {
         if !self.watched.contains(&dir_ino) {
             return;
@@ -110,6 +147,9 @@ impl DirNotify {
         );
     }
 
+    /// Drains all pending events for a directory, returning them in order.
+    ///
+    /// Returns an empty vector if the directory is not watched or has no events.
     pub fn drain(&mut self, dir_ino: InodeId) -> Vec<DirEvent> {
         let queue = match self.queues.get_mut(&dir_ino) {
             Some(q) => q,
@@ -125,18 +165,22 @@ impl DirNotify {
         events
     }
 
+    /// Returns the number of pending events for a specific directory.
     pub fn pending_count(&self, dir_ino: InodeId) -> usize {
         self.queues.get(&dir_ino).map(|q| q.len()).unwrap_or(0)
     }
 
+    /// Returns a list of all currently watched directory inodes.
     pub fn watched_dirs(&self) -> Vec<InodeId> {
         self.watched.iter().cloned().collect()
     }
 
+    /// Returns `true` if the directory is currently being watched.
     pub fn is_watched(&self, dir_ino: InodeId) -> bool {
         self.watched.contains(&dir_ino)
     }
 
+    /// Returns the total number of pending events across all watched directories.
     pub fn total_pending(&self) -> usize {
         self.queues.values().map(VecDeque::len).sum()
     }

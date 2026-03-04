@@ -1,25 +1,42 @@
+//! Snapshot management for the FUSE filesystem.
+//!
+//! Provides copy-on-write snapshot creation, cloning, and lifecycle management.
+
 use crate::error::{FuseError, Result};
 use std::collections::HashMap;
 
+/// Lifecycle state of a snapshot.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SnapshotState {
+    /// Snapshot is being created.
     Creating,
+    /// Snapshot is fully created and usable.
     Active,
+    /// Snapshot is being deleted.
     Deleting,
+    /// Snapshot encountered an error; contains error message.
     Error(String),
 }
 
+/// Metadata for a single snapshot.
 #[derive(Debug, Clone)]
 pub struct SnapshotInfo {
+    /// Unique snapshot identifier.
     pub id: u64,
+    /// User-assigned snapshot name.
     pub name: String,
+    /// Creation timestamp in seconds since Unix epoch.
     pub created_at_secs: u64,
+    /// Total size in bytes.
     pub size_bytes: u64,
+    /// Current lifecycle state.
     pub state: SnapshotState,
+    /// True if this is a writable clone of another snapshot.
     pub is_clone: bool,
 }
 
 impl SnapshotInfo {
+    /// Creates a new snapshot info with initial state `Creating`.
     pub fn new(id: u64, name: impl Into<String>) -> Self {
         SnapshotInfo {
             id,
@@ -31,19 +48,25 @@ impl SnapshotInfo {
         }
     }
 
+    /// Returns `true` if the snapshot is in the `Active` state.
     pub fn is_active(&self) -> bool {
         matches!(self.state, SnapshotState::Active)
     }
 
+    /// Returns `true` if the snapshot is active and not a writable clone.
     pub fn is_read_only(&self) -> bool {
         !self.is_clone && matches!(self.state, SnapshotState::Active)
     }
 
+    /// Returns the age of the snapshot in seconds.
+    ///
+    /// Uses saturating subtraction, so returns 0 if `now_secs` is less than creation time.
     pub fn age_secs(&self, now_secs: u64) -> u64 {
         now_secs.saturating_sub(self.created_at_secs)
     }
 }
 
+/// Registry managing all snapshots for a filesystem.
 pub struct SnapshotRegistry {
     snapshots: HashMap<u64, SnapshotInfo>,
     next_id: u64,
@@ -51,6 +74,7 @@ pub struct SnapshotRegistry {
 }
 
 impl SnapshotRegistry {
+    /// Creates a new registry with the given maximum snapshot capacity.
     pub fn new(max_snapshots: usize) -> Self {
         SnapshotRegistry {
             snapshots: HashMap::new(),
@@ -59,6 +83,10 @@ impl SnapshotRegistry {
         }
     }
 
+    /// Creates a new read-only snapshot.
+    ///
+    /// Returns the assigned snapshot ID on success.
+    /// Fails if capacity is exceeded or a snapshot with the same name exists.
     pub fn create(&mut self, name: impl Into<String>, now_secs: u64) -> Result<u64> {
         if self.snapshots.len() >= self.max_snapshots {
             return Err(FuseError::InvalidArgument {
@@ -82,6 +110,11 @@ impl SnapshotRegistry {
         Ok(id)
     }
 
+    /// Creates a writable clone of an existing snapshot.
+    ///
+    /// Returns the assigned clone ID on success.
+    /// Fails if the source snapshot doesn't exist, capacity is exceeded,
+    /// or a snapshot with the clone name already exists.
     pub fn create_clone(
         &mut self,
         snapshot_id: u64,
@@ -117,6 +150,9 @@ impl SnapshotRegistry {
         Ok(id)
     }
 
+    /// Deletes a snapshot by ID.
+    ///
+    /// Fails if the snapshot does not exist.
     pub fn delete(&mut self, id: u64) -> Result<()> {
         if self.snapshots.remove(&id).is_none() {
             return Err(FuseError::NotFound { ino: id });
@@ -124,24 +160,29 @@ impl SnapshotRegistry {
         Ok(())
     }
 
+    /// Returns a reference to the snapshot with the given ID, if it exists.
     pub fn get(&self, id: u64) -> Option<&SnapshotInfo> {
         self.snapshots.get(&id)
     }
 
+    /// Returns all snapshots sorted by creation time (oldest first).
     pub fn list(&self) -> Vec<&SnapshotInfo> {
         let mut list: Vec<_> = self.snapshots.values().collect();
         list.sort_by_key(|s| s.created_at_secs);
         list
     }
 
+    /// Returns the total number of snapshots (including clones).
     pub fn count(&self) -> usize {
         self.snapshots.len()
     }
 
+    /// Finds a snapshot by name.
     pub fn find_by_name(&self, name: &str) -> Option<&SnapshotInfo> {
         self.snapshots.values().find(|s| s.name == name)
     }
 
+    /// Returns the count of snapshots in the `Active` state.
     pub fn active_count(&self) -> usize {
         self.snapshots.values().filter(|s| s.is_active()).count()
     }
