@@ -1201,3 +1201,53 @@ Deep audit of reduce crate WORM policy enforcement, key rotation scheduling, GC 
 3. GC Extended Security (5): config defaults, initial stats, mark before sweep, mark and retain, multiple cycles
 4. Write Path & Pipeline Stats (5): pipeline config defaults, reduction ratio, zero stored bytes, chunker config, CAS duplicate
 5. Snapshot & Segment Extended (5): create and list, delete nonexistent, packer seal empty, entry integrity, config defaults
+
+## 28. Phase 11: Storage Erasure & Gateway Infrastructure Security
+
+Phase 11 extends security coverage to storage erasure coding, superblock validation, device pool management, compaction state machine, snapshot CoW, and gateway TLS configuration, circuit breaker, S3 lifecycle policy, connection pool, and quota enforcement.
+
+**Test Modules:** 2 new | **New Tests:** 49 | **Total:** 1171
+
+### 28.1 Storage Erasure & Infrastructure Security
+
+Deep audit of storage crate erasure coding engine, superblock validation, device pool management, compaction state machine, and snapshot CoW correctness.
+
+**Test Module:** `storage_erasure_security_tests.rs` (24 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| EC-01 | MEDIUM | EcProfile overhead calculation verified — 4+2 gives 1.5x overhead |
+| EC-02 | HIGH | Encode/decode roundtrip integrity verified — data preserved through erasure coding |
+| EC-04 | HIGH | Too many missing shards correctly rejected — cannot exceed parity tolerance |
+| EC-05 | MEDIUM | Out-of-bounds shard index correctly rejected |
+| SB-07 | HIGH | Checksum detects field tampering — modifying mount_count without checksum update fails validation |
+| SB-08 | MEDIUM | Superblock serialize/deserialize roundtrip preserves all fields |
+
+**Categories tested:**
+1. Erasure Coding Security (5): profile overhead, encode/decode roundtrip, reconstruct missing, too many missing, index bounds
+2. Superblock Validation (4): new/validate, checksum integrity, serialize roundtrip, cluster identity
+3. Device Pool Management (5): add/query, role filtering, health defaults, capacity tracking, FDP/ZNS flags
+4. Compaction State Machine (5): config defaults, register/candidates, task state machine, max concurrent, fail task
+5. Snapshot CoW Correctness (5): create/list, CoW mapping, refcount, parent-child, GC candidates
+
+### 28.2 Gateway Infrastructure Security
+
+Deep audit of gateway crate TLS configuration, circuit breaker state machine, S3 lifecycle policy validation, connection pool management, and quota enforcement.
+
+**Test Module:** `gateway_infra_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| GW-INFRA-01 | HIGH | TLS defaults are secure — TLS 1.3, Modern ciphers, no client cert by default |
+| GW-INFRA-04 | HIGH | Circuit breaker opens at exactly failure_threshold — correct boundary |
+| GW-INFRA-10 | HIGH | S3 lifecycle max 1000 rules enforced — prevents DoS via rule explosion |
+| GW-INFRA-13 | MEDIUM | Connection pool exhaustion handled gracefully — returns None, no panic |
+| GW-INFRA-16 | HIGH | Quota hard limit correctly rejects writes exceeding budget |
+| GW-INFRA-20 | MEDIUM | check_write doesn't record — read-only quota check verified |
+
+**Categories tested:**
+1. TLS Configuration Security (5): defaults modern, empty cert path, empty key path, endpoint binding, registry mgmt
+2. Circuit Breaker Security (5): initial closed, opens on failures, half-open recovery, call rejected when open, registry reset
+3. S3 Lifecycle Policy (5): rule validation, duplicate ID, max rules, filter matching, expiration boundary
+4. Connection Pool Security (5): config defaults, checkout/checkin, exhaustion, unhealthy marking, node removal
+5. Gateway Quota Enforcement (5): hard limit, soft limit warning, inode enforcement, delete reclaims, check without recording

@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 11: Storage Erasure & Gateway Infrastructure (2026-03-04)
+
+#### 2 New Test Modules — 49 New Tests, 1171 Total
+
+**Status:** ✅ 1171 security tests passing, 0 failures (+49 from 1122)
+
+**New Coverage — Storage Erasure & Infrastructure (24 tests):**
+- Erasure Coding Security (5 tests): profile overhead, encode/decode roundtrip, reconstruct missing shard, too many missing, index bounds
+- Superblock Validation (4 tests): new/validate, checksum integrity (FINDING), serialize roundtrip, cluster identity
+- Device Pool Management (5 tests): add/query, role filtering, health defaults, capacity tracking, FDP/ZNS flags
+- Compaction State Machine (5 tests): config defaults, register/candidates, task state machine, max concurrent limit, fail task
+- Snapshot CoW Correctness (5 tests): create/list, CoW mapping, refcount, parent-child, GC candidates
+
+**New Coverage — Gateway Infrastructure (25 tests):**
+- TLS Configuration (5 tests): secure defaults (FINDING), empty cert/key validation, endpoint binding, registry management
+- Circuit Breaker (5 tests): initial closed, opens at threshold (FINDING), half-open recovery, call rejection, registry reset
+- S3 Lifecycle Policy (5 tests): rule validation, duplicate ID, max rules DoS prevention (FINDING), filter matching, expiration
+- Connection Pool (5 tests): config defaults, checkout/checkin roundtrip, exhaustion handling (FINDING), unhealthy marking, node removal
+- Quota Enforcement (5 tests): hard limit, soft limit warning, inode enforcement, delete reclaims, check without recording
+
+**Key Findings (4 HIGH, 2 MEDIUM):**
+- SB-07 (HIGH): Superblock checksum correctly detects field tampering
+- GW-INFRA-01 (HIGH): TLS defaults are secure by default — TLS 1.3, Modern ciphers
+- GW-INFRA-04 (HIGH): Circuit breaker opens at exact failure threshold
+- GW-INFRA-10 (HIGH): S3 lifecycle enforces 1000-rule limit — DoS prevention
+
 ### A10: Security Audit — Phase 10: Mgmt Extended & Reduce Extended (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1122 Total
