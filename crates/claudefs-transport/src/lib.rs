@@ -39,6 +39,7 @@ pub mod enrollment;
 pub mod error;
 pub use drain::{DrainConfig, DrainController, DrainGuard, DrainListener, DrainState, DrainStats};
 pub mod flowcontrol;
+pub mod gossip;
 pub mod health;
 pub mod hedge;
 pub mod keepalive;
@@ -89,6 +90,10 @@ pub use discovery::{DiscoveryConfig, DiscoveryStats, MemberInfo, MembershipEvent
 pub use error::{TransportError, Result};
 pub use flowcontrol::{
     FlowControlConfig, FlowControlState, FlowController, FlowPermit, WindowController,
+};
+pub use gossip::{
+    GossipConfig, GossipEvent, GossipMember, GossipNode, GossipStats, GossipStatsSnapshot,
+    MemberState,
 };
 pub use health::{HealthConfig, HealthStatus, HealthStats, ConnectionHealth};
 pub use keepalive::{KeepAliveConfig, KeepAliveManager, KeepAliveState, KeepAliveStats, KeepAliveTracker};

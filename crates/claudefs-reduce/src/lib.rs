@@ -9,6 +9,9 @@ pub mod async_meta_bridge;
 pub mod audit_log;
 pub mod background;
 pub mod checksum;
+pub mod compaction;
+pub mod erasure_codec;
+pub mod quota_tracker;
 pub mod compression;
 pub mod dedupe;
 pub mod encryption;
@@ -56,3 +59,6 @@ pub use recompressor::{RecompressedChunk, RecompressionStats, RecompressorConfig
 pub use snapshot::{Snapshot, SnapshotConfig, SnapshotInfo, SnapshotManager};
 pub use tiering::{AccessRecord, TierClass, TierConfig, TierTracker};
 pub use write_path::{IntegratedWritePath, WritePathConfig, WritePathResult, WritePathStats};
+pub use compaction::{CompactionConfig, CompactionEngine, CompactionResult};
+pub use erasure_codec::{EcStripe, EncodedSegment, ErasureCodec};
+pub use quota_tracker::{NamespaceId, QuotaConfig, QuotaTracker, QuotaUsage, QuotaViolation};

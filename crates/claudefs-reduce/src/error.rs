@@ -39,4 +39,15 @@ pub enum ReduceError {
     /// Invalid input (e.g., offset+size out of bounds)
     #[error("invalid input: {0}")]
     InvalidInput(String),
+    /// Erasure coding: wrong number of shards provided
+    #[error("shard count mismatch: expected {expected}, got {got}")]
+    ShardCountMismatch {
+        /// Expected shard count
+        expected: usize,
+        /// Actual shard count received
+        got: usize,
+    },
+    /// Erasure coding: recovery failed due to too many missing shards
+    #[error("erasure recovery failed: {0}")]
+    RecoveryFailed(String),
 }
