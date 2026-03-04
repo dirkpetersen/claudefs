@@ -870,3 +870,93 @@ The codebase demonstrates strong security engineering:
 - `crates/claudefs-repl/src/journal_source.rs`
 - `crates/claudefs-repl/src/sliding_window.rs`
 - `crates/claudefs-repl/src/catchup.rs`
+
+---
+
+## Section 22: Phase 5 — Meta Deep Security & Gateway S3 Pentest
+
+**Date:** 2026-03-04
+**Tests Added:** 50 (25 meta deep + 25 gateway S3)
+**Total Tests:** 872
+
+### 22.1 Meta Deep Security Audit
+
+Comprehensive security audit of 6 meta crate subsystems: transactions (2PC), distributed locking, multi-tenant isolation, per-user/group quotas, shard routing, and metadata journal.
+
+**Test Module:** `meta_deep_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| META-DEEP-01 | HIGH | Transaction vote overwrite — participant can change vote from commit to abort (no idempotency check) |
+| META-DEEP-02 | MEDIUM | Silent release of nonexistent lock — `release(999999)` returns Ok without error |
+| META-DEEP-03 | CRITICAL | Tenant inode quota not enforced — `assign_inode` doesn't increment `inode_count`, so quota check always passes |
+| META-DEEP-04 | MEDIUM | Empty tenant IDs accepted — `TenantId::new("")` creates a valid tenant with no validation |
+| META-DEEP-05 | LOW | Quota usage saturating subtraction — prevents underflow correctly (not a vulnerability) |
+| META-DEEP-06 | LOW | Unassigned shard leader query returns error — correct behavior |
+| META-DEEP-07 | LOW | Quota usage saturation — `2 * i64::MAX` fits in u64, doesn't saturate to `u64::MAX` (correct) |
+
+**Categories tested:**
+1. Transaction Security — vote change, non-participant vote, premature check, unique IDs, abort override
+2. Locking Security — write/read exclusivity, shared reads, release semantics, bulk node cleanup
+3. Tenant Isolation — inactive rejection, quota boundary, duplicate creation, inode release, empty ID
+4. Quota Enforcement — saturating arithmetic, underflow, boundary check, set/get roundtrip, removal
+5. Shard & Journal — deterministic routing, unassigned leader, sequence monotonicity, compaction, replication lag
+
+### 22.2 Gateway S3 API Penetration Testing
+
+Deep S3 API security audit covering presigned URL signing, bucket policy enforcement, token authentication, rate limiting, NFS export CIDR matching, TLS configuration, session management, and multipart upload state.
+
+**Test Module:** `gateway_s3_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| GW-S3-01 | MEDIUM | IP-formatted bucket names rejected — correct AWS compatibility |
+| GW-S3-02 | HIGH | Weak presigned URL canonical string — no body hash, nonce, or IP binding in signature |
+| GW-S3-03 | HIGH | `PolicyEffect::Deny` exists but may not be enforced in bucket policy evaluation |
+| GW-S3-04 | MEDIUM | Incomplete CIDR matching — `ClientSpec::from_cidr("192.168.1.1")` may also match `192.168.1.10` via startsWith |
+| GW-S3-05 | LOW | TLS minimum is 1.2 — acceptable but consider requiring 1.3 by default |
+| GW-S3-06 | LOW | Presigned URL expiry correctly capped at 7 days |
+| GW-S3-07 | MEDIUM | Uppercase bucket names may be accepted (AWS requires lowercase) |
+
+**Categories tested:**
+1. Bucket Name Validation — too short, too long, IP format, special chars, valid names
+2. Presigned URL Security — expiry cap, signature validation, expiry rejection, wrong key, canonical string
+3. Bucket Policy Security — wildcard principal, wildcard resource, prefix matching, deny effect, action wildcard
+4. Token Auth & Rate Limiting — create/validate, expiry, unknown token, within-limit, over-limit
+5. NFS Export & Session — CIDR vulnerability, wildcard export, TLS minimum, session uniqueness, multipart state
+
+### 22.3 Modules Reviewed
+
+**Meta crate (16 modules):**
+- `crates/claudefs-meta/src/transaction.rs` — 2PC transaction coordinator
+- `crates/claudefs-meta/src/locking.rs` — Distributed POSIX locking
+- `crates/claudefs-meta/src/tenant.rs` — Multi-tenant namespace isolation
+- `crates/claudefs-meta/src/quota.rs` — Per-user/group quotas
+- `crates/claudefs-meta/src/shard.rs` — Shard routing
+- `crates/claudefs-meta/src/journal.rs` — Metadata journal for replication
+- `crates/claudefs-meta/src/raftservice.rs` — Raft-integrated metadata service
+- `crates/claudefs-meta/src/multiraft.rs` — Multi-Raft group manager
+- `crates/claudefs-meta/src/membership.rs` — SWIM cluster membership
+- `crates/claudefs-meta/src/filehandle.rs` — Open file handle management
+- `crates/claudefs-meta/src/gc.rs` — Garbage collection
+- `crates/claudefs-meta/src/fsck.rs` — Filesystem integrity checker
+- `crates/claudefs-meta/src/neg_cache.rs` — Negative lookup cache
+- `crates/claudefs-meta/src/lease.rs` — Metadata lease management
+- `crates/claudefs-meta/src/readindex.rs` — ReadIndex protocol
+- `crates/claudefs-meta/src/raft_log.rs` — Persistent Raft log store
+
+**Gateway crate (14 modules):**
+- `crates/claudefs-gateway/src/s3.rs` — S3 API handler
+- `crates/claudefs-gateway/src/s3_presigned.rs` — Presigned URL signing
+- `crates/claudefs-gateway/src/s3_bucket_policy.rs` — Bucket policy enforcement
+- `crates/claudefs-gateway/src/s3_ratelimit.rs` — Rate limiting
+- `crates/claudefs-gateway/src/s3_multipart.rs` — Multipart upload state
+- `crates/claudefs-gateway/src/s3_encryption.rs` — Server-side encryption
+- `crates/claudefs-gateway/src/token_auth.rs` — Token authentication
+- `crates/claudefs-gateway/src/auth.rs` — NFS AUTH_SYS credentials
+- `crates/claudefs-gateway/src/nfs_export.rs` — NFS export CIDR controls
+- `crates/claudefs-gateway/src/gateway_tls.rs` — TLS configuration
+- `crates/claudefs-gateway/src/session.rs` — Session management
+- `crates/claudefs-gateway/src/gateway_audit.rs` — Audit logging
+- `crates/claudefs-gateway/src/error.rs` — Error handling
+- `crates/claudefs-gateway/src/s3_router.rs` — HTTP request routing

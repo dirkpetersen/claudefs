@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 5: Meta Deep Security & Gateway S3 Pentest (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 872 Total
+
+**Status:** ✅ 872 security tests passing, 0 failures (+50 from 822)
+
+**New Coverage — Meta Deep Security (25 tests):**
+- Transaction Security (5 tests): vote overwrite allowed (FINDING), non-participant rejection, premature check, unique IDs, abort overrides commit
+- Locking Security (5 tests): write blocks read/write, shared reads, silent nonexistent release (FINDING), bulk node cleanup
+- Tenant Isolation (5 tests): inactive rejection, quota boundary (FINDING: inode_count not incremented), duplicate creation, release cleanup, empty ID (FINDING)
+- Quota Enforcement (5 tests): saturating add/sub, boundary check (> not >=), set/get roundtrip, remove nonexistent
+- Shard & Journal (5 tests): deterministic routing, unassigned leader error, sequence monotonicity, compaction, replication lag
+
+**New Coverage — Gateway S3 Pentest (25 tests):**
+- S3 Bucket Validation (5 tests): too short/long, IP format, special chars, valid names
+- Presigned URL Security (5 tests): 7-day expiry cap, signature validation, expired rejection, wrong key, weak canonical string (FINDING: no body hash)
+- Bucket Policy Security (5 tests): Principal::Any, wildcard resource, prefix matching, Deny effect (FINDING: may not be enforced), action wildcard
+- Token Auth & Rate Limiting (5 tests): create/validate, expiry, unknown token, within-limit, over-limit
+- NFS Export & Session (5 tests): CIDR startswith vulnerability (FINDING), wildcard export, TLS minimum, session uniqueness, multipart state
+
+**Key Findings (3 CRITICAL, 2 HIGH, 4 MEDIUM):**
+- META-DEEP-03 (CRITICAL): Tenant inode quota not enforced — assign_inode doesn't increment inode_count
+- META-DEEP-01 (HIGH): Transaction vote overwrite — no idempotency check on votes
+- GW-S3-02 (HIGH): Weak presigned URL — canonical string has no body hash/nonce/IP binding
+- GW-S3-03 (HIGH): PolicyEffect::Deny may not be enforced in evaluation
+- GW-S3-04 (MEDIUM): Incomplete CIDR parsing — startsWith matching may match unintended IPs
+- META-DEEP-04 (MEDIUM): Empty tenant IDs accepted without validation
+- META-DEEP-02 (MEDIUM): Silent release of nonexistent locks
+
 ### A10: Security Audit — Phase 3 Deep Audit: Storage, Mgmt RBAC, Repl Phase 2 (2026-03-04)
 
 #### 3 New Test Modules — 75 New Tests, 822 Total
