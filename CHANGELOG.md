@@ -6,6 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A9: Test & Validation — Phase 2 Replication Tests (2026-03-04)
+
+#### 1 New Module: repl_phase2_tests — 77 Tests, 1764 Total
+
+**Status:** ✅ 1764 tests passing, 0 failures (+77 from 1687)
+
+**New Coverage — A6 Replication Phase 2 Modules:**
+
+1. **JournalEntry** (10 tests): CRC32 computation/validation, tamper detection, all OpKind variants, serde roundtrip, determinism
+2. **BatchAuthentication** (15 tests): BatchAuthKey generate/from_bytes, HMAC-SHA256 sign/verify, wrong key detection, tampered payload/site/seq detection, proptest roundtrip
+3. **ActiveActiveController** (15 tests): initial state, link status, local_write, forwarded writes, conflict resolution, stats, drain_pending, serde
+4. **FailoverManager** (15 tests): config defaults, SiteFailoverState is_writable/is_readable, site registration, health tracking, failure threshold demotion, recovery promotion
+5. **Proptest**: OpKind serde, link status serde, failover mode writability, batch auth roundtrip, journal CRC roundtrip
+
+**Stats:** +77 tests, 1764 total
+
+---
+
+### A6: Replication — Phase 1 Enhancement: Binary CLI + gRPC Proto Schema (2026-03-04)
+
+**Status:** ✅ PHASE 1 COMPLETE — 742 tests, 0 warnings, daemon binary + proto schema added
+
+Building on the Phase 1 foundation (742 tests, 35 modules), this session adds:
+
+1. **Enhanced `cfs-repl` daemon binary** (`src/main.rs`)
+   - Full CLI argument parsing (no external deps): `--site-id`, `--peer`, `--batch-size`, `--batch-timeout-ms`, `--status-interval-s`
+   - Peer specification format: `--peer <id>:<region>:<grpc://endpoint>` (endpoint may contain colons)
+   - Graceful shutdown: SIGTERM + SIGINT (Ctrl-C) via `tokio::signal`
+   - Background status task: periodic per-site replication stats logging (entries_sent, entries_received, lag, conflicts)
+   - JSON log output when `RUST_LOG_JSON=1` is set
+   - Starts `ReplicationEngine`, registers all peers, runs until signal received
+
+2. **gRPC Protocol Buffer schema** (`proto/replication.proto`)
+   - `ReplicationConduit` service with bidirectional `OpenStream` and `GetClusterStatus` RPC
+   - `ReplMessage` envelope with `oneof` payload: `EntryBatch`, `BatchAck`, `CatchupRequest`, `CatchupData`, `Heartbeat`, `Disconnect`
+   - `JournalEntry` wire format (matches `src/journal.rs` fields: seq, shard_id, site_id, timestamp_us, inode, op, payload, crc32)
+   - All `OpKind` variants: CREATE, UNLINK, RENAME, WRITE, TRUNCATE, SET_ATTR, LINK, SYMLINK, MKDIR, SET_XATTR, REMOVE_XATTR
+   - `BatchAck` with shard cursors and backpressure percentage for flow control
+   - Catch-up protocol: `CatchupRequest`/`CatchupData` for new replica bootstrap and gap fill
+   - UID/GID mapping tables: `UidMapping`, `GidMapping`, `SiteMappingTable` for cross-site identity translation
+   - Admin status query: `ClusterStatusRequest`/`ClusterStatusResponse` with per-site connection state
+
+**Validation:**
+- ✅ `cargo build -p claudefs-repl` — 0 errors, 0 warnings
+- ✅ `cargo clippy -p claudefs-repl` — 0 warnings
+- ✅ `cargo test -p claudefs-repl` — 742 tests passing
+
+**Phase 2 Integration Points (ready):**
+- Binary binary accepts peer configuration at startup — will wire to real gRPC conduit
+- Proto schema ready for `tonic-build` code generation via `build.rs`
+- `JournalEntry` wire format aligns with A2's `JournalTailer` output format
+
 ### A10: Security Audit — Phase 3 Complete (2026-03-04)
 
 #### Full-Stack Security Audit: All 8 Crates, 93 New Tests, 65+ Findings
