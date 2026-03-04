@@ -32,16 +32,16 @@ done
 # Opus reserved only for A10 security audit (needs deepest reasoning to
 # catch what the code author missed). No Opus for builder agents.
 declare -A AGENT_MODEL=(
-  [A1]="global.anthropic.claude-sonnet-4-6"
-  [A2]="global.anthropic.claude-sonnet-4-6"
-  [A3]="global.anthropic.claude-sonnet-4-6"
-  [A4]="global.anthropic.claude-sonnet-4-6"
-  [A5]="global.anthropic.claude-sonnet-4-6"
-  [A6]="global.anthropic.claude-sonnet-4-6"
-  [A7]="global.anthropic.claude-sonnet-4-6"
+  [A1]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  [A2]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  [A3]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  [A4]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  [A5]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  [A6]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  [A7]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
   [A8]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
-  [A9]="global.anthropic.claude-sonnet-4-6"
-  [A10]="global.anthropic.claude-opus-4-6-v1"
+  [A9]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  [A10]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
   [A11]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
 )
 
