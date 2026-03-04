@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 15: Repl Health & Storage Device Extensions (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1371 Total
+
+**Status:** ✅ 1371 security tests passing, 0 failures (+50 from 1321)
+
+**New Coverage — Replication Health & Throttle (25 tests):**
+- Health Monitoring (5 tests): initial not configured, register/check, degraded on lag, disconnected on errors, cluster aggregation
+- Write Throttling (5 tests): token bucket consume, site send, per-site manager, config update, remove site
+- Data Fingerprinting (5 tests): blake3 deterministic, hex output, super features similarity, is_similar, empty data
+- CAS Dedup Index (5 tests): insert/lookup, refcount, drain unreferenced, chunker deterministic, config sizes
+- Health Edge Cases (5 tests): reset site, thresholds default, remove site, CAS empty, throttle config
+
+**New Coverage — Storage Device Extensions (25 tests):**
+- ZNS Zone Management (5 tests): zone states, sequential append, zone reset, max open zones (FINDING), GC candidates
+- FDP Placement Hints (5 tests): disabled, resolve hint, write stats, config defaults, fallback unmapped
+- SMART Health Monitoring (5 tests): healthy device, temperature warning, critical spare, alert generation, temp conversion (FINDING)
+- Defragmentation (5 tests): config defaults, stats initial, record operations, can_run cooldown (FINDING), plan empty
+- WAL Journal Flush (5 tests): append/pending, state transitions, pending by state, config defaults, stats
+
+**Key Findings (4 HIGH, 3 MEDIUM):**
+- ZNS-04 (HIGH): Max open zones limit enforced — prevents resource exhaustion
+- SMART-15 (HIGH): Kelvin-to-Celsius conversion verified correct
+- DEFRAG-19 (HIGH): Cooldown prevents defrag storms under load
+- HEALTH-03 (HIGH): Degraded detection on replication lag prevents silent data staleness
+
 ### A10: Security Audit — Phase 14: Transport Pipeline & Gateway NFS/RPC (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1321 Total

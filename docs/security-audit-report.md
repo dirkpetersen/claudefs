@@ -1389,3 +1389,49 @@ Deep audit of NFS write tracking, RPC protocol encoding/decoding, TCP record mar
 3. TCP Record Mark (5): encode, decode, roundtrip, empty, max fragment
 4. S3 XML Builder (5): basic build, escaping, error response, multipart, copy object
 5. NFS Edge Cases (5): verifier consistency, remove file, pending list, elem types, builder default
+
+## 32. Phase 15: Replication Health & Storage Device Extensions Security
+
+Phase 15 extends security coverage to replication health monitoring, write throttling, data fingerprinting, deduplication CAS index, ZNS zone management, FDP placement hints, SMART health monitoring, defragmentation, and write-ahead journal flush.
+
+**Test Modules:** 2 new | **New Tests:** 50 | **Total:** 1371
+
+### 32.1 Replication Health & Data Integrity
+
+Deep audit of replication health monitor, write throttle, Blake3 fingerprinting, super features similarity, and CAS deduplication index.
+
+**Test Module:** `repl_health_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| HEALTH-04 | HIGH | Consecutive error threshold correctly transitions to Disconnected |
+| HEALTH-05 | HIGH | Cluster health aggregates worst-case across all sites |
+| BLAKE3-11 | HIGH | Blake3 hash is deterministic — same input always produces same hash |
+| CAS-18 | MEDIUM | drain_unreferenced correctly removes only zero-refcount entries |
+
+**Categories tested:**
+1. Health Monitoring (5): not configured, register/check, degraded on lag, disconnected on errors, cluster aggregation
+2. Write Throttling (5): token bucket, site send, per-site manager, config update, remove site
+3. Data Fingerprinting (5): blake3 deterministic, hex encoding, super features similarity, is_similar, empty data
+4. CAS Dedup Index (5): insert/lookup, refcount, drain unreferenced, chunker deterministic, config sizes
+5. Health Edge Cases (5): reset site, thresholds default, remove site, CAS empty, throttle config
+
+### 32.2 Storage Device Extensions
+
+Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monitoring, block defragmentation, and write-ahead journal flush.
+
+**Test Module:** `storage_device_ext_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| ZNS-04 | HIGH | Max open zones limit correctly enforced — prevents resource exhaustion |
+| SMART-15 | MEDIUM | Kelvin-to-Celsius conversion verified correct (K-273.15) |
+| DEFRAG-19 | HIGH | Cooldown period prevents defrag storms — resource protection |
+| FLUSH-22 | HIGH | Journal state transitions enforce correct ordering (Pending→Flushed→Replicated→Committed) |
+
+**Categories tested:**
+1. ZNS Zone Management (5): zone states, sequential append, zone reset, max open limit, GC candidates
+2. FDP Placement Hints (5): disabled, resolve hint, write stats, config defaults, unmapped fallback
+3. SMART Health Monitoring (5): healthy device, temperature warning, critical spare, alert generation, temp conversion
+4. Defragmentation (5): config defaults, initial stats, record operations, can_run cooldown, empty plan
+5. Write-Ahead Journal (5): append/pending, state transitions, pending by state, config defaults, stats
