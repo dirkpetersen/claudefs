@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 7: Integrity Verification, Pipeline Monitoring, Write Amplification (2026-03-04)
+
+#### 3 New Modules — 101 New Tests, 494 Total
+
+**Status:** ✅ 494 tests passing, 0 failures, 0 clippy warnings (+101 from 393)
+
+**New modules:**
+- `chunk_verifier.rs` — 15+ tests: `ChunkVerifier` for background data integrity scrubbing.
+  `verify_chunk(data, expected_hash)` recomputes BLAKE3 and returns `VerificationResult::Ok`,
+  `Corrupted`, or `Missing`. `verify_batch()` handles multiple chunks. `VerificationSchedule`
+  provides a priority queue for systematic scrubbing of stored chunks.
+- `pipeline_monitor.rs` — 17+ tests: Real-time monitoring and alerting for the reduction pipeline.
+  `PipelineMonitor` aggregates `StageMetrics` (chunks_in/out, bytes_in/out, errors, latency).
+  `check_alerts()` fires `PipelineAlert` for high error rates, low reduction ratios, or high
+  latency against configurable `AlertThreshold`. `snapshot()` returns `PipelineMetrics`.
+- `write_amplification.rs` — 16+ tests: `WriteAmplificationTracker` records `WriteEvent` structs
+  with logical/physical byte counts, dedup savings, compression savings, and EC overhead.
+  Provides `write_amplification()`, `effective_reduction()`, `dedup_ratio()`,
+  `compression_ratio()`, `ec_overhead_pct()` for capacity planning and tuning.
+  `window_stats(n)` returns stats over the last N events (circular buffer).
+
+**Test expansions (+53 tests across 6 modules):**
+- `fingerprint.rs` (+10): hex formatting, Display, similarity edge cases, large data, empty hash
+- `gc.rs` (+9): empty CAS, all-referenced, multiple cycles, high refcount, cycle variations
+- `similarity.rs` (+8): thread safety, edge cases, delta compress empty/large data
+- `recompressor.rs` (+8): config defaults, batch edge cases, compressible/incompressible data
+- `write_path.rs` (+8): stats defaults, dedup, segment tracking, large data
+- `encryption.rs` (+9): key generation, empty/large roundtrips, wrong key/nonce errors
+
+---
+
 ### A10: Security Audit — Phase 26: Gateway SMB3 & Meta Directory (2026-03-04)
 
 #### 2 New Modules — 53 New Tests, 1930 Total
