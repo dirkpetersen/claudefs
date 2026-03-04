@@ -1613,3 +1613,43 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 3. Extended Attributes (5): set/get, nonexistent, list/remove, remove_all, inode isolation
 4. NFS File Handle & Generation (5): generation default/next, serialization roundtrip, allocate/reuse, stale detection, export/import
 5. Integration & Edge Cases (5): AccessMode flags, supplementary groups, xattr overwrite, clear/tracked, unknown inode
+
+---
+
+## Section 37: Phase 20 — Gateway S3 Notification/Replication/Storage-Class & Meta Fingerprint/NegCache/Watch
+
+**Test Modules:** `gateway_s3_notif_repl_class_security_tests.rs` (25 tests), `meta_fingerprint_negcache_watch_security_tests.rs` (25 tests)
+**Total Tests After Phase 20:** 1621 passing, 0 failures
+
+### Gateway S3 Notification, Replication, Storage Class (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| GW-S3EXT-06 | HIGH | Disabled notification configs never match |
+| GW-S3EXT-14 | HIGH | Priority ordering ensures correct replication rule precedence |
+| GW-S3EXT-18 | CRITICAL | Retry limit prevents infinite replication loops |
+| GW-S3EXT-23 | MEDIUM | Transition evaluation selects most recent applicable rule |
+
+**Categories tested:**
+1. S3 Notification Events & Filters (5)
+2. S3 Notification Matching & Delivery (5)
+3. S3 Replication Rules & Config (5)
+4. S3 Replication Queue (5)
+5. Storage Class Management (5)
+
+### Meta Fingerprint Index, Negative Cache, Watch/Notify (25 tests)
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| META-FNW-03 | CRITICAL | Zero-ref entries auto-cleaned — prevents ghost entries |
+| META-FNW-13 | HIGH | Directory invalidation scoped to parent — no cross-directory leakage |
+| META-FNW-18 | HIGH | TTL prevents stale negative entries |
+| META-FNW-23 | HIGH | Event cap prevents memory exhaustion from rapid changes |
+| META-FNW-25 | HIGH | Events correctly isolated to matching watchers |
+
+**Categories tested:**
+1. CAS Fingerprint Index (5)
+2. CAS Fingerprint Edge Cases (5)
+3. Negative Cache (5)
+4. Negative Cache Stats & TTL (5)
+5. Watch/Notify Manager (5)

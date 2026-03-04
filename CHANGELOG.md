@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 20: Gateway S3 Notif/Repl/Class & Meta Fingerprint/NegCache/Watch (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1621 Total
+
+**Status:** ✅ 1621 security tests passing, 0 failures (+50 from 1571)
+
+**New Coverage — Gateway S3 Notification/Replication/Storage Class (25 tests):**
+- S3 Notification Events & Filters (5 tests): event names, prefix/suffix, empty matches all, enable/disable, register/query
+- S3 Notification Matching & Delivery (5 tests): disabled skipped, filter applied, remove, delivery counter, enabled count
+- S3 Replication Rules & Config (5 tests): prefix match, tag match, disabled, priority ordering, destinations
+- S3 Replication Queue (5 tests): enqueue/pending, mark completed, retry limit, remove, status variants
+- Storage Class Management (5 tests): from_str roundtrip, properties, transitions, restore lifecycle, tiers
+
+**New Coverage — Meta Fingerprint Index/NegCache/Watch (25 tests):**
+- CAS Fingerprint Index (5 tests): insert new, duplicate dedup, decrement removes, dedup bytes, nonexistent errors
+- CAS Fingerprint Edge Cases (5 tests): garbage collect, multiple hashes, lookup miss, entry fields, contains
+- Negative Cache (5 tests): insert/check, invalidation, dir invalidation, disabled, max entries eviction
+- Negative Cache Stats & TTL (5 tests): stats, hit ratio, TTL expiration, cleanup, clear
+- Watch/Notify Manager (5 tests): add/remove, create event routing, max events cap, client cleanup, isolation
+
+**Key Findings (5 HIGH, 2 CRITICAL, 2 MEDIUM):**
+- GW-S3EXT-18 (CRITICAL): Retry limit prevents infinite replication loops
+- META-FNW-03 (CRITICAL): Zero-ref entries auto-cleaned — prevents ghost entries
+- META-FNW-13 (HIGH): Directory invalidation scoped to parent — no cross-directory leakage
+- META-FNW-25 (HIGH): Events correctly isolated to matching watchers
+
 ### A10: Security Audit — Phase 19: Gateway Wire/Audit/Access-Log & Meta Access/XAttr/Inode-Gen (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1571 Total
