@@ -15,6 +15,7 @@ use tokio::sync::oneshot;
 pub struct SessionHandle {
     mountpoint: PathBuf,
     shutdown_tx: Option<oneshot::Sender<()>>,
+    /// Server configuration for this session.
     pub config: FuseServerConfig,
 }
 

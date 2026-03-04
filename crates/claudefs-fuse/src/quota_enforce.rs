@@ -1,18 +1,37 @@
+//! Quota enforcement for FUSE filesystem operations.
+//!
+//! Provides cached quota tracking for users and groups with soft and hard limits
+//! on both bytes and inodes. The cache entries have a configurable TTL to ensure
+//! quota information stays reasonably fresh while avoiding excessive metadata lookups.
+
 use crate::error::{FuseError, Result};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+/// Quota usage and limits for a user or group.
+///
+/// Tracks current usage and configured soft/hard limits for both byte and inode quotas.
+/// A value of 0 for a limit indicates no limit is configured.
 #[derive(Debug, Clone)]
 pub struct QuotaUsage {
+    /// Current bytes consumed.
     pub bytes_used: u64,
+    /// Soft byte limit (warning threshold).
     pub bytes_soft: u64,
+    /// Hard byte limit (enforced ceiling).
     pub bytes_hard: u64,
+    /// Current inodes consumed.
     pub inodes_used: u64,
+    /// Soft inode limit (warning threshold).
     pub inodes_soft: u64,
+    /// Hard inode limit (enforced ceiling).
     pub inodes_hard: u64,
 }
 
 impl QuotaUsage {
+    /// Creates a new quota usage with the specified byte limits.
+    ///
+    /// Inode limits default to 0 (unlimited), and usage starts at 0.
     pub fn new(bytes_soft: u64, bytes_hard: u64) -> Self {
         QuotaUsage {
             bytes_used: 0,
@@ -24,6 +43,7 @@ impl QuotaUsage {
         }
     }
 
+    /// Creates a quota usage with no limits (all zeros).
     pub fn unlimited() -> Self {
         QuotaUsage {
             bytes_used: 0,
@@ -35,6 +55,7 @@ impl QuotaUsage {
         }
     }
 
+    /// Returns the quota status for byte usage.
     pub fn bytes_status(&self) -> QuotaStatus {
         if self.bytes_hard > 0 && self.bytes_used >= self.bytes_hard {
             QuotaStatus::HardExceeded
@@ -45,6 +66,7 @@ impl QuotaUsage {
         }
     }
 
+    /// Returns the quota status for inode usage.
     pub fn inodes_status(&self) -> QuotaStatus {
         if self.inodes_hard > 0 && self.inodes_used >= self.inodes_hard {
             QuotaStatus::HardExceeded
@@ -56,10 +78,14 @@ impl QuotaUsage {
     }
 }
 
+/// Status of a quota check.
 #[derive(Debug, Clone, PartialEq)]
 pub enum QuotaStatus {
+    /// Usage is within configured limits.
     Ok,
+    /// Usage exceeds soft limit but not hard limit.
     SoftExceeded,
+    /// Usage exceeds hard limit (operation denied).
     HardExceeded,
 }
 
@@ -68,6 +94,11 @@ struct QuotaCacheEntry {
     fetched_at: Instant,
 }
 
+/// Enforces quotas for FUSE operations with cached usage data.
+///
+/// Maintains a TTL-bounded cache of quota usage for users and groups.
+/// When cache entries expire, operations proceed without quota checks
+/// until fresh data is populated.
 pub struct QuotaEnforcer {
     ttl: Duration,
     user_cache: HashMap<u32, QuotaCacheEntry>,
@@ -78,6 +109,7 @@ pub struct QuotaEnforcer {
 }
 
 impl QuotaEnforcer {
+    /// Creates a new quota enforcer with the specified cache TTL.
     pub fn new(ttl: Duration) -> Self {
         QuotaEnforcer {
             ttl,
@@ -89,10 +121,12 @@ impl QuotaEnforcer {
         }
     }
 
+    /// Creates a new quota enforcer with the default 30-second TTL.
     pub fn with_default_ttl() -> Self {
         Self::new(Duration::from_secs(30))
     }
 
+    /// Updates cached quota usage for a user.
     pub fn update_user_quota(&mut self, uid: u32, usage: QuotaUsage) {
         self.user_cache.insert(
             uid,
@@ -103,6 +137,7 @@ impl QuotaEnforcer {
         );
     }
 
+    /// Updates cached quota usage for a group.
     pub fn update_group_quota(&mut self, gid: u32, usage: QuotaUsage) {
         self.group_cache.insert(
             gid,
@@ -133,6 +168,11 @@ impl QuotaEnforcer {
         })
     }
 
+    /// Checks if a write operation would exceed quota limits.
+    ///
+    /// Returns `Ok(QuotaStatus::Ok)` if the write is allowed,
+    /// `Ok(QuotaStatus::SoftExceeded)` if soft limits are exceeded (write allowed),
+    /// or `Err(FuseError::PermissionDenied)` if hard limits would be exceeded.
     pub fn check_write(&mut self, uid: u32, gid: u32, write_size: u64) -> Result<QuotaStatus> {
         self.check_count += 1;
 
@@ -175,6 +215,11 @@ impl QuotaEnforcer {
         Ok(QuotaStatus::Ok)
     }
 
+    /// Checks if a file creation operation would exceed inode quota limits.
+    ///
+    /// Returns `Ok(QuotaStatus::Ok)` if creation is allowed,
+    /// `Ok(QuotaStatus::SoftExceeded)` if soft limits are exceeded (creation allowed),
+    /// or `Err(FuseError::PermissionDenied)` if hard limits would be exceeded.
     pub fn check_create(&mut self, uid: u32, gid: u32) -> Result<QuotaStatus> {
         self.check_count += 1;
 
@@ -217,26 +262,32 @@ impl QuotaEnforcer {
         Ok(QuotaStatus::Ok)
     }
 
+    /// Removes cached quota data for a user.
     pub fn invalidate_user(&mut self, uid: u32) {
         self.user_cache.remove(&uid);
     }
 
+    /// Removes cached quota data for a group.
     pub fn invalidate_group(&mut self, gid: u32) {
         self.group_cache.remove(&gid);
     }
 
+    /// Returns the number of cache hits during quota checks.
     pub fn cache_hits(&self) -> u64 {
         self.cache_hits
     }
 
+    /// Returns the total number of quota checks performed.
     pub fn check_count(&self) -> u64 {
         self.check_count
     }
 
+    /// Returns the number of operations denied due to hard limit violations.
     pub fn denied_count(&self) -> u64 {
         self.denied_count
     }
 
+    /// Returns the total number of cached entries (user + group).
     pub fn cache_size(&self) -> usize {
         self.user_cache.len() + self.group_cache.len()
     }
