@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 18: Dedup Bloom, Journal Replay, Namespace Tree (2026-03-04)
+
+#### 3 New Modules — 46 New Tests, 1349 Total
+
+**Status:** ✅ 1349 tests passing, 0 failures, 0 clippy warnings (+46 from 1303)
+
+**New modules:**
+- `dedup_bloom.rs` — Bloom filter for fast dedup negative lookups; avoids CAS hash table miss cost
+- `journal_replay.rs` — WAL journal replay for crash recovery; inode chunk/delete/truncate actions
+- `namespace_tree.rs` — Directory tree with child counts, file counts, and recursive byte usage
+
+## [Unreleased]
+
 ### A11: Infrastructure & CI — Phase 1: Operational Documentation & Cost Optimization (2026-03-04)
 
 #### Comprehensive Infrastructure Documentation
