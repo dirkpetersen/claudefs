@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Session Assessment & Blocker (2026-03-04)
+
+#### BLOCKER: Fireworks API key invalid — OpenCode blocked
+
+**Status:** ✅ 667 tests passing, 51 modules, production-grade transport layer
+⚠️ BLOCKED on documentation completion (GitHub Issue #21)
+
+**Current State:**
+- 667 unit + integration tests passing (100%)
+- 51 modules, all with complete logic and test coverage
+- 393 remaining `missing_docs` warnings across 8 modules
+- These are purely doc comment additions (struct fields, method descriptions, enum variants)
+
+**Blocker:**
+The Fireworks AI API key (`fw_J246CQF6HnGPVcHzLDhnRy`) stored in AWS Secrets Manager
+(`cfs/fireworks-api-key`, us-west-2) is invalid/expired. All OpenCode invocations fail with:
+> "The API key you provided is invalid."
+
+This blocks ALL Rust code authoring (including adding doc comments). Filed as GitHub Issue #21.
+
+**To unblock:**
+1. Generate new key at https://fireworks.ai/settings/api-keys
+2. Run: `aws secretsmanager update-secret --secret-id cfs/fireworks-api-key --region us-west-2 --secret-string '{"FIREWORKS_API_KEY":"<NEW_KEY>"}'`
+3. Re-run: `~/.opencode/bin/opencode run "$(cat a4-doc-input.md)" --model fireworks-ai/accounts/fireworks/models/minimax-m2p5 > a4-doc-output.md`
+
+**Modules with missing docs (OpenCode-ready prompts at a4-doc-*.md):**
+- observability.rs (72 items), multipath.rs (52), conn_auth.rs (40)
+- connmigrate.rs (37), congestion.rs (37), adaptive.rs (35)
+- request_dedup.rs (24), bandwidth.rs (18)
+
+---
+
 ### A3: Data Reduction — Phase 2 Quality Pass: Zero Warnings (2026-03-04)
 
 #### Test Code Warning Fixes — Full Clean Build
