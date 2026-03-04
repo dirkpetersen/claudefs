@@ -902,6 +902,7 @@ dependencies = [
  "blake3",
  "claudefs-fuse",
  "claudefs-gateway",
+ "claudefs-meta",
  "claudefs-mgmt",
  "claudefs-reduce",
  "claudefs-repl",

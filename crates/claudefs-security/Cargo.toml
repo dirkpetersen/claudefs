@@ -14,6 +14,7 @@ claudefs-repl = { path = "../claudefs-repl" }
 claudefs-gateway = { path = "../claudefs-gateway" }
 claudefs-mgmt = { path = "../claudefs-mgmt" }
 claudefs-fuse = { path = "../claudefs-fuse" }
+claudefs-meta = { path = "../claudefs-meta" }
 thiserror.workspace = true
 serde.workspace = true
 tracing.workspace = true
