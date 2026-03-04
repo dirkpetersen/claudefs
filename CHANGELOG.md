@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 11: Write Buffer, Dedup Pipeline, Compaction Scheduler (2026-03-04)
+
+#### 3 New Modules — 75 New Tests, 831 Total
+
+**Status:** ✅ 831 tests passing, 0 failures, 0 clippy warnings (+75 from 756)
+
+**New modules:**
+- `write_buffer.rs` — Accumulates small FUSE writes before reduction pipeline.
+  Threshold-based flush (default 2MB). Returns `FlushResult` when threshold reached.
+- `dedup_pipeline.rs` — Integrated CDC + BLAKE3 CAS deduplication pipeline.
+  `process_data()` applies FastCDC then deduplicates by hash. Tracks dedup/unique ratios.
+- `compaction_scheduler.rs` — Throttled compaction with priority queuing.
+  Background/Normal/Urgent/Emergency priorities. `needs_urgent_compaction(waste_pct)` triggers.
+
+**Test expansions (+30):** segment_reader, read_cache, prefetch, stream_chunker
+
+## [Unreleased]
+
 ### A3: Data Reduction — Phase 10: Cache Coherency, Stripe Coordinator, Read Planner (2026-03-04)
 
 #### 3 New Modules — 80 New Tests, 756 Total
