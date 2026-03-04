@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 7: Wire Diagnostics, Credit Window, Multicast Groups (2026-03-04)
+
+**Status:** ✅ Complete — 1070 tests passing (57 new), 3 new modules
+
+#### New Modules
+
+1. **wire_diag.rs** — Wire-level diagnostics for ClaudeFS transport connections
+   - Ping/pong RTT measurement with in-flight tracking
+   - Rolling RTT statistics (min, max, mean, p99) over configurable window
+   - Path tracing (traceroute-style multi-hop RPC path analysis)
+   - Stats: pings sent/received/timed-out/rejected
+   - 15 tests
+
+2. **credit_window.rs** — Credit-window flow control for per-connection in-flight byte budgets
+   - Explicit credit-grant/consume protocol (distinct from token-bucket flowcontrol.rs)
+   - RAII `CreditGrant` with automatic credit return on drop
+   - State machine: Normal → Warning (25%) → Throttled (10%) → Exhausted
+   - Used by A6 (Replication) to prevent journal backlog buildup
+   - Used by A5 (FUSE client) to manage prefetch budgets
+   - 18 tests
+
+3. **multicast_group.rs** — Named multicast group management for control-plane broadcasts
+   - Create/dissolve named groups, join/leave members
+   - `prepare_broadcast()` returns targeted member list for caller to send
+   - Used by A2 (Metadata Service) for cluster-wide config propagation
+   - Used by A6 (Replication) for site membership announcements
+   - Limits: max 256 groups, 64 members/group (configurable)
+   - 24 tests
+
+#### Test Progression
+- P1: 667 | P2: 667 (0 clippy) | P3: 734 | P4: 817 | P5: 900 | P6: 1013 | **P7: 1070**
+
 ### A11: Infrastructure & CI — Phase 2: Multi-Node Cluster Deployment & Lifecycle (2026-03-04)
 
 #### 5 New Tools + Enhanced CLI — Full Multi-Node Infrastructure
