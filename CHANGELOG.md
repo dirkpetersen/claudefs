@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 2: Journal Source + Sliding Window + Catchup (2026-03-04)
+
+#### 3 New Modules — 817 Tests, +75 New
+
+**Status:** ✅ 817 tests passing, 0 failures, 0 clippy warnings (was 742)
+
+**New Modules:**
+
+1. **`journal_source.rs`** — Trait-based journal source interface (A2 integration boundary)
+   - `JournalSource` trait (synchronous poll-style, no async_trait dependency)
+   - `MockJournalSource`: VecDeque-backed injectable source for unit/integration tests
+   - `VecJournalSource`: replay from a pre-built Vec of JournalEntry
+   - `SourceBatch` + `SourceCursor` structs for clean cursor tracking
+   - 25 unit tests covering all behaviors
+
+2. **`sliding_window.rs`** — Sliding window ACK protocol for reliable in-order delivery
+   - `SlidingWindow`: tracks in-flight batches, cumulative ACK, timeout detection, retransmit
+   - `WindowConfig` (window_size, ack_timeout_ms), `InFlightBatch`, `WindowState`, `WindowStats`
+   - `WindowError`: `Full` / `NotFound` variants for clear error handling
+   - 25 unit tests + 1 proptest for ordering invariants
+
+3. **`catchup.rs`** — Catch-up state machine for replicas that fall behind
+   - Lifecycle: `Idle → Requested → InProgress → Complete / Failed`
+   - `CatchupState`, `CatchupConfig`, `CatchupPhase`, `CatchupStats`, `CatchupError`
+   - Handles batch receive, failure, and reset transitions cleanly
+   - 24 unit tests + 1 proptest for full session lifecycle
+
+**Stats:** +75 tests, +3 modules, 38 modules total
+
+---
+
 ### A10: Security Audit — Phase 3 Reduce + Repl Deep Audit (2026-03-04)
 
 #### 2 New Modules: reduce_security_tests + repl_security_tests — 40 Tests, 698 Total
