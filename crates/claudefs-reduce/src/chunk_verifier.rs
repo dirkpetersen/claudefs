@@ -450,4 +450,96 @@ mod tests {
         let schedule = schedule_verification(hashes);
         assert_eq!(schedule.len(), 3); // Duplicates allowed
     }
+
+    #[test]
+    fn test_verification_priority_ordering() {
+        assert!(VerificationPriority::High != VerificationPriority::Normal);
+        assert!(VerificationPriority::Normal != VerificationPriority::Low);
+    }
+
+    #[test]
+    fn test_verification_stats_error_rate() {
+        let stats = VerificationStats {
+            chunks_verified: 100,
+            chunks_ok: 95,
+            chunks_corrupted: 3,
+            chunks_missing: 2,
+            bytes_verified: 10000,
+        };
+        assert!((stats.error_rate() - 0.05).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_verification_stats_error_rate_zero() {
+        let stats = VerificationStats::default();
+        assert_eq!(stats.error_rate(), 0.0);
+    }
+
+    #[test]
+    fn test_schedule_mark_verified() {
+        let hash = make_test_hash(b"test");
+        let mut schedule = VerificationSchedule::new();
+
+        assert!(!schedule.was_verified(&hash));
+        schedule.mark_verified(&hash, 1000);
+        assert!(schedule.was_verified(&hash));
+        assert_eq!(schedule.last_verified_at(&hash), Some(1000));
+    }
+
+    #[test]
+    fn test_schedule_last_verified_not_found() {
+        let hash = make_test_hash(b"unknown");
+        let schedule = VerificationSchedule::new();
+        assert!(schedule.last_verified_at(&hash).is_none());
+    }
+
+    #[test]
+    fn test_verifier_verify_and_update_stats() {
+        let mut verifier = ChunkVerifier::default();
+        let data = b"test data";
+        let hash = make_test_hash(data);
+
+        let result = verifier.verify(hash, data);
+        assert!(matches!(result, VerificationResult::Ok));
+        assert_eq!(verifier.stats().chunks_verified, 1);
+        assert_eq!(verifier.stats().chunks_ok, 1);
+    }
+
+    #[test]
+    fn test_verifier_verify_batch_updates_stats() {
+        let mut verifier = ChunkVerifier::default();
+        let chunks: Vec<(ChunkHash, Vec<u8>)> = (0..5)
+            .map(|i| {
+                let data = vec![i as u8; 100];
+                let hash = make_test_hash(&data);
+                (hash, data)
+            })
+            .collect();
+
+        let results = verifier.verify_batch(&chunks);
+        assert_eq!(results.len(), 5);
+        assert_eq!(verifier.stats().chunks_verified, 5);
+        assert_eq!(verifier.stats().chunks_ok, 5);
+    }
+
+    #[test]
+    fn test_verifier_reset_stats() {
+        let mut verifier = ChunkVerifier::default();
+        let data = b"test";
+        let hash = make_test_hash(data);
+
+        verifier.verify(hash, data);
+        assert_eq!(verifier.stats().chunks_verified, 1);
+
+        verifier.reset_stats();
+        assert_eq!(verifier.stats().chunks_verified, 0);
+    }
+
+    #[test]
+    fn test_missing_result() {
+        let hash = ChunkHash([42u8; 32]);
+        let result = VerificationResult::Missing { hash };
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("Missing"));
+    }
 }
