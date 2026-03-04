@@ -82,3 +82,9 @@ pub mod repl_bootstrap;
 pub mod repl_maintenance;
 /// Active-active replication mode.
 pub mod active_active;
+/// Trait-based interface for journal sources (A2 integration boundary).
+pub mod journal_source;
+/// Sliding window acknowledgment protocol for reliable in-order delivery.
+pub mod sliding_window;
+/// Catch-up state machine for replicas that fall behind.
+pub mod catchup;
