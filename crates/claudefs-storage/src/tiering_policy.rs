@@ -1,12 +1,19 @@
+//! Tiering policy engine for intelligent flash/S3 data placement.
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{debug, trace};
 
+/// Storage tier classification for a segment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TierClass {
+    /// Frequently accessed data, kept on flash.
     Hot,
+    /// Moderately accessed data on flash.
     Warm,
+    /// Infrequently accessed data, candidate for eviction.
     Cold,
+    /// Stale data not accessed within the frozen threshold.
     Frozen,
 }
 
@@ -218,10 +225,11 @@ impl TieringPolicyEngine {
             return AccessPattern::ReadOnce;
         }
 
-        if record.bytes_written > 0 && record.bytes_read > 0 {
-            if record.bytes_read > record.bytes_written * 5 {
-                return AccessPattern::WriteOnceReadMany;
-            }
+        if record.bytes_written > 0
+            && record.bytes_read > 0
+            && record.bytes_read > record.bytes_written * 5
+        {
+            return AccessPattern::WriteOnceReadMany;
         }
 
         let total_reads = record.sequential_read_count + record.random_read_count;
@@ -268,7 +276,6 @@ impl TieringPolicyEngine {
                 override_policy == TierOverridePolicy::Auto
             })
             .map(|&segment_id| {
-                let record = &self.access_records[&segment_id];
                 let current_tier = self
                     .current_tiers
                     .get(&segment_id)
@@ -390,9 +397,9 @@ impl TieringPolicyEngine {
         self.access_records
             .entry(segment_id)
             .or_insert_with(|| AccessRecord::new(segment_id, size_bytes, current_time));
-        if !self.current_tiers.contains_key(&segment_id) {
-            self.current_tiers.insert(segment_id, TierClass::Cold);
-        }
+        self.current_tiers
+            .entry(segment_id)
+            .or_insert(TierClass::Cold);
         trace!(segment_id, size_bytes, "Registered segment");
     }
 

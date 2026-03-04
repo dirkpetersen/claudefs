@@ -179,9 +179,8 @@ impl<F: FingerprintStore + Send + Sync> IntegratedWritePath<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compression::compress;
     use crate::encryption::EncryptionKey;
-    use crate::meta_bridge::{BlockLocation, LocalFingerprintStore, NullFingerprintStore};
+    use crate::meta_bridge::{LocalFingerprintStore, NullFingerprintStore};
 
     fn test_data(size: usize) -> Vec<u8> {
         (0..size).map(|i| (i % 251) as u8).collect()
@@ -245,7 +244,7 @@ mod tests {
 
         // First write - adds fingerprints to store
         let data = test_data(100_000);
-        let result1 = write_path.process_write(&data).unwrap();
+        let _result1 = write_path.process_write(&data).unwrap();
 
         // Create a new write path using the SAME store
         let config2 = WritePathConfig::default();

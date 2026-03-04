@@ -31,6 +31,7 @@ impl fmt::Display for EncryptionAlgorithm {
 }
 
 /// Encryption key with metadata.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct EncryptionKey {
     /// Key identifier (UUID or external key reference)

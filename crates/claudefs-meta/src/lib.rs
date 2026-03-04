@@ -105,6 +105,9 @@ pub mod worm;
 /// Extended attribute operations
 pub mod xattr;
 
+#[cfg(test)]
+mod proptests;
+
 pub use access::{AccessMode, UserContext};
 pub use btree_store::PersistentKvStore;
 pub use cdc::{CdcCursor, CdcEvent, CdcStream};

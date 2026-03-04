@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
 use thiserror::Error;
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 /// Backend node address
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,7 +44,7 @@ impl BackendNode {
 }
 
 /// State of a connection slot
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConnState {
     /// Connection is available
     Idle,
@@ -55,7 +55,7 @@ pub enum ConnState {
 }
 
 /// A single pooled connection slot
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PooledConn {
     /// Unique connection identifier
     pub id: u64,

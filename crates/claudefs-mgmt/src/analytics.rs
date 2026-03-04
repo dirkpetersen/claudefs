@@ -1,6 +1,26 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum AnalyticsError {
+    #[error("DuckDB error: {0}")]
+    DuckDbError(String),
+    #[error("No Parquet files found in index directory")]
+    ParquetNotFound,
+    #[error("Query failed: {0}")]
+    QueryFailed(String),
+    #[error("Failed to parse result: {0}")]
+    ParseError(String),
+}
+
+impl From<duckdb::Error> for AnalyticsError {
+    fn from(err: duckdb::Error) -> Self {
+        AnalyticsError::DuckDbError(err.to_string())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetadataRecord {

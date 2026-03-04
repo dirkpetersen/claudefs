@@ -271,7 +271,7 @@ impl ScrubEngine {
 
     /// Marks the scrub as completed.
     pub fn complete(&mut self, duration_secs: u64) {
-        let (blocks_checked, errors_found, errors_repaired) = match &self.state {
+        let (blocks_checked, errors_found, _errors_repaired) = match &self.state {
             ScrubState::Running {
                 blocks_checked,
                 errors_found,

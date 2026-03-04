@@ -383,7 +383,12 @@ mod tests {
     #[test]
     fn test_rename_nonexistent_source() {
         let (_kv, _inodes, dirs) = make_stores();
-        match dirs.rename(InodeId::ROOT_INODE, "nonexistent", InodeId::ROOT_INODE, "target") {
+        match dirs.rename(
+            InodeId::ROOT_INODE,
+            "nonexistent",
+            InodeId::ROOT_INODE,
+            "target",
+        ) {
             Err(MetaError::EntryNotFound { .. }) => {}
             other => panic!("expected EntryNotFound, got {:?}", other),
         }
@@ -402,12 +407,20 @@ mod tests {
             .unwrap();
         dirs.create_entry(
             InodeId::ROOT_INODE,
-            &DirEntry { name: "a".into(), ino: ino_a, file_type: FileType::RegularFile },
+            &DirEntry {
+                name: "a".into(),
+                ino: ino_a,
+                file_type: FileType::RegularFile,
+            },
         )
         .unwrap();
         dirs.create_entry(
             InodeId::ROOT_INODE,
-            &DirEntry { name: "b".into(), ino: ino_b, file_type: FileType::RegularFile },
+            &DirEntry {
+                name: "b".into(),
+                ino: ino_b,
+                file_type: FileType::RegularFile,
+            },
         )
         .unwrap();
         dirs.rename(InodeId::ROOT_INODE, "a", InodeId::ROOT_INODE, "b")
@@ -450,7 +463,11 @@ mod tests {
         inodes
             .create_inode(&InodeAttr::new_file(ino, 1000, 1000, 0o644, 1))
             .unwrap();
-        let entry = DirEntry { name: "f.txt".into(), ino, file_type: FileType::RegularFile };
+        let entry = DirEntry {
+            name: "f.txt".into(),
+            ino,
+            file_type: FileType::RegularFile,
+        };
         assert!(matches!(
             dirs.create_entry(InodeId::new(999), &entry),
             Err(MetaError::InodeNotFound(_))
@@ -470,12 +487,20 @@ mod tests {
             .unwrap();
         dirs.create_entry(
             InodeId::ROOT_INODE,
-            &DirEntry { name: "d1".into(), ino: d1, file_type: FileType::Directory },
+            &DirEntry {
+                name: "d1".into(),
+                ino: d1,
+                file_type: FileType::Directory,
+            },
         )
         .unwrap();
         dirs.create_entry(
             InodeId::ROOT_INODE,
-            &DirEntry { name: "d2".into(), ino: d2, file_type: FileType::Directory },
+            &DirEntry {
+                name: "d2".into(),
+                ino: d2,
+                file_type: FileType::Directory,
+            },
         )
         .unwrap();
         let f1 = inodes.allocate_inode();
@@ -488,12 +513,20 @@ mod tests {
             .unwrap();
         dirs.create_entry(
             d1,
-            &DirEntry { name: "f1.txt".into(), ino: f1, file_type: FileType::RegularFile },
+            &DirEntry {
+                name: "f1.txt".into(),
+                ino: f1,
+                file_type: FileType::RegularFile,
+            },
         )
         .unwrap();
         dirs.create_entry(
             d2,
-            &DirEntry { name: "f2.txt".into(), ino: f2, file_type: FileType::RegularFile },
+            &DirEntry {
+                name: "f2.txt".into(),
+                ino: f2,
+                file_type: FileType::RegularFile,
+            },
         )
         .unwrap();
         let e1 = dirs.list_entries(d1).unwrap();

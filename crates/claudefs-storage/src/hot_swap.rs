@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
-use crate::block::{BlockId, BlockRef, BlockSize};
+use crate::block::BlockRef;
 use crate::device::DeviceRole;
 use crate::error::{StorageError, StorageResult};
 

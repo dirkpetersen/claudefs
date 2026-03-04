@@ -243,6 +243,7 @@ pub struct QuotaStats {
 }
 
 /// Manages quotas for all tenants in the system.
+#[allow(dead_code)]
 pub struct QuotaManager {
     /// Map of tenant ID to tenant quota state.
     tenants: HashMap<String, TenantQuota>,
@@ -321,7 +322,7 @@ impl QuotaManager {
                 self.stats.soft_warnings += 1;
             }
 
-            drop(tenant);
+            let _ = tenant;
             self.tenants
                 .get_mut(tenant_id)
                 .unwrap()

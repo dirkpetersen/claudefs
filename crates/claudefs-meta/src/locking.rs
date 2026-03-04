@@ -253,9 +253,7 @@ mod tests {
         let lock_id = mgr.acquire(ino, LockType::Write, NodeId::new(1)).unwrap();
 
         // Write lock blocks others
-        assert!(mgr
-            .acquire(ino, LockType::Write, NodeId::new(2))
-            .is_err());
+        assert!(mgr.acquire(ino, LockType::Write, NodeId::new(2)).is_err());
 
         // Release the lock
         mgr.release(lock_id).unwrap();

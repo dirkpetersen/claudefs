@@ -217,7 +217,7 @@ impl CopyOffloadManager {
         let handle = self
             .handles
             .get_mut(&copy_id)
-            .ok_or(CopyOffloadError::NotFound)?;
+            .ok_or_else(|| CopyOffloadError::NotFound(format!("copy id {}", copy_id)))?;
 
         if handle.state != CopyState::InProgress {
             return Err(CopyOffloadError::AlreadyComplete(
@@ -236,7 +236,7 @@ impl CopyOffloadManager {
         let handle = self
             .handles
             .get_mut(&copy_id)
-            .ok_or(CopyOffloadError::NotFound)?;
+            .ok_or_else(|| CopyOffloadError::NotFound(copy_id.to_string()))?;
 
         if handle.state != CopyState::InProgress {
             return Err(CopyOffloadError::AlreadyComplete(
