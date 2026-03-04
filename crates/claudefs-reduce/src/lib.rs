@@ -96,6 +96,12 @@ pub mod gc_coordinator;
 pub mod snapshot_diff;
 /// Write fence for crash-consistent write ordering.
 pub mod write_fence;
+/// Inline dedup decision engine for hot-path write path.
+pub mod inline_dedup;
+/// Compression algorithm advisor based on observed ratios.
+pub mod compression_advisor;
+/// LRU cache for dedup hash lookups.
+pub mod dedup_cache;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -234,3 +240,11 @@ pub use snapshot_diff::{
     BlockHash, SnapshotBlock, SnapshotDiff, SnapshotDiffConfig, SnapshotDiffResult,
 };
 pub use write_fence::{FenceState, WriteFence, WriteFenceConfig, WriteFenceStats};
+pub use inline_dedup::{
+    DedupDecision, InlineDedup, InlineDedupConfig, InlineDedupIndex, InlineDedupStats,
+    SkipReason,
+};
+pub use compression_advisor::{
+    AlgoMetrics, CompressionAdvice, CompressionAdvisor,
+};
+pub use dedup_cache::{DedupCache, DedupCacheConfig, DedupCacheStats};
