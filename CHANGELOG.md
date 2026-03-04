@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 9: Block Map, Journal Segment, Tenant Isolator (2026-03-04)
+
+#### 3 New Modules — 85 New Tests, 676 Total
+
+**Status:** ✅ 676 tests passing, 0 failures, 0 clippy warnings (+85 from 591)
+
+**New modules:**
+- `block_map.rs` — Logical→physical block mapping for inode-to-chunk resolution.
+  `BlockMap` stores `BlockEntry` records (logical range → CAS hash + segment offset).
+  `lookup_range()` returns all entries overlapping a byte range (O(n) scan, sorted for cache).
+  `BlockMapStore` manages per-inode maps for the full namespace.
+- `journal_segment.rs` — Write-ahead journal segment for crash-consistent writes (D3).
+  D3: 2x synchronous journal replication before client ack. `JournalSegment` appends
+  `JournalEntry` records (sequence, inode, offset, hash, data). `seal()` / `checkpoint()`
+  track replication state. `since(seq)` enables efficient replay from a checkpoint.
+  Bounded by `max_entries` and `max_bytes` to prevent unbounded growth.
+- `tenant_isolator.rs` — Multi-tenant data isolation with quota enforcement.
+  `TenantIsolator` registers `TenantPolicy` (quota_bytes, max_iops, priority) per tenant.
+  `record_write()` returns `TenantError::QuotaExceeded` if over quota.
+  `tenants_over_quota()` lists violators for enforcement. Ready for A8 management integration.
+
+**Test expansions (+49 tests):**
+- `meta_bridge.rs` (+10): BlockLocation, FingerprintStore trait, LocalFingerprintStore/NullFingerprintStore
+- `key_manager.rs` (+8): key generation, rotation, versioning, wrap/unwrap roundtrip
+- `dedupe.rs` (+8): CasIndex refcount, Chunker config, chunk size bounds
+- `segment.rs` (+8): SegmentPacker, entry count, byte totals, sealing behavior
+
+
 ### A3: Data Reduction — Phase 8: Eviction Scoring, Data Classification, Segment Splitting (2026-03-04)
 
 #### 3 New Modules — 97 New Tests, 591 Total
