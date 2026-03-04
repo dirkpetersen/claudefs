@@ -298,7 +298,7 @@ mod tests {
         let signer = PresignedSigner::new("ak", "sk");
         let req = PresignedRequest::get("bucket", "key", 3600);
         let url = signer.sign_request(&req, 1000);
-        let params = parse_presigned_params(&url.url_path);
+        let _params = parse_presigned_params(&url.url_path);
         let result =
             signer.validate_url("GET", "bucket", "key", url.expires_at, &url.signature, 1500);
         assert!(result.is_ok());

@@ -726,7 +726,7 @@ mod tests {
             .put_object("mybucket", "key", "text/plain", b"v2".to_vec())
             .unwrap();
 
-        let (meta, data) = handler.get_object("mybucket", "key").unwrap();
+        let (_meta, data) = handler.get_object("mybucket", "key").unwrap();
         assert_eq!(data, b"v2");
     }
 

@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn test_session_manager_expire_idle() {
         let manager = SessionManager::new();
-        let id1 = manager.create_session(SessionProtocol::Nfs3, "192.168.1.1", 1000, 1000, 100);
+        let _id1 = manager.create_session(SessionProtocol::Nfs3, "192.168.1.1", 1000, 1000, 100);
         let id2 = manager.create_session(SessionProtocol::Nfs3, "10.0.0.1", 500, 500, 300);
 
         manager.touch_session(id2, 350);

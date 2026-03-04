@@ -262,18 +262,23 @@ impl RestoreTier {
 /// Storage class errors
 #[derive(Debug, Error)]
 pub enum StorageClassError {
+    /// The specified storage class name is not recognized
     #[error("Invalid storage class: {0}")]
     InvalidClass(String),
 
+    /// The requested storage class transition is not allowed
     #[error("Transition not allowed from {0} to {1}")]
     TransitionNotAllowed(StorageClass, StorageClass),
 
+    /// The object is archived and must be restored before it can be accessed
     #[error("Object requires restore before access")]
     RestoreRequired,
 
+    /// A restore operation for this object is already in progress
     #[error("Restore already in progress")]
     RestoreInProgress,
 
+    /// The specified lifecycle transition rule is invalid
     #[error("Invalid transition: {0}")]
     InvalidTransition(String),
 }

@@ -1,8 +1,9 @@
+use crate::analytics::AnalyticsEngine;
 use crate::config::MgmtConfig;
 use crate::metrics::ClusterMetrics;
 use axum::{
     body::Body,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{header, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -11,6 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -116,15 +118,17 @@ pub struct AdminApi {
     config: Arc<MgmtConfig>,
     node_registry: Arc<RwLock<NodeRegistry>>,
     rate_limiter: Arc<crate::security::AuthRateLimiter>,
+    analytics: Arc<AnalyticsEngine>,
 }
 
 impl AdminApi {
-    pub fn new(metrics: Arc<ClusterMetrics>, config: Arc<MgmtConfig>) -> Self {
+    pub fn new(metrics: Arc<ClusterMetrics>, config: Arc<MgmtConfig>, index_dir: PathBuf) -> Self {
         Self {
             metrics,
             config,
             node_registry: Arc::new(RwLock::new(NodeRegistry::new())),
             rate_limiter: Arc::new(crate::security::AuthRateLimiter::new()),
+            analytics: Arc::new(AnalyticsEngine::new(index_dir)),
         }
     }
 
@@ -137,6 +141,11 @@ impl AdminApi {
             .route("/api/v1/nodes/{node_id}/drain", post(node_drain_handler))
             .route("/api/v1/replication/status", get(replication_status_handler))
             .route("/api/v1/capacity", get(capacity_handler))
+            .route("/api/v1/analytics/top-users", get(top_users_handler))
+            .route("/api/v1/analytics/top-dirs", get(top_dirs_handler))
+            .route("/api/v1/analytics/find-files", get(find_files_handler))
+            .route("/api/v1/analytics/stale-files", get(stale_files_handler))
+            .route("/api/v1/analytics/reduction", get(reduction_report_handler))
             .layer(axum::middleware::from_fn_with_state(
                 self.clone(),
                 auth_middleware,
@@ -278,6 +287,90 @@ async fn capacity_handler(State(state): State<Arc<AdminApi>>) -> Json<CapacitySu
     })
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TopUsersParams {
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TopDirsParams {
+    pub depth: Option<usize>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FindFilesParams {
+    pub pattern: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StaleFilesParams {
+    pub days: u64,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReductionReportParams {
+    pub limit: Option<usize>,
+}
+
+async fn top_users_handler(
+    State(state): State<Arc<AdminApi>>,
+    Query(params): Query<TopUsersParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(20);
+    match state.analytics.top_users(limit).await {
+        Ok(results) => (StatusCode::OK, Json(results)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": format!("{}", e)}))).into_response(),
+    }
+}
+
+async fn top_dirs_handler(
+    State(state): State<Arc<AdminApi>>,
+    Query(params): Query<TopDirsParams>,
+) -> impl IntoResponse {
+    let depth = params.depth.unwrap_or(1);
+    let limit = params.limit.unwrap_or(20);
+    match state.analytics.top_dirs(depth, limit).await {
+        Ok(results) => (StatusCode::OK, Json(results)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": format!("{}", e)}))).into_response(),
+    }
+}
+
+async fn find_files_handler(
+    State(state): State<Arc<AdminApi>>,
+    Query(params): Query<FindFilesParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(100);
+    match state.analytics.find_files(&params.pattern, limit).await {
+        Ok(results) => (StatusCode::OK, Json(results)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": format!("{}", e)}))).into_response(),
+    }
+}
+
+async fn stale_files_handler(
+    State(state): State<Arc<AdminApi>>,
+    Query(params): Query<StaleFilesParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(100);
+    match state.analytics.stale_files(params.days, limit).await {
+        Ok(results) => (StatusCode::OK, Json(results)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": format!("{}", e)}))).into_response(),
+    }
+}
+
+async fn reduction_report_handler(
+    State(state): State<Arc<AdminApi>>,
+    Query(params): Query<ReductionReportParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(20);
+    match state.analytics.reduction_report(limit).await {
+        Ok(results) => (StatusCode::OK, Json(results)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": format!("{}", e)}))).into_response(),
+    }
+}
+
 async fn auth_middleware(
     State(state): State<Arc<AdminApi>>,
     mut request: Request<Body>,
@@ -347,7 +440,7 @@ mod tests {
     async fn test_health_endpoint() {
         let config = Arc::new(MgmtConfig::default());
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder().uri("/health").body(Body::empty()).unwrap();
@@ -366,7 +459,7 @@ mod tests {
         let config = Arc::new(MgmtConfig::default());
         let metrics = Arc::new(ClusterMetrics::new());
         metrics.iops_read.add(100);
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder().uri("/metrics").body(Body::empty()).unwrap();
@@ -383,7 +476,7 @@ mod tests {
     async fn test_cluster_status_endpoint() {
         let config = Arc::new(MgmtConfig::default());
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -404,7 +497,7 @@ mod tests {
     async fn test_nodes_list_endpoint() {
         let config = Arc::new(MgmtConfig::default());
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -427,7 +520,7 @@ mod tests {
 
         let config = Arc::new(config);
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -446,7 +539,7 @@ mod tests {
 
         let config = Arc::new(config);
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -466,7 +559,7 @@ mod tests {
         let config = Arc::new(MgmtConfig::default());
         let metrics = Arc::new(ClusterMetrics::new());
         metrics.replication_lag_secs.set(5.0);
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -488,7 +581,7 @@ mod tests {
         let metrics = Arc::new(ClusterMetrics::new());
         metrics.capacity_total_bytes.set(1000000000.0);
         metrics.capacity_used_bytes.set(500000000.0);
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -509,7 +602,7 @@ mod tests {
     async fn test_health_endpoint_returns_200() {
         let config = Arc::new(MgmtConfig::default());
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder().uri("/health").body(Body::empty()).unwrap();
@@ -525,7 +618,7 @@ mod tests {
 
         let config = Arc::new(config);
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -545,7 +638,7 @@ mod tests {
 
         let config = Arc::new(config);
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -564,7 +657,7 @@ mod tests {
         let metrics = Arc::new(ClusterMetrics::new());
         metrics.nodes_total.set(5.0);
         metrics.nodes_healthy.set(4.0);
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder().uri("/metrics").body(Body::empty()).unwrap();
@@ -584,7 +677,7 @@ mod tests {
 
         let config = Arc::new(config);
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -608,7 +701,7 @@ mod tests {
 
         let config = Arc::new(config);
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder()
@@ -625,7 +718,7 @@ mod tests {
     async fn test_security_headers_on_health_response() {
         let config = Arc::new(MgmtConfig::default());
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         let request = Request::builder().uri("/health").body(Body::empty()).unwrap();
@@ -645,7 +738,7 @@ mod tests {
 
         let config = Arc::new(config);
         let metrics = Arc::new(ClusterMetrics::new());
-        let api = Arc::new(AdminApi::new(metrics, config));
+        let api = Arc::new(AdminApi::new(metrics, config, PathBuf::from("/tmp/test-index")));
         let router = api.router();
 
         for i in 0..5 {
