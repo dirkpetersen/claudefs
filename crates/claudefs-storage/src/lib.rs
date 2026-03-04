@@ -22,6 +22,7 @@ pub mod fdp;
 pub mod flush;
 pub mod io_uring_bridge;
 pub mod io_scheduler;
+pub mod io_accounting;
 pub mod metrics;
 pub mod quota;
 pub mod qos_storage;
@@ -101,6 +102,9 @@ pub use wear_leveling::{
 };
 pub use quota::{
     QuotaLimit, QuotaUsage, QuotaStatus, TenantQuota, QuotaManager, QuotaStats,
+};
+pub use io_accounting::{
+    TenantId, IoDirection, TenantIoStats, IoAccountingConfig, IoAccounting,
 };
 pub use qos_storage::{
     BandwidthTracker, IoRequest, IoType, QosDecision, QosEnforcer, QosEnforcerStats, QosPolicy,
