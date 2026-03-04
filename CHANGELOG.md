@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A2: Metadata Service — Phase 7: LazyDelete, JournalCompactor (2026-03-04)
+
+#### 2 New Modules — 29 New Tests, 900 Total
+
+**Status:** ✅ 900 tests passing, 0 failures, 0 clippy warnings (+29 from 871)
+
+**New modules:**
+
+1. **lazy_delete.rs** — POSIX unlink-while-open semantics. LazyDeleteStore tracks orphaned inodes
+   (unlinked but still open). inc/dec_fd_count for open/close, ready_for_gc() for GC trigger,
+   purge_ready_for_gc() for crash recovery cleanup. 15 tests.
+
+2. **journal_compactor.rs** — Metadata journal compaction. Deduplicates per-key entries (highest
+   log_index wins), drops delete entries at/below checkpoint, outputs sorted results.
+   hot_keys() for write-heavy key detection. estimate_savings() for dry-run. 14 tests.
+
+---
+
 ### A3: Data Reduction — Phase 24: Compression Stats, Delta Index, Object Assembler (2026-03-04)
 
 #### 3 New Modules — 70 New Tests, 1758 Total
