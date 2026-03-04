@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 22: Segment Pressure, Key Derivation, Segment Stats (2026-03-04)
+
+#### 3 New Modules — 72 New Tests, 1618 Total
+
+**Status:** ✅ 1618 tests passing, 0 failures (+72 from 1546)
+
+**New modules:**
+- `segment_pressure.rs` — Flash layer pressure tracking (D6 Normal/Elevated/High/Critical watermarks); 26 tests
+- `key_derivation.rs` — Per-file encryption key derivation via BLAKE3 keyed hash; cached derivations; 22 tests
+- `segment_stats.rs` — Per-segment lifecycle stats (Writing/Sealed/TieredToS3/Evicted/Repaired); aggregation; 24 tests
+
 ### A3: Data Reduction — Phase 21: Inline Dedup, Compression Advisor, Dedup Cache (2026-03-04)
 
 #### 3 New Modules — 70 New Tests, 1546 Total
