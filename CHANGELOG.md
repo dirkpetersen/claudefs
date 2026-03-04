@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 2 Complete (2026-03-04)
+
+#### Comprehensive Security Audit Across All 8 Crates
+
+**Status:** PHASE 2 AUDIT COMPLETE — 27 new tests, 14 findings documented, 4 CRITICAL
+
+**Audit Report:** `docs/security-audit-report.md`
+
+**Key Findings:**
+
+1. **Cryptographic Implementation (A3): PASS**
+   - AES-256-GCM and ChaCha20-Poly1305 correctly implemented
+   - HKDF-SHA256 key derivation with proper domain separation
+   - Key zeroization via `Zeroize` + `ZeroizeOnDrop` on all key types
+   - 27 new property tests validating nonce uniqueness, key isolation, entropy
+
+2. **Unsafe Code (A1, A4): PASS**
+   - io_uring FFI properly confined with error checking on all paths
+   - Zero-copy pool zeroes memory on release (info-leak prevention)
+   - `Send`/`Sync` impls justified by internal Mutex/RwLock
+
+3. **TLS/mTLS (A4): PASS**
+   - rustls 0.23 with WebPkiClientVerifier for mTLS
+   - Certificate generation via rcgen with proper CA chain
+
+4. **CRITICAL Findings Requiring Remediation:**
+   - FINDING-REPL-01: Conduit TLS optional by default (should be required)
+   - FINDING-MGMT-01: Admin API runs without auth if token not configured
+   - FINDING-MGMT-02: X-Forwarded-For header trusted for rate limiting
+   - FINDING-REPL-02: Spoofed site_id accepted without validation
+
+5. **Dependency CVEs:**
+   - bincode 1.3.3 unmaintained (RUSTSEC-2025-0141) — 4 crates affected
+   - rustls-pemfile 2.2.0 unmaintained (RUSTSEC-2025-0134) — transport
+   - fuser 0.15.1 unsound (RUSTSEC-2021-0154) — documented, no alternative
+   - lru 0.12.5 unsound (RUSTSEC-2026-0002) — FUSE client
+
+**New Test Module:** `claudefs-security/src/phase2_audit.rs` (27 tests)
+- Nonce collision detection (4 tests incl. concurrent + distribution)
+- HKDF key isolation (3 tests incl. entropy validation)
+- Key manager lifecycle (3 tests incl. 10-rotation recovery)
+- TLS certificate validation (4 tests)
+- Connection auth edge cases (4 tests)
+- Zero-copy pool security (3 tests)
+- Batch auth security (3 tests)
+- NFS auth boundary tests (3 tests)
+
 ### A9: Test & Validation — Phase 1 Complete (2026-03-04)
 
 #### Test Infrastructure Activation — 1576 Tests Passing in claudefs-tests
