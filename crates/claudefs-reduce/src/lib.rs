@@ -278,3 +278,18 @@ pub use eviction_policy::{
 pub use replication_filter::{
     ReplicationFilter, ReplicationFilterConfig, ReplicationFilterStats,
 };
+
+pub mod compression_stats;
+pub mod delta_index;
+pub mod object_assembler;
+
+pub use compression_stats::{
+    AggregatedCompressionStats, CompressionBucket, CompressionStats, CompressionStatsConfig,
+};
+pub use delta_index::{
+    DeltaIndex, DeltaIndexConfig, DeltaIndexEntry, DeltaIndexStats, SuperFeature,
+};
+pub use object_assembler::{
+    BlobKey, ChunkLocation as BlobChunkLocation, CompletedBlob, ObjectAssembler,
+    ObjectAssemblerConfig, ObjectAssemblerStats,
+};
