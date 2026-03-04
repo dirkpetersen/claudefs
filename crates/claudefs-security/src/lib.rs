@@ -58,3 +58,7 @@ pub mod gateway_security_tests;
 pub mod fuse_security_tests;
 #[cfg(test)]
 pub mod transport_security_tests;
+#[cfg(test)]
+pub mod reduce_security_tests;
+#[cfg(test)]
+pub mod repl_security_tests;

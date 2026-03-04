@@ -1,56 +1,92 @@
+//! Distributed tracing support for FUSE operations.
+//!
+//! This module provides W3C TraceContext-compatible tracing for FUSE file system
+//! operations, enabling distributed tracing across the ClaudeFS cluster. It
+//! supports span hierarchy, sampling, and integration with external tracing
+//! backends via the `traceparent` header format.
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
+/// A 128-bit trace identifier, unique across the entire distributed trace.
+///
+/// Trace IDs identify the overall trace and are shared by all spans within
+/// that trace. They are typically generated at the trace root and propagated
+/// to all child spans.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TraceId(pub u128);
 
 impl TraceId {
+    /// Creates a new trace ID from a raw 128-bit value.
     pub fn new(id: u128) -> Self {
         TraceId(id)
     }
 
+    /// Returns the trace ID as a 32-character lowercase hexadecimal string.
     pub fn as_hex(&self) -> String {
         format!("{:032x}", self.0)
     }
 
+    /// Returns the zero trace ID (all bits set to 0).
+    ///
+    /// The zero trace ID represents an invalid or absent trace.
     pub fn zero() -> Self {
         TraceId(0)
     }
 
+    /// Returns `true` if this is the zero trace ID.
     pub fn is_zero(&self) -> bool {
         self.0 == 0
     }
 }
 
+/// A 64-bit span identifier, unique within a trace.
+///
+/// Span IDs identify individual operations within a trace. Each span has a
+/// unique ID and may reference a parent span ID to form a hierarchy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpanId(pub u64);
 
 impl SpanId {
+    /// Creates a new span ID from a raw 64-bit value.
     pub fn new(id: u64) -> Self {
         SpanId(id)
     }
 
+    /// Returns the span ID as a 16-character lowercase hexadecimal string.
     pub fn as_hex(&self) -> String {
         format!("{:016x}", self.0)
     }
 
+    /// Returns the zero span ID (all bits set to 0).
+    ///
+    /// The zero span ID represents an invalid or absent span.
     pub fn zero() -> Self {
         SpanId(0)
     }
 
+    /// Returns `true` if this is the zero span ID.
     pub fn is_zero(&self) -> bool {
         self.0 == 0
     }
 }
 
+/// W3C TraceContext for distributed tracing propagation.
+///
+/// Encapsulates the trace identity and sampling decision for a span, enabling
+/// propagation across process boundaries via the `traceparent` header format.
 #[derive(Debug, Clone)]
 pub struct TraceContext {
+    /// The trace ID, shared by all spans in this trace.
     pub trace_id: TraceId,
+    /// The span ID for this specific span.
     pub span_id: SpanId,
+    /// Whether this trace is sampled (should be recorded).
     pub sampled: bool,
 }
 
 impl TraceContext {
+    /// Creates a new trace context with the given identifiers and sampling flag.
     pub fn new(trace_id: TraceId, span_id: SpanId, sampled: bool) -> Self {
         TraceContext {
             trace_id,
@@ -59,6 +95,10 @@ impl TraceContext {
         }
     }
 
+    /// Serializes this context to a W3C `traceparent` header string.
+    ///
+    /// Format: `00-{trace-id}-{span-id}-{flags}` where flags is `01` if sampled
+    /// or `00` otherwise.
     pub fn to_traceparent(&self) -> String {
         let flags = if self.sampled { "01" } else { "00" };
         format!(
@@ -69,6 +109,9 @@ impl TraceContext {
         )
     }
 
+    /// Parses a W3C `traceparent` header string into a trace context.
+    ///
+    /// Returns `None` if the string is malformed or uses an unsupported version.
     pub fn from_traceparent(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split('-').collect();
         if parts.len() != 4 {
@@ -96,6 +139,7 @@ impl TraceContext {
         })
     }
 
+    /// Creates a root trace context with sampling enabled.
     pub fn root(trace_id: TraceId, span_id: SpanId) -> Self {
         TraceContext {
             trace_id,
@@ -105,18 +149,30 @@ impl TraceContext {
     }
 }
 
+/// A single span representing a FUSE operation.
+///
+/// Tracks the operation name, timing, and optional error information for
+/// a single unit of work within a distributed trace.
 #[derive(Debug)]
 pub struct FuseSpan {
+    /// The FUSE operation name (e.g., "read", "write", "lookup").
     pub op: String,
+    /// The trace ID this span belongs to.
     pub trace_id: TraceId,
+    /// The unique identifier for this span.
     pub span_id: SpanId,
+    /// The parent span ID, if this is a child span.
     pub parent_span_id: Option<SpanId>,
+    /// The instant when this span was created.
     pub started_at: Instant,
+    /// Whether this span has been finished.
     pub finished: bool,
+    /// Optional error message if the operation failed.
     pub error: Option<String>,
 }
 
 impl FuseSpan {
+    /// Creates a new root span for the given operation.
     pub fn new(op: &str, trace_id: TraceId, span_id: SpanId) -> Self {
         FuseSpan {
             op: op.to_string(),
@@ -129,6 +185,7 @@ impl FuseSpan {
         }
     }
 
+    /// Creates a child span with the given parent context.
     pub fn with_parent(op: &str, ctx: &TraceContext, child_span_id: SpanId) -> Self {
         FuseSpan {
             op: op.to_string(),
@@ -141,24 +198,31 @@ impl FuseSpan {
         }
     }
 
+    /// Marks this span as finished.
     pub fn finish(&mut self) {
         self.finished = true;
     }
 
+    /// Marks this span as finished with an error message.
     pub fn finish_with_error(&mut self, err: &str) {
         self.finished = true;
         self.error = Some(err.to_string());
     }
 
+    /// Returns the elapsed time in microseconds since this span was created.
     pub fn elapsed_us(&self) -> u64 {
         self.started_at.elapsed().as_micros() as u64
     }
 }
 
+/// Configuration for the FUSE tracing subsystem.
 #[derive(Debug, Clone)]
 pub struct TracingConfig {
+    /// Whether tracing is enabled.
     pub enabled: bool,
+    /// Sampling rate: 1 means record every span, 2 means every other, etc.
     pub sample_rate: u32,
+    /// Maximum number of concurrently active spans before dropping new ones.
     pub max_active_spans: usize,
 }
 
@@ -172,6 +236,10 @@ impl Default for TracingConfig {
     }
 }
 
+/// The FUSE tracer, managing span lifecycle and sampling.
+///
+/// Thread-safe tracer that coordinates span creation, sampling, and metrics
+/// collection for FUSE operations.
 pub struct FuseTracer {
     config: TracingConfig,
     span_counter: AtomicU64,
@@ -181,6 +249,7 @@ pub struct FuseTracer {
 }
 
 impl FuseTracer {
+    /// Creates a new tracer with the given configuration.
     pub fn new(config: TracingConfig) -> Self {
         FuseTracer {
             config,
@@ -191,6 +260,10 @@ impl FuseTracer {
         }
     }
 
+    /// Starts a new root span for the given operation.
+    ///
+    /// Returns `None` if tracing is disabled, sampling rejects the span,
+    /// or the maximum active span limit has been reached.
     pub fn start_span(&self, op: &str, trace_id: TraceId) -> Option<FuseSpan> {
         if !self.config.enabled {
             return None;
@@ -215,6 +288,10 @@ impl FuseTracer {
         Some(FuseSpan::new(op, trace_id, span_id))
     }
 
+    /// Creates a child span from the given parent context.
+    ///
+    /// Returns `None` if tracing is disabled or the maximum active span
+    /// limit has been reached.
     pub fn child_span(&self, op: &str, parent: &TraceContext) -> Option<FuseSpan> {
         if !self.config.enabled {
             return None;
@@ -235,28 +312,34 @@ impl FuseTracer {
         Some(FuseSpan::with_parent(op, parent, child_span_id))
     }
 
+    /// Finishes a span and decrements the active span count.
     pub fn finish_span(&self, span: &mut FuseSpan) {
         span.finish();
         self.active_count.fetch_sub(1, Ordering::SeqCst);
     }
 
+    /// Finishes a span with an error and decrements the active span count.
     pub fn finish_span_error(&self, span: &mut FuseSpan, err: &str) {
         span.finish_with_error(err);
         self.active_count.fetch_sub(1, Ordering::SeqCst);
     }
 
+    /// Returns the current number of active (unfinished) spans.
     pub fn active_spans(&self) -> u64 {
         self.active_count.load(Ordering::SeqCst)
     }
 
+    /// Returns the total number of spans dropped due to the active limit.
     pub fn dropped_spans(&self) -> u64 {
         self.dropped_count.load(Ordering::SeqCst)
     }
 
+    /// Returns the total number of spans ever created by this tracer.
     pub fn total_spans(&self) -> u64 {
         self.total_count.load(Ordering::SeqCst)
     }
 
+    /// Returns whether tracing is enabled for this tracer.
     pub fn is_enabled(&self) -> bool {
         self.config.enabled
     }

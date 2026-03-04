@@ -58,6 +58,7 @@ pub mod mgmt_topology_audit_tests;
 pub mod performance_suite;
 pub mod storage_new_modules_tests;
 pub mod transport_new_modules_tests;
+pub mod repl_phase2_tests;
 
 pub use bench::{detect_fio_binary, parse_fio_json, FioConfig, FioResult, FioRunner, FioRwMode};
 pub use chaos::{FaultHandle, FaultInjector, FaultType, NetworkTopology, NodeId};

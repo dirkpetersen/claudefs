@@ -1,0 +1,304 @@
+// Proto schema for the ClaudeFS cross-site replication conduit.
+//
+// Both sites initiate outbound gRPC/mTLS connections to the cloud conduit.
+// The conduit brokers the stream between sites, identified by ClusterID.
+// See docs/metadata.md §2 for the full architecture.
+//
+// Wire format: Protobuf 3 (compact binary, not JSON)
+// Transport: gRPC over HTTP/2 with mTLS (mutual TLS)
+
+syntax = "proto3";
+
+package claudefs.repl;
+
+// ──────────────────────────────────────────────────────────────────
+// Core replication service
+// ──────────────────────────────────────────────────────────────────
+
+// ReplicationConduit is implemented by the cloud relay.
+// Each site calls OpenStream() once and uses the bidirectional stream.
+service ReplicationConduit {
+  // Open a bidirectional replication stream.
+  // The site sends ReplMessage frames upstream; the conduit forwards
+  // each to the paired site identified by cluster_id + site_id.
+  rpc OpenStream(stream ReplMessage) returns (stream ReplMessage);
+
+  // Admin: get status of a cluster's replication streams.
+  rpc GetClusterStatus(ClusterStatusRequest) returns (ClusterStatusResponse);
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Top-level message envelope
+// ──────────────────────────────────────────────────────────────────
+
+// Every frame on the gRPC stream is a ReplMessage.
+// The conduit routes by cluster_id and forwards to the paired site.
+message ReplMessage {
+  // Cluster identifier — matches pairs of sites on the conduit.
+  string cluster_id = 1;
+
+  // Source site ID.
+  uint64 source_site_id = 2;
+
+  // Destination site ID (0 = broadcast to all cluster peers).
+  uint64 dest_site_id = 3;
+
+  // Monotonically increasing message sequence number per source site.
+  uint64 message_seq = 4;
+
+  // Payload: one of the message kinds.
+  oneof payload {
+    // Normal replication: batch of journal entries.
+    EntryBatch entry_batch = 10;
+
+    // Receiver acknowledges a batch (source can GC up to this seq).
+    BatchAck   batch_ack   = 11;
+
+    // Receiver reports it is out of sync; request full catch-up.
+    CatchupRequest catchup_request = 12;
+
+    // Source is sending catch-up entries (possibly compressed).
+    CatchupData    catchup_data    = 13;
+
+    // Heartbeat / keep-alive.
+    Heartbeat  heartbeat  = 14;
+
+    // Graceful disconnect notice.
+    Disconnect disconnect = 15;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Journal entry types
+// ──────────────────────────────────────────────────────────────────
+
+// A batch of journal entries sent from site A to site B.
+// Entries MUST be from a contiguous range of shard sequences.
+message EntryBatch {
+  // Entries in this batch, ordered by (shard_id, seq).
+  repeated JournalEntry entries = 1;
+
+  // Batch sequence number (per conduit connection, for ordering/dedup).
+  uint64 batch_seq = 2;
+
+  // Compression algorithm applied to entry payloads.
+  Compression compression = 3;
+
+  // Milliseconds since epoch when batch was prepared.
+  uint64 prepared_at_ms = 4;
+}
+
+// A single journal entry representing one metadata operation.
+message JournalEntry {
+  // Monotonically increasing per-shard sequence number.
+  uint64 seq = 1;
+
+  // Virtual shard index (0..255 per D4).
+  uint32 shard_id = 2;
+
+  // Originating site.
+  uint64 site_id = 3;
+
+  // Timestamp: microseconds since Unix epoch (for LWW conflict resolution).
+  uint64 timestamp_us = 4;
+
+  // Affected inode number.
+  uint64 inode = 5;
+
+  // Operation kind.
+  OpKind op = 6;
+
+  // Serialized operation details (bincode-encoded at source).
+  bytes payload = 7;
+
+  // CRC32 checksum over (seq, shard_id, site_id, timestamp_us, inode, op, payload).
+  uint32 crc32 = 8;
+}
+
+// Filesystem operation kinds recorded in the journal.
+enum OpKind {
+  OP_KIND_UNSPECIFIED  = 0;
+  OP_KIND_CREATE       = 1;  // Create file/dir/symlink
+  OP_KIND_UNLINK       = 2;  // Unlink/rmdir
+  OP_KIND_RENAME       = 3;  // Rename (src → dst)
+  OP_KIND_WRITE        = 4;  // Write data range
+  OP_KIND_TRUNCATE     = 5;  // Truncate to length
+  OP_KIND_SET_ATTR     = 6;  // chmod/chown/utimes
+  OP_KIND_LINK         = 7;  // Hard link
+  OP_KIND_SYMLINK      = 8;  // Symlink target
+  OP_KIND_MKDIR        = 9;  // mkdir
+  OP_KIND_SET_XATTR    = 10; // Extended attribute set
+  OP_KIND_REMOVE_XATTR = 11; // Extended attribute remove
+}
+
+// Compression algorithms for journal entry payloads.
+enum Compression {
+  COMPRESSION_NONE = 0;
+  COMPRESSION_LZ4  = 1;
+  COMPRESSION_ZSTD = 2;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Acknowledgement and flow control
+// ──────────────────────────────────────────────────────────────────
+
+// Receiver acknowledges that all batches up to batch_seq have been
+// durably applied. Source may GC its journal for these entries.
+message BatchAck {
+  // Last batch sequence number that has been applied.
+  uint64 last_applied_batch_seq = 1;
+
+  // Per-shard last applied sequence numbers.
+  // Key = shard_id, value = last applied entry seq.
+  map<uint32, uint64> shard_cursors = 2;
+
+  // Receiver-side queue depth for backpressure signalling.
+  // 0 = no backpressure; 100 = fully saturated, slow down.
+  uint32 backpressure_pct = 3;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Catch-up protocol (new replica bootstrap or gap fill)
+// ──────────────────────────────────────────────────────────────────
+
+// Sent by a replica that has missed entries and needs catch-up.
+message CatchupRequest {
+  // Consumer ID for this catch-up session (e.g. "site-b-catchup-1").
+  string consumer_id = 1;
+
+  // Per-shard: the last sequence number the receiver has applied.
+  // The sender should replay everything after these points.
+  map<uint32, uint64> shard_cursors = 2;
+
+  // Maximum entries per catch-up data batch.
+  uint32 max_batch_size = 3;
+}
+
+// One catch-up data batch. Multiple CatchupData frames are sent in
+// sequence until the replica is fully caught up.
+message CatchupData {
+  // Consumer ID from the corresponding CatchupRequest.
+  string consumer_id = 1;
+
+  // Entries in this catch-up batch.
+  repeated JournalEntry entries = 2;
+
+  // True if this is the last catch-up batch.
+  bool is_final = 3;
+
+  // Total entries remaining after this batch (for progress reporting).
+  uint64 remaining_entries = 4;
+
+  // Compression applied to entry payloads.
+  Compression compression = 5;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Heartbeat and lifecycle
+// ──────────────────────────────────────────────────────────────────
+
+// Periodic heartbeat for keep-alive and lag monitoring.
+message Heartbeat {
+  // Local site's latest journal sequence number per shard.
+  // Receiver uses this to compute replication lag.
+  map<uint32, uint64> latest_shard_seqs = 1;
+
+  // Milliseconds since Unix epoch on sender (for drift detection).
+  uint64 sender_clock_ms = 2;
+}
+
+// Graceful disconnect notice.
+message Disconnect {
+  // Human-readable reason (for logging).
+  string reason = 1;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Admin / status queries
+// ──────────────────────────────────────────────────────────────────
+
+// Request the status of all sites in a cluster.
+message ClusterStatusRequest {
+  // Cluster ID to query.
+  string cluster_id = 1;
+}
+
+// Response with per-site connection status.
+message ClusterStatusResponse {
+  // Per-site status entries.
+  repeated SiteConnectionStatus sites = 1;
+
+  // Timestamp when this status was collected.
+  uint64 collected_at_ms = 2;
+}
+
+// Status for one site's connection to the conduit.
+message SiteConnectionStatus {
+  // Site ID.
+  uint64 site_id = 1;
+
+  // Connection state.
+  ConnectionState state = 2;
+
+  // Milliseconds since the last received frame from this site.
+  uint64 last_seen_ms_ago = 3;
+
+  // Total bytes forwarded from this site.
+  uint64 bytes_forwarded = 4;
+
+  // Total messages forwarded from this site.
+  uint64 messages_forwarded = 5;
+}
+
+// State of a site's connection to the conduit.
+enum ConnectionState {
+  CONNECTION_STATE_UNSPECIFIED  = 0;
+  CONNECTION_STATE_CONNECTED    = 1;
+  CONNECTION_STATE_DISCONNECTED = 2;
+  CONNECTION_STATE_RECONNECTING = 3;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// UID/GID mapping (replicated as part of site configuration)
+// ──────────────────────────────────────────────────────────────────
+
+// UID mapping entry: maps a canonical (source-site) UID to a local UID.
+// Stored in the site configuration, applied at the receiving site.
+// See docs/metadata.md §3 for the mapping model.
+message UidMapping {
+  // Source site ID where the canonical UID originates.
+  uint64 source_site_id = 1;
+
+  // Canonical UID at the source site.
+  uint32 canonical_uid = 2;
+
+  // Local UID at the receiving site.
+  uint32 local_uid = 3;
+}
+
+// GID mapping entry (optional; GIDs are generally kept consistent).
+message GidMapping {
+  // Source site ID.
+  uint64 source_site_id = 1;
+
+  // Canonical GID at source.
+  uint32 canonical_gid = 2;
+
+  // Local GID.
+  uint32 local_gid = 3;
+}
+
+// A full set of UID/GID mappings for one site pair.
+message SiteMappingTable {
+  // Site that owns these mappings (the receiving site).
+  uint64 owner_site_id = 1;
+
+  // UID mappings.
+  repeated UidMapping uid_mappings = 2;
+
+  // GID mappings (optional).
+  repeated GidMapping gid_mappings = 3;
+
+  // Version number — monotonically increasing as the table is updated.
+  uint64 version = 4;
+}

@@ -6,21 +6,38 @@
 use std::collections::HashMap;
 use thiserror::Error;
 
+/// Extended attribute name for tiering policy.
 pub const XATTR_TIERING_POLICY: &str = "claudefs.tier";
+
+/// Extended attribute name for tiering priority (0-255).
 pub const XATTR_TIERING_PRIORITY: &str = "claudefs.tier.priority";
 
+/// Tiering policy controlling how data moves between flash and S3 tiers.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TieringPolicy {
+    /// Automatic tiering based on access patterns.
     Auto,
+    /// Keep data pinned in flash tier (never evict to S3).
     Flash,
+    /// Force data to S3 tier immediately (cold storage).
     S3,
+    /// Custom policy with explicit eviction and replication parameters.
     Custom {
+        /// Seconds of inactivity before eviction to S3.
         evict_after_secs: u64,
+        /// Minimum number of copies to maintain across tiers.
         min_copies: u8,
     },
 }
 
 impl TieringPolicy {
+    /// Parse a tiering policy from an xattr value.
+    ///
+    /// Accepted formats:
+    /// - `"auto"` -> [`TieringPolicy::Auto`]
+    /// - `"flash"` -> [`TieringPolicy::Flash`]
+    /// - `"s3"` -> [`TieringPolicy::S3`]
+    /// - `"custom:<evict_after_secs>:<min_copies>"` -> [`TieringPolicy::Custom`]
     pub fn from_xattr_value(value: &[u8]) -> Result<Self, TieringError> {
         let s = String::from_utf8(value.to_vec())
             .map_err(|_| TieringError::InvalidPolicy(value.to_vec()))?;
@@ -53,6 +70,7 @@ impl TieringPolicy {
         }
     }
 
+    /// Serialize the policy to an xattr value.
     pub fn to_xattr_value(&self) -> Vec<u8> {
         match self {
             TieringPolicy::Auto => b"auto".to_vec(),
@@ -65,23 +83,32 @@ impl TieringPolicy {
         }
     }
 
+    /// Returns `true` if this policy pins data to flash (never evicts).
     pub fn is_pinned(&self) -> bool {
         matches!(self, TieringPolicy::Flash)
     }
 
+    /// Returns `true` if this policy forces data to S3 (cold tier).
     pub fn is_forced_cold(&self) -> bool {
         matches!(self, TieringPolicy::S3)
     }
 }
 
+/// Priority value for tiering decisions (0-255, higher = more likely to evict).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TieringPriority(pub u8);
 
 impl TieringPriority {
+    /// Minimum priority (0) - least likely to be evicted.
     pub const MIN: Self = TieringPriority(0);
+
+    /// Maximum priority (255) - most likely to be evicted.
     pub const MAX: Self = TieringPriority(255);
+
+    /// Default priority (128).
     pub const DEFAULT: Self = TieringPriority(128);
 
+    /// Parse a priority from an xattr value (decimal string).
     pub fn from_xattr_value(value: &[u8]) -> Result<Self, TieringError> {
         let s = String::from_utf8(value.to_vec())
             .map_err(|_| TieringError::InvalidPriority(value.to_vec()))?;
@@ -91,21 +118,29 @@ impl TieringPriority {
         Ok(TieringPriority(v))
     }
 
+    /// Serialize the priority to an xattr value.
     pub fn to_xattr_value(&self) -> Vec<u8> {
         self.0.to_string().into_bytes()
     }
 }
 
+/// Tiering hint associated with an inode.
 #[derive(Debug, Clone)]
 pub struct TieringHint {
+    /// Inode number.
     pub ino: u64,
+    /// Tiering policy for this inode.
     pub policy: TieringPolicy,
+    /// Priority for eviction decisions.
     pub priority: TieringPriority,
+    /// Whether this hint applies to a directory.
     pub is_directory: bool,
+    /// Timestamp when the hint was set (epoch seconds).
     pub set_at_secs: u64,
 }
 
 impl TieringHint {
+    /// Create a new tiering hint with default priority.
     pub fn new(ino: u64, policy: TieringPolicy, is_directory: bool, now_secs: u64) -> Self {
         Self {
             ino,
@@ -116,11 +151,16 @@ impl TieringHint {
         }
     }
 
+    /// Set a custom priority (builder pattern).
     pub fn with_priority(mut self, priority: TieringPriority) -> Self {
         self.priority = priority;
         self
     }
 
+    /// Calculate eviction score for this hint.
+    ///
+    /// Higher scores indicate more suitable eviction candidates.
+    /// Returns 0 for pinned data, `u64::MAX` for forced-cold data.
     pub fn evict_score(&self, last_access_age_secs: u64, size_bytes: u64) -> u64 {
         if self.policy.is_pinned() {
             return 0;
@@ -132,13 +172,18 @@ impl TieringHint {
     }
 }
 
+/// In-memory cache for tiering hints with inheritance support.
 pub struct TieringHintCache {
+    /// Tiering hints indexed by inode.
     hints: HashMap<u64, TieringHint>,
+    /// Parent inode mappings for inheritance lookup.
     parent_hints: HashMap<u64, u64>,
+    /// Maximum entries before trimming.
     max_entries: usize,
 }
 
 impl TieringHintCache {
+    /// Create a new cache with the given capacity.
     pub fn new(max_entries: usize) -> Self {
         Self {
             hints: HashMap::new(),
@@ -147,6 +192,7 @@ impl TieringHintCache {
         }
     }
 
+    /// Insert a hint into the cache, trimming if at capacity.
     pub fn insert(&mut self, hint: TieringHint) {
         if self.hints.len() >= self.max_entries {
             self.trim();
@@ -154,26 +200,34 @@ impl TieringHintCache {
         self.hints.insert(hint.ino, hint);
     }
 
+    /// Get a hint by inode number.
     pub fn get(&self, ino: u64) -> Option<&TieringHint> {
         self.hints.get(&ino)
     }
 
+    /// Remove a hint by inode number.
     pub fn remove(&mut self, ino: u64) -> Option<TieringHint> {
         self.hints.remove(&ino)
     }
 
+    /// Return the number of cached hints.
     pub fn len(&self) -> usize {
         self.hints.len()
     }
 
+    /// Returns `true` if the cache is empty.
     pub fn is_empty(&self) -> bool {
         self.hints.is_empty()
     }
 
+    /// Set the parent inode for inheritance lookups.
     pub fn set_parent(&mut self, ino: u64, parent_ino: u64) {
         self.parent_hints.insert(ino, parent_ino);
     }
 
+    /// Get the effective policy for an inode, inheriting from parent directories.
+    ///
+    /// Returns [`TieringPolicy::Auto`] if no explicit or inherited policy exists.
     pub fn effective_policy(&self, ino: u64) -> TieringPolicy {
         if let Some(hint) = self.hints.get(&ino) {
             return hint.policy.clone();
@@ -192,6 +246,10 @@ impl TieringHintCache {
         TieringPolicy::Auto
     }
 
+    /// Get eviction candidates sorted by score (highest first).
+    ///
+    /// Excludes pinned (score=0) and forced-cold (score=MAX) entries.
+    /// Only includes entries with score >= `min_score`.
     pub fn eviction_candidates(
         &self,
         access_ages: &HashMap<u64, u64>,
@@ -214,6 +272,7 @@ impl TieringHintCache {
         candidates
     }
 
+    /// Trim the cache by removing 10 oldest entries when at capacity.
     pub fn trim(&mut self) {
         if self.hints.len() >= self.max_entries {
             let to_remove: Vec<u64> = self.hints.keys().cloned().take(10).collect();
@@ -224,10 +283,13 @@ impl TieringHintCache {
     }
 }
 
+/// Errors when parsing tiering xattr values.
 #[derive(Debug, Error)]
 pub enum TieringError {
+    /// Invalid tiering policy value.
     #[error("Invalid tiering policy value: {0:?}")]
     InvalidPolicy(Vec<u8>),
+    /// Invalid priority value.
     #[error("Invalid priority value: {0:?}")]
     InvalidPriority(Vec<u8>),
 }

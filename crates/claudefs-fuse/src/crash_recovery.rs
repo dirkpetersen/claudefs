@@ -1,16 +1,44 @@
+//! Crash recovery infrastructure for FUSE filesystem.
+//!
+//! This module provides state machine-based crash recovery to restore filesystem
+//! consistency after an unclean shutdown. It tracks open files and pending writes
+//! from a recovery journal and orchestrates the replay process.
+
 use crate::error::Result;
 use crate::inode::InodeId;
 
+/// State of the crash recovery process.
+///
+/// The recovery process follows a strict state machine:
+/// `Idle` -> `Scanning` -> `Replaying` -> `Complete` or `Failed`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecoveryState {
+    /// No recovery in progress; ready to begin scanning.
     Idle,
+    /// Scanning the recovery journal for open files and pending writes.
     Scanning,
-    Replaying { replayed: u32, total: u32 },
-    Complete { recovered: u32, orphaned: u32 },
+    /// Replaying recorded operations.
+    Replaying {
+        /// Number of operations already replayed.
+        replayed: u32,
+        /// Total number of operations to replay.
+        total: u32,
+    },
+    /// Recovery completed successfully.
+    Complete {
+        /// Number of operations successfully recovered.
+        recovered: u32,
+        /// Number of orphaned resources cleaned up.
+        orphaned: u32,
+    },
+    /// Recovery failed with an error.
     Failed(String),
 }
 
 impl RecoveryState {
+    /// Returns `true` if recovery is currently in progress.
+    ///
+    /// Recovery is in progress during `Scanning` or `Replaying` states.
     pub fn is_in_progress(&self) -> bool {
         matches!(
             self,
@@ -18,6 +46,9 @@ impl RecoveryState {
         )
     }
 
+    /// Returns `true` if recovery has reached a terminal state.
+    ///
+    /// Terminal states are `Complete` (success) and `Failed` (error).
     pub fn is_complete(&self) -> bool {
         matches!(
             self,
@@ -26,43 +57,76 @@ impl RecoveryState {
     }
 }
 
+/// Record of a file that was open at the time of crash.
+///
+/// Used during recovery to restore file handles and identify
+/// files that may have pending writes.
 #[derive(Debug, Clone)]
 pub struct OpenFileRecord {
+    /// Inode number of the open file.
     pub ino: InodeId,
+    /// File descriptor number assigned by the kernel.
     pub fd: u64,
+    /// Process ID that opened the file.
     pub pid: u32,
+    /// Open flags (O_RDONLY, O_WRONLY, O_RDWR, O_APPEND, etc.).
     pub flags: u32,
+    /// Path hint for diagnostic messages (may not be canonical).
     pub path_hint: String,
 }
 
 impl OpenFileRecord {
+    /// Returns `true` if the file was opened for writing.
+    ///
+    /// This is true if either `O_WRONLY` (1) or `O_RDWR` (2) flag is set.
     pub fn is_writable(&self) -> bool {
         (self.flags & 1 != 0) || (self.flags & 2 != 0)
     }
 
+    /// Returns `true` if the file was opened in append-only mode.
+    ///
+    /// Checks for the `O_APPEND` flag (0x400 = 1024).
     pub fn is_append_only(&self) -> bool {
         self.flags & 1024 != 0
     }
 }
 
+/// Record of a pending write that was not flushed before crash.
+///
+/// Used during recovery to identify dirty ranges that may need
+/// special handling or cleanup.
 #[derive(Debug, Clone)]
 pub struct PendingWrite {
+    /// Inode number of the file with pending write.
     pub ino: InodeId,
+    /// Byte offset where the write began.
     pub offset: u64,
+    /// Length of the write in bytes.
     pub len: u64,
+    /// Timestamp (in seconds) when the write was first dirtied.
     pub dirty_since_secs: u64,
 }
 
 impl PendingWrite {
+    /// Returns the age of this pending write in seconds.
+    ///
+    /// Computed as `now - dirty_since_secs`, saturating at zero.
     pub fn age_secs(&self, now: u64) -> u64 {
         now.saturating_sub(self.dirty_since_secs)
     }
 
+    /// Returns `true` if this pending write is older than `max_age_secs`.
+    ///
+    /// Stale writes may indicate incomplete flushes or lost transactions.
     pub fn is_stale(&self, now: u64, max_age_secs: u64) -> bool {
         self.age_secs(now) > max_age_secs
     }
 }
 
+/// In-memory journal of recovery records collected during scanning.
+///
+/// Aggregates open file records and pending writes for analysis
+/// during the recovery replay phase.
 #[derive(Debug, Clone, Default)]
 pub struct RecoveryJournal {
     open_files: Vec<OpenFileRecord>,
@@ -70,6 +134,7 @@ pub struct RecoveryJournal {
 }
 
 impl RecoveryJournal {
+    /// Creates a new empty recovery journal.
     pub fn new() -> Self {
         Self {
             open_files: Vec::new(),
@@ -77,26 +142,37 @@ impl RecoveryJournal {
         }
     }
 
+    /// Adds an open file record to the journal.
     pub fn add_open_file(&mut self, record: OpenFileRecord) {
         self.open_files.push(record);
     }
 
+    /// Adds a pending write record to the journal.
     pub fn add_pending_write(&mut self, write: PendingWrite) {
         self.pending_writes.push(write);
     }
 
+    /// Returns the number of open file records in the journal.
     pub fn open_file_count(&self) -> usize {
         self.open_files.len()
     }
 
+    /// Returns the number of pending write records in the journal.
     pub fn pending_write_count(&self) -> usize {
         self.pending_writes.len()
     }
 
+    /// Returns references to all writable open files in the journal.
+    ///
+    /// Filters out read-only files, returning only those with write
+    /// or read-write access.
     pub fn writable_open_files(&self) -> Vec<&OpenFileRecord> {
         self.open_files.iter().filter(|f| f.is_writable()).collect()
     }
 
+    /// Returns references to pending writes older than `max_age_secs`.
+    ///
+    /// Uses `now_secs` as the current timestamp for age calculation.
     pub fn stale_pending_writes(&self, now_secs: u64, max_age_secs: u64) -> Vec<&PendingWrite> {
         self.pending_writes
             .iter()
@@ -105,14 +181,21 @@ impl RecoveryJournal {
     }
 }
 
+/// Configuration parameters for crash recovery.
 #[derive(Debug, Clone, Copy)]
 pub struct RecoveryConfig {
+    /// Maximum time in seconds allowed for the recovery process.
     pub max_recovery_secs: u64,
+    /// Maximum number of open files to track during recovery.
     pub max_open_files: usize,
+    /// Age threshold in seconds for identifying stale pending writes.
     pub stale_write_age_secs: u64,
 }
 
 impl RecoveryConfig {
+    /// Returns the default recovery configuration.
+    ///
+    /// Defaults: 30s timeout, 10,000 open files, 300s stale threshold.
     pub fn default_config() -> Self {
         Self {
             max_recovery_secs: 30,
@@ -122,6 +205,10 @@ impl RecoveryConfig {
     }
 }
 
+/// Orchestrates crash recovery using a state machine.
+///
+/// Manages the recovery process from idle through scanning, replaying,
+/// and completion or failure. Maintains a journal of recovery records.
 pub struct CrashRecovery {
     config: RecoveryConfig,
     state: RecoveryState,
@@ -129,6 +216,7 @@ pub struct CrashRecovery {
 }
 
 impl CrashRecovery {
+    /// Creates a new crash recovery engine with the given configuration.
     pub fn new(config: RecoveryConfig) -> Self {
         Self {
             config,
@@ -137,10 +225,14 @@ impl CrashRecovery {
         }
     }
 
+    /// Returns a reference to the current recovery state.
     pub fn state(&self) -> &RecoveryState {
         &self.state
     }
 
+    /// Begins the scanning phase of recovery.
+    ///
+    /// Only valid from the `Idle` state. Transitions to `Scanning`.
     pub fn begin_scan(&mut self) -> Result<()> {
         if !matches!(self.state, RecoveryState::Idle) {
             return Err(crate::error::FuseError::InvalidArgument {
@@ -152,6 +244,9 @@ impl CrashRecovery {
         Ok(())
     }
 
+    /// Records an open file discovered during scanning.
+    ///
+    /// Only valid in the `Scanning` state. Enforces `max_open_files` limit.
     pub fn record_open_file(&mut self, record: OpenFileRecord) -> Result<()> {
         if !matches!(self.state, RecoveryState::Scanning) {
             return Err(crate::error::FuseError::InvalidArgument {
@@ -169,6 +264,9 @@ impl CrashRecovery {
         Ok(())
     }
 
+    /// Records a pending write discovered during scanning.
+    ///
+    /// Only valid in the `Scanning` state.
     pub fn record_pending_write(&mut self, write: PendingWrite) -> Result<()> {
         if !matches!(self.state, RecoveryState::Scanning) {
             return Err(crate::error::FuseError::InvalidArgument {
@@ -180,6 +278,9 @@ impl CrashRecovery {
         Ok(())
     }
 
+    /// Begins the replay phase with the given total operation count.
+    ///
+    /// Only valid in the `Scanning` state. Transitions to `Replaying`.
     pub fn begin_replay(&mut self, total: u32) -> Result<()> {
         if !matches!(self.state, RecoveryState::Scanning) {
             return Err(crate::error::FuseError::InvalidArgument {
@@ -191,12 +292,18 @@ impl CrashRecovery {
         Ok(())
     }
 
+    /// Advances the replay counter by the given number of operations.
+    ///
+    /// Clamps at the total operation count. Only has effect in `Replaying` state.
     pub fn advance_replay(&mut self, count: u32) {
         if let RecoveryState::Replaying { replayed, total } = &mut self.state {
             *replayed = (*replayed + count).min(*total);
         }
     }
 
+    /// Completes recovery with the given orphaned resource count.
+    ///
+    /// Only valid in the `Replaying` state. Transitions to `Complete`.
     pub fn complete(&mut self, orphaned: u32) -> Result<()> {
         if !matches!(self.state, RecoveryState::Replaying { .. }) {
             return Err(crate::error::FuseError::InvalidArgument {
@@ -216,15 +323,20 @@ impl CrashRecovery {
         Ok(())
     }
 
+    /// Marks recovery as failed with the given reason.
+    ///
+    /// Can be called from any state. Transitions to `Failed`.
     pub fn fail(&mut self, reason: String) {
         self.state = RecoveryState::Failed(reason);
     }
 
+    /// Resets the recovery engine to idle state with a fresh journal.
     pub fn reset(&mut self) {
         self.state = RecoveryState::Idle;
         self.journal = RecoveryJournal::new();
     }
 
+    /// Returns a reference to the recovery journal.
     pub fn journal(&self) -> &RecoveryJournal {
         &self.journal
     }

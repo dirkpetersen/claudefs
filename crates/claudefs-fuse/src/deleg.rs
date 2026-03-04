@@ -1,36 +1,93 @@
 //! Open File Delegation
 //!
 //! File delegation/lease management for caching optimization.
+//!
+//! This module implements NFSv4-style open file delegation, allowing clients
+//! to cache file data locally with the server's blessing. Delegations grant
+//! exclusive or shared access rights and can be recalled when conflicting
+//! operations arrive.
 
 use std::collections::HashMap;
 use thiserror::Error;
 
+/// Type of delegation granted to a client.
+///
+/// Determines whether the client has exclusive write access or shared read access
+/// to the delegated file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DelegType {
+    /// Read delegation: allows multiple clients to cache reads simultaneously.
+    /// Other read delegations can coexist, but write delegations are blocked.
     Read,
+    /// Write delegation: exclusive access for both reads and writes.
+    /// No other delegations (read or write) can exist on the same inode.
     Write,
 }
 
+/// Lifecycle state of a delegation.
+///
+/// Tracks the delegation through grant, recall, return, and revocation phases.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DelegState {
+    /// Delegation is active and the client holds valid caching rights.
     Active,
-    Recalled { recalled_at_secs: u64 },
-    Returned { returned_at_secs: u64 },
-    Revoked { revoked_at_secs: u64 },
+    /// Server has requested the delegation be returned.
+    /// Client must respond within the recall timeout or face revocation.
+    Recalled {
+        /// Unix timestamp (seconds) when the recall was initiated.
+        recalled_at_secs: u64,
+    },
+    /// Client has voluntarily returned the delegation.
+    Returned {
+        /// Unix timestamp (seconds) when the delegation was returned.
+        returned_at_secs: u64,
+    },
+    /// Delegation was forcibly revoked by the server.
+    /// Occurs on timeout, client crash recovery, or conflicting operations.
+    Revoked {
+        /// Unix timestamp (seconds) when the delegation was revoked.
+        revoked_at_secs: u64,
+    },
 }
 
+/// Represents an active or historical file delegation.
+///
+/// A delegation grants a client the right to cache file data locally
+/// for a specified lease duration. The server may recall delegations
+/// when conflicting operations arrive.
 #[derive(Debug, Clone)]
 pub struct Delegation {
+    /// Unique identifier for this delegation instance.
     pub id: u64,
+    /// Inode number of the delegated file.
     pub ino: u64,
+    /// Type of delegation (read or write).
     pub deleg_type: DelegType,
+    /// Identifier of the client holding this delegation.
     pub client_id: u64,
+    /// Unix timestamp (seconds) when the delegation was granted.
     pub granted_at_secs: u64,
+    /// Duration of the lease in seconds from grant time.
     pub lease_duration_secs: u64,
+    /// Current state of the delegation lifecycle.
     pub state: DelegState,
 }
 
 impl Delegation {
+    /// Creates a new active delegation.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique delegation identifier.
+    /// * `ino` - Inode number of the file to delegate.
+    /// * `deleg_type` - Read or write delegation type.
+    /// * `client_id` - Identifier of the client receiving the delegation.
+    /// * `now_secs` - Current Unix timestamp in seconds.
+    /// * `lease_secs` - Lease duration in seconds.
+    ///
+    /// # Returns
+    ///
+    /// A new `Delegation` in the `Active` state.
     pub fn new(
         id: u64,
         ino: u64,
@@ -50,14 +107,27 @@ impl Delegation {
         }
     }
 
+    /// Returns `true` if the delegation is currently active.
     pub fn is_active(&self) -> bool {
         matches!(self.state, DelegState::Active)
     }
 
+    /// Returns `true` if the delegation can be returned by the client.
+    ///
+    /// Both `Active` and `Recalled` delegations are returnable.
     pub fn is_returnable(&self) -> bool {
         matches!(self.state, DelegState::Active | DelegState::Recalled { .. })
     }
 
+    /// Checks if the delegation lease has expired.
+    ///
+    /// # Arguments
+    ///
+    /// * `now_secs` - Current Unix timestamp in seconds.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the current time is at or past the lease expiry time.
     pub fn is_expired(&self, now_secs: u64) -> bool {
         let expiry = self
             .granted_at_secs
@@ -65,11 +135,23 @@ impl Delegation {
         now_secs >= expiry
     }
 
+    /// Computes the absolute lease expiry timestamp.
+    ///
+    /// # Returns
+    ///
+    /// Unix timestamp (seconds) when the delegation expires.
     pub fn expires_at(&self) -> u64 {
         self.granted_at_secs
             .saturating_add(self.lease_duration_secs)
     }
 
+    /// Transitions the delegation from `Active` to `Recalled`.
+    ///
+    /// If the delegation is not `Active`, this is a no-op.
+    ///
+    /// # Arguments
+    ///
+    /// * `now_secs` - Current Unix timestamp in seconds (recorded as recall time).
     pub fn recall(&mut self, now_secs: u64) {
         if let DelegState::Active = self.state {
             self.state = DelegState::Recalled {
@@ -78,6 +160,13 @@ impl Delegation {
         }
     }
 
+    /// Transitions the delegation from `Recalled` to `Returned`.
+    ///
+    /// If the delegation is not `Recalled`, this is a no-op.
+    ///
+    /// # Arguments
+    ///
+    /// * `now_secs` - Current Unix timestamp in seconds (recorded as return time).
     pub fn returned(&mut self, now_secs: u64) {
         if let DelegState::Recalled { .. } = self.state {
             self.state = DelegState::Returned {
@@ -86,18 +175,36 @@ impl Delegation {
         }
     }
 
+    /// Forcibly revokes the delegation regardless of current state.
+    ///
+    /// # Arguments
+    ///
+    /// * `now_secs` - Current Unix timestamp in seconds (recorded as revocation time).
     pub fn revoke(&mut self, now_secs: u64) {
         self.state = DelegState::Revoked {
             revoked_at_secs: now_secs,
         };
     }
 
+    /// Computes remaining lease time, which may be negative if expired.
+    ///
+    /// # Arguments
+    ///
+    /// * `now_secs` - Current Unix timestamp in seconds.
+    ///
+    /// # Returns
+    ///
+    /// Seconds remaining until expiry (negative if already expired).
     pub fn time_remaining_secs(&self, now_secs: u64) -> i64 {
         let expiry = self.expires_at() as i64;
         expiry - now_secs as i64
     }
 }
 
+/// Manages all active file delegations for the filesystem.
+///
+/// Tracks delegations by ID and inode, enforces conflict rules,
+/// handles recall/return/revoke lifecycle, and expires stale delegations.
 pub struct DelegationManager {
     delegations: HashMap<u64, Delegation>,
     ino_to_deleg: HashMap<u64, Vec<u64>>,
@@ -106,6 +213,11 @@ pub struct DelegationManager {
 }
 
 impl DelegationManager {
+    /// Creates a new delegation manager.
+    ///
+    /// # Arguments
+    ///
+    /// * `default_lease_secs` - Default lease duration for new delegations.
     pub fn new(default_lease_secs: u64) -> Self {
         Self {
             delegations: HashMap::new(),
@@ -115,6 +227,23 @@ impl DelegationManager {
         }
     }
 
+    /// Grants a new delegation for an inode to a client.
+    ///
+    /// # Arguments
+    ///
+    /// * `ino` - Inode number to delegate.
+    /// * `deleg_type` - Read or write delegation.
+    /// * `client_id` - Client receiving the delegation.
+    /// * `now_secs` - Current Unix timestamp in seconds.
+    ///
+    /// # Errors
+    ///
+    /// * `DelegError::ConflictingRead` - Write delegation requested but read delegations exist.
+    /// * `DelegError::ConflictingWrite` - Read delegation requested but a write delegation exists.
+    ///
+    /// # Returns
+    ///
+    /// The unique delegation ID on success.
     pub fn grant(
         &mut self,
         ino: u64,
@@ -152,10 +281,24 @@ impl DelegationManager {
         Ok(id)
     }
 
+    /// Retrieves a delegation by its ID.
+    ///
+    /// # Returns
+    ///
+    /// `Some(&Delegation)` if found, `None` otherwise.
     pub fn get(&self, id: u64) -> Option<&Delegation> {
         self.delegations.get(&id)
     }
 
+    /// Returns all active delegations for a given inode.
+    ///
+    /// # Arguments
+    ///
+    /// * `ino` - Inode number to query.
+    ///
+    /// # Returns
+    ///
+    /// Vector of references to active delegations (empty if none).
     pub fn delegations_for_ino(&self, ino: u64) -> Vec<&Delegation> {
         self.ino_to_deleg
             .get(&ino)
@@ -168,6 +311,19 @@ impl DelegationManager {
             .unwrap_or_default()
     }
 
+    /// Recalls all active delegations for an inode.
+    ///
+    /// Called when a conflicting operation (e.g., write when read delegations exist)
+    /// requires clients to flush their caches.
+    ///
+    /// # Arguments
+    ///
+    /// * `ino` - Inode number whose delegations should be recalled.
+    /// * `now_secs` - Current Unix timestamp in seconds.
+    ///
+    /// # Returns
+    ///
+    /// Vector of delegation IDs that were recalled.
     pub fn recall_for_ino(&mut self, ino: u64, now_secs: u64) -> Vec<u64> {
         let ids = self.ino_to_deleg.get(&ino).cloned().unwrap_or_default();
         let mut recalled = Vec::new();
@@ -184,6 +340,17 @@ impl DelegationManager {
         recalled
     }
 
+    /// Processes a client's voluntary return of a delegation.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Delegation ID being returned.
+    /// * `now_secs` - Current Unix timestamp in seconds.
+    ///
+    /// # Errors
+    ///
+    /// * `DelegError::NotFound` - No delegation with the given ID.
+    /// * `DelegError::NotActive` - Delegation is not in a returnable state.
     pub fn return_deleg(&mut self, id: u64, now_secs: u64) -> std::result::Result<(), DelegError> {
         let deleg = self
             .delegations
@@ -198,6 +365,18 @@ impl DelegationManager {
         Ok(())
     }
 
+    /// Revokes all expired active delegations.
+    ///
+    /// Should be called periodically to clean up delegations whose
+    /// leases have elapsed without client return.
+    ///
+    /// # Arguments
+    ///
+    /// * `now_secs` - Current Unix timestamp in seconds.
+    ///
+    /// # Returns
+    ///
+    /// Number of delegations revoked.
     pub fn revoke_expired(&mut self, now_secs: u64) -> usize {
         let expired_ids: Vec<u64> = self
             .delegations
@@ -215,14 +394,39 @@ impl DelegationManager {
         count
     }
 
+    /// Returns the count of currently active delegations.
     pub fn active_count(&self) -> usize {
         self.delegations.values().filter(|d| d.is_active()).count()
     }
 
+    /// Checks if a write delegation can be granted for the given inode.
+    ///
+    /// Write delegations require exclusive access; no other delegations
+    /// (read or write) may exist.
+    ///
+    /// # Arguments
+    ///
+    /// * `ino` - Inode number to check.
+    ///
+    /// # Returns
+    ///
+    /// `true` if no active delegations exist for this inode.
     pub fn can_grant_write(&self, ino: u64) -> bool {
         self.delegations_for_ino(ino).is_empty()
     }
 
+    /// Checks if a read delegation can be granted for the given inode.
+    ///
+    /// Read delegations can coexist with other read delegations, but not
+    /// with write delegations.
+    ///
+    /// # Arguments
+    ///
+    /// * `ino` - Inode number to check.
+    ///
+    /// # Returns
+    ///
+    /// `true` if no active write delegation exists for this inode.
     pub fn can_grant_read(&self, ino: u64) -> bool {
         !self
             .delegations_for_ino(ino)
@@ -231,14 +435,19 @@ impl DelegationManager {
     }
 }
 
+/// Errors that can occur during delegation operations.
 #[derive(Debug, Error)]
 pub enum DelegError {
+    /// The requested delegation does not exist.
     #[error("Delegation not found: {0}")]
     NotFound(u64),
+    /// A write delegation already exists, blocking a read delegation request.
     #[error("Conflicting write delegation exists for inode {0}")]
     ConflictingWrite(u64),
+    /// Read delegations already exist, blocking a write delegation request.
     #[error("Cannot grant write delegation: read delegations exist for inode {0}")]
     ConflictingRead(u64),
+    /// The delegation is not in an active or returnable state.
     #[error("Delegation is not active")]
     NotActive,
 }
