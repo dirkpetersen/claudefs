@@ -1,90 +1,167 @@
+//! FUSE operation types and helper functions.
+//!
+//! This module defines the data structures used to represent FUSE operations
+//! and provides utility functions for permission checking and mode handling.
+
 use libc::c_int;
 use std::time::SystemTime;
 
+/// Kinds of FUSE operations supported by the filesystem.
 pub enum FuseOpKind {
+    /// Look up a directory entry by name.
     Lookup,
+    /// Get file attributes (metadata).
     GetAttr,
+    /// Set file attributes (metadata).
     SetAttr,
+    /// Create a directory.
     MkDir,
+    /// Remove a directory.
     RmDir,
+    /// Create and open a file.
     Create,
+    /// Remove a file (unlink).
     Unlink,
+    /// Read data from a file.
     Read,
+    /// Write data to a file.
     Write,
+    /// Read directory entries.
     ReadDir,
+    /// Open a file.
     Open,
+    /// Release (close) a file.
     Release,
+    /// Open a directory.
     OpenDir,
+    /// Release (close) a directory.
     ReleaseDir,
+    /// Rename a file or directory.
     Rename,
+    /// Flush cached data for a file.
     Flush,
+    /// Synchronize file data and metadata.
     Fsync,
+    /// Get filesystem statistics.
     StatFs,
+    /// Check access permissions.
     Access,
+    /// Create a hard link.
     Link,
+    /// Create a symbolic link.
     Symlink,
+    /// Read the target of a symbolic link.
     ReadLink,
+    /// Set an extended attribute.
     SetXAttr,
+    /// Get an extended attribute.
     GetXAttr,
+    /// List extended attributes.
     ListXAttr,
+    /// Remove an extended attribute.
     RemoveXAttr,
 }
 
+/// Request to set file attributes.
 pub struct SetAttrRequest {
+    /// Inode number of the file.
     pub ino: u64,
+    /// New permission mode bits.
     pub mode: Option<u32>,
+    /// New owner user ID.
     pub uid: Option<u32>,
+    /// New owner group ID.
     pub gid: Option<u32>,
+    /// New file size.
     pub size: Option<u64>,
+    /// New access time.
     pub atime: Option<SystemTime>,
+    /// New modification time.
     pub mtime: Option<SystemTime>,
+    /// File handle for the operation.
     pub fh: Option<u64>,
+    /// Operation flags.
     pub flags: Option<u32>,
 }
 
+/// Reply for filesystem statistics (statfs).
 pub struct StatfsReply {
+    /// Total blocks in the filesystem.
     pub blocks: u64,
+    /// Free blocks.
     pub bfree: u64,
+    /// Free blocks available to non-root users.
     pub bavail: u64,
+    /// Total file nodes (inodes).
     pub files: u64,
+    /// Free file nodes.
     pub ffree: u64,
+    /// Block size.
     pub bsize: u32,
+    /// Maximum filename length.
     pub namelen: u32,
+    /// Fundamental block size.
     pub frsize: u32,
 }
 
+/// Request to create and open a file.
 pub struct CreateRequest {
+    /// Parent directory inode.
     pub parent: u64,
+    /// Name of the new file.
     pub name: String,
+    /// Permission mode bits.
     pub mode: u32,
+    /// Umask to apply to mode.
     pub umask: u32,
+    /// Open flags (e.g., O_RDWR).
     pub flags: i32,
+    /// Owner user ID.
     pub uid: u32,
+    /// Owner group ID.
     pub gid: u32,
 }
 
+/// Request to create a directory.
 pub struct MkdirRequest {
+    /// Parent directory inode.
     pub parent: u64,
+    /// Name of the new directory.
     pub name: String,
+    /// Permission mode bits.
     pub mode: u32,
+    /// Umask to apply to mode.
     pub umask: u32,
+    /// Owner user ID.
     pub uid: u32,
+    /// Owner group ID.
     pub gid: u32,
 }
 
+/// Request to rename a file or directory.
 pub struct RenameRequest {
+    /// Source parent directory inode.
     pub parent: u64,
+    /// Source name.
     pub name: String,
+    /// Destination parent directory inode.
     pub newparent: u64,
+    /// Destination name.
     pub newname: String,
+    /// Rename flags (e.g., RENAME_EXCHANGE).
     pub flags: u32,
 }
 
+/// A directory entry returned by ReadDir.
 #[derive(Debug, Clone)]
 pub struct DirEntry {
+    /// Inode number of the entry.
     pub ino: u64,
+    /// Offset for pagination.
     pub offset: i64,
+    /// File type (regular, directory, symlink, etc.).
     pub kind: fuser::FileType,
+    /// Entry name.
     pub name: String,
 }
 
