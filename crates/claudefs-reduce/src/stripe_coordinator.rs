@@ -112,7 +112,7 @@ impl StripeCoordinator {
     /// Uses consistent hash to assign shards to nodes deterministically.
     pub fn plan_stripe(&self, segment_id: u64) -> StripePlan {
         let total = self.config.total_shards() as usize;
-        let num_nodes = self.nodes.len();
+        let num_nodes = self.nodes.len().max(1);
 
         let placements: Vec<ShardPlacement> = (0..total)
             .map(|shard_index| {
@@ -121,9 +121,10 @@ impl StripeCoordinator {
                     .wrapping_add(shard_index as u64))
                     % num_nodes as u64;
                 let node_idx = hash as usize;
+                let node_id = self.nodes.get(node_idx).copied().unwrap_or(NodeId(0));
                 ShardPlacement {
                     shard_index: shard_index as u8,
-                    node_id: self.nodes[node_idx],
+                    node_id,
                     is_parity: shard_index as u8 >= self.config.data_shards,
                 }
             })
@@ -313,5 +314,91 @@ mod tests {
                 assert!(placement.is_parity);
             }
         }
+    }
+
+    #[test]
+    fn ec_config_custom_values() {
+        let config = EcConfig {
+            data_shards: 8,
+            parity_shards: 4,
+        };
+        assert_eq!(config.total_shards(), 12);
+        assert_eq!(config.min_surviving_shards(), 8);
+    }
+
+    #[test]
+    fn all_nodes_distinct_true() {
+        let config = EcConfig::default();
+        let nodes: Vec<NodeId> = (0..6).map(NodeId).collect();
+        let coordinator = StripeCoordinator::new(config, nodes);
+        let plan = coordinator.plan_stripe(12345);
+        assert!(coordinator.all_nodes_distinct(&plan));
+    }
+
+    #[test]
+    fn all_nodes_distinct_false() {
+        let config = EcConfig::default();
+        let nodes: Vec<NodeId> = (0..3).map(NodeId).collect();
+        let coordinator = StripeCoordinator::new(config, nodes);
+        let plan = coordinator.plan_stripe(12345);
+        assert!(!coordinator.all_nodes_distinct(&plan));
+    }
+
+    #[test]
+    fn can_tolerate_zero_failures() {
+        let config = EcConfig::default();
+        let nodes: Vec<NodeId> = (0..6).map(NodeId).collect();
+        let coordinator = StripeCoordinator::new(config, nodes);
+        let plan = coordinator.plan_stripe(12345);
+        assert!(coordinator.can_tolerate_failures(&plan, &[]));
+    }
+
+    #[test]
+    fn can_tolerate_parity_shard_failures() {
+        let config = EcConfig {
+            data_shards: 4,
+            parity_shards: 2,
+        };
+        let nodes: Vec<NodeId> = (0..6).map(NodeId).collect();
+        let coordinator = StripeCoordinator::new(config, nodes);
+        let plan = coordinator.plan_stripe(12345);
+        let parity_nodes: Vec<NodeId> = plan.parity_nodes();
+        assert!(coordinator.can_tolerate_failures(&plan, &parity_nodes));
+    }
+
+    #[test]
+    fn empty_nodes_list_plan() {
+        let config = EcConfig::default();
+        let nodes: Vec<NodeId> = vec![];
+        let coordinator = StripeCoordinator::new(config, nodes);
+        let plan = coordinator.plan_stripe(12345);
+        assert_eq!(plan.placements.len(), 6);
+        for placement in &plan.placements {
+            assert_eq!(placement.node_id, NodeId(0));
+        }
+    }
+
+    #[test]
+    fn single_node_plan() {
+        let config = EcConfig::default();
+        let nodes: Vec<NodeId> = vec![NodeId(1)];
+        let coordinator = StripeCoordinator::new(config, nodes);
+        let plan = coordinator.plan_stripe(12345);
+        assert_eq!(plan.placements.len(), 6);
+        for placement in &plan.placements {
+            assert_eq!(placement.node_id, NodeId(1));
+        }
+    }
+
+    #[test]
+    fn parity_count_matches_config() {
+        let config = EcConfig {
+            data_shards: 6,
+            parity_shards: 3,
+        };
+        let nodes: Vec<NodeId> = (0..9).map(NodeId).collect();
+        let coordinator = StripeCoordinator::new(config.clone(), nodes);
+        let plan = coordinator.plan_stripe(12345);
+        assert_eq!(plan.parity_nodes().len(), config.parity_shards as usize);
     }
 }

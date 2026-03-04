@@ -348,4 +348,95 @@ mod tests {
         assert_eq!(plan1.cache_misses, plan2.cache_misses);
         assert_eq!(plan1.fetches.len(), plan2.fetches.len());
     }
+
+    #[test]
+    fn read_planner_default() {
+        let planner = ReadPlanner::new();
+        let request = ReadRequest {
+            inode_id: 1,
+            offset: 0,
+            length: 4096,
+        };
+        let plan = planner.plan(request, &[]);
+        assert_eq!(plan.total_chunks(), 0);
+        assert_eq!(plan.cache_hits, 0);
+        assert_eq!(plan.cache_misses, 0);
+    }
+
+    #[test]
+    fn cache_hit_rate_empty_plan() {
+        let request = ReadRequest {
+            inode_id: 1,
+            offset: 0,
+            length: 4096,
+        };
+        let planner = ReadPlanner::new();
+        let plan = planner.plan(request, &[]);
+        assert_eq!(plan.cache_hit_rate(), 0.0);
+    }
+
+    #[test]
+    fn estimate_latency_empty_plan() {
+        let request = ReadRequest {
+            inode_id: 1,
+            offset: 0,
+            length: 4096,
+        };
+        let planner = ReadPlanner::new();
+        let plan = planner.plan(request, &[]);
+        let latency = planner.estimate_latency_us(&plan, 10, 1000);
+        assert_eq!(latency, 0);
+    }
+
+    #[test]
+    fn plan_preserves_request() {
+        let request = ReadRequest {
+            inode_id: 42,
+            offset: 1024,
+            length: 8192,
+        };
+        let planner = ReadPlanner::new();
+        let plan = planner.plan(request, &[]);
+        assert_eq!(plan.request.inode_id, 42);
+        assert_eq!(plan.request.offset, 1024);
+        assert_eq!(plan.request.length, 8192);
+    }
+
+    #[test]
+    fn plan_large_number_of_chunks() {
+        let request = ReadRequest {
+            inode_id: 1,
+            offset: 0,
+            length: 1_000_000,
+        };
+        let mut chunks = Vec::new();
+        for i in 0..100 {
+            chunks.push(make_chunk(i as u8, i % 2 == 0, i, 100));
+        }
+        let planner = ReadPlanner::new();
+        let plan = planner.plan(request, &chunks);
+        assert_eq!(plan.total_chunks(), 100);
+    }
+
+    #[test]
+    fn chunk_fetch_plan_node_and_segment() {
+        let plan = ChunkFetchPlan {
+            chunk_hash: [5u8; 32],
+            node_id: 10,
+            segment_id: 200,
+            from_cache: false,
+        };
+        assert_eq!(plan.node_id, 10);
+        assert_eq!(plan.segment_id, 200);
+        assert!(!plan.from_cache);
+    }
+
+    #[test]
+    fn cached_chunk_info_not_cached() {
+        let info = CachedChunkInfo {
+            chunk_hash: [0u8; 32],
+            cached: false,
+        };
+        assert!(!info.cached);
+    }
 }

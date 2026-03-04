@@ -425,4 +425,118 @@ mod tests {
         assert_eq!(tracker.valid_entry_count(), 0);
         assert_eq!(tracker.total_valid_bytes(), 0);
     }
+
+    #[test]
+    fn register_overwrites_existing_entry() {
+        let mut tracker = CoherencyTracker::new();
+        let key = CacheKey {
+            inode_id: 1,
+            chunk_index: 0,
+        };
+        tracker.register(key, CacheVersion::new(), 4096);
+        let v2 = CacheVersion { version: 5 };
+        tracker.register(key, v2, 8192);
+        let version = tracker.get_version(&key);
+        assert!(version.is_some());
+        assert_eq!(version.unwrap().version, 5);
+    }
+
+    #[test]
+    fn invalidate_already_invalidated_entry() {
+        let mut tracker = CoherencyTracker::new();
+        let key = CacheKey {
+            inode_id: 1,
+            chunk_index: 0,
+        };
+        tracker.register(key, CacheVersion::new(), 4096);
+        tracker.invalidate(&InvalidationEvent::ChunkInvalidated { key });
+        let invalidated = tracker.invalidate(&InvalidationEvent::ChunkInvalidated { key });
+        assert_eq!(invalidated.len(), 1);
+        assert!(!tracker.is_valid(&key, &CacheVersion::new()));
+    }
+
+    #[test]
+    fn invalidate_missing_key_returns_empty() {
+        let mut tracker = CoherencyTracker::new();
+        let key = CacheKey {
+            inode_id: 1,
+            chunk_index: 0,
+        };
+        let invalidated = tracker.invalidate(&InvalidationEvent::ChunkInvalidated { key });
+        assert!(invalidated.is_empty());
+    }
+
+    #[test]
+    fn multiple_inodes_isolated_invalidation() {
+        let mut tracker = CoherencyTracker::new();
+        let key1 = CacheKey {
+            inode_id: 1,
+            chunk_index: 0,
+        };
+        let key2 = CacheKey {
+            inode_id: 2,
+            chunk_index: 0,
+        };
+        tracker.register(key1, CacheVersion::new(), 4096);
+        tracker.register(key2, CacheVersion::new(), 4096);
+        tracker.invalidate(&InvalidationEvent::InodeInvalidated { inode_id: 1 });
+        assert!(!tracker.is_valid(&key1, &CacheVersion::new()));
+        assert!(tracker.is_valid(&key2, &CacheVersion::new()));
+    }
+
+    #[test]
+    fn version_preserved_on_register() {
+        let mut tracker = CoherencyTracker::new();
+        let key = CacheKey {
+            inode_id: 1,
+            chunk_index: 0,
+        };
+        let version = CacheVersion { version: 10 };
+        tracker.register(key, version, 4096);
+        let stored = tracker.get_version(&key);
+        assert!(stored.is_some());
+        assert_eq!(stored.unwrap().version, 10);
+    }
+
+    #[test]
+    fn size_bytes_updated_on_reregister() {
+        let mut tracker = CoherencyTracker::new();
+        let key = CacheKey {
+            inode_id: 1,
+            chunk_index: 0,
+        };
+        tracker.register(key, CacheVersion::new(), 4096);
+        tracker.register(key, CacheVersion::new(), 8192);
+        assert_eq!(tracker.total_valid_bytes(), 8192);
+    }
+
+    #[test]
+    fn is_valid_false_after_invalidate() {
+        let mut tracker = CoherencyTracker::new();
+        let key = CacheKey {
+            inode_id: 1,
+            chunk_index: 0,
+        };
+        let version = CacheVersion::new();
+        tracker.register(key, version, 4096);
+        tracker.invalidate(&InvalidationEvent::ChunkInvalidated { key });
+        assert!(!tracker.is_valid(&key, &version));
+    }
+
+    #[test]
+    fn total_valid_bytes_excludes_invalid() {
+        let mut tracker = CoherencyTracker::new();
+        let key1 = CacheKey {
+            inode_id: 1,
+            chunk_index: 0,
+        };
+        let key2 = CacheKey {
+            inode_id: 1,
+            chunk_index: 1,
+        };
+        tracker.register(key1, CacheVersion::new(), 4096);
+        tracker.register(key2, CacheVersion::new(), 4096);
+        tracker.invalidate(&InvalidationEvent::ChunkInvalidated { key: key1 });
+        assert_eq!(tracker.total_valid_bytes(), 4096);
+    }
 }
