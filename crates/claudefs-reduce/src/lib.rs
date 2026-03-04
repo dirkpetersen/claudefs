@@ -108,6 +108,12 @@ pub mod segment_pressure;
 pub mod key_derivation;
 /// Per-segment statistics collection and aggregation.
 pub mod segment_stats;
+/// Single-chunk data reduction pipeline (dedup→compress→encrypt).
+pub mod chunk_pipeline;
+/// Eviction policy engine for flash layer management.
+pub mod eviction_policy;
+/// Replication filter using Bloom filter for cross-site dedup.
+pub mod replication_filter;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -262,4 +268,13 @@ pub use key_derivation::{
 };
 pub use segment_stats::{
     AggregatedSegmentStats, SegmentLifecycle, SegmentStat, SegmentStatsCollector,
+};
+pub use chunk_pipeline::{
+    ChunkPipeline, ChunkPipelineConfig, ChunkPipelineResult, ChunkPipelineStats,
+};
+pub use eviction_policy::{
+    EvictableSegment, EvictionPassStats, EvictionPolicy, EvictionPolicyConfig, EvictionStrategy,
+};
+pub use replication_filter::{
+    ReplicationFilter, ReplicationFilterConfig, ReplicationFilterStats,
 };
