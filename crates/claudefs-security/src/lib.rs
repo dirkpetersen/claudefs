@@ -87,10 +87,15 @@ pub mod meta_deep_security_tests;
 #[allow(missing_docs)]
 pub mod transport_deep_security_tests;
 #[cfg(test)]
+pub mod transport_conn_security_tests;
+#[cfg(test)]
 #[allow(missing_docs)]
 pub mod repl_deep_security_tests_v2;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod fuse_deep_security_tests;
-#[cfg(test)]
-pub mod gateway_protocol_security_tests;
+    #[cfg(test)]
+    pub mod gateway_protocol_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
+    pub mod meta_consensus_security_tests;

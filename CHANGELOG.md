@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 9: Meta Consensus & Transport Connection (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1072 Total
+
+**Status:** ✅ 1072 security tests passing, 0 failures (+50 from 1022)
+
+**New Coverage — Meta Consensus Security (25 tests):**
+- Raft Consensus Safety (5 tests): initial state, election term, follower propose, term monotonic, leadership transfer
+- Membership Management (5 tests): join/leave, state transitions, events, duplicate join, suspect unknown
+- Lease Management (5 tests): write exclusivity, read coexistence, client cleanup, expired renewal (FINDING), ID uniqueness
+- ReadIndex Protocol (5 tests): quorum calculation, duplicate confirmation, timeout cleanup, apply status, pending count
+- Follower Read & Path Resolution (5 tests): linearizable routing, no leader, staleness bound, path parsing, negative cache
+
+**New Coverage — Transport Connection Security (25 tests):**
+- Connection Migration (5 tests): concurrent limit, already-migrating, ID uniqueness, state machine, disabled
+- Multiplexing (5 tests): max streams, stream ID uniqueness, dispatch unknown, cancel, cancel nonexistent
+- Keep-Alive (5 tests): initial state, timeout transitions, reset recovery, disabled, is_alive
+- Deadline & Hedge (5 tests): zero duration, encode/decode, no deadline, hedge disabled, write exclusion
+- Cancellation & Batch (5 tests): token propagation, cancel-all, child independence, batch roundtrip, error tracking
+
+**Key Findings (1 HIGH, 3 MEDIUM):**
+- META-CONS-14 (HIGH): Expired lease may be renewed — stale lease vulnerability
+- TRANS-CONN-23 (HIGH): Child cancel propagation is unidirectional (parent→child only, correct design)
+
 ### A10: Security Audit — Phase 8: Replication Deep v2 & Gateway Protocol (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1022 Total

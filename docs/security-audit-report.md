@@ -1109,3 +1109,47 @@ Deep audit of gateway crate: NFS v4 session management, POSIX ACL enforcement, S
 3. S3 Encryption & KMS (5): none algorithm, KMS key_id required, context injection, is_kms check, bucket key enabled
 4. S3 Object Lock (5): governance vs compliance, expired retention, legal hold override, days-to-duration, disabled bucket
 5. S3 Versioning & CORS (5): version ID uniqueness, null version, wildcard CORS, no matching rule, valid rule requirements
+
+---
+
+## 26. Phase 9: Meta Consensus & Transport Connection Security (2026-03-04)
+
+### 26.1 Meta Consensus Security
+
+Deep audit of meta crate consensus layer: Raft safety, membership management, distributed leases, ReadIndex protocol, and follower read routing.
+
+**Test Module:** `meta_consensus_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| META-CONS-03 | MEDIUM | Follower propose returns error as expected — leader-only enforcement correct |
+| META-CONS-09 | MEDIUM | Duplicate join behavior — idempotent or error depends on implementation |
+| META-CONS-14 | HIGH | Expired lease renewal behavior — stale lease may be renewed without error |
+| META-CONS-17 | MEDIUM | Duplicate heartbeat confirmation counted once — correct quorum logic |
+
+**Categories tested:**
+1. Raft Consensus Safety (5): initial state, election increments term, follower propose fails, term monotonic, leadership transfer
+2. Membership Management (5): join/leave, state transitions, events emitted, duplicate join, suspect unknown
+3. Lease Management (5): write exclusivity, read coexistence, client cleanup, expired renewal, ID uniqueness
+4. ReadIndex Protocol (5): quorum calculation, duplicate confirmation, timeout cleanup, waiting-for-apply status, pending count
+5. Follower Read & Path Resolution (5): linearizable routing, no leader unavailable, staleness bound, path parsing, negative cache
+
+### 26.2 Transport Connection Security
+
+Deep audit of transport crate connection layer: connection migration, stream multiplexing, keepalive state machine, deadline management, and cancellation token propagation.
+
+**Test Module:** `transport_conn_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| TRANS-CONN-01 | MEDIUM | Concurrent migration limit correctly enforced |
+| TRANS-CONN-06 | MEDIUM | Max streams limit correctly enforced — no stream exhaustion |
+| TRANS-CONN-14 | LOW | Disabled keepalive remains in Disabled state — correct isolation |
+| TRANS-CONN-23 | HIGH | Child cancel does NOT propagate to parent — unidirectional propagation correct |
+
+**Categories tested:**
+1. Connection Migration (5): concurrent limit, already-migrating, ID uniqueness, state machine, disabled mode
+2. Multiplexing (5): max streams, stream ID uniqueness, dispatch unknown, cancel stream, cancel nonexistent
+3. Keep-Alive State Machine (5): initial state, timeout transitions, reset recovery, disabled state, is_alive check
+4. Deadline & Hedge (5): zero duration expired, encode/decode roundtrip, no deadline OK, hedge disabled, write exclusion
+5. Cancellation & Batch (5): token propagation, registry cancel-all, child independence, batch encode/decode, error tracking
