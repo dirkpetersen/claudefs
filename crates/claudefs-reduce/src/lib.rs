@@ -102,6 +102,12 @@ pub mod inline_dedup;
 pub mod compression_advisor;
 /// LRU cache for dedup hash lookups.
 pub mod dedup_cache;
+/// Flash layer write pressure tracking (D6 high/critical watermarks).
+pub mod segment_pressure;
+/// Per-file encryption key derivation via HKDF.
+pub mod key_derivation;
+/// Per-segment statistics collection and aggregation.
+pub mod segment_stats;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -248,3 +254,12 @@ pub use compression_advisor::{
     AlgoMetrics, CompressionAdvice, CompressionAdvisor,
 };
 pub use dedup_cache::{DedupCache, DedupCacheConfig, DedupCacheStats};
+pub use segment_pressure::{
+    PressureLevel, PressureStats, SegmentPressure, SegmentPressureConfig,
+};
+pub use key_derivation::{
+    DerivedKey, KeyDerivation, KeyDerivationConfig, KeyDerivationStats, MasterKey,
+};
+pub use segment_stats::{
+    AggregatedSegmentStats, SegmentLifecycle, SegmentStat, SegmentStatsCollector,
+};
