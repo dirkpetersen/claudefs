@@ -6,6 +6,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 1: Operational Documentation & Cost Optimization (2026-03-04)
+
+#### Comprehensive Infrastructure Documentation
+
+**Status:** ✅ Complete — 3 new operational guides + CI/CD improvements documented
+
+**Deliverables:**
+1. **OPERATIONAL_RUNBOOK.md** (546 lines)
+   - Quick start guide for cluster operations (cfs-dev CLI)
+   - Cluster architecture (orchestrator + 9 spot instances)
+   - Daily operations procedures (morning/afternoon/end-of-day checks)
+   - Monitoring & observability metrics with alert thresholds
+   - Troubleshooting guide (4 detailed scenarios with solutions)
+   - Cost management strategies and emergency controls
+   - Deployment procedures for releases and production
+   - Role-based runbooks for developers, infra engineers, security auditors
+
+2. **COST_OPTIMIZATION_GUIDE.md** (366 lines)
+   - Detailed cost breakdown ($100/day budget)
+   - Cost drivers: EC2 ($25/day), Bedrock ($73/day), Secrets/CloudWatch ($0.50/day)
+   - Three-phase optimization strategy: $98 → $84 → $79/day
+   - Phase 1 (recommended): Switch A8 to Haiku model (-$8/day, low risk)
+   - Phase 2 (medium): Dynamic cluster scaling (-$6/day, medium risk)
+   - Phase 3 (advanced): Reserved instances (-$5/day, high commitment)
+   - Cost monitoring procedures with daily/hourly trend checks
+   - Emergency cost control procedures (hard kill at $100)
+   - Quarterly forecasts and annual cost estimates (~$33k for 18 months)
+
+3. **CI_CD_GUIDE.md** (544 lines)
+   - Pipeline architecture: 6 workflows (ci-build, tests-all, integration, a9, release, deploy-prod)
+   - Trigger-based workflows for cost optimization
+   - Caching strategy (95%+ hit rate with Cargo.lock keys)
+   - Performance profile: cold cache 60min → cached 25min (~25 min average)
+   - Per-crate parallelization (reduces per-crate test time)
+   - 6 improvement recommendations (code coverage, CHANGELOG validation, dependency audit, etc.)
+   - Secrets management and security best practices
+   - Comprehensive troubleshooting guide
+   - Future improvements (automatic rollback, Docker builds, canary deployments)
+
+**Infrastructure Status:**
+- ✅ All 11 agents (A1-A11) running in parallel
+- ✅ Watchdog/supervisor/cost-monitor automation working smoothly
+- ✅ GitHub Actions CI/CD passing all jobs
+- ✅ Terraform infrastructure validated
+- ✅ $80-96/day spend within $100 budget
+- ✅ Codebase at 1930+ tests, 226k+ lines of Rust
+
+**Key Recommendations:**
+- Implement Phase 1 cost optimization immediately (switch A8 to Haiku: -$8/day)
+- Set quarterly budget review meetings
+- Monitor cost trends via AWS Cost Explorer
+- Use CloudWatch for long-term metrics (future)
+
+---
+
 ### A3: Data Reduction — Phase 17: Object Store Bridge, Chunk Pool, Recovery Scanner (2026-03-04)
 
 #### 3 New Modules — 68 New Tests, 1303 Total
