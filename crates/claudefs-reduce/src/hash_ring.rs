@@ -417,7 +417,7 @@ mod tests {
         }
 
         let mut counts = [0usize; 10];
-        for i in 0..1000 {
+        for i in 0..10000 {
             let key = format!("key{}", i);
             if let Some(m) = ring.get_member(key.as_bytes()) {
                 counts[(m.id - 1) as usize] += 1;

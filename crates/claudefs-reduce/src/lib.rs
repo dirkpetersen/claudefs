@@ -84,6 +84,12 @@ pub mod dedup_index;
 pub mod object_store_bridge;
 pub mod chunk_pool;
 pub mod recovery_scanner;
+/// Chunk reference tracking for GC coordination.
+pub mod chunk_tracker;
+/// Consistent hash ring for shard/node assignment.
+pub mod hash_ring;
+/// Append-only write journal for ordered write tracking.
+pub mod write_journal;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -210,3 +216,8 @@ pub use journal_replay::{
     InodeReplayState, JournalReplayer, ReplayAction, ReplayConfig, ReplayState, ReplayStats,
 };
 pub use namespace_tree::{DirEntry, DirId, NamespaceTree};
+pub use chunk_tracker::{ChunkRecord, ChunkState, ChunkTracker, TrackerStats};
+pub use hash_ring::{HashRing, HashRingConfig, RingMember, RingStats};
+pub use write_journal::{
+    JournalEntryData, WriteJournal, WriteJournalConfig, WriteJournalStats,
+};
