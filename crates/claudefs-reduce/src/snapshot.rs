@@ -73,16 +73,21 @@ impl SnapshotManager {
         if self.snapshots.len() >= self.config.max_snapshots {
             return Err(ReduceError::Io(std::io::Error::new(
                 std::io::ErrorKind::AlreadyExists,
-                format!("Maximum snapshot limit ({}) reached", self.config.max_snapshots),
+                format!(
+                    "Maximum snapshot limit ({}) reached",
+                    self.config.max_snapshots
+                ),
             )));
         }
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| ReduceError::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                e.to_string(),
-            )))?
+            .map_err(|e| {
+                ReduceError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    e.to_string(),
+                ))
+            })?
             .as_secs();
 
         let id = self.next_id;
@@ -160,7 +165,9 @@ impl SnapshotManager {
 
     /// Find a snapshot by name.
     pub fn find_by_name(&self, name: &str) -> Option<&Snapshot> {
-        self.name_index.get(name).and_then(|id| self.snapshots.get(id))
+        self.name_index
+            .get(name)
+            .and_then(|id| self.snapshots.get(id))
     }
 }
 
@@ -177,9 +184,11 @@ mod tests {
     fn test_create_snapshot() {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
         let hashes = vec![make_hash(1), make_hash(2), make_hash(3)];
-        
-        let info = mgr.create_snapshot("test".to_string(), hashes.clone(), 12345).unwrap();
-        
+
+        let info = mgr
+            .create_snapshot("test".to_string(), hashes.clone(), 12345)
+            .unwrap();
+
         assert_eq!(info.name, "test");
         assert_eq!(info.block_count, 3);
         assert_eq!(info.total_bytes, 12345);
@@ -189,10 +198,10 @@ mod tests {
     #[test]
     fn test_max_snapshots_limit() {
         let mut mgr = SnapshotManager::new(SnapshotConfig { max_snapshots: 2 });
-        
+
         mgr.create_snapshot("s1".to_string(), vec![], 0).unwrap();
         mgr.create_snapshot("s2".to_string(), vec![], 0).unwrap();
-        
+
         let result = mgr.create_snapshot("s3".to_string(), vec![], 0);
         assert!(result.is_err());
     }
@@ -200,10 +209,12 @@ mod tests {
     #[test]
     fn test_delete_snapshot() {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
-        
-        let info = mgr.create_snapshot("test".to_string(), vec![make_hash(1)], 100).unwrap();
+
+        let info = mgr
+            .create_snapshot("test".to_string(), vec![make_hash(1)], 100)
+            .unwrap();
         let deleted = mgr.delete_snapshot(info.id);
-        
+
         assert!(deleted.is_some());
         assert!(mgr.get_snapshot(info.id).is_none());
     }
@@ -211,10 +222,12 @@ mod tests {
     #[test]
     fn test_get_snapshot() {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
-        
+
         let hashes = vec![make_hash(1), make_hash(2)];
-        let info = mgr.create_snapshot("test".to_string(), hashes.clone(), 200).unwrap();
-        
+        let info = mgr
+            .create_snapshot("test".to_string(), hashes.clone(), 200)
+            .unwrap();
+
         let snapshot = mgr.get_snapshot(info.id).unwrap();
         assert_eq!(snapshot.info.name, "test");
         assert_eq!(snapshot.block_hashes, hashes);
@@ -223,11 +236,11 @@ mod tests {
     #[test]
     fn test_list_snapshots_sorted() {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
-        
+
         mgr.create_snapshot("a".to_string(), vec![], 0).unwrap();
         mgr.create_snapshot("b".to_string(), vec![], 0).unwrap();
         mgr.create_snapshot("c".to_string(), vec![], 0).unwrap();
-        
+
         let list = mgr.list_snapshots();
         assert_eq!(list.len(), 3);
         assert!(list[0].created_at_secs <= list[1].created_at_secs);
@@ -237,12 +250,14 @@ mod tests {
     #[test]
     fn test_clone_snapshot() {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
-        
+
         let hashes = vec![make_hash(1), make_hash(2), make_hash(3)];
-        let info = mgr.create_snapshot("original".to_string(), hashes.clone(), 300).unwrap();
-        
+        let info = mgr
+            .create_snapshot("original".to_string(), hashes.clone(), 300)
+            .unwrap();
+
         let cloned = mgr.clone_snapshot(info.id, "clone".to_string()).unwrap();
-        
+
         assert_eq!(cloned.name, "clone");
         assert_eq!(cloned.block_count, 3);
         assert_eq!(cloned.total_bytes, 300);
@@ -251,7 +266,7 @@ mod tests {
     #[test]
     fn test_clone_nonexistent_snapshot() {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
-        
+
         let result = mgr.clone_snapshot(999, "test".to_string());
         assert!(result.is_err());
     }
@@ -259,12 +274,158 @@ mod tests {
     #[test]
     fn test_find_by_name() {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
-        
-        let info = mgr.create_snapshot("myname".to_string(), vec![], 0).unwrap();
-        
+
+        let info = mgr
+            .create_snapshot("myname".to_string(), vec![], 0)
+            .unwrap();
+
         let found = mgr.find_by_name("myname").unwrap();
         assert_eq!(found.info.id, info.id);
-        
+
         assert!(mgr.find_by_name("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_snapshot_config_default() {
+        let config = SnapshotConfig::default();
+        assert_eq!(config.max_snapshots, 64);
+    }
+
+    #[test]
+    fn test_create_snapshot_info_fields() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+        let hashes = vec![make_hash(1), make_hash(2), make_hash(3)];
+
+        let info = mgr
+            .create_snapshot("test".to_string(), hashes, 12345)
+            .unwrap();
+
+        assert!(info.id > 0);
+        assert_eq!(info.name, "test");
+        assert!(info.created_at_secs > 0);
+        assert_eq!(info.block_count, 3);
+        assert_eq!(info.total_bytes, 12345);
+    }
+
+    #[test]
+    fn test_list_snapshots_empty() {
+        let mgr = SnapshotManager::new(SnapshotConfig::default());
+        let list = mgr.list_snapshots();
+        assert!(list.is_empty());
+    }
+
+    #[test]
+    fn test_list_snapshots_after_creation() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+
+        mgr.create_snapshot("s1".to_string(), vec![], 0).unwrap();
+        mgr.create_snapshot("s2".to_string(), vec![], 0).unwrap();
+
+        let list = mgr.list_snapshots();
+        assert_eq!(list.len(), 2);
+    }
+
+    #[test]
+    fn test_delete_snapshot_removes_from_list() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+
+        let info = mgr
+            .create_snapshot("test".to_string(), vec![make_hash(1)], 100)
+            .unwrap();
+        assert_eq!(mgr.list_snapshots().len(), 1);
+
+        mgr.delete_snapshot(info.id);
+
+        assert_eq!(mgr.list_snapshots().len(), 0);
+    }
+
+    #[test]
+    fn test_snapshot_with_custom_name() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+
+        let info = mgr
+            .create_snapshot("my_custom_snapshot_name".to_string(), vec![], 0)
+            .unwrap();
+        assert_eq!(info.name, "my_custom_snapshot_name");
+
+        let found = mgr.find_by_name("my_custom_snapshot_name");
+        assert!(found.is_some());
+    }
+
+    #[test]
+    fn test_snapshot_info_metadata() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+
+        let before = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let info = mgr.create_snapshot("test".to_string(), vec![], 0).unwrap();
+
+        let after = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        assert!(info.created_at_secs >= before);
+        assert!(info.created_at_secs <= after);
+    }
+
+    #[test]
+    fn test_multiple_snapshots_ordered() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+
+        let info1 = mgr.create_snapshot("first".to_string(), vec![], 0).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        let info2 = mgr
+            .create_snapshot("second".to_string(), vec![], 0)
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        let info3 = mgr.create_snapshot("third".to_string(), vec![], 0).unwrap();
+
+        let list = mgr.list_snapshots();
+        assert_eq!(list.len(), 3);
+        assert!(list[0].created_at_secs <= list[1].created_at_secs);
+        assert!(list[1].created_at_secs <= list[2].created_at_secs);
+        assert_eq!(list[0].name, "first");
+        assert_eq!(list[1].name, "second");
+        assert_eq!(list[2].name, "third");
+    }
+
+    #[test]
+    fn test_snapshot_count() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+
+        assert_eq!(mgr.snapshot_count(), 0);
+
+        mgr.create_snapshot("s1".to_string(), vec![], 0).unwrap();
+        assert_eq!(mgr.snapshot_count(), 1);
+
+        mgr.create_snapshot("s2".to_string(), vec![], 0).unwrap();
+        assert_eq!(mgr.snapshot_count(), 2);
+    }
+
+    #[test]
+    fn test_delete_nonexistent_snapshot() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+
+        let result = mgr.delete_snapshot(999);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_clone_snapshot_preserves_hashes() {
+        let mut mgr = SnapshotManager::new(SnapshotConfig::default());
+
+        let hashes = vec![make_hash(1), make_hash(2), make_hash(3)];
+        let info = mgr
+            .create_snapshot("original".to_string(), hashes.clone(), 300)
+            .unwrap();
+
+        let cloned = mgr.clone_snapshot(info.id, "clone".to_string()).unwrap();
+        let cloned_snapshot = mgr.get_snapshot(cloned.id).unwrap();
+
+        assert_eq!(cloned_snapshot.block_hashes, hashes);
     }
 }

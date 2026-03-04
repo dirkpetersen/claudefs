@@ -14,9 +14,11 @@ pub mod compaction;
 pub mod erasure_codec;
 pub mod quota_tracker;
 pub mod compression;
+pub mod data_classifier;
 pub mod dedupe;
 pub mod encryption;
 pub mod error;
+pub mod eviction_scorer;
 pub mod fingerprint;
 pub mod gc;
 pub mod key_manager;
@@ -31,6 +33,7 @@ pub mod recompressor;
 pub mod segment;
 pub mod segment_catalog;
 pub mod segment_reader;
+pub mod segment_splitter;
 pub mod similarity;
 pub mod snapshot;
 pub mod stream_chunker;
@@ -80,4 +83,13 @@ pub use pipeline_monitor::{
 };
 pub use write_amplification::{
     WriteAmplificationConfig, WriteAmplificationStats, WriteAmplificationTracker, WriteEvent,
+};
+pub use data_classifier::{
+    ClassificationResult, CompressionHint, DataClass, DataClassifier,
+};
+pub use eviction_scorer::{
+    EvictionCandidate, EvictionConfig, EvictionScorer, EvictionStats, SegmentEvictionInfo,
+};
+pub use segment_splitter::{
+    ChunkRef, SegmentPlan, SegmentSplitter, SplitStats, SplitterConfig,
 };

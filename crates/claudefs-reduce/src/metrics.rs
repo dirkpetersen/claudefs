@@ -680,4 +680,151 @@ mod tests {
 
         assert_eq!(metrics.chunks_processed.load(Ordering::Relaxed), 400);
     }
+
+    #[test]
+    fn test_metric_kind_variants() {
+        assert_eq!(MetricKind::Counter, MetricKind::Counter);
+        assert_eq!(MetricKind::Gauge, MetricKind::Gauge);
+        assert_eq!(MetricKind::Histogram, MetricKind::Histogram);
+        assert_ne!(MetricKind::Counter, MetricKind::Gauge);
+    }
+
+    #[test]
+    fn test_metric_value_counter_equality() {
+        let v1 = MetricValue::Counter(100);
+        let v2 = MetricValue::Counter(100);
+        let v3 = MetricValue::Counter(200);
+
+        assert_eq!(v1, v2);
+        assert_ne!(v1, v3);
+    }
+
+    #[test]
+    fn test_metric_value_gauge_equality() {
+        let v1 = MetricValue::Gauge(1.5);
+        let v2 = MetricValue::Gauge(1.5);
+        let v3 = MetricValue::Gauge(2.5);
+
+        assert_eq!(v1, v2);
+        assert_ne!(v1, v3);
+    }
+
+    #[test]
+    fn test_metric_value_histogram() {
+        let v = MetricValue::Histogram {
+            sum: 100.0,
+            count: 10,
+            buckets: vec![(1.0, 5), (10.0, 10)],
+        };
+
+        if let MetricValue::Histogram {
+            sum,
+            count,
+            buckets,
+        } = v
+        {
+            assert!((sum - 100.0).abs() < f64::EPSILON);
+            assert_eq!(count, 10);
+            assert_eq!(buckets.len(), 2);
+        } else {
+            panic!("Expected Histogram variant");
+        }
+    }
+
+    #[test]
+    fn test_reduce_metric_fields() {
+        let metric = ReduceMetric {
+            name: "test_metric".to_string(),
+            help: "A test metric".to_string(),
+            kind: MetricKind::Counter,
+            value: MetricValue::Counter(42),
+        };
+
+        assert_eq!(metric.name, "test_metric");
+        assert_eq!(metric.help, "A test metric");
+        assert_eq!(metric.kind, MetricKind::Counter);
+    }
+
+    #[test]
+    fn test_metrics_handle_default() {
+        let handle = MetricsHandle::default();
+        let snapshot = handle.snapshot();
+        assert_eq!(snapshot.chunks_processed, 0);
+    }
+
+    #[test]
+    fn test_metrics_handle_clone() {
+        let handle1 = MetricsHandle::new();
+        let handle2 = handle1.clone();
+
+        handle1.metrics().record_chunk(100, 50);
+
+        let snapshot1 = handle1.snapshot();
+        let snapshot2 = handle2.snapshot();
+
+        assert_eq!(snapshot1.chunks_processed, snapshot2.chunks_processed);
+    }
+
+    #[test]
+    fn test_record_multiple_operations() {
+        let metrics = ReductionMetrics::new();
+
+        metrics.record_chunk(1000, 500);
+        metrics.record_dedup_hit();
+        metrics.record_dedup_miss();
+        metrics.record_compress(500, 250);
+        metrics.record_encrypt();
+        metrics.record_gc_cycle(100);
+        metrics.record_key_rotation();
+
+        assert_eq!(metrics.chunks_processed.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.dedup_hits.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.dedup_misses.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.encrypt_ops.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.gc_cycles.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.key_rotations.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_snapshot_all_zero() {
+        let metrics = ReductionMetrics::new();
+        let handle = MetricsHandle {
+            inner: Arc::new(metrics),
+        };
+        let snapshot = handle.snapshot();
+
+        assert_eq!(snapshot.chunks_processed, 0);
+        assert_eq!(snapshot.bytes_in, 0);
+        assert_eq!(snapshot.bytes_out, 0);
+        assert_eq!(snapshot.dedup_hits, 0);
+        assert_eq!(snapshot.dedup_misses, 0);
+        assert_eq!(snapshot.encrypt_ops, 0);
+        assert_eq!(snapshot.gc_cycles, 0);
+        assert_eq!(snapshot.key_rotations, 0);
+    }
+
+    #[test]
+    fn test_concurrent_metric_recording() {
+        let metrics = Arc::new(ReductionMetrics::new());
+        let mut handles = Vec::new();
+
+        for i in 0..4 {
+            let m = Arc::clone(&metrics);
+            handles.push(std::thread::spawn(move || {
+                for j in 0..50 {
+                    m.record_chunk(i * 100 + j, i * 50 + j);
+                    m.record_dedup_hit();
+                    m.record_encrypt();
+                }
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        assert_eq!(metrics.chunks_processed.load(Ordering::Relaxed), 200);
+        assert_eq!(metrics.dedup_hits.load(Ordering::Relaxed), 200);
+        assert_eq!(metrics.encrypt_ops.load(Ordering::Relaxed), 200);
+    }
 }
