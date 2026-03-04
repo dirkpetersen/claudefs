@@ -210,3 +210,9 @@ pub mod gateway_nfs_core_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod meta_membership_raft_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod repl_active_conduit_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_engine_flush_security_tests;
