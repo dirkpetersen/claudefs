@@ -477,4 +477,83 @@ mod tests {
         assert_eq!(usage1.bytes_used, 500);
         assert_eq!(usage2.bytes_used, 200);
     }
+
+    #[test]
+    fn tenant_id_default() {
+        let id = TenantId::default();
+        assert_eq!(id, TenantId(0));
+    }
+
+    #[test]
+    fn tenant_id_hash() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(TenantId(1));
+        set.insert(TenantId(2));
+        assert_eq!(set.len(), 2);
+        assert!(set.contains(&TenantId(1)));
+    }
+
+    #[test]
+    fn record_chunk_unknown_tenant_returns_error() {
+        let mut isolator = TenantIsolator::new();
+        let result = isolator.record_chunk(TenantId(999), 100);
+        assert!(matches!(result, Err(TenantError::UnknownTenant { .. })));
+    }
+
+    #[test]
+    fn reset_usage_unknown_tenant_silent() {
+        let mut isolator = TenantIsolator::new();
+        isolator.reset_usage(TenantId(999));
+    }
+
+    #[test]
+    fn quota_utilization_over_quota() {
+        let usage = TenantUsage {
+            tenant_id: TenantId(1),
+            bytes_used: 2000,
+            iops_used: 0,
+            chunks_stored: 0,
+        };
+        let policy = TenantPolicy {
+            tenant_id: TenantId(1),
+            quota_bytes: 1000,
+            max_iops: 100,
+            priority: TenantPriority::Normal,
+        };
+        assert_eq!(usage.quota_utilization(&policy), 2.0);
+    }
+
+    #[test]
+    fn tenant_policy_with_zero_quota() {
+        let mut isolator = TenantIsolator::new();
+        isolator.register_tenant(TenantPolicy {
+            tenant_id: TenantId(1),
+            quota_bytes: 0,
+            max_iops: 100,
+            priority: TenantPriority::Normal,
+        });
+        let result = isolator.record_write(TenantId(1), 1);
+        assert!(matches!(result, Err(TenantError::QuotaExceeded { .. })));
+    }
+
+    #[test]
+    fn get_usage_unknown_returns_none() {
+        let isolator = TenantIsolator::new();
+        assert!(isolator.get_usage(TenantId(999)).is_none());
+    }
+
+    #[test]
+    fn record_write_saturating_add() {
+        let mut isolator = TenantIsolator::new();
+        isolator.register_tenant(TenantPolicy {
+            tenant_id: TenantId(1),
+            quota_bytes: u64::MAX,
+            max_iops: 100,
+            priority: TenantPriority::Normal,
+        });
+        isolator.record_write(TenantId(1), u64::MAX - 10).unwrap();
+        let result = isolator.record_write(TenantId(1), 5);
+        assert!(result.is_ok());
+    }
 }

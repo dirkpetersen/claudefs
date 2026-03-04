@@ -432,4 +432,109 @@ mod tests {
         assert!(!map.is_empty());
         assert_eq!(map.len(), 1);
     }
+
+    #[test]
+    fn logical_range_end_saturating_add() {
+        let range = LogicalRange::new(u64::MAX - 10, 100);
+        assert_eq!(range.end(), u64::MAX);
+    }
+
+    #[test]
+    fn block_map_insert_replaces_same_offset() {
+        let mut map = BlockMap::new(1);
+        map.insert(BlockEntry {
+            range: LogicalRange::new(0, 4096),
+            chunk_hash: [1u8; 32],
+            chunk_offset: 0,
+            chunk_size: 4096,
+        });
+        map.insert(BlockEntry {
+            range: LogicalRange::new(0, 8192),
+            chunk_hash: [2u8; 32],
+            chunk_offset: 100,
+            chunk_size: 8192,
+        });
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.entries[0].chunk_hash, [2u8; 32]);
+    }
+
+    #[test]
+    fn block_map_remove_range_multiple_covered() {
+        let mut map = BlockMap::new(1);
+        map.insert(BlockEntry {
+            range: LogicalRange::new(0, 4096),
+            chunk_hash: [1u8; 32],
+            chunk_offset: 0,
+            chunk_size: 4096,
+        });
+        map.insert(BlockEntry {
+            range: LogicalRange::new(4096, 4096),
+            chunk_hash: [2u8; 32],
+            chunk_offset: 4096,
+            chunk_size: 4096,
+        });
+        map.insert(BlockEntry {
+            range: LogicalRange::new(8192, 4096),
+            chunk_hash: [3u8; 32],
+            chunk_offset: 8192,
+            chunk_size: 4096,
+        });
+
+        let remove = LogicalRange::new(0, 12288);
+        map.remove_range(&remove);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn block_map_remove_range_no_match() {
+        let mut map = BlockMap::new(1);
+        map.insert(BlockEntry {
+            range: LogicalRange::new(0, 4096),
+            chunk_hash: [1u8; 32],
+            chunk_offset: 0,
+            chunk_size: 4096,
+        });
+
+        let remove = LogicalRange::new(10000, 4096);
+        map.remove_range(&remove);
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn block_map_store_get_mut() {
+        let mut store = BlockMapStore::new();
+        store.get_or_create(1);
+        let map = store.get_mut(1);
+        assert!(map.is_some());
+        map.unwrap().insert(BlockEntry {
+            range: LogicalRange::new(0, 4096),
+            chunk_hash: [1u8; 32],
+            chunk_offset: 0,
+            chunk_size: 4096,
+        });
+        assert_eq!(store.get(1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn block_map_lookup_range_boundary() {
+        let mut map = BlockMap::new(1);
+        map.insert(BlockEntry {
+            range: LogicalRange::new(0, 100),
+            chunk_hash: [1u8; 32],
+            chunk_offset: 0,
+            chunk_size: 100,
+        });
+
+        let query1 = LogicalRange::new(99, 1);
+        assert_eq!(map.lookup_range(&query1).len(), 1);
+
+        let query2 = LogicalRange::new(100, 1);
+        assert_eq!(map.lookup_range(&query2).len(), 0);
+    }
+
+    #[test]
+    fn block_map_store_get_unknown() {
+        let store = BlockMapStore::new();
+        assert!(store.get(999).is_none());
+    }
 }

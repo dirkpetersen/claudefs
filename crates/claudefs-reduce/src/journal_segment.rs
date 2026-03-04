@@ -353,4 +353,67 @@ mod tests {
         assert_eq!(entries[1].inode_id, 99);
         assert_eq!(entries[2].inode_id, 42);
     }
+
+    #[test]
+    fn append_duplicate_sequence_returns_error() {
+        let mut journal = JournalSegment::new(JournalConfig::default());
+        journal.append(make_entry(1, 42, 0, 10)).unwrap();
+        let result = journal.append(make_entry(1, 42, 10, 10));
+        assert!(matches!(result, Err(JournalError::InvalidSequence)));
+    }
+
+    #[test]
+    fn append_decreasing_sequence_returns_error() {
+        let mut journal = JournalSegment::new(JournalConfig::default());
+        journal.append(make_entry(5, 42, 0, 10)).unwrap();
+        let result = journal.append(make_entry(3, 42, 10, 10));
+        assert!(matches!(result, Err(JournalError::InvalidSequence)));
+    }
+
+    #[test]
+    fn since_returns_empty_if_all_before() {
+        let mut journal = JournalSegment::new(JournalConfig::default());
+        journal.append(make_entry(1, 42, 0, 10)).unwrap();
+        journal.append(make_entry(2, 42, 10, 10)).unwrap();
+
+        let entries = journal.since(100);
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn checkpoint_without_seal_allowed() {
+        let mut journal = JournalSegment::new(JournalConfig::default());
+        journal.checkpoint();
+        assert_eq!(journal.state(), JournalState::Checkpointed);
+    }
+
+    #[test]
+    fn seal_idempotent() {
+        let mut journal = JournalSegment::new(JournalConfig::default());
+        journal.seal();
+        journal.seal();
+        assert_eq!(journal.state(), JournalState::Sealed);
+    }
+
+    #[test]
+    fn append_exact_byte_limit() {
+        let config = JournalConfig {
+            max_entries: 100,
+            max_bytes: 100,
+        };
+        let mut journal = JournalSegment::new(config);
+        let result = journal.append(make_entry(1, 42, 0, 100));
+        assert!(result.is_ok());
+        assert!(journal.is_full());
+    }
+
+    #[test]
+    fn replay_after_checkpoint() {
+        let mut journal = JournalSegment::new(JournalConfig::default());
+        journal.append(make_entry(1, 42, 0, 10)).unwrap();
+        journal.seal();
+        journal.checkpoint();
+        let entries = journal.replay();
+        assert_eq!(entries.len(), 1);
+    }
 }
