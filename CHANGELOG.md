@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 21: Inline Dedup, Compression Advisor, Dedup Cache (2026-03-04)
+
+#### 3 New Modules — 70 New Tests, 1546 Total
+
+**Status:** ✅ 1546 tests passing, 0 failures (+70 from 1476)
+
+**New modules:**
+- `inline_dedup.rs` — Hot-path dedup decision engine; evaluates chunk size/entropy/fingerprint; 24 tests
+- `compression_advisor.rs` — Algorithm advisor based on observed ratios; recommends LZ4/Zstd; 22 tests
+- `dedup_cache.rs` — LRU cache for dedup hash lookups; 64K entry default; 24 tests
+
 ### A2: Metadata Service — Phase 5: ACL, Checkpoint, Symlink, DirWalk (2026-03-04)
 
 #### 4 New Modules — 54 New Tests, 812 Total
