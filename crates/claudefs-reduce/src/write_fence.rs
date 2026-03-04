@@ -1,6 +1,3 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FenceState {
     Open,
