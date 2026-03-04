@@ -244,10 +244,7 @@ PROMPTEOF
 )
 
 # Use Haiku if budget exceeded, otherwise Sonnet
-SUPERVISOR_MODEL="global.anthropic.claude-sonnet-4-6"
-if [[ -f /tmp/cfs-bedrock-budget-exceeded ]]; then
-  SUPERVISOR_MODEL="us.anthropic.claude-haiku-4-5-20251001-v1:0"
-fi
+SUPERVISOR_MODEL="us.anthropic.claude-haiku-4-5-20251001-v1:0"
 
 timeout 300 claude --dangerously-skip-permissions \
   --model "$SUPERVISOR_MODEL" \
