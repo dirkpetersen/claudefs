@@ -245,7 +245,7 @@ mod tests {
     fn test_latest_checkpoint() {
         let mut manager = make_manager(10);
 
-        let meta1 = manager
+        let _meta1 = manager
             .create_checkpoint(LogIndex::new(100), vec![])
             .unwrap();
         let meta2 = manager

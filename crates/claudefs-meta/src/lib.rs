@@ -20,6 +20,8 @@ pub mod consensus;
 pub mod cross_shard;
 /// Directory operations
 pub mod directory;
+/// Recursive directory tree walker
+pub mod dir_walk;
 /// Directory sharding for hot directories
 pub mod dirshard;
 /// Open file handle management
@@ -121,6 +123,7 @@ pub use cdc::{CdcCursor, CdcEvent, CdcStream};
 pub use checkpoint::{Checkpoint, CheckpointManager, CheckpointMeta};
 pub use conflict::{ConflictDetector, ConflictEvent, ConflictWinner};
 pub use cross_shard::{CrossShardCoordinator, CrossShardResult};
+pub use dir_walk::{DirWalker, WalkConfig, WalkControl, WalkEntry, WalkStats};
 pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
 pub use fingerprint::FingerprintIndex;
