@@ -46,6 +46,8 @@ pub mod nfs_referral;
 pub mod nfs_v4_session;
 /// NFS write operations.
 pub mod nfs_write;
+/// Async TCP listener for NFSv3 RPC connections.
+pub mod nfs_listener;
 /// Performance configuration for gateway.
 pub mod perf_config;
 /// pNFS layout handling.

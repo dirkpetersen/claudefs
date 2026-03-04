@@ -65,8 +65,14 @@ impl<B: VfsBackend> RpcDispatcher<B> {
         }
     }
 
+    /// Dispatches raw RPC call bytes to the appropriate handler.
+    /// Returns the encoded RPC reply bytes.
+    pub fn dispatch(&self, buf: &[u8]) -> Vec<u8> {
+        self.process_tcp(buf)
+    }
+
     /// Dispatches an RPC call to the appropriate NFS or MOUNT handler.
-    pub fn dispatch(&self, call: &RpcCall) -> Vec<u8> {
+    pub fn dispatch_call(&self, call: &RpcCall) -> Vec<u8> {
         let auth = AuthCred::from_opaque_auth(&call.cred);
 
         match (call.prog, call.vers) {
@@ -344,7 +350,7 @@ impl<B: VfsBackend> RpcDispatcher<B> {
 
         match RpcCall::decode(rpc_data) {
             Ok(call) => {
-                let reply = self.dispatch(&call);
+                let reply = self.dispatch_call(&call);
                 crate::rpc::TcpRecordMark::encode(&reply)
             }
             Err(_) => vec![],
@@ -396,7 +402,7 @@ mod tests {
         let call_data = enc.finish().to_vec();
 
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 1);
@@ -419,7 +425,7 @@ mod tests {
         let call_data = enc.finish().to_vec();
 
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 2);
@@ -454,7 +460,7 @@ mod tests {
         let call_data = enc.finish().to_vec();
 
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 3);
@@ -478,7 +484,7 @@ mod tests {
         let call_data = enc.finish().to_vec();
 
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 4);
@@ -533,7 +539,7 @@ mod tests {
 
         let call_data = enc.finish().to_vec();
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 6);
@@ -558,7 +564,7 @@ mod tests {
         let call_data = enc.finish().to_vec();
 
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 7);
@@ -581,7 +587,7 @@ mod tests {
         let call_data = enc.finish().to_vec();
 
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 8);
@@ -617,7 +623,7 @@ mod tests {
 
         let call_data = enc.finish().to_vec();
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 9);
@@ -641,7 +647,7 @@ mod tests {
         let call_data = enc.finish().to_vec();
 
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 10);
@@ -677,7 +683,7 @@ mod tests {
 
         let call_data = enc.finish().to_vec();
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 11);
@@ -714,7 +720,7 @@ mod tests {
 
         let call_data = enc.finish().to_vec();
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         assert!(reply.len() > 4);
     }
@@ -739,7 +745,7 @@ mod tests {
         let call_data = enc.finish().to_vec();
 
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 13);
@@ -776,7 +782,7 @@ mod tests {
 
         let call_data = enc.finish().to_vec();
         let call = RpcCall::decode(&call_data).unwrap();
-        let reply = disp.dispatch(&call);
+        let reply = disp.dispatch_call(&call);
 
         let mut dec = XdrDecoder::new(prost::bytes::Bytes::from(reply));
         assert_eq!(dec.decode_u32().unwrap(), 14);

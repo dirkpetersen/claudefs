@@ -344,4 +344,125 @@ mod tests {
         let mut dec = XdrDecoder::new(buf);
         assert_eq!(dec.decode_string().unwrap(), s);
     }
+
+    mod proptest_tests {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn prop_u32_roundtrip(v in any::<u32>()) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_u32(v);
+                let buf = enc.finish();
+                let mut dec = XdrDecoder::new(buf);
+                prop_assert_eq!(dec.decode_u32().unwrap(), v);
+                prop_assert_eq!(dec.remaining(), 0);
+            }
+
+            #[test]
+            fn prop_i32_roundtrip(v in any::<i32>()) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_i32(v);
+                let buf = enc.finish();
+                let mut dec = XdrDecoder::new(buf);
+                prop_assert_eq!(dec.decode_i32().unwrap(), v);
+                prop_assert_eq!(dec.remaining(), 0);
+            }
+
+            #[test]
+            fn prop_u64_roundtrip(v in any::<u64>()) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_u64(v);
+                let buf = enc.finish();
+                let mut dec = XdrDecoder::new(buf);
+                prop_assert_eq!(dec.decode_u64().unwrap(), v);
+                prop_assert_eq!(dec.remaining(), 0);
+            }
+
+            #[test]
+            fn prop_i64_roundtrip(v in any::<i64>()) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_i64(v);
+                let buf = enc.finish();
+                let mut dec = XdrDecoder::new(buf);
+                prop_assert_eq!(dec.decode_i64().unwrap(), v);
+                prop_assert_eq!(dec.remaining(), 0);
+            }
+
+            #[test]
+            fn prop_bool_roundtrip(v in any::<bool>()) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_bool(v);
+                let buf = enc.finish();
+                let mut dec = XdrDecoder::new(buf);
+                prop_assert_eq!(dec.decode_bool().unwrap(), v);
+                prop_assert_eq!(dec.remaining(), 0);
+            }
+
+            #[test]
+            fn prop_opaque_variable_roundtrip(data in proptest::collection::vec(any::<u8>(), 0..256)) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_opaque_variable(&data);
+                let buf = enc.finish();
+                let mut dec = XdrDecoder::new(buf);
+                prop_assert_eq!(dec.decode_opaque_variable().unwrap(), data);
+                prop_assert_eq!(dec.remaining(), 0);
+            }
+
+            #[test]
+            fn prop_string_roundtrip(s in r"\PC{0,200}") {
+                let mut enc = XdrEncoder::new();
+                enc.encode_string(&s);
+                let buf = enc.finish();
+                let mut dec = XdrDecoder::new(buf);
+                prop_assert_eq!(dec.decode_string().unwrap(), s);
+                prop_assert_eq!(dec.remaining(), 0);
+            }
+
+            #[test]
+            fn prop_sequence_roundtrip(
+                a in any::<u32>(),
+                b in any::<u64>(),
+                c in any::<bool>(),
+                s in r"\PC{0,100}"
+            ) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_u32(a);
+                enc.encode_u64(b);
+                enc.encode_bool(c);
+                enc.encode_string(&s);
+                let buf = enc.finish();
+
+                let mut dec = XdrDecoder::new(buf);
+                prop_assert_eq!(dec.decode_u32().unwrap(), a);
+                prop_assert_eq!(dec.decode_u64().unwrap(), b);
+                prop_assert_eq!(dec.decode_bool().unwrap(), c);
+                prop_assert_eq!(dec.decode_string().unwrap(), s);
+                prop_assert_eq!(dec.remaining(), 0);
+            }
+
+            #[test]
+            fn prop_encoding_alignment(data in proptest::collection::vec(any::<u8>(), 0..100)) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_opaque_variable(&data);
+                let buf = enc.finish();
+                let expected_len = 4 + data.len() + ((4 - (data.len() % 4)) % 4);
+                prop_assert_eq!(buf.len(), expected_len);
+            }
+
+            #[test]
+            fn prop_truncated_returns_error(v in any::<u64>()) {
+                let mut enc = XdrEncoder::new();
+                enc.encode_u64(v);
+                let full_buf = enc.finish();
+                if full_buf.len() > 1 {
+                    let truncated = full_buf.slice(..full_buf.len() - 1);
+                    let mut dec = XdrDecoder::new(truncated);
+                    let result = dec.decode_u64();
+                    prop_assert!(result.is_err(), "Expected error for truncated buffer");
+                }
+            }
+        }
+    }
 }
