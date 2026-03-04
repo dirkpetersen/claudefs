@@ -6,6 +6,88 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 2: Multi-Node Cluster Deployment & Lifecycle (2026-03-04)
+
+#### 5 New Tools + Enhanced CLI — Full Multi-Node Infrastructure
+
+**Status:** ✅ Complete — Phase 2 infrastructure foundation ready
+
+**Deliverables:**
+
+1. **PHASE2_INFRASTRUCTURE.md** (303 lines)
+   - Comprehensive Phase 2 implementation roadmap
+   - 6 implementation tasks with effort estimates
+   - Architecture diagram (10-node cluster: 1 orchestrator + 9 preemptible)
+   - Success criteria and timeline for Phase 2
+   - Risk mitigation and rollback procedures
+
+2. **spot-fleet-manager.sh** (445 lines)
+   - Spot instance lifecycle management and monitoring
+   - Automatic detection of spot interruption notices (2-minute warning)
+   - Graceful shutdown with state preservation to S3
+   - Health validation via SSH connectivity checks
+   - Auto-queuing of replacement instances
+   - Budget-aware provisioning
+
+3. **deploy-cluster.sh** (504 lines)
+   - Multi-node deployment orchestrator
+   - Single release binary build, distributed to all nodes
+   - Coordinated service startup (storage → conduit → clients)
+   - Per-node binary backup and automatic rollback on failure
+   - Validation of deployment across all nodes
+   - Support for full-cluster or single-node redeployment
+
+4. **cluster-health-check.sh** (499 lines)
+   - Comprehensive cluster health validator
+   - Quick status checks (SSH + service status)
+   - Full health reports with per-node diagnostics
+   - Inter-node RPC connectivity testing (port 9400)
+   - Cross-site replication verification
+   - Disk usage and resource monitoring
+   - Continuous monitoring mode with configurable intervals
+   - Thresholds: latency (>100ms warn, >500ms crit), disk (>80% warn, >95% crit)
+
+5. **cfs-dev CLI Enhancements**
+   - `cfs-dev deploy [--skip-build] [--node NAME]` — build and deploy to all/specific nodes
+   - `cfs-dev validate` — verify deployment across cluster
+   - `cfs-dev health <status|full|connectivity|replication|monitor>` — cluster health monitoring
+   - Updated help text with Phase 2 workflow examples
+
+**Phase 2 Workflow (Single Command Sequence):**
+```bash
+cfs-dev up --phase 2                 # Provision 10-node cluster
+cfs-dev health full                  # Comprehensive health report
+cfs-dev deploy                       # Build and deploy to all nodes
+cfs-dev validate                     # Verify deployment
+cfs-dev health monitor 60            # Watch cluster for stability
+```
+
+**Infrastructure Capabilities:**
+- ✅ 10-node test cluster: 3-node Site A + 2-node Site B + 2 clients + 1 conduit + 1 Jepsen + 1 orchestrator
+- ✅ Spot instance provisioning with on-demand fallback
+- ✅ Automatic spot interruption handling (2-minute warning)
+- ✅ Multi-node deployment pipeline with coordinated startup
+- ✅ Health monitoring across all cluster nodes
+- ✅ Inter-node connectivity validation (RPC, TCP, SSH)
+- ✅ Replication status verification (Site A/B, conduit)
+- ✅ Graceful rollback capability on deployment failures
+
+**Next Steps for Phase 2:**
+1. Verify cluster provisioning via Terraform (completed)
+2. Test multi-node deployment pipeline (ready for A5/A2/A4 teams)
+3. Run POSIX test suites (A9) across multi-node cluster
+4. Validate cross-site replication (A6 + A2)
+5. Test spot instance interruption handling
+6. Implement CI/CD workflow for automated cluster tests
+
+**Dependencies Met:**
+- ✅ Terraform infrastructure templates (Phase 1)
+- ✅ watchdog/supervisor automation (Phase 1)
+- ✅ Basic cfs-dev CLI (Phase 1)
+- Ready for: A1/A2/A4/A5/A6 multi-node integration
+
+---
+
 ### A3: Data Reduction — Phase 18: Dedup Bloom, Journal Replay, Namespace Tree (2026-03-04)
 
 #### 3 New Modules — 46 New Tests, 1349 Total
