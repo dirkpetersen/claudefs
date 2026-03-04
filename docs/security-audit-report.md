@@ -1746,3 +1746,50 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 8. Transaction ID & Participant (3)
 9. Lease Grant & Revocation (5)
 10. Lease Advanced Operations (7)
+
+## Section 40: Phase 23 — Gateway pNFS-Flex/S3-Router & Meta WORM Compliance
+
+**Date:** 2026-03-04
+**Tests added:** 50 (25 + 25)
+**Total tests:** 1771
+**Modules:**
+- `gateway_pnfs_s3router_security_tests.rs` — 25 tests
+- `meta_worm_security_tests.rs` — 25 tests
+
+### Findings
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| FINDING-GW-PNFS-01 | MEDIUM | Stripe unit validation enforces alignment — prevents data corruption |
+| FINDING-GW-PNFS-02 | MEDIUM | Unlimited length segments correctly handle entire-file coverage |
+| FINDING-GW-PNFS-03 | MEDIUM | Range query correctly identifies covering segments |
+| FINDING-GW-PNFS-04 | HIGH | Layout server rejects invalid stripe units — prevents client data corruption |
+| FINDING-GW-PNFS-05 | HIGH | Zero mirrors rejected — prevents empty layouts |
+| FINDING-GW-PNFS-06 | HIGH | Empty server list rejected — prevents layouts with no data paths |
+| FINDING-GW-S3R-01 | MEDIUM | Path parsing correctly handles nested keys with slashes |
+| FINDING-GW-S3R-02 | MEDIUM | Copy-source header correctly triggers server-side copy routing |
+| FINDING-GW-S3R-03 | MEDIUM | Unsupported HTTP methods rejected — prevents undefined behavior |
+| FINDING-GW-S3R-04 | HIGH | Malformed copy source rejected — prevents path traversal in copy operations |
+| FINDING-META-WORM-01 | LOW | Zero-retention policy allows immediate unlock — caller must enforce minimum |
+| FINDING-META-WORM-02 | LOW | No-max retention allows indefinite lock — correct for compliance |
+| FINDING-META-WORM-03 | HIGH | Locked files are immutable — modification and deletion blocked |
+| FINDING-META-WORM-04 | HIGH | Lock requires retention policy — prevents accidental permanent lock |
+| FINDING-META-WORM-05 | HIGH | Unlock during active retention rejected — prevents compliance violation |
+| FINDING-META-WORM-06 | HIGH | Legal hold prevents unlock — regulatory compliance enforced |
+| FINDING-META-WORM-07 | MEDIUM | Legal hold release requires exact hold_id match |
+| FINDING-META-WORM-08 | MEDIUM | Wrong hold_id rejected — prevents unauthorized release |
+| FINDING-META-WORM-09 | MEDIUM | Legal hold overrides retention lock — highest protection wins |
+| FINDING-META-WORM-10 | MEDIUM | All WORM operations are audited — compliance trail complete |
+| FINDING-META-WORM-11 | LOW | Audit records actor identity — supports accountability |
+
+**Categories tested:**
+1. pNFS Flex File Data Structures (5)
+2. pNFS Flex File Layout Server (5)
+3. pNFS Layout Operations (3)
+4. S3 Router Request Parsing (5)
+5. S3 Router Response & Integration (7)
+6. Retention Policy (4)
+7. WORM State Machine (5)
+8. WORM Manager Lock/Unlock (6)
+9. Legal Hold Operations (5)
+10. Audit Trail & Counts (5)

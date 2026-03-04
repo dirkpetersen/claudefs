@@ -180,3 +180,9 @@ pub mod gateway_metrics_health_stats_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod meta_transaction_lease_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_worm_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_pnfs_s3router_security_tests;
