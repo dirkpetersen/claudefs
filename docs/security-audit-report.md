@@ -1699,3 +1699,50 @@ Deep audit of ZNS zone management, FDP placement hints, NVMe SMART health monito
 8. Gateway Metrics Aggregation (5)
 9. Health Checker & Report (5)
 10. Protocol Stats & Edge Cases (5)
+
+## Section 39: Phase 22 — Gateway Copy-Offload/Referral & Meta Transaction/Lease
+
+**Date:** 2026-03-04
+**Tests added:** 50 (25 + 25)
+**Total tests:** 1721
+**Modules:**
+- `gateway_copy_referral_security_tests.rs` — 25 tests
+- `meta_transaction_lease_security_tests.rs` — 25 tests
+
+### Findings
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| FINDING-GW-COPY-01 | HIGH | Concurrent copy limit prevents resource exhaustion |
+| FINDING-GW-COPY-02 | MEDIUM | Double-complete prevented — state machine enforced |
+| FINDING-GW-COPY-03 | LOW | Zero-total-bytes produces 100% — no division by zero |
+| FINDING-GW-COPY-04 | HIGH | Referral target validation prevents invalid server redirects |
+| FINDING-GW-COPY-05 | HIGH | Referral path validation prevents path confusion attacks |
+| FINDING-GW-COPY-06 | MEDIUM | Duplicate referral paths rejected — prevents referral loops |
+| FINDING-GW-COPY-07 | MEDIUM | Longest-prefix match ensures correct referral routing |
+| FINDING-GW-COPY-08 | MEDIUM | Root referral acts as catch-all, more specific paths take priority |
+| FINDING-META-TXN-01 | HIGH | 2PC commit requires all participant votes — unanimous agreement |
+| FINDING-META-TXN-02 | HIGH | Single abort vote aborts entire transaction — safety-first 2PC |
+| FINDING-META-TXN-03 | MEDIUM | Transaction does not proceed until all participants respond |
+| FINDING-META-TXN-04 | MEDIUM | Commit only allowed in Committing state — prevents premature commits |
+| FINDING-META-TXN-05 | MEDIUM | Non-participant shards cannot influence transaction outcome |
+| FINDING-META-TXN-06 | HIGH | Double-vote allowed (last vote wins) — potential vote-flipping concern |
+| FINDING-META-TXN-07 | HIGH | Timed-out transactions auto-abort — prevents indefinite resource holding |
+| FINDING-META-LEASE-01 | MEDIUM | Multiple read leases coexist — shared read caching |
+| FINDING-META-LEASE-02 | HIGH | Write lease is exclusive — prevents concurrent writes |
+| FINDING-META-LEASE-03 | HIGH | Write lease blocked by read — read consistency protected |
+| FINDING-META-LEASE-04 | HIGH | Inode revocation notifies all lease holders — cache coherence |
+| FINDING-META-LEASE-05 | MEDIUM | Client revocation cleans up all leases on disconnect |
+| FINDING-META-LEASE-06 | LOW | Lease renewal extends cache validity |
+
+**Categories tested:**
+1. Copy Offload Manager Lifecycle (5)
+2. Copy Progress & Cleanup (5)
+3. Clone & Copy Result (3)
+4. Referral Target & Entry Validation (5)
+5. Referral Database Operations (7)
+6. Transaction State Machine (5)
+7. Transaction Error Handling (5)
+8. Transaction ID & Participant (3)
+9. Lease Grant & Revocation (5)
+10. Lease Advanced Operations (7)
