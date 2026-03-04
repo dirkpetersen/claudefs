@@ -164,6 +164,9 @@ pub mod repl_phase2_security_tests;
     pub mod repl_qos_gc_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
+    pub mod repl_splitbrain_tls_security_tests;
+    #[cfg(test)]
+    #[allow(missing_docs)]
     pub mod transport_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
@@ -183,6 +186,9 @@ pub mod meta_transaction_lease_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod meta_worm_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_conflict_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod gateway_pnfs_s3router_security_tests;
