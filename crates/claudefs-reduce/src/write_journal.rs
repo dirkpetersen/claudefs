@@ -181,7 +181,8 @@ mod tests {
         let seq1 = journal.append(1, 0, 4096, hash);
         let seq2 = journal.append(1, 4096, 4096, hash);
         journal.commit(seq1);
-        journal.flush_committed(seq2);
+        journal.commit(seq2);
+        journal.flush_committed(seq2 + 1);
         assert!(journal.is_empty());
     }
 
