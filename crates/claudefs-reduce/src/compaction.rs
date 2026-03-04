@@ -79,11 +79,7 @@ impl CompactionEngine {
     ///
     /// Segments whose live ratio < config.live_ratio_threshold are candidates.
     /// Returns indices into the input slice.
-    pub fn select_candidates<'a>(
-        &self,
-        segments: &'a [Segment],
-        live_hashes: &[ChunkHash],
-    ) -> Vec<usize> {
+    pub fn select_candidates(&self, segments: &[Segment], live_hashes: &[ChunkHash]) -> Vec<usize> {
         segments
             .iter()
             .enumerate()
@@ -129,7 +125,7 @@ impl CompactionEngine {
                 }
             }
 
-            if segment_live > 0 || segment.entries.len() > 0 {
+            if segment_live > 0 || !segment.entries.is_empty() {
                 result.segments_compacted += 1;
             }
         }
