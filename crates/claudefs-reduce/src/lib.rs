@@ -48,6 +48,9 @@ pub mod tenant_isolator;
 pub mod namespace_tree;
 pub mod tiering;
 pub mod write_amplification;
+pub mod dedup_coordinator;
+pub mod refcount_table;
+pub mod pipeline_orchestrator;
 pub mod write_path;
 pub mod write_buffer;
 pub mod dedup_pipeline;
@@ -292,4 +295,16 @@ pub use delta_index::{
 pub use object_assembler::{
     BlobKey, ChunkLocation as BlobChunkLocation, CompletedBlob, ObjectAssembler,
     ObjectAssemblerConfig, ObjectAssemblerStats,
+};
+
+pub use dedup_coordinator::{
+    DedupCoordinator, DedupCoordinatorConfig, DedupCoordinatorStats, DedupLookupResult,
+    NodeFingerprintStore, ShardId,
+};
+pub use refcount_table::{
+    RefcountTable, RefcountTableConfig, RefcountTableStats, RefEntry,
+};
+pub use pipeline_orchestrator::{
+    OrchestratorState, PipelineOrchestrator, PipelineOrchestratorConfig, PipelineStage,
+    StageMetricsData,
 };
