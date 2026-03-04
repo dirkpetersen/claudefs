@@ -279,8 +279,8 @@ mod tests {
     fn test_legal_hold_never_expires() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::legal_hold(), 0);
-        reducer.register(2, RetentionPolicy::immutable_until(100), 0);
+        let _ = reducer.register(1, RetentionPolicy::legal_hold(), 0);
+        let _ = reducer.register(2, RetentionPolicy::immutable_until(100), 0);
 
         assert_eq!(reducer.active_count(200), 1);
     }
@@ -289,9 +289,9 @@ mod tests {
     fn test_gc_removes_all_expired() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::immutable_until(100), 0);
-        reducer.register(2, RetentionPolicy::immutable_until(200), 0);
-        reducer.register(3, RetentionPolicy::immutable_until(300), 0);
+        let _ = reducer.register(1, RetentionPolicy::immutable_until(100), 0);
+        let _ = reducer.register(2, RetentionPolicy::immutable_until(200), 0);
+        let _ = reducer.register(3, RetentionPolicy::immutable_until(300), 0);
 
         let removed = reducer.gc_expired(250);
         assert_eq!(removed, 2);
@@ -303,8 +303,8 @@ mod tests {
     fn test_none_mode_not_counted_as_active() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::none(), 0);
-        reducer.register(2, RetentionPolicy::immutable_until(1000), 0);
+        let _ = reducer.register(1, RetentionPolicy::none(), 0);
+        let _ = reducer.register(2, RetentionPolicy::immutable_until(1000), 0);
 
         assert_eq!(reducer.active_count(500), 1);
     }
@@ -333,10 +333,10 @@ mod tests {
     fn test_mixed_policies() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::none(), 0);
-        reducer.register(2, RetentionPolicy::legal_hold(), 0);
-        reducer.register(3, RetentionPolicy::immutable_until(500), 0);
-        reducer.register(4, RetentionPolicy::immutable_until(1000), 0);
+        let _ = reducer.register(1, RetentionPolicy::none(), 0);
+        let _ = reducer.register(2, RetentionPolicy::legal_hold(), 0);
+        let _ = reducer.register(3, RetentionPolicy::immutable_until(500), 0);
+        let _ = reducer.register(4, RetentionPolicy::immutable_until(1000), 0);
 
         assert_eq!(reducer.active_count(600), 2);
         assert_eq!(reducer.active_count(1100), 1);
@@ -356,8 +356,8 @@ mod tests {
     fn test_gc_legal_hold_preserved() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::legal_hold(), 0);
-        reducer.register(2, RetentionPolicy::immutable_until(100), 0);
+        let _ = reducer.register(1, RetentionPolicy::legal_hold(), 0);
+        let _ = reducer.register(2, RetentionPolicy::immutable_until(100), 0);
 
         let removed = reducer.gc_expired(200);
         assert_eq!(removed, 1);
@@ -369,10 +369,10 @@ mod tests {
         let mut reducer = WormReducer::new();
 
         for i in 1..=10 {
-            reducer.register(i, RetentionPolicy::immutable_until(i * 100), 0);
+            let _ = reducer.register(i, RetentionPolicy::immutable_until(i * 100), 0);
         }
         // Add one more block that won't expire even at 1001
-        reducer.register(11, RetentionPolicy::immutable_until(2000), 0);
+        let _ = reducer.register(11, RetentionPolicy::immutable_until(2000), 0);
 
         let removed1 = reducer.gc_expired(500);
         assert_eq!(removed1, 4);
@@ -401,8 +401,8 @@ mod tests {
     fn test_very_large_gc_timestamp() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::immutable_until(1000), 0);
-        reducer.register(2, RetentionPolicy::legal_hold(), 0);
+        let _ = reducer.register(1, RetentionPolicy::immutable_until(1000), 0);
+        let _ = reducer.register(2, RetentionPolicy::legal_hold(), 0);
 
         let removed = reducer.gc_expired(u64::MAX);
         assert_eq!(removed, 1);
@@ -412,8 +412,8 @@ mod tests {
     fn test_register_overwrites() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::none(), 100);
-        reducer.register(1, RetentionPolicy::legal_hold(), 200);
+        let _ = reducer.register(1, RetentionPolicy::none(), 100);
+        let _ = reducer.register(1, RetentionPolicy::legal_hold(), 200);
 
         let (policy, size) = reducer.get(&1).unwrap();
         assert!(matches!(policy.mode, WormMode::LegalHold));
@@ -424,9 +424,9 @@ mod tests {
     fn test_different_hash_sizes() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::legal_hold(), 100);
-        reducer.register(1000000, RetentionPolicy::legal_hold(), 200);
-        reducer.register(u64::MAX, RetentionPolicy::legal_hold(), 300);
+        let _ = reducer.register(1, RetentionPolicy::legal_hold(), 100);
+        let _ = reducer.register(1000000, RetentionPolicy::legal_hold(), 200);
+        let _ = reducer.register(u64::MAX, RetentionPolicy::legal_hold(), 300);
 
         assert_eq!(reducer.active_count(0), 3);
     }
@@ -453,7 +453,7 @@ mod tests {
 
         for i in 1..=10 {
             let ts = i * 100;
-            reducer.register(i, RetentionPolicy::immutable_until(ts), 0);
+            let _ = reducer.register(i, RetentionPolicy::immutable_until(ts), 0);
         }
 
         for check_ts in [0, 100, 250, 500, 750, 1000, 1500] {
@@ -467,8 +467,8 @@ mod tests {
     fn test_gc_idempotent() {
         let mut reducer = WormReducer::new();
 
-        reducer.register(1, RetentionPolicy::immutable_until(100), 0);
-        reducer.register(2, RetentionPolicy::immutable_until(200), 0);
+        let _ = reducer.register(1, RetentionPolicy::immutable_until(100), 0);
+        let _ = reducer.register(2, RetentionPolicy::immutable_until(200), 0);
 
         let first = reducer.gc_expired(150);
         assert_eq!(first, 1);
@@ -490,7 +490,7 @@ mod tests {
     #[test]
     fn test_policy_clone() {
         let policy = RetentionPolicy::legal_hold();
-        let cloned = policy.clone();
+        let cloned = policy;
         assert!(!cloned.is_expired(0));
     }
 
@@ -522,8 +522,8 @@ mod tests {
     #[test]
     fn test_gc_with_only_none_mode() {
         let mut reducer = WormReducer::new();
-        reducer.register(1, RetentionPolicy::none(), 0);
-        reducer.register(2, RetentionPolicy::none(), 0);
+        let _ = reducer.register(1, RetentionPolicy::none(), 0);
+        let _ = reducer.register(2, RetentionPolicy::none(), 0);
 
         let removed = reducer.gc_expired(1000);
         assert_eq!(removed, 2);
@@ -533,8 +533,8 @@ mod tests {
     #[test]
     fn test_gc_with_only_legal_hold() {
         let mut reducer = WormReducer::new();
-        reducer.register(1, RetentionPolicy::legal_hold(), 0);
-        reducer.register(2, RetentionPolicy::legal_hold(), 0);
+        let _ = reducer.register(1, RetentionPolicy::legal_hold(), 0);
+        let _ = reducer.register(2, RetentionPolicy::legal_hold(), 0);
 
         let removed = reducer.gc_expired(u64::MAX);
         assert_eq!(removed, 0);
@@ -551,9 +551,9 @@ mod tests {
             } else if i % 3 == 1 {
                 RetentionPolicy::legal_hold()
             } else {
-                RetentionPolicy::immutable_until(i as u64)
+                RetentionPolicy::immutable_until(i)
             };
-            reducer.register(i, policy, i as u64);
+            let _ = reducer.register(i, policy, i);
         }
 
         assert_eq!(reducer.active_count(501), 499);

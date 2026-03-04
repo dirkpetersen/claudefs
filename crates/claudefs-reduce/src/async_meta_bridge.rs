@@ -459,7 +459,7 @@ mod tests {
 
         let segments = write_path.flush_segments();
 
-        assert!(segments.len() >= 1);
+        assert!(!segments.is_empty());
     }
 
     #[tokio::test]
@@ -492,7 +492,7 @@ mod tests {
         let data = test_data(5000);
         let result = write_path.process_write(&data).await.unwrap();
 
-        assert!(result.reduced_chunks.len() > 0);
+        assert!(!result.reduced_chunks.is_empty());
     }
 
     #[tokio::test]
@@ -504,7 +504,7 @@ mod tests {
         let data = test_data(1_000_000);
         let result = write_path.process_write(&data).await.unwrap();
 
-        assert!(result.reduced_chunks.len() >= 1);
+        assert!(!result.reduced_chunks.is_empty());
         assert!(result.stats.pipeline.input_bytes == 1_000_000);
     }
 

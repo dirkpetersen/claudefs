@@ -347,11 +347,10 @@ mod tests {
         let mut packer = SegmentPacker::new(SegmentPackerConfig { target_size: 1024 });
 
         let sealed_segments: Vec<_> = (0..100)
-            .map(|i| {
+            .filter_map(|i| {
                 let (_, payload) = make_chunk(100);
                 packer.add_chunk(blake3_hash(&[i]), &payload, payload.len() as u32)
             })
-            .filter_map(|s| s)
             .collect();
 
         assert!(!sealed_segments.is_empty());
