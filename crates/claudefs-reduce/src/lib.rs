@@ -85,20 +85,20 @@ pub mod ec_repair;
 pub mod segment_gc;
 /// Checksum store for end-to-end data integrity.
 pub mod checksum_store;
+/// Chunk reference tracking for GC coordination.
+pub mod chunk_tracker;
+/// Consistent hash ring for shard/node assignment.
+pub mod hash_ring;
 /// Pipeline backpressure for memory management.
 pub mod pipeline_backpressure;
+/// Append-only write journal for ordered write tracking.
+pub mod write_journal;
 pub mod ingest_pipeline;
 pub mod prefetch_manager;
 pub mod dedup_index;
 pub mod object_store_bridge;
 pub mod chunk_pool;
 pub mod recovery_scanner;
-/// Chunk reference tracking for GC coordination.
-pub mod chunk_tracker;
-/// Consistent hash ring for shard/node assignment.
-pub mod hash_ring;
-/// Append-only write journal for ordered write tracking.
-pub mod write_journal;
 /// GC wave coordinator for multi-phase garbage collection.
 pub mod gc_coordinator;
 /// Block-level snapshot diff for incremental replication.
@@ -250,6 +250,11 @@ pub use object_store_bridge::{
     MemoryObjectStore, ObjectKey, ObjectMetadata, ObjectStoreStats, StoreResult,
 };
 pub use chunk_pool::{ChunkPool, PoolConfig, PoolStats, PooledBuffer};
+pub use chunk_tracker::{ChunkRecord, ChunkState, ChunkTracker, TrackerStats};
+pub use hash_ring::{HashRing, HashRingConfig, RingMember, RingStats};
+pub use write_journal::{
+    JournalEntryData, WriteJournal, WriteJournalConfig, WriteJournalStats,
+};
 pub use recovery_scanner::{
     RecoveryEntry, RecoveryError, RecoveryReport, RecoveryScanner, RecoveryScannerConfig,
     SegmentHeader,
@@ -259,11 +264,6 @@ pub use journal_replay::{
     InodeReplayState, JournalReplayer, ReplayAction, ReplayConfig, ReplayState, ReplayStats,
 };
 pub use namespace_tree::{DirEntry, DirId, NamespaceTree};
-pub use chunk_tracker::{ChunkRecord, ChunkState, ChunkTracker, TrackerStats};
-pub use hash_ring::{HashRing, HashRingConfig, RingMember, RingStats};
-pub use write_journal::{
-    JournalEntryData, WriteJournal, WriteJournalConfig, WriteJournalStats,
-};
 pub use gc_coordinator::{
     GcCandidate, GcCoordinator, GcCoordinatorConfig, GcPhase, GcWaveStats,
 };

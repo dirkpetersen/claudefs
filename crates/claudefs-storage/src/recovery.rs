@@ -12,6 +12,7 @@ use crate::error::{StorageError, StorageResult};
 use crate::flush::JournalEntry;
 use crate::superblock::Superblock;
 
+/// Magic bytes for journal checkpoint header validation.
 pub const JOURNAL_CHECKPOINT_MAGIC: u32 = 0x434A4350;
 
 const fn make_crc32c_table() -> [u32; 256] {
@@ -47,11 +48,16 @@ const fn crc32c(data: &[u8]) -> u32 {
     !crc
 }
 
+/// Configuration for crash recovery operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryConfig {
+    /// Unique identifier for the cluster this recovery manager belongs to.
     pub cluster_uuid: [u8; 16],
+    /// Maximum number of journal entries to replay during recovery.
     pub max_journal_replay_entries: usize,
+    /// Whether to verify checksums during recovery.
     pub verify_checksums: bool,
+    /// Whether to allow partial recovery when some operations fail.
     pub allow_partial_recovery: bool,
 }
 
@@ -66,28 +72,44 @@ impl Default for RecoveryConfig {
     }
 }
 
+/// Current phase of the recovery process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum RecoveryPhase {
+    /// Recovery has not yet started.
     #[default]
     NotStarted,
+    /// Reading and validating superblock.
     SuperblockRead,
+    /// Loading allocator bitmap.
     BitmapLoaded,
+    /// Scanning journal entries.
     JournalScanned,
+    /// Replaying journal entries.
     JournalReplayed,
+    /// Recovery completed successfully.
     Complete,
+    /// Recovery failed.
     Failed,
 }
 
+/// Current state of the recovery process.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RecoveryState {
+    /// Current phase of recovery.
     pub phase: RecoveryPhase,
+    /// Number of devices discovered during recovery.
     pub devices_discovered: usize,
+    /// Number of devices that passed validation.
     pub devices_valid: usize,
+    /// Number of journal entries found during scan.
     pub journal_entries_found: usize,
+    /// Number of journal entries replayed.
     pub journal_entries_replayed: usize,
+    /// Errors encountered during recovery.
     pub errors: Vec<String>,
 }
 
+/// Bitmap tracking allocated blocks in the storage system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocatorBitmap {
     bits: Vec<u8>,
@@ -95,6 +117,7 @@ pub struct AllocatorBitmap {
 }
 
 impl AllocatorBitmap {
+    /// Creates a new bitmap with all blocks initially free.
     pub fn new(total_blocks: u64) -> Self {
         let bytes_needed = (total_blocks.div_ceil(8)) as usize;
         Self {
@@ -103,6 +126,7 @@ impl AllocatorBitmap {
         }
     }
 
+    /// Creates a bitmap from existing byte data.
     pub fn from_bytes(data: &[u8], total_blocks: u64) -> StorageResult<Self> {
         let bytes_needed = (total_blocks.div_ceil(8)) as usize;
         let mut bits = data.to_vec();
@@ -126,10 +150,12 @@ impl AllocatorBitmap {
         Ok(Self { bits, total_blocks })
     }
 
+    /// Serializes the bitmap to bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
         self.bits.clone()
     }
 
+    /// Marks a range of blocks as allocated.
     pub fn set_allocated(&mut self, offset_4k: u64, count: u64) {
         for i in 0..count {
             let pos = offset_4k + i;
@@ -141,6 +167,7 @@ impl AllocatorBitmap {
         }
     }
 
+    /// Marks a range of blocks as free.
     pub fn set_free(&mut self, offset_4k: u64, count: u64) {
         for i in 0..count {
             let pos = offset_4k + i;
@@ -152,6 +179,7 @@ impl AllocatorBitmap {
         }
     }
 
+    /// Returns true if the specified block is allocated.
     pub fn is_allocated(&self, offset_4k: u64) -> bool {
         if offset_4k >= self.total_blocks {
             return false;
@@ -161,14 +189,17 @@ impl AllocatorBitmap {
         (self.bits[byte_idx] & (1 << bit_idx)) != 0
     }
 
+    /// Returns the count of allocated blocks.
     pub fn allocated_count(&self) -> u64 {
         self.bits.iter().map(|b| b.count_ones() as u64).sum()
     }
 
+    /// Returns the count of free blocks.
     pub fn free_count(&self) -> u64 {
         self.total_blocks.saturating_sub(self.allocated_count())
     }
 
+    /// Returns a list of allocated block ranges as (start, end) tuples.
     pub fn allocated_ranges(&self) -> Vec<(u64, u64)> {
         let mut ranges = Vec::new();
         let mut start: Option<u64> = None;
@@ -196,12 +227,18 @@ impl AllocatorBitmap {
     }
 }
 
+/// Checkpoint record for journal recovery.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalCheckpoint {
+    /// Magic number for validation.
     pub magic: u32,
+    /// Last sequence number that was committed.
     pub last_committed_sequence: u64,
+    /// Last sequence number that was flushed to disk.
     pub last_flushed_sequence: u64,
+    /// Timestamp when this checkpoint was created.
     pub checkpoint_timestamp_secs: u64,
+    /// CRC32C checksum of the checkpoint data.
     pub checksum: u32,
 }
 
@@ -286,16 +323,25 @@ impl JournalCheckpoint {
     }
 }
 
+/// Report summarizing the results of a recovery operation.
 pub struct RecoveryReport {
+    /// Final phase reached during recovery.
     pub phase: RecoveryPhase,
+    /// Number of devices discovered during recovery.
     pub devices_discovered: usize,
+    /// Number of devices that passed validation.
     pub devices_valid: usize,
+    /// Number of journal entries found during scan.
     pub journal_entries_found: usize,
+    /// Number of journal entries replayed.
     pub journal_entries_replayed: usize,
+    /// Errors encountered during recovery.
     pub errors: Vec<String>,
+    /// Time taken for recovery in milliseconds.
     pub duration_ms: u64,
 }
 
+/// Manager for crash recovery operations.
 pub struct RecoveryManager {
     config: RecoveryConfig,
     state: RecoveryState,
