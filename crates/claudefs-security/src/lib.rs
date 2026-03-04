@@ -83,3 +83,5 @@ pub mod storage_deep_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
     pub mod transport_deep_security_tests;
+    #[cfg(test)]
+    pub mod fuse_deep_security_tests;
