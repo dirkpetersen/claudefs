@@ -49,6 +49,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `eviction_policy.rs` — Flash layer eviction engine (D5: age×size scoring); 4 strategies; 24 tests
 - `replication_filter.rs` — Cross-site Bloom filter to skip blocks already at remote site; 22 tests
 
+### A1: Storage Engine — Phase 5: Write Path, Read Path, Storage Health (2026-03-04)
+
+#### 3 New Integration Modules — 66 New Tests, 960 Total
+
+**Status:** ✅ 960 tests passing (932 unit + 28 proptest), 0 failures
+
+**New modules:**
+- `write_path.rs` — Complete write pipeline facade: journal append → segment packing → EC encoding (4+2) → background scheduler enqueue. Coordinates write_journal, segment, erasure, background_scheduler subsystems. 22 tests.
+- `read_path.rs` — Complete read pipeline facade: block cache lookup → backing store miss → prefetch hint generation → I/O accounting per tenant. Coordinates block_cache, prefetch_engine, io_accounting subsystems. 22 tests.
+- `storage_health.rs` — Unified health aggregator combining device health monitor, scrub statistics, and scheduler state into operator-facing StorageHealthSnapshot with status (Healthy/Degraded/Critical/Offline), alerts, and device counts. 22 tests.
+
+**Total:** 47 modules in claudefs-storage crate.
+
+---
+
 ### A1: Storage Engine — Phase 4: I/O Accounting, Block Verifier, Compaction Manager (2026-03-04)
 
 #### 3 New Modules + lib.rs exports — 85 New Tests, 894 Total
