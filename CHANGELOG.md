@@ -127,6 +127,21 @@ This blocks ALL Rust code authoring (including adding doc comments). Filed as Gi
 
 ---
 
+### A10: Security Audit — Phase 25: Gateway Perf-Config & Repl Topology (2026-03-04)
+
+#### 2 New Test Modules — 53 New Tests, 1877 Total
+
+**Status:** ✅ 1877 security tests passing, 0 failures (+53 from 1824)
+
+**New test modules:**
+- `gateway_perf_config_security_tests.rs` — 28 tests: per-protocol tuning (NFS/S3/pNFS/SMB), configuration validation (zero values, boundary conditions, per-client limits), auto-tune modes
+- `repl_topology_security_tests.rs` — 25 tests: site topology management, role variants (Primary/Replica/Bidirectional), active/inactive management, lag tracking, topology isolation
+
+**Key findings (15 total, 3 HIGH, 8 MEDIUM, 4 LOW):**
+- FINDING-GW-PERF-03 (HIGH): Zero connections/buffers/timeouts rejected — DoS prevention
+- FINDING-GW-PERF-04 (HIGH): Per-client limit cannot exceed total — prevents monopolization
+- FINDING-REPL-TOPO-03 (HIGH): Local site not tracked as remote — prevents self-replication loops
+
 ### A10: Security Audit — Phase 24: Meta Conflict Detection & Repl Split-Brain/TLS (2026-03-04)
 
 #### 2 New Test Modules — 53 New Tests, 1824 Total
