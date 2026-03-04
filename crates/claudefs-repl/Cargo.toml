@@ -33,5 +33,8 @@ zstd.workspace = true
 name = "claudefs_repl"
 path = "src/lib.rs"
 
+[build-dependencies]
+tonic-build.workspace = true
+
 [dev-dependencies]
 proptest = "1"
