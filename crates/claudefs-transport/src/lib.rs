@@ -32,6 +32,7 @@ pub mod cluster_topology;
 pub mod compress;
 pub mod congestion;
 pub mod conn_auth;
+pub mod conn_drain_aware;
 pub mod connmigrate;
 pub mod connection;
 pub mod credit_window;
@@ -74,6 +75,7 @@ pub mod session;
 pub mod server;
 pub mod segment_router;
 pub mod splice;
+pub mod splice_queue;
 pub mod stream;
 pub mod tcp;
 pub mod tenant;
@@ -86,6 +88,7 @@ pub mod tracecontext;
 pub mod transport;
 pub mod version;
 pub mod wire_diag;
+pub mod write_pipeline;
 pub mod zerocopy;
 
 pub use batch::{
@@ -251,4 +254,16 @@ pub use read_repair::{
 pub use node_blacklist::{
     BlacklistConfig, BlacklistEntry, BlacklistReason, BlacklistStats, BlacklistStatsSnapshot,
     NodeBlacklist,
+};
+pub use write_pipeline::{
+    WriteError, WriteId, WritePipelineManager, WritePipelineOp, WritePipelineStats,
+    WritePipelineStatsSnapshot, WriteStage,
+};
+pub use splice_queue::{
+    SpliceDestination, SpliceEntry, SpliceQueue, SpliceQueueConfig, SpliceQueueError,
+    SpliceQueueStats, SpliceQueueStatsSnapshot, SpliceSource, SpliceState,
+};
+pub use conn_drain_aware::{
+    ConnDrainConfig, ConnDrainError, ConnDrainManager, ConnDrainState, ConnDrainStats,
+    ConnDrainStatsSnapshot, ConnDrainTracker,
 };
