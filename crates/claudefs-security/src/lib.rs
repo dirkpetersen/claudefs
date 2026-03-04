@@ -50,3 +50,7 @@ pub mod operational_security;
 pub mod advanced_fuzzing;
 #[cfg(test)]
 pub mod phase2_audit;
+#[cfg(test)]
+pub mod meta_security_tests;
+#[cfg(test)]
+pub mod gateway_security_tests;

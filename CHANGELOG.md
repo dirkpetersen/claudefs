@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 3 Deep Audit Complete (2026-03-04)
+
+#### Metadata + Gateway Security Audit, 53 New Tests, 42 Findings
+
+**Status:** PHASE 3 AUDIT COMPLETE — 618 tests passing, 42 new findings across meta+gateway crates
+
+**Audit Scope:**
+1. **Remediation verification** — 4 CRITICAL findings from Phase 2 re-tested: 2 FIXED, 1 IMPROVED, 1 PARTIAL
+2. **claudefs-meta security review** — Raft consensus, KV store, distributed locking, CDC, cross-shard 2PC
+3. **claudefs-gateway security review** — S3 API, pNFS layouts, NFS auth, token auth, connection pooling, SMB
+4. **Dependency CVE sweep** — 941 advisories scanned, 4 known (no new since Phase 2)
+
+**Key Phase 3 Findings:**
+- 5 CRITICAL: S3 no bucket auth, S3 no object ACLs, AUTH_SYS forgeable, SMB stub-only, admin API open-by-default
+- 10 HIGH: Path traversal in S3, no lock TTL, lock poisoning crashes, Raft serialization panics, no 2PC recovery, predictable pNFS stateids
+- 8 MEDIUM: No input validation on special names/symlinks, CDC cursor race, token brute force, no export ACLs
+- Detailed report: `docs/security-audit-report.md`
+
+**New Test Modules:**
+- `meta_security_tests.rs` — 25 tests: input validation, locking security, service safety, CDC/cache
+- `gateway_security_tests.rs` — 28 tests: S3 API, pNFS, NFS auth, token auth
+
+**Statistics:**
+- Total security tests: 618 passing (was 565)
+- New findings documented: 42 (16 meta, 26 gateway)
+- Files reviewed: 22 new source files across meta + gateway crates
+
 ### A8: Management — Phase 2 Integration Complete (2026-03-04)
 
 #### Analytics & Metrics Foundation: End-to-End Data Pipeline

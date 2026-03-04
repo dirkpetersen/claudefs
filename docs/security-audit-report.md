@@ -250,6 +250,173 @@ The codebase demonstrates strong security engineering:
 
 ---
 
+# Phase 3 Security Audit Addendum (2026-03-04)
+
+**Scope:** claudefs-meta (Raft consensus, KV store, distributed locking, CDC) + claudefs-gateway (S3 API, pNFS, NFS auth, token auth, connection pooling) + remediation verification
+
+**New tests:** 53 (25 meta + 28 gateway)
+**Total tests:** 618 passing, 0 failed, 12 ignored
+
+---
+
+## 10. Phase 2 Remediation Verification
+
+| Finding | Status | Evidence |
+|---------|--------|----------|
+| FINDING-REPL-01: Conduit TLS optional | **FIXED** | `TlsMode` enum with `Required`/`TestOnly`/`Disabled`, validator enforces cert validation, 22 tests |
+| FINDING-MGMT-01: Admin API no-auth default | **PARTIAL** | Warning logged but requests still granted with `is_admin: true` when token not configured. Must return 401. |
+| FINDING-MGMT-02: X-Forwarded-For bypass | **IMPROVED** | Correct left-to-right parsing of first IP. Still trusts header unconditionally. Need `trust_x_forwarded_for` config flag. |
+| FINDING-REPL-02: Spoofed site_id | **FIXED** | `SiteRegistry` with `verify_source_id()` validates against registered sites + TLS fingerprint matching |
+
+**Remaining Critical:** FINDING-MGMT-01 is still exploitable — if admin_token is not configured, the API grants full admin access to all requests.
+
+---
+
+## 11. Metadata Security Review (claudefs-meta)
+
+### 11.1 Input Validation Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-META-01 | MEDIUM | No symlink target length validation — targets >4096 bytes accepted (POSIX limit) |
+| FINDING-META-02 | MEDIUM | No directory entry name length validation — names >255 bytes accepted |
+| FINDING-META-03 | HIGH | Special names ".", "..", "", "\0", "/" accepted as file names — should be rejected |
+| FINDING-META-05 | LOW | Mode bits with high values (0o777777) accepted — no mode mask enforcement |
+| FINDING-META-19 | HIGH | Empty string accepted as file name — creates unlookupable entries |
+
+### 11.2 Distributed Locking Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-META-07 | HIGH | No lock TTL/leasing — dead node locks held forever, causes permanent deadlock |
+| FINDING-META-08 | MEDIUM | Double write lock on same inode correctly rejected (PASS) |
+| FINDING-META-11 | LOW | Concurrent lock operations are thread-safe via RwLock (PASS) |
+
+### 11.3 Raft Consensus Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-META-20 | HIGH | Lock poisoning via `.expect("lock poisoned")` in CDC, Watch, WORM — cascading process crash on panic |
+| FINDING-META-21 | HIGH | No deserialization size limits on bincode — attacker can trigger OOM via crafted KV data |
+| FINDING-META-22 | HIGH | `serialize_entry().unwrap()` in Raft log batch — silent crash if entry serialization fails |
+| FINDING-META-23 | HIGH | No Raft message field validation — no bounds check on log indices or term monotonicity |
+| FINDING-META-24 | MEDIUM | PathResolver cache entries not invalidated on directory mutations — TOCTOU risk |
+| FINDING-META-25 | MEDIUM | CDC cursor update not atomic with event retrieval — race window for event loss |
+| FINDING-META-26 | HIGH | Cross-shard 2PC has no recovery log — coordinator crash after vote leaves inconsistent state |
+| FINDING-META-27 | MEDIUM | Conflict resolution (LWW) silently drops losing version — no alerting or audit trail |
+
+### 11.4 Positive Findings
+
+- LockManager properly handles concurrent access via RwLock (thread-safe)
+- Lock ID counter prevents duplicate IDs
+- Write lock correctly blocks read locks and vice versa
+- InodeId boundary values (0, u64::MAX) handled without overflow
+- Shard computation deterministic for same inode
+
+---
+
+## 12. Gateway Security Review (claudefs-gateway)
+
+### 12.1 S3 API Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-GW-01 | HIGH | Path traversal in object keys — "../../etc/passwd" accepted and stored verbatim |
+| FINDING-GW-02 | MEDIUM | Null bytes in object keys accepted — potential injection vector |
+| FINDING-GW-03 | MEDIUM | Object keys >1024 bytes accepted — no length validation (AWS S3 limit: 1024) |
+| FINDING-GW-04 | CRITICAL | No bucket ownership/authorization — any user can access all buckets |
+| FINDING-GW-05 | CRITICAL | No object-level ACLs — any authenticated user reads/writes any object |
+| FINDING-GW-06 | HIGH | Unbounded in-memory object storage — `put_object` stores full `Vec<u8>` with no size limit (DoS) |
+| FINDING-GW-07 | HIGH | ETag generated from nanosecond PRNG, not actual content hash — breaks integrity verification |
+| FINDING-GW-08 | MEDIUM | Copy-object to nonexistent bucket returns `S3BucketNotFound` correctly (PASS) |
+
+### 12.2 pNFS Layout Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-GW-09 | HIGH | Stateid is inode-based (first 8 bytes = inode LE) — predictable, allows stateid forgery |
+| FINDING-GW-10 | MEDIUM | Server selection via `inode % server_count` — predictable, enables targeted attacks |
+| FINDING-GW-11 | MEDIUM | No layout recall mechanism — revoked access continues until layout expires |
+| FINDING-GW-12 | LOW | Empty server list handled gracefully — returns empty segments (PASS) |
+
+### 12.3 NFS Authentication Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-GW-13 | CRITICAL | AUTH_SYS has no cryptographic verification — clients forge any UID/GID |
+| FINDING-GW-14 | LOW | RootSquash correctly maps UID 0 → 65534 (PASS) |
+| FINDING-GW-15 | LOW | AllSquash correctly maps all UIDs → 65534 (PASS) |
+| FINDING-GW-16 | LOW | Oversized machine name (>255 bytes) correctly rejected (PASS) |
+| FINDING-GW-17 | LOW | Too many GIDs (>16) correctly rejected (PASS) |
+| FINDING-GW-18 | LOW | Truncated XDR payload correctly returns error (PASS) |
+
+### 12.4 Token Authentication Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-GW-19 | MEDIUM | No rate limiting on token validation — brute force possible |
+| FINDING-GW-20 | LOW | Token revocation properly prevents subsequent access (PASS) |
+| FINDING-GW-21 | LOW | Unknown token hash correctly returns None (PASS) |
+| FINDING-GW-22 | LOW | Token permissions correctly preserved through lifecycle (PASS) |
+
+### 12.5 Connection Pool / SMB Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-GW-23 | HIGH | No mutual TLS to backend nodes — connections unauthenticated |
+| FINDING-GW-24 | CRITICAL | SMB implementation is stub only — no authentication at all |
+| FINDING-GW-25 | HIGH | No export ACL enforcement — entire filesystem accessible via NFS file handles |
+
+---
+
+## 13. Dependency CVE Sweep (Phase 3)
+
+| Advisory | Crate | Severity | Status | Change Since Phase 2 |
+|----------|-------|----------|--------|---------------------|
+| RUSTSEC-2025-0141 | bincode 1.3.3 | UNMAINTAINED | 5 crates affected | Same — migration to `postcard` recommended |
+| RUSTSEC-2025-0134 | rustls-pemfile 2.2.0 | UNMAINTAINED | transport only | Same — use `rustls-pki-types` |
+| RUSTSEC-2021-0154 | fuser 0.15.1 | UNSOUND | FUSE only | Same — accepted risk, no alternative |
+| RUSTSEC-2026-0002 | lru 0.12.5 | UNSOUND | FUSE client | Same — consider `quick-cache` |
+
+**No new CVEs since Phase 2.** Advisory database has 941 entries, 460 crate dependencies scanned.
+
+---
+
+## 14. Phase 3 Remediation Priority
+
+### Immediate (CRITICAL)
+
+1. **FINDING-MGMT-01:** Return 401 when admin_token not configured (still open from Phase 2)
+2. **FINDING-GW-04:** Implement bucket ownership model with per-user isolation
+3. **FINDING-GW-05:** Add object-level ACLs to S3 API
+4. **FINDING-META-03:** Reject special names (".", "..", "", "\0", "/") in create_file/create_dir
+5. **FINDING-META-19:** Reject empty string as file/directory name
+
+### High Priority
+
+6. **FINDING-GW-01:** Normalize/reject path traversal sequences in S3 object keys
+7. **FINDING-GW-06:** Add configurable max object size limit for S3 put_object
+8. **FINDING-GW-09:** Use random nonce in pNFS stateids instead of raw inode
+9. **FINDING-META-07:** Implement lock TTL/leasing with dead-node cleanup
+10. **FINDING-META-20:** Replace `.expect("lock poisoned")` with proper error propagation
+11. **FINDING-META-21:** Add bincode deserialization size limits
+12. **FINDING-META-22:** Handle serialization errors in Raft log batch (don't unwrap)
+13. **FINDING-META-26:** Add persistent 2PC recovery log for cross-shard transactions
+14. **FINDING-GW-23:** Implement mTLS for backend node connections
+15. **FINDING-GW-25:** Add per-export ACLs for NFS
+
+### Medium Priority
+
+16. **FINDING-GW-02/03:** Validate S3 object key format (reject null bytes, enforce length limit)
+17. **FINDING-GW-07:** Compute actual content hash for ETag
+18. **FINDING-GW-10:** Use cryptographic hash for pNFS server selection
+19. **FINDING-GW-19:** Add rate limiting to token validation
+20. **FINDING-META-24:** Implement cache invalidation tied to directory mutations
+21. **FINDING-META-25:** Make CDC cursor update atomic with event retrieval
+22. **FINDING-META-27:** Add conflict alerting and audit trail for LWW resolution
+
+---
+
 ## Appendix A: Test Coverage Summary
 
 | Test Module | Tests | Coverage |
@@ -270,12 +437,16 @@ The codebase demonstrates strong security engineering:
 | operational_security.rs | ~5 | Operational security checks |
 | advanced_fuzzing.rs | ~8 | Extended fuzzing scenarios |
 
-**Total:** ~165+ security-focused tests
+| meta_security_tests.rs | 25 | Metadata input validation, distributed locking, service security, CDC/cache |
+| gateway_security_tests.rs | 28 | S3 API, pNFS layout, NFS auth, token auth security |
+
+**Total:** 618 passing tests (53 new in Phase 3)
 
 ---
 
 ## Appendix B: Files Reviewed
 
+### Phase 2
 - `crates/claudefs-storage/src/uring_engine.rs` — io_uring FFI (unsafe)
 - `crates/claudefs-storage/src/device.rs` — Device management
 - `crates/claudefs-transport/src/zerocopy.rs` — Memory allocation (unsafe)
@@ -291,4 +462,27 @@ The codebase demonstrates strong security engineering:
 - `crates/claudefs-repl/src/auth_ratelimit.rs` — Auth rate limiting
 - `crates/claudefs-mgmt/src/api.rs` — Management API endpoints
 - `crates/claudefs-mgmt/src/security.rs` — Security middleware
-- `crates/claudefs-security/src/*.rs` — All 21 security test modules
+
+### Phase 3 (New)
+- `crates/claudefs-meta/src/service.rs` — Metadata service API
+- `crates/claudefs-meta/src/locking.rs` — Distributed lock manager
+- `crates/claudefs-meta/src/pathres.rs` — Path resolution cache
+- `crates/claudefs-meta/src/cdc.rs` — Change data capture stream
+- `crates/claudefs-meta/src/worm.rs` — WORM compliance
+- `crates/claudefs-meta/src/consensus.rs` — Raft consensus
+- `crates/claudefs-meta/src/raft_log.rs` — Raft log persistence
+- `crates/claudefs-meta/src/cross_shard.rs` — Cross-shard 2PC coordinator
+- `crates/claudefs-meta/src/transaction.rs` — Transaction manager
+- `crates/claudefs-meta/src/conflict.rs` — Conflict resolution
+- `crates/claudefs-meta/src/kvstore.rs` — KV store batch operations
+- `crates/claudefs-meta/src/inode.rs` — Inode store
+- `crates/claudefs-meta/src/directory.rs` — Directory operations
+- `crates/claudefs-gateway/src/s3.rs` — S3 API handler
+- `crates/claudefs-gateway/src/s3_router.rs` — S3 HTTP routing
+- `crates/claudefs-gateway/src/pnfs.rs` — pNFS layout server
+- `crates/claudefs-gateway/src/token_auth.rs` — Token authentication
+- `crates/claudefs-gateway/src/gateway_conn_pool.rs` — Connection pooling
+- `crates/claudefs-gateway/src/smb.rs` — SMB VFS stub
+- `crates/claudefs-gateway/src/nfs.rs` — NFS handler
+- `crates/claudefs-gateway/src/error.rs` — Error types
+- `crates/claudefs-security/src/*.rs` — All 23 security test modules
