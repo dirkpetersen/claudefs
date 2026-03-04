@@ -44,6 +44,8 @@ pub mod idmap;
 pub mod inode;
 /// Signal handling (SIGINT, SIGTERM), graceful shutdown.
 pub mod interrupt;
+/// I/O queue depth management, per-inode and global depth limits, adaptive tuning.
+pub mod io_depth;
 /// Per-process I/O priority classes, priority inheritance.
 pub mod io_priority;
 /// Low-level locking primitives, synchronization utilities.
@@ -80,6 +82,8 @@ pub mod prefetch;
 pub mod quota_enforce;
 /// Rate limiting and backpressure, per-class rate control.
 pub mod ratelimit;
+/// Readdir result caching, directory listing cache with TTL expiry.
+pub mod readdir_cache;
 /// Automatic reconnection with exponential backoff, connection state.
 pub mod reconnect;
 /// Security policy enforcement, namespace isolation, syscall filtering.
@@ -102,6 +106,8 @@ pub mod transport;
 pub mod workload_class;
 /// WORM (Write-Once-Read-Many) enforcement, legal holds, retention.
 pub mod worm;
+/// Writeback data cache, dirty page accumulation, flush triggers.
+pub mod writeback_cache;
 /// Write buffer, threshold-based flushing, range coalescing.
 pub mod writebuf;
 /// Extended attributes (xattrs), set/get/list/remove operations.
