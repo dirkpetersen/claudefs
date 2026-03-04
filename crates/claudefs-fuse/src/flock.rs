@@ -1,23 +1,52 @@
+//! BSD-style file locking (flock) implementation.
+//!
+//! This module provides whole-file advisory locking semantics compatible with
+//! the POSIX `flock()` system call. Locks are associated with file descriptors
+//! and process IDs, allowing proper cleanup on file close or process exit.
+//!
+//! # Lock Types
+//!
+//! - **Shared** (`LOCK_SH`): Multiple readers can hold a shared lock simultaneously.
+//! - **Exclusive** (`LOCK_EX`): Only one exclusive lock per file; blocks all others.
+//! - **Unlock** (`LOCK_UN`): Releases the lock held by this fd/pid pair.
+//!
+//! # Lock Upgrades/Downgrades
+//!
+//! A process holding a shared lock may upgrade to exclusive (fails if other
+//! shared holders exist). A process holding exclusive may downgrade to shared
+//! (always succeeds). These are atomic operations.
+
 use crate::inode::InodeId;
 use std::collections::HashMap;
 
+/// Type of flock lock operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlockType {
+    /// Shared (read) lock - multiple holders allowed on same inode.
     Shared,
+    /// Exclusive (write) lock - single holder allowed per inode.
     Exclusive,
+    /// Unlock operation - releases the lock for this fd.
     Unlock,
 }
 
+/// Handle representing a flock lock request.
 #[derive(Debug, Clone)]
 pub struct FlockHandle {
+    /// File descriptor requesting the lock.
     pub fd: u64,
+    /// Inode number of the file being locked.
     pub ino: InodeId,
+    /// Process ID of the lock requester.
     pub pid: u32,
+    /// Type of lock requested (shared, exclusive, or unlock).
     pub lock_type: FlockType,
+    /// If true, return EWOULDBLOCK instead of blocking on conflict.
     pub nonblocking: bool,
 }
 
 impl FlockHandle {
+    /// Creates a new flock handle with the given parameters.
     pub fn new(fd: u64, ino: InodeId, pid: u32, lock_type: FlockType, nonblocking: bool) -> Self {
         Self {
             fd,
@@ -28,34 +57,50 @@ impl FlockHandle {
         }
     }
 
+    /// Returns true if this lock request should block on conflict.
     pub fn is_blocking(&self) -> bool {
         !self.nonblocking
     }
 
+    /// Returns true if this is a shared lock request.
     pub fn is_shared(&self) -> bool {
         matches!(self.lock_type, FlockType::Shared)
     }
 
+    /// Returns true if this is an exclusive lock request.
     pub fn is_exclusive(&self) -> bool {
         matches!(self.lock_type, FlockType::Exclusive)
     }
 }
 
+/// Result of a lock acquisition attempt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlockConflict {
+    /// No conflict; lock was acquired successfully.
     None,
+    /// Lock would block; contains PID of the conflicting lock holder.
     WouldBlock { holder_pid: u32 },
+    /// Deadlock detected (not yet implemented).
     Deadlock,
 }
 
+/// An active flock lock entry in the registry.
 #[derive(Debug, Clone)]
 pub struct FlockEntry {
+    /// File descriptor holding this lock.
     pub fd: u64,
+    /// Inode number of the locked file.
     pub ino: InodeId,
+    /// Process ID owning this lock.
     pub pid: u32,
+    /// Type of lock (shared or exclusive).
     pub lock_type: FlockType,
 }
 
+/// Registry tracking all active flock locks.
+///
+/// Maintains locks keyed by (fd, inode) for O(1) lookup and a secondary
+/// index by inode for efficient conflict checking.
 pub struct FlockRegistry {
     locks: HashMap<(u64, InodeId), FlockEntry>,
     by_inode: HashMap<InodeId, Vec<(u64, InodeId)>>,
@@ -68,6 +113,7 @@ impl Default for FlockRegistry {
 }
 
 impl FlockRegistry {
+    /// Creates an empty flock registry.
     pub fn new() -> Self {
         Self {
             locks: HashMap::new(),
@@ -75,6 +121,10 @@ impl FlockRegistry {
         }
     }
 
+    /// Attempts to acquire a lock, returning conflict status.
+    ///
+    /// Handles upgrade (shared -> exclusive) and downgrade (exclusive -> shared)
+    /// atomically. An unlock request removes the lock if present.
     pub fn try_acquire(&mut self, handle: FlockHandle) -> FlockConflict {
         let key = (handle.fd, handle.ino);
         let new_type = handle.lock_type;
@@ -182,12 +232,16 @@ impl FlockRegistry {
         }
     }
 
+    /// Releases the lock for the given fd and inode.
     pub fn release(&mut self, fd: u64, ino: InodeId) {
         let key = (fd, ino);
         self.locks.remove(&key);
         self.remove_from_inode_index(&key);
     }
 
+    /// Releases all locks held by the given process ID.
+    ///
+    /// Called when a process exits or closes all its file descriptors.
     pub fn release_all_for_pid(&mut self, pid: u32) {
         let to_remove: Vec<_> = self
             .locks
@@ -202,25 +256,34 @@ impl FlockRegistry {
         }
     }
 
+    /// Returns true if a lock exists for the given fd and inode.
     pub fn has_lock(&self, fd: u64, ino: InodeId) -> bool {
         self.locks.contains_key(&(fd, ino))
     }
 
+    /// Returns the lock type for the given fd and inode, if any.
     pub fn lock_type_for(&self, fd: u64, ino: InodeId) -> Option<FlockType> {
         self.locks.get(&(fd, ino)).map(|e| e.lock_type)
     }
 
+    /// Returns the number of lock holders for the given inode.
     pub fn holder_count(&self, ino: InodeId) -> usize {
         self.by_inode.get(&ino).map(|v| v.len()).unwrap_or(0)
     }
 }
 
+/// Statistics for flock operations.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FlockStats {
+    /// Total successful lock acquisitions.
     pub acquires: u64,
+    /// Total lock releases.
     pub releases: u64,
+    /// Total conflicts encountered.
     pub conflicts: u64,
+    /// Total lock upgrades (shared -> exclusive).
     pub upgrades: u64,
+    /// Total lock downgrades (exclusive -> shared).
     pub downgrades: u64,
 }
 

@@ -1,13 +1,30 @@
+//! Kernel capability detection and negotiation for FUSE.
+//!
+//! This module handles detection and negotiation of kernel features that
+//! affect FUSE performance and functionality, including:
+//!
+//! - FUSE passthrough mode (kernel 6.8+)
+//! - Atomic writes (kernel 6.11+)
+//! - Dynamic io_uring (kernel 6.20+)
+//!
+//! The [`CapabilityNegotiator`] type orchestrates detection and provides
+//! the negotiated [`NegotiatedCapabilities`] to the FUSE daemon.
+
 use std::fmt;
 
+/// Represents a kernel version as major.minor.patch.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct KernelVersion {
+    /// Major version number (e.g., 6 for kernel 6.8.0).
     pub major: u32,
+    /// Minor version number (e.g., 8 for kernel 6.8.0).
     pub minor: u32,
+    /// Patch version number (e.g., 0 for kernel 6.8.0).
     pub patch: u32,
 }
 
 impl KernelVersion {
+    /// Creates a new kernel version from major, minor, and patch components.
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
         KernelVersion {
             major,
@@ -16,6 +33,9 @@ impl KernelVersion {
         }
     }
 
+    /// Parses a kernel version string in "major.minor.patch" or "major.minor" format.
+    ///
+    /// Returns `None` if the string is not a valid version format.
     pub fn parse(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split('.').collect();
         if parts.len() < 2 || parts.len() > 3 {
@@ -37,6 +57,7 @@ impl KernelVersion {
         })
     }
 
+    /// Returns `true` if this version is at least as new as `other`.
     pub fn at_least(&self, other: &KernelVersion) -> bool {
         self >= other
     }
@@ -48,39 +69,55 @@ impl fmt::Display for KernelVersion {
     }
 }
 
+/// Minimum kernel version for full FUSE passthrough support (6.8.0).
 pub const KERNEL_FUSE_PASSTHROUGH: KernelVersion = KernelVersion {
     major: 6,
     minor: 8,
     patch: 0,
 };
+
+/// Minimum kernel version for atomic writes support (6.11.0).
 pub const KERNEL_ATOMIC_WRITES: KernelVersion = KernelVersion {
     major: 6,
     minor: 11,
     patch: 0,
 };
+
+/// Minimum kernel version for dynamic io_uring support (6.20.0).
 pub const KERNEL_DYNAMIC_IORING: KernelVersion = KernelVersion {
     major: 6,
     minor: 20,
     patch: 0,
 };
 
+/// FUSE passthrough operating mode.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PassthroughMode {
+    /// Full passthrough: data I/O bypasses FUSE daemon entirely.
     Full,
+    /// Partial passthrough: limited optimizations available.
     Partial,
+    /// No passthrough: all I/O goes through FUSE daemon.
     None,
 }
 
+/// Kernel capabilities negotiated for the current session.
 #[derive(Debug, Clone)]
 pub struct NegotiatedCapabilities {
+    /// Passthrough mode available on this kernel.
     pub passthrough_mode: PassthroughMode,
+    /// Whether atomic writes are supported.
     pub atomic_writes: bool,
+    /// Whether dynamic io_uring is supported.
     pub dynamic_ioring: bool,
+    /// Whether writeback caching is enabled.
     pub writeback_cache: bool,
+    /// Whether async read is enabled.
     pub async_read: bool,
 }
 
 impl NegotiatedCapabilities {
+    /// Determines capabilities available for the given kernel version.
     pub fn for_kernel(version: &KernelVersion) -> Self {
         let passthrough_mode = if version.at_least(&KERNEL_FUSE_PASSTHROUGH) {
             PassthroughMode::Full
@@ -99,15 +136,18 @@ impl NegotiatedCapabilities {
         }
     }
 
+    /// Returns the negotiated passthrough mode.
     pub fn best_mode(&self) -> &PassthroughMode {
         &self.passthrough_mode
     }
 
+    /// Returns `true` if any passthrough mode is available.
     pub fn supports_passthrough(&self) -> bool {
         !matches!(self.passthrough_mode, PassthroughMode::None)
     }
 }
 
+/// Orchestrates kernel capability detection and negotiation.
 pub struct CapabilityNegotiator {
     detected_version: Option<KernelVersion>,
     capabilities: Option<NegotiatedCapabilities>,
@@ -115,6 +155,7 @@ pub struct CapabilityNegotiator {
 }
 
 impl CapabilityNegotiator {
+    /// Creates a new negotiator in the un-negotiated state.
     pub fn new() -> Self {
         CapabilityNegotiator {
             detected_version: None,
@@ -123,6 +164,10 @@ impl CapabilityNegotiator {
         }
     }
 
+    /// Negotiates capabilities for the given kernel version.
+    ///
+    /// Returns the negotiated capabilities. This method must be called
+    /// before accessing capabilities.
     pub fn negotiate(&mut self, kernel_version: KernelVersion) -> &NegotiatedCapabilities {
         self.detected_version = Some(kernel_version.clone());
         self.capabilities = Some(NegotiatedCapabilities::for_kernel(&kernel_version));
@@ -130,16 +175,21 @@ impl CapabilityNegotiator {
         self.capabilities.as_ref().unwrap()
     }
 
+    /// Returns the negotiated capabilities.
+    ///
+    /// Panics if [`negotiate`](Self::negotiate) has not been called.
     pub fn capabilities(&self) -> &NegotiatedCapabilities {
         self.capabilities
             .as_ref()
             .expect("negotiate() must be called first")
     }
 
+    /// Returns `true` if negotiation has completed.
     pub fn is_negotiated(&self) -> bool {
         self.negotiated
     }
 
+    /// Returns the detected kernel version, if negotiation has completed.
     pub fn kernel_version(&self) -> Option<&KernelVersion> {
         self.detected_version.as_ref()
     }

@@ -1,25 +1,44 @@
+//! Health monitoring for the FUSE client.
+//!
+//! Provides health status tracking for client components including
+//! transport connectivity, cache performance, and error rates.
+
 use std::time::Instant;
 
+/// Health status of a component or the overall system.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HealthStatus {
+    /// Component is operating normally.
     Healthy,
-    Degraded { reason: String },
-    Unhealthy { reason: String },
+    /// Component is degraded but still functional.
+    Degraded {
+        /// Reason for degraded status.
+        reason: String,
+    },
+    /// Component is unhealthy and may need attention.
+    Unhealthy {
+        /// Reason for unhealthy status.
+        reason: String,
+    },
 }
 
 impl HealthStatus {
+    /// Returns `true` if the status is `Healthy`.
     pub fn is_healthy(&self) -> bool {
         matches!(self, HealthStatus::Healthy)
     }
 
+    /// Returns `true` if the status is `Degraded`.
     pub fn is_degraded(&self) -> bool {
         matches!(self, HealthStatus::Degraded { .. })
     }
 
+    /// Returns `true` if the status is `Unhealthy`.
     pub fn is_unhealthy(&self) -> bool {
         matches!(self, HealthStatus::Unhealthy { .. })
     }
 
+    /// Returns the reason for degraded or unhealthy status, if any.
     pub fn reason(&self) -> Option<&str> {
         match self {
             HealthStatus::Healthy => None,
@@ -29,14 +48,19 @@ impl HealthStatus {
     }
 }
 
+/// Health information for a single component.
 #[derive(Debug, Clone)]
 pub struct ComponentHealth {
+    /// Name of the component.
     pub name: String,
+    /// Current health status.
     pub status: HealthStatus,
+    /// Timestamp of the last health check.
     pub last_checked: Instant,
 }
 
 impl ComponentHealth {
+    /// Creates a healthy component with the given name.
     pub fn healthy(name: &str) -> Self {
         ComponentHealth {
             name: name.to_string(),
@@ -45,6 +69,7 @@ impl ComponentHealth {
         }
     }
 
+    /// Creates a degraded component with the given name and reason.
     pub fn degraded(name: &str, reason: &str) -> Self {
         ComponentHealth {
             name: name.to_string(),
@@ -55,6 +80,7 @@ impl ComponentHealth {
         }
     }
 
+    /// Creates an unhealthy component with the given name and reason.
     pub fn unhealthy(name: &str, reason: &str) -> Self {
         ComponentHealth {
             name: name.to_string(),
@@ -66,11 +92,16 @@ impl ComponentHealth {
     }
 }
 
+/// Thresholds for determining degraded and unhealthy states.
 #[derive(Debug, Clone)]
 pub struct HealthThresholds {
+    /// Cache hit rate below this triggers degraded status.
     pub cache_hit_rate_degraded: f64,
+    /// Cache hit rate below this triggers unhealthy status.
     pub cache_hit_rate_unhealthy: f64,
+    /// Error rate above this triggers degraded status.
     pub error_rate_degraded: f64,
+    /// Error rate above this triggers unhealthy status.
     pub error_rate_unhealthy: f64,
 }
 
@@ -85,14 +116,24 @@ impl Default for HealthThresholds {
     }
 }
 
+/// Aggregated health report for all components.
 #[derive(Debug, Clone)]
 pub struct HealthReport {
+    /// Overall system health status.
     pub overall: HealthStatus,
+    /// Individual component health statuses.
     pub components: Vec<ComponentHealth>,
+    /// Timestamp when the report was generated.
     pub generated_at: Instant,
 }
 
 impl HealthReport {
+    /// Creates a new report from component health statuses.
+    ///
+    /// The overall status is determined by the worst component status:
+    /// - Any unhealthy component makes the overall status unhealthy.
+    /// - Otherwise, any degraded component makes the overall status degraded.
+    /// - If all components are healthy, the overall status is healthy.
     pub fn new(components: Vec<ComponentHealth>) -> Self {
         let overall = if components.iter().any(|c| c.status.is_unhealthy()) {
             HealthStatus::Unhealthy {
@@ -113,6 +154,7 @@ impl HealthReport {
         }
     }
 
+    /// Returns the number of healthy components.
     pub fn healthy_count(&self) -> usize {
         self.components
             .iter()
@@ -120,6 +162,7 @@ impl HealthReport {
             .count()
     }
 
+    /// Returns the number of degraded components.
     pub fn degraded_count(&self) -> usize {
         self.components
             .iter()
@@ -127,6 +170,7 @@ impl HealthReport {
             .count()
     }
 
+    /// Returns the number of unhealthy components.
     pub fn unhealthy_count(&self) -> usize {
         self.components
             .iter()
@@ -134,17 +178,20 @@ impl HealthReport {
             .count()
     }
 
+    /// Looks up a component by name.
     pub fn component(&self, name: &str) -> Option<&ComponentHealth> {
         self.components.iter().find(|c| c.name == name)
     }
 }
 
+/// Health checker for monitoring client components.
 pub struct HealthChecker {
     thresholds: HealthThresholds,
     check_count: u64,
 }
 
 impl HealthChecker {
+    /// Creates a new health checker with custom thresholds.
     pub fn new(thresholds: HealthThresholds) -> Self {
         HealthChecker {
             thresholds,
@@ -152,10 +199,12 @@ impl HealthChecker {
         }
     }
 
+    /// Creates a new health checker with default thresholds.
     pub fn with_defaults() -> Self {
         Self::new(HealthThresholds::default())
     }
 
+    /// Checks transport health based on connection status.
     pub fn check_transport(&self, connected: bool) -> ComponentHealth {
         if connected {
             ComponentHealth::healthy("transport")
@@ -164,6 +213,7 @@ impl HealthChecker {
         }
     }
 
+    /// Checks cache health based on hit and miss counts.
     pub fn check_cache(&self, hits: u64, misses: u64) -> ComponentHealth {
         let total = hits + misses;
         if total == 0 {
@@ -181,6 +231,7 @@ impl HealthChecker {
         }
     }
 
+    /// Checks error health based on error and total operation counts.
     pub fn check_errors(&self, error_ops: u64, total_ops: u64) -> ComponentHealth {
         if total_ops == 0 {
             return ComponentHealth::healthy("errors");
@@ -197,11 +248,13 @@ impl HealthChecker {
         }
     }
 
+    /// Builds a health report from component health statuses.
     pub fn build_report(&mut self, components: Vec<ComponentHealth>) -> HealthReport {
         self.check_count += 1;
         HealthReport::new(components)
     }
 
+    /// Returns the total number of reports generated.
     pub fn check_count(&self) -> u64 {
         self.check_count
     }

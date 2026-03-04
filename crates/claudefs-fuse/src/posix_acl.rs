@@ -1,21 +1,39 @@
+//! POSIX Access Control Lists (ACLs) for fine-grained permission management.
+//!
+//! This module implements POSIX.1e ACLs, providing more granular access control
+//! than traditional owner/group/other permissions. ACLs allow specifying
+//! permissions for specific users and groups beyond the base three categories.
+
+/// Identifies the type of an ACL entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AclTag {
+    /// The file owner's permissions (user_obj in POSIX.1e).
     UserObj,
+    /// Permissions for a specific user by UID.
     User(u32),
+    /// The file's group permissions (group_obj in POSIX.1e).
     GroupObj,
+    /// Permissions for a specific group by GID.
     Group(u32),
+    /// The mask entry limiting permissions for named users, named groups, and group_obj.
     Mask,
+    /// Permissions for all others (other in POSIX.1e).
     Other,
 }
 
+/// Permission bits for an ACL entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AclPerms {
+    /// Read permission.
     pub read: bool,
+    /// Write permission.
     pub write: bool,
+    /// Execute permission.
     pub execute: bool,
 }
 
 impl AclPerms {
+    /// Creates permission bits from a bitmask (r=0x04, w=0x02, x=0x01).
     pub fn from_bits(bits: u8) -> Self {
         AclPerms {
             read: bits & 0x04 != 0,
@@ -24,12 +42,14 @@ impl AclPerms {
         }
     }
 
+    /// Converts permission bits to a bitmask (r=0x04, w=0x02, x=0x01).
     pub fn to_bits(&self) -> u8 {
         (if self.read { 0x04 } else { 0 })
             | (if self.write { 0x02 } else { 0 })
             | (if self.execute { 0x01 } else { 0 })
     }
 
+    /// Returns permissions with read, write, and execute all enabled.
     pub fn all() -> Self {
         AclPerms {
             read: true,
@@ -38,6 +58,7 @@ impl AclPerms {
         }
     }
 
+    /// Returns permissions with read, write, and execute all disabled.
     pub fn none() -> Self {
         AclPerms {
             read: false,
@@ -46,6 +67,7 @@ impl AclPerms {
         }
     }
 
+    /// Returns read-only permissions (read enabled, write and execute disabled).
     pub fn read_only() -> Self {
         AclPerms {
             read: true,
@@ -55,37 +77,55 @@ impl AclPerms {
     }
 }
 
+/// A single entry in a POSIX ACL.
 #[derive(Debug, Clone)]
 pub struct AclEntry {
+    /// The tag identifying the entry type and optional ID.
     pub tag: AclTag,
+    /// The permissions for this entry.
     pub perms: AclPerms,
 }
 
 impl AclEntry {
+    /// Creates a new ACL entry with the given tag and permissions.
     pub fn new(tag: AclTag, perms: AclPerms) -> Self {
         AclEntry { tag, perms }
     }
 
+    /// Returns true if this entry is for a named user or group (not UserObj/GroupObj/Mask/Other).
     pub fn is_named(&self) -> bool {
         matches!(self.tag, AclTag::User(_) | AclTag::Group(_))
     }
 }
 
+/// A POSIX ACL containing zero or more entries.
 pub struct PosixAcl {
     entries: Vec<AclEntry>,
 }
 
 impl PosixAcl {
+    /// Creates a new empty ACL.
     pub fn new() -> Self {
         PosixAcl {
             entries: Vec::new(),
         }
     }
 
+    /// Adds an entry to the ACL.
     pub fn add_entry(&mut self, entry: AclEntry) {
         self.entries.push(entry);
     }
 
+    /// Checks whether the given user/group has the requested permissions.
+    ///
+    /// Follows POSIX.1e ACL evaluation order:
+    /// 1. If user matches file owner, use UserObj entry
+    /// 2. If user matches a named user entry, use that entry
+    /// 3. If user's group matches file group or a named group, check those entries
+    /// 4. Otherwise, use Other entry
+    ///
+    /// The mask entry, if present, limits permissions for named users, named groups,
+    /// and the group_obj entry.
     pub fn check_access(
         &self,
         uid: u32,
@@ -152,14 +192,19 @@ impl PosixAcl {
         false
     }
 
+    /// Returns the number of entries in the ACL.
     pub fn entry_count(&self) -> usize {
         self.entries.len()
     }
 
+    /// Returns true if the ACL contains a mask entry.
     pub fn has_mask(&self) -> bool {
         self.entries.iter().any(|e| e.tag == AclTag::Mask)
     }
 
+    /// Computes effective permissions by applying the mask (if present).
+    ///
+    /// If no mask entry exists, returns the entry permissions unchanged.
     pub fn effective_perms(&self, entry_perms: AclPerms) -> AclPerms {
         if let Some(mask) = self.entries.iter().find(|e| e.tag == AclTag::Mask) {
             AclPerms {
@@ -172,6 +217,7 @@ impl PosixAcl {
         }
     }
 
+    /// Returns all entries matching the given tag.
     pub fn entries_for_tag(&self, tag: AclTag) -> Vec<&AclEntry> {
         self.entries.iter().filter(|e| e.tag == tag).collect()
     }
@@ -183,7 +229,10 @@ impl Default for PosixAcl {
     }
 }
 
+/// Extended attribute name for the access ACL.
 pub const XATTR_POSIX_ACL_ACCESS: &str = "system.posix_acl_access";
+
+/// Extended attribute name for the default ACL (directories only).
 pub const XATTR_POSIX_ACL_DEFAULT: &str = "system.posix_acl_default";
 
 #[cfg(test)]
