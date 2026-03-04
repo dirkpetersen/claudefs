@@ -24,6 +24,7 @@ pub mod backpressure;
 pub mod bandwidth;
 pub mod batch;
 pub mod buffer;
+pub mod bulk_transfer;
 pub mod cancel;
 pub mod circuitbreaker;
 pub mod client;
@@ -68,6 +69,7 @@ pub mod splice;
 pub mod stream;
 pub mod tcp;
 pub mod tenant;
+pub mod timer_wheel;
 pub mod tls;
 pub mod tls_tcp;
 pub mod ratelimit;
@@ -80,6 +82,10 @@ pub mod zerocopy;
 pub use batch::{
     BatchConfig, BatchCollector, BatchEnvelope, BatchItem, BatchRequest, BatchResponse,
     BatchResult, BatchStats, BatchStatsSnapshot,
+};
+pub use bulk_transfer::{
+    BulkTransfer, BulkTransferConfig, BulkTransferError, BulkTransferStats,
+    ChunkId, ChunkState, JobId, TransferChunk,
 };
 pub use priority::{
     Priority, PriorityConfig, PriorityScheduler, PriorityStats, PriorityStatsSnapshot,
@@ -164,6 +170,9 @@ pub use enrollment::{
 pub use endpoint_registry::{
     EndpointList, EndpointRegistry, EndpointRegistryConfig, EndpointRegistryStats,
     ProtocolPreference, TransportAddr,
+};
+pub use timer_wheel::{
+    TimerFired, TimerHandle, TimerToken, TimerWheel, TimerWheelConfig, TimerWheelStats,
 };
 pub use session::{
     Session, SessionConfig, SessionError, SessionId, SessionManager, SessionState,

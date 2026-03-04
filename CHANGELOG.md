@@ -343,6 +343,30 @@ cfs-dev health monitor 60            # Watch cluster for stability
 
 ---
 
+### A4: Transport — Phase 6: Endpoint Registry, Timer Wheel, Bulk Transfer (2026-03-04)
+
+#### 3 New Modules — 113 New Tests, 1013 Total
+
+**Status:** ✅ 1013 tests passing, 0 failures, 0 errors (+113 from 900)
+
+**New modules:**
+- `endpoint_registry.rs` — 37 tests: `EndpointRegistry` maps `NodeId` to TCP/RDMA transport
+  addresses. Supports static (pinned) and gossip-learned (TTL-based) entries. `resolve()` applies
+  protocol preference (TcpOnly or RdmaFirst with TCP fallback). Thread-safe via `RwLock<Inner>`.
+  Stats tracking: lookups, hits, misses, stale_evictions, static_entries. Used by gossip layer to
+  route connections to cluster nodes.
+- `timer_wheel.rs` — 36 tests: `TimerWheel` is a logical (deterministic, non-async) timer wheel
+  for managing large numbers of concurrent request timeouts. `insert()` registers timers with tokens;
+  `tick(now)` fires all elapsed timers and returns `Vec<TimerFired>`. `cancel()` prevents future
+  fires. Full stats: inserted, fired, cancelled, ticks_processed. Useful for A5/A6/A7 timeout mgmt.
+- `bulk_transfer.rs` — 40 tests: `BulkTransfer` state machine for parallel large-payload
+  distribution (64MB EC stripes). Splits payloads into fixed-size chunks (default 1MB), assigns
+  round-robin targets, tracks per-chunk state (Pending/InFlight/Acked/Failed), enforces
+  `max_in_flight` parallelism, and retries failed chunks up to `max_retries` times. Protocol
+  state machine only — no I/O; caller drives sends via `next_to_send()`.
+
+---
+
 ### A4: Transport — Phase 5: OTLP Bridge, Cluster Topology, Fault Injection (2026-03-04)
 
 #### 3 New Modules — 83 New Tests, 900 Total
