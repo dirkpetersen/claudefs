@@ -63,6 +63,10 @@ pub mod reduce_security_tests;
 #[cfg(test)]
 pub mod repl_security_tests;
 #[cfg(test)]
+pub mod repl_phase2_security_tests;
+#[cfg(test)]
 pub mod fuse_ext_security_tests;
 #[cfg(test)]
 pub mod storage_encryption_tests;
+#[cfg(test)]
+pub mod mgmt_rbac_security_tests;

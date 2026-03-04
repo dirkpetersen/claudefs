@@ -1,38 +1,63 @@
+//! Symlink storage and validation for the FUSE filesystem.
+//!
+//! Provides in-memory storage for symbolic link targets with validation
+//! to ensure targets meet length requirements and prevent circular references.
+
 use crate::error::{FuseError, Result};
 use crate::inode::InodeId;
 use std::collections::HashMap;
 
 const MAX_SYMLINK_LEN: usize = 4096;
 
+/// In-memory store for symbolic link targets.
+///
+/// Maps inode numbers to their symlink target paths. Used by the FUSE
+/// daemon to resolve `readlink` operations.
 pub struct SymlinkStore {
     targets: HashMap<InodeId, String>,
 }
 
 impl SymlinkStore {
+    /// Creates a new empty symlink store.
     pub fn new() -> Self {
         Self {
             targets: HashMap::new(),
         }
     }
 
+    /// Inserts a symlink target for the given inode.
+    ///
+    /// Validates the target before insertion. If an entry already exists
+    /// for this inode, it will be overwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FuseError::InvalidArgument` if the target is empty or
+    /// exceeds `MAX_SYMLINK_LEN` (4096 bytes).
     pub fn insert(&mut self, ino: InodeId, target: &str) -> Result<()> {
         validate_symlink_target(target)?;
         self.targets.insert(ino, target.to_string());
         Ok(())
     }
 
+    /// Returns the symlink target for the given inode, if present.
     pub fn get(&self, ino: InodeId) -> Option<&str> {
         self.targets.get(&ino).map(|s| s.as_str())
     }
 
+    /// Removes the symlink entry for the given inode.
+    ///
+    /// No-op if the inode has no associated symlink.
     pub fn remove(&mut self, ino: InodeId) {
         self.targets.remove(&ino);
     }
 
+    /// Returns the number of stored symlinks.
     pub fn len(&self) -> usize {
         self.targets.len()
     }
 
+    /// Returns `true` if the store contains no symlinks.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -44,6 +69,13 @@ impl Default for SymlinkStore {
     }
 }
 
+/// Validates that a symlink target is well-formed.
+///
+/// # Errors
+///
+/// Returns `FuseError::InvalidArgument` if:
+/// - The target is empty
+/// - The target exceeds 4096 bytes
 pub fn validate_symlink_target(target: &str) -> Result<()> {
     if target.is_empty() {
         return Err(FuseError::InvalidArgument {
@@ -61,6 +93,10 @@ pub fn validate_symlink_target(target: &str) -> Result<()> {
     Ok(())
 }
 
+/// Checks if a symlink target would create a circular reference.
+///
+/// Returns `true` if `target` points to `start_path` or a descendant of it,
+/// which would cause infinite recursion when traversing the symlink chain.
 pub fn is_circular_symlink(target: &str, start_path: &str) -> bool {
     if target == start_path {
         return true;

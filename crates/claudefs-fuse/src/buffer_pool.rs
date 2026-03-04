@@ -1,15 +1,25 @@
+//! Buffer pool for FUSE I/O operations.
+//!
+//! Provides pooled allocation of buffers in standard sizes (4KB, 64KB, 1MB)
+//! to reduce allocation overhead and enable buffer reuse across I/O operations.
+
 #![allow(dead_code)]
 
 use tracing::debug;
 
+/// Standard buffer sizes for I/O operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferSize {
+    /// 4 KB page-aligned buffer for small I/O.
     Page4K,
+    /// 64 KB block buffer for medium I/O.
     Block64K,
+    /// 1 MB block buffer for large I/O.
     Block1M,
 }
 
 impl BufferSize {
+    /// Returns the size in bytes for this buffer size variant.
     pub fn size_bytes(&self) -> usize {
         match self {
             Self::Page4K => 4096,
@@ -19,25 +29,34 @@ impl BufferSize {
     }
 }
 
+/// A pooled buffer with data, size class, and unique identifier.
 pub struct Buffer {
+    /// The buffer data, zero-initialized.
     pub data: Vec<u8>,
+    /// The size class of this buffer.
     pub size: BufferSize,
+    /// Unique identifier for tracking.
     pub id: u64,
 }
 
 impl Buffer {
+    /// Returns an immutable slice of the buffer data.
     pub fn as_slice(&self) -> &[u8] {
         &self.data
     }
+    /// Returns a mutable slice of the buffer data.
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         &mut self.data
     }
+    /// Returns the length of the buffer in bytes.
     pub fn len(&self) -> usize {
         self.data.len()
     }
+    /// Returns true if the buffer is empty.
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
+    /// Clears the first 64 bytes of the buffer to zero.
     pub fn clear(&mut self) {
         let n = self.data.len().min(64);
         for b in &mut self.data[..n] {
@@ -46,10 +65,14 @@ impl Buffer {
     }
 }
 
+/// Configuration for a buffer pool.
 #[derive(Debug, Clone)]
 pub struct BufferPoolConfig {
+    /// Maximum number of 4KB buffers to retain.
     pub max_4k: usize,
+    /// Maximum number of 64KB buffers to retain.
     pub max_64k: usize,
+    /// Maximum number of 1MB buffers to retain.
     pub max_1m: usize,
 }
 
@@ -63,17 +86,25 @@ impl Default for BufferPoolConfig {
     }
 }
 
+/// Statistics for a buffer pool.
 #[derive(Debug, Default, Clone)]
 pub struct BufferPoolStats {
+    /// Number of new buffer allocations.
     pub alloc_count: u64,
+    /// Number of buffer reuses from the pool.
     pub reuse_count: u64,
+    /// Number of buffers returned to the pool.
     pub return_count: u64,
+    /// Current count of 4KB buffers in the pool.
     pub current_4k: usize,
+    /// Current count of 64KB buffers in the pool.
     pub current_64k: usize,
+    /// Current count of 1MB buffers in the pool.
     pub current_1m: usize,
 }
 
 impl BufferPoolStats {
+    /// Returns the buffer reuse hit rate (0.0 to 1.0).
     pub fn hit_rate(&self) -> f64 {
         let total = self.alloc_count + self.reuse_count;
         if total == 0 {
@@ -84,6 +115,7 @@ impl BufferPoolStats {
     }
 }
 
+/// A pool of reusable buffers organized by size class.
 pub struct BufferPool {
     pool_4k: Vec<Buffer>,
     pool_64k: Vec<Buffer>,
@@ -94,6 +126,7 @@ pub struct BufferPool {
 }
 
 impl BufferPool {
+    /// Creates a new buffer pool with the given configuration.
     pub fn new(config: BufferPoolConfig) -> Self {
         Self {
             pool_4k: Vec::new(),
@@ -105,6 +138,9 @@ impl BufferPool {
         }
     }
 
+    /// Acquires a buffer of the specified size from the pool.
+    ///
+    /// Reuses an existing buffer if available, otherwise allocates a new one.
     pub fn acquire(&mut self, size: BufferSize) -> Buffer {
         let pool = match size {
             BufferSize::Page4K => &mut self.pool_4k,
@@ -132,6 +168,9 @@ impl BufferPool {
         }
     }
 
+    /// Returns a buffer to the pool for reuse.
+    ///
+    /// If the pool is at capacity for this size class, the buffer is dropped.
     pub fn release(&mut self, buf: Buffer) {
         self.stats.return_count += 1;
         let (pool, max) = match buf.size {
@@ -154,10 +193,12 @@ impl BufferPool {
         self.stats.current_1m = self.pool_1m.len();
     }
 
+    /// Returns statistics about pool usage.
     pub fn stats(&self) -> &BufferPoolStats {
         &self.stats
     }
 
+    /// Returns the number of available buffers for the specified size.
     pub fn available(&self, size: BufferSize) -> usize {
         match size {
             BufferSize::Page4K => self.pool_4k.len(),
@@ -240,10 +281,9 @@ mod tests {
     #[test]
     fn test_hit_rate_calculation() {
         let mut pool = BufferPool::new(BufferPoolConfig::default());
-        let buf = pool.acquire(BufferSize::Page4K); // alloc
+        let buf = pool.acquire(BufferSize::Page4K);
         pool.release(buf);
-        pool.acquire(BufferSize::Page4K); // reuse
-                                          // hit_rate = 1 / (1 + 1) = 0.5
+        pool.acquire(BufferSize::Page4K);
         assert!((pool.stats().hit_rate() - 0.5).abs() < 1e-9);
     }
     #[test]
@@ -258,7 +298,7 @@ mod tests {
         let b3 = pool.acquire(BufferSize::Page4K);
         pool.release(b1);
         pool.release(b2);
-        pool.release(b3); // should be dropped
+        pool.release(b3);
         assert_eq!(pool.available(BufferSize::Page4K), 2);
     }
     #[test]
