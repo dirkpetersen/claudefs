@@ -277,4 +277,99 @@ mod tests {
         assert!(store.insert(hash, location));
         assert!(store.insert(hash, location));
     }
+
+    #[test]
+    fn test_block_location_fields() {
+        let loc = BlockLocation {
+            node_id: 42,
+            block_offset: 0x1000,
+            size: 8192,
+        };
+        assert_eq!(loc.node_id, 42);
+        assert_eq!(loc.block_offset, 0x1000);
+        assert_eq!(loc.size, 8192);
+    }
+
+    #[test]
+    fn test_local_store_empty_initially() {
+        let store = LocalFingerprintStore::new();
+        assert_eq!(store.entry_count(), 0);
+    }
+
+    #[test]
+    fn test_local_store_insert_and_lookup() {
+        let store = LocalFingerprintStore::new();
+        let hash = [7u8; 32];
+        let loc = BlockLocation { node_id: 1, block_offset: 500, size: 2048 };
+        
+        store.insert(hash, loc);
+        let found = store.lookup(&hash);
+        assert!(found.is_some());
+        let found_loc = found.unwrap();
+        assert_eq!(found_loc.node_id, 1);
+        assert_eq!(found_loc.block_offset, 500);
+        assert_eq!(found_loc.size, 2048);
+    }
+
+    #[test]
+    fn test_local_store_lookup_missing() {
+        let store = LocalFingerprintStore::new();
+        let hash = [99u8; 32];
+        assert!(store.lookup(&hash).is_none());
+    }
+
+    #[test]
+    fn test_local_store_increment_ref() {
+        let store = LocalFingerprintStore::new();
+        let hash = [1u8; 32];
+        let loc = BlockLocation { node_id: 1, block_offset: 0, size: 100 };
+        
+        store.insert(hash, loc);
+        assert!(store.increment_ref(&hash));
+        assert!(store.increment_ref(&hash));
+        
+        store.decrement_ref(&hash);
+        let refs = store.decrement_ref(&hash);
+        assert_eq!(refs, Some(1));
+    }
+
+    #[test]
+    fn test_local_store_decrement_ref() {
+        let store = LocalFingerprintStore::new();
+        let hash = [2u8; 32];
+        let loc = BlockLocation { node_id: 1, block_offset: 0, size: 100 };
+        
+        store.insert(hash, loc);
+        store.increment_ref(&hash);
+        store.increment_ref(&hash);
+        
+        let refs = store.decrement_ref(&hash);
+        assert_eq!(refs, Some(2));
+    }
+
+    #[test]
+    fn test_local_store_decrement_to_zero() {
+        let store = LocalFingerprintStore::new();
+        let hash = [3u8; 32];
+        let loc = BlockLocation { node_id: 1, block_offset: 0, size: 100 };
+        
+        store.insert(hash, loc);
+        let refs = store.decrement_ref(&hash);
+        assert_eq!(refs, Some(0));
+    }
+
+    #[test]
+    fn test_null_store_lookup_always_none() {
+        let store = NullFingerprintStore::new();
+        let hash = [42u8; 32];
+        assert!(store.lookup(&hash).is_none());
+    }
+
+    #[test]
+    fn test_null_store_insert_returns_true() {
+        let store = NullFingerprintStore::new();
+        let hash = [1u8; 32];
+        let loc = BlockLocation { node_id: 1, block_offset: 0, size: 100 };
+        assert!(store.insert(hash, loc));
+    }
 }
