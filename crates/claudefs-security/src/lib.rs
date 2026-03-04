@@ -54,3 +54,7 @@ pub mod phase2_audit;
 pub mod meta_security_tests;
 #[cfg(test)]
 pub mod gateway_security_tests;
+#[cfg(test)]
+pub mod fuse_security_tests;
+#[cfg(test)]
+pub mod transport_security_tests;

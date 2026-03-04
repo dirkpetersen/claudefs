@@ -382,38 +382,134 @@ The codebase demonstrates strong security engineering:
 
 ---
 
-## 14. Phase 3 Remediation Priority
+## 15. FUSE Client Security Review (claudefs-fuse)
 
-### Immediate (CRITICAL)
+### 15.1 Client Authentication Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-FUSE-01 | CRITICAL | No token validation — empty and trivial tokens accepted for enrollment |
+| FINDING-FUSE-02 | HIGH | Certificate fingerprint uses trivial checksum (wrapping_add), not SHA-256 — collisions trivial |
+| FINDING-FUSE-03 | HIGH | Certificate expiry parsing hardcodes years ("2030" → timestamp) instead of X.509 ASN.1 parsing |
+| FINDING-FUSE-04 | MEDIUM | CRL grows unbounded — no max size limit, no auto-compaction |
+| FINDING-FUSE-05 | MEDIUM | Post-revocation re-enrollment path needs explicit state validation |
+
+### 15.2 Path Resolution Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-FUSE-06 | HIGH | Path traversal via symlink race — validate_path checks ".." but not resolved symlink targets |
+| FINDING-FUSE-07 | LOW | Absolute path injection correctly rejected by validate_path (PASS) |
+| FINDING-FUSE-08 | LOW | Deep path nesting correctly rejected (PASS for max_depth enforcement) |
+
+### 15.3 Mount Options Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-FUSE-09 | MEDIUM | `allow_other` defaults to false (PASS), but no warning when enabled with writable mount |
+| FINDING-FUSE-10 | MEDIUM | `default_permissions` defaults to false — security-critical option should default to true |
+
+### 15.4 Passthrough FD Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-FUSE-11 | HIGH | register_fd silently overwrites previous fd for same fh — potential fd leak and use-after-free |
+| FINDING-FUSE-12 | MEDIUM | No fd validation (fd could be invalid/closed) — raw i32 stored without verification |
+
+---
+
+## 16. Transport Security Review (claudefs-transport)
+
+### 16.1 Certificate Authentication Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-TRANS-01 | CRITICAL | current_time_ms defaults to 0, never set in production — all expired certificates accepted |
+| FINDING-TRANS-02 | HIGH | CA fingerprint validation uses `issuer.contains()` — substring match, not exact DER comparison |
+| FINDING-TRANS-03 | MEDIUM | `is_ca` field in CertificateInfo never checked — leaf certs could spoof CA role |
+| FINDING-TRANS-04 | LOW | Revocation list uses Vec (O(n) lookup) — should use HashSet for 10k+ entries |
+
+### 16.2 Zero-Copy Buffer Pool Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-TRANS-05 | HIGH | Unsafe allocator pattern: alloc_zeroed → to_vec → dealloc is unsound double-free pattern |
+| FINDING-TRANS-06 | LOW | Released regions are properly zeroed (PASS — info leak prevention verified) |
+| FINDING-TRANS-07 | LOW | Pool exhaustion returns None (PASS — DoS protection verified) |
+| FINDING-TRANS-08 | LOW | Pool grow/shrink respect max_regions limit (PASS) |
+
+### 16.3 Flow Control Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-TRANS-09 | MEDIUM | Window controller has race between full check and CAS — spurious rejections under contention |
+| FINDING-TRANS-10 | LOW | FlowPermit RAII correctly releases on drop (PASS) |
+| FINDING-TRANS-11 | LOW | Flow control transitions (Open → Throttled → Blocked) correct (PASS) |
+
+---
+
+## 17. ClusterVfsBackend Integration Findings
+
+| Finding | Severity | Description |
+|---------|----------|-------------|
+| FINDING-CLUSTER-01 | CRITICAL | No auth context propagation — NFS uid/gid not forwarded to backend RPC |
+| FINDING-CLUSTER-02 | HIGH | Connection pool lacks auth binding — multiple NFS clients share backend connections |
+| FINDING-CLUSTER-03 | HIGH | No HMAC/MAC on file handles — compromised backend can forge handles |
+| FINDING-CLUSTER-04 | HIGH | No input validation before dispatch — unbounded read count, unsanitized paths |
+| FINDING-CLUSTER-05 | MEDIUM | Error messages may leak internal topology (backend node addresses, service names) |
+| FINDING-CLUSTER-06 | MEDIUM | No connection timeout/cleanup — crashed backends leave connections in InUse forever |
+
+---
+
+## 18. Phase 3 Remediation Priority (Updated)
+
+### Immediate (CRITICAL — 8 findings)
 
 1. **FINDING-MGMT-01:** Return 401 when admin_token not configured (still open from Phase 2)
 2. **FINDING-GW-04:** Implement bucket ownership model with per-user isolation
 3. **FINDING-GW-05:** Add object-level ACLs to S3 API
 4. **FINDING-META-03:** Reject special names (".", "..", "", "\0", "/") in create_file/create_dir
 5. **FINDING-META-19:** Reject empty string as file/directory name
+6. **FINDING-FUSE-01:** Validate enrollment tokens (enforce min length, format, entropy)
+7. **FINDING-TRANS-01:** Fix certificate time validation — use SystemTime::now() instead of manual tracking
+8. **FINDING-CLUSTER-01:** Propagate NFS auth context (uid/gid) to backend RPC calls
 
-### High Priority
+### High Priority (17 findings)
 
-6. **FINDING-GW-01:** Normalize/reject path traversal sequences in S3 object keys
-7. **FINDING-GW-06:** Add configurable max object size limit for S3 put_object
-8. **FINDING-GW-09:** Use random nonce in pNFS stateids instead of raw inode
-9. **FINDING-META-07:** Implement lock TTL/leasing with dead-node cleanup
-10. **FINDING-META-20:** Replace `.expect("lock poisoned")` with proper error propagation
-11. **FINDING-META-21:** Add bincode deserialization size limits
-12. **FINDING-META-22:** Handle serialization errors in Raft log batch (don't unwrap)
-13. **FINDING-META-26:** Add persistent 2PC recovery log for cross-shard transactions
-14. **FINDING-GW-23:** Implement mTLS for backend node connections
-15. **FINDING-GW-25:** Add per-export ACLs for NFS
+9. **FINDING-FUSE-02:** Replace trivial checksum fingerprint with SHA-256
+10. **FINDING-FUSE-03:** Parse X.509 certificate expiry via ASN.1, not string matching
+11. **FINDING-FUSE-11:** Fix passthrough fd overwrite — check for existing before register
+12. **FINDING-TRANS-02:** Fix CA fingerprint validation — exact DER comparison, not substring match
+13. **FINDING-TRANS-05:** Fix unsafe zerocopy allocator — replace with safe Vec::with_capacity
+14. **FINDING-CLUSTER-02:** Bind auth context to connection pool sessions
+15. **FINDING-CLUSTER-03:** Add HMAC-based file handle integrity checking
+16. **FINDING-CLUSTER-04:** Add input validation (read count bounds, path sanitization) before dispatch
+17. **FINDING-GW-01:** Normalize/reject path traversal sequences in S3 object keys
+18. **FINDING-GW-06:** Add configurable max object size limit for S3 put_object
+19. **FINDING-GW-09:** Use random nonce in pNFS stateids instead of raw inode
+20. **FINDING-META-07:** Implement lock TTL/leasing with dead-node cleanup
+21. **FINDING-META-20:** Replace `.expect("lock poisoned")` with proper error propagation
+22. **FINDING-META-21:** Add bincode deserialization size limits
+23. **FINDING-META-22:** Handle serialization errors in Raft log batch (don't unwrap)
+24. **FINDING-META-26:** Add persistent 2PC recovery log for cross-shard transactions
+25. **FINDING-GW-23:** Implement mTLS for backend node connections
 
-### Medium Priority
+### Medium Priority (14 findings)
 
-16. **FINDING-GW-02/03:** Validate S3 object key format (reject null bytes, enforce length limit)
-17. **FINDING-GW-07:** Compute actual content hash for ETag
-18. **FINDING-GW-10:** Use cryptographic hash for pNFS server selection
-19. **FINDING-GW-19:** Add rate limiting to token validation
-20. **FINDING-META-24:** Implement cache invalidation tied to directory mutations
-21. **FINDING-META-25:** Make CDC cursor update atomic with event retrieval
-22. **FINDING-META-27:** Add conflict alerting and audit trail for LWW resolution
+26. **FINDING-FUSE-04:** Add CRL max size limit and auto-compaction
+27. **FINDING-FUSE-10:** Default `default_permissions` to true in MountOptions
+28. **FINDING-TRANS-03:** Check `is_ca` field in certificate authentication
+29. **FINDING-TRANS-09:** Fix window controller CAS race with retry loop
+30. **FINDING-CLUSTER-05:** Sanitize error responses — don't expose backend topology
+31. **FINDING-CLUSTER-06:** Add connection timeout and cleanup for InUse connections
+32. **FINDING-GW-02/03:** Validate S3 object key format (reject null bytes, enforce length limit)
+33. **FINDING-GW-07:** Compute actual content hash for ETag
+34. **FINDING-GW-10:** Use cryptographic hash for pNFS server selection
+35. **FINDING-GW-19:** Add rate limiting to token validation
+36. **FINDING-META-24:** Implement cache invalidation tied to directory mutations
+37. **FINDING-META-25:** Make CDC cursor update atomic with event retrieval
+38. **FINDING-META-27:** Add conflict alerting and audit trail for LWW resolution
+39. **FINDING-GW-25:** Add per-export ACLs for NFS
 
 ---
 
@@ -439,8 +535,10 @@ The codebase demonstrates strong security engineering:
 
 | meta_security_tests.rs | 25 | Metadata input validation, distributed locking, service security, CDC/cache |
 | gateway_security_tests.rs | 28 | S3 API, pNFS layout, NFS auth, token auth security |
+| fuse_security_tests.rs | 20 | Client auth, path resolution, mount options, passthrough FD |
+| transport_security_tests.rs | 20 | Certificate auth, zero-copy pool, flow control |
 
-**Total:** 618 passing tests (53 new in Phase 3)
+**Total:** 658 passing tests (93 new in Phase 3)
 
 ---
 
@@ -485,4 +583,16 @@ The codebase demonstrates strong security engineering:
 - `crates/claudefs-gateway/src/smb.rs` — SMB VFS stub
 - `crates/claudefs-gateway/src/nfs.rs` — NFS handler
 - `crates/claudefs-gateway/src/error.rs` — Error types
-- `crates/claudefs-security/src/*.rs` — All 23 security test modules
+- `crates/claudefs-fuse/src/client_auth.rs` — Client authentication/enrollment
+- `crates/claudefs-fuse/src/path_resolver.rs` — Path resolution and caching
+- `crates/claudefs-fuse/src/mount.rs` — Mount options and security defaults
+- `crates/claudefs-fuse/src/passthrough.rs` — FUSE passthrough FD management
+- `crates/claudefs-fuse/src/sec_policy.rs` — Security policy enforcement
+- `crates/claudefs-fuse/src/cache_coherence.rs` — Cache lease management
+- `crates/claudefs-transport/src/protocol.rs` — RPC protocol parsing
+- `crates/claudefs-transport/src/rpc.rs` — RPC client/server
+- `crates/claudefs-transport/src/flowcontrol.rs` — Flow control and backpressure
+- `crates/claudefs-transport/src/tcp.rs` — TCP transport
+- `crates/claudefs-transport/src/message.rs` — Message serialization
+- `crates/claudefs-transport/src/connection.rs` — Connection management
+- `crates/claudefs-security/src/*.rs` — All 25 security test modules
