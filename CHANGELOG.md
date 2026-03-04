@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 8: Replication Deep v2 & Gateway Protocol (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1022 Total
+
+**Status:** ✅ 1022 security tests passing, 0 failures (+50 from 972)
+
+**New Coverage — Replication Deep v2 (25 tests):**
+- Sliding Window Attacks (5 tests): cumulative ACK (FINDING), future ACK (FINDING), retransmit overflow, zero-entry batch, backpressure
+- Split-Brain Fencing (5 tests): token monotonicity, old token rejected, confirm from Normal (FINDING), heal from Normal, stats
+- Active-Active Conflicts (5 tests): logical time, remote conflict LWW, link flap counting, drain idempotent, stale write (FINDING)
+- Catchup State Machine (5 tests): request while running, batch in idle, zero-entry, fail/reset, stats accumulation
+- Checkpoint & Conflict (5 tests): fingerprint determinism, max=0, serialization, timestamp tiebreak, split-brain count
+
+**New Coverage — Gateway Protocol Security (25 tests):**
+- NFS V4 Session (5 tests): session ID uniqueness, slot replay, sequence skip, stale expiry, unconfirmed client
+- NFS ACL (5 tests): missing entries, mask limits, root bypass (FINDING), deny/allow order, permission bits
+- S3 Encryption (5 tests): none algorithm, KMS key required (FINDING), context injection, is_kms, bucket key
+- S3 Object Lock (5 tests): governance vs compliance, expired retention, legal hold, days-to-duration, disabled
+- S3 Versioning & CORS (5 tests): version ID uniqueness, null version, wildcard CORS (FINDING), no matching, validation
+
+**Key Findings (5 HIGH, 4 MEDIUM):**
+- REPL-DEEP2-01 (HIGH): Cumulative ACK vulnerability — out-of-order ACK removes all lower seqs
+- REPL-DEEP2-02 (HIGH): Phantom ACK accepted for future seq
+- REPL-DEEP2-15 (HIGH): Stale remote writes accepted without rejection
+- GW-PROTO-12 (HIGH): KMS encryption without key_id accepted
+- GW-PROTO-23 (HIGH): CORS wildcard allows any origin — credential theft
+
 ### A10: Security Audit — Phase 7: FUSE Deep & Storage Deep v2 (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 972 Total

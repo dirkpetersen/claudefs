@@ -1063,3 +1063,49 @@ Deep audit of storage crate: allocator boundaries, block cache poisoning, quota 
 3. Storage Quota (5): hard limit blocks, soft limit grace, zero limits, usage at hard boundary, stats tracking
 4. Wear Leveling (5): hot zone detection, wear advice, alert severity, no-writes no-alerts, write pattern tracking
 5. Hot Swap State Machine (5): register and drain, drain unregistered, double register, remove active, fail device state
+
+---
+
+## 25. Phase 8: Replication Deep v2 & Gateway Protocol Security (2026-03-04)
+
+### 25.1 Replication Deep Security v2
+
+Deep audit of replication crate: sliding window protocol attacks, split-brain fencing, active-active conflict resolution, catchup state machine, and checkpoint integrity.
+
+**Test Module:** `repl_deep_security_tests_v2.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| REPL-DEEP2-01 | HIGH | Cumulative ACK removes all seqs <= acknowledged — out-of-order ACK vulnerability |
+| REPL-DEEP2-02 | HIGH | ACK for future seq (seq=999 when only 1 sent) accepted — phantom ACK corrupts window |
+| REPL-DEEP2-04 | MEDIUM | Zero-entry batches waste window slots without replicating data |
+| REPL-DEEP2-08 | MEDIUM | Split-brain confirm allowed from Normal state — false split-brain trigger |
+| REPL-DEEP2-15 | HIGH | Remote writes with stale logical time accepted — stale overwrites possible |
+
+**Categories tested:**
+1. Sliding Window Attacks (5): cumulative ACK, future ACK, retransmit overflow, zero-entry batch, full backpressure
+2. Split-Brain Fencing (5): token monotonicity, old token rejected, confirm from Normal, heal from Normal, stats tracking
+3. Active-Active Conflicts (5): logical time increment, remote conflict LWW, link flap counting, drain idempotent, stale write
+4. Catchup State Machine (5): request while running, batch in idle, zero-entry batch, fail/reset, stats accumulation
+5. Checkpoint & Conflict (5): fingerprint determinism, max=0, serialization roundtrip, identical timestamp tiebreak, split-brain count
+
+### 25.2 Gateway Protocol Security
+
+Deep audit of gateway crate: NFS v4 session management, POSIX ACL enforcement, S3 encryption/KMS, S3 object lock compliance, S3 versioning and CORS.
+
+**Test Module:** `gateway_protocol_security_tests.rs` (25 tests)
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| GW-PROTO-01 | MEDIUM | NFS session ID uniqueness depends on random generation quality |
+| GW-PROTO-08 | MEDIUM | Root UID=0 ACL bypass behavior — policy decision to enforce or bypass |
+| GW-PROTO-12 | HIGH | KMS encryption without key_id accepted — service must guess key |
+| GW-PROTO-13 | MEDIUM | Encryption context allows arbitrary key-value pairs without validation |
+| GW-PROTO-23 | HIGH | CORS wildcard origin allows any domain — credential theft risk |
+
+**Categories tested:**
+1. NFS V4 Session (5): session ID uniqueness, slot replay detection, sequence skip, stale expiry, unconfirmed client
+2. NFS ACL Enforcement (5): missing required entries, mask limits named, root bypass, deny/allow order, permission bits roundtrip
+3. S3 Encryption & KMS (5): none algorithm, KMS key_id required, context injection, is_kms check, bucket key enabled
+4. S3 Object Lock (5): governance vs compliance, expired retention, legal hold override, days-to-duration, disabled bucket
+5. S3 Versioning & CORS (5): version ID uniqueness, null version, wildcard CORS, no matching rule, valid rule requirements

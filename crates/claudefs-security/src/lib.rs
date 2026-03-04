@@ -92,3 +92,5 @@ pub mod repl_deep_security_tests_v2;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod fuse_deep_security_tests;
+#[cfg(test)]
+pub mod gateway_protocol_security_tests;
