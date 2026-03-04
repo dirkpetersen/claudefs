@@ -48,6 +48,8 @@ pub mod journal;
 pub mod journal_tailer;
 /// Embedded key-value store
 pub mod kvstore;
+/// Lazy deletion tracking for POSIX unlink-while-open semantics
+pub mod lazy_delete;
 /// Lease-based metadata caching
 pub mod lease;
 /// Automatic lease renewal with configurable TTL threshold
@@ -142,6 +144,7 @@ pub use health::{ComponentHealth, HealthChecker, HealthReport, HealthStatus, Hea
 pub use inode_gen::{Generation, InodeGenManager, NfsFileHandle};
 pub use journal_tailer::{JournalTailer, ReplicationBatch, TailerConfig, TailerCursor};
 pub use kvstore::{KvStore, MemoryKvStore};
+pub use lazy_delete::{LazyDeleteEntry, LazyDeleteStore};
 pub use lease::{LeaseManager, LeaseType};
 pub use lease_renew::{LeaseRenewConfig, LeaseRenewManager, RenewalAction};
 pub use locking::{LockManager, LockType};
