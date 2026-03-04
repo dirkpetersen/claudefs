@@ -34,6 +34,8 @@ pub mod fallocate;
 pub mod filesystem;
 /// POSIX file locking (fcntl locks), lock table management.
 pub mod flock;
+/// Fsync write barriers, journal management, barrier state machine.
+pub mod fsync_barrier;
 /// Server health monitoring, failure detection, recovery triggering.
 pub mod health;
 /// UID/GID mapping across security domains.
