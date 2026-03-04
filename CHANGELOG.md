@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 13: Storage QoS & Meta Integrity (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1271 Total
+
+**Status:** ✅ 1271 security tests passing, 0 failures (+50 from 1221)
+
+**New Coverage — Storage QoS & Scheduling (25 tests):**
+- Token Bucket & Bandwidth (5 tests): consume/refill, bandwidth tracking, policy defaults, workload class
+- QoS Enforcer (5 tests): allow within limits, throttle exceeded, no-policy allow (FINDING), stats, remove
+- I/O Scheduler (5 tests): priority ordering, dequeue by priority, max queue depth (FINDING), inflight, drain
+- Capacity Watermarks (5 tests): normal level, transitions, eviction trigger, segment registration, candidates
+- Config & Edge Cases (5 tests): scheduler defaults, watermark defaults, zero capacity, empty dequeue, reset
+
+**New Coverage — Meta Integrity & Tenant (25 tests):**
+- Fsck Integrity (5 tests): config defaults, clean report, severity check, orphan repair, link mismatch (FINDING)
+- Quota Enforcement (5 tests): unlimited, over quota, set/check, update usage, over quota targets
+- Tenant Isolation (5 tests): create/list, authorization (FINDING), quota check, inode assignment, removal
+- Fsck Issues & Repair (5 tests): dangling, duplicate, disconnected, display, accumulation
+- Quota/Tenant Edge Cases (5 tests): saturating add, remove/recheck, duplicate create, usage tracking, group quota
+
+**Key Findings (3 HIGH, 2 MEDIUM):**
+- QOS-08 (HIGH): Missing QoS policy defaults to Allow — unknown tenants unrestricted
+- QOS-13 (HIGH): I/O queue depth limit prevents memory exhaustion DoS
+- TENANT-12 (HIGH): Tenant authorization correctly checks both UID and GID lists
+
 ### A10: Security Audit — Phase 12: FUSE Cache/Recovery & Replication Infrastructure (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1221 Total
