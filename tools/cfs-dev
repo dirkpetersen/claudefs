@@ -553,6 +553,14 @@ Commands:
   cost
       Show today's AWS spend, monthly total, and budget status.
 
+  cache [status|get|put|clean|clear]
+      Manage build artifact caching in S3.
+      status   — Show cache status and inventory
+      get      — Download cached binary if available
+      put PATH — Upload binary to cache
+      clean    — Remove old entries (keep latest 10)
+      clear    — Clear entire cache (confirmation required)
+
   ssh [target] [--key KEY]
       SSH into orchestrator (default) or named node.
       Examples: cfs-dev ssh
@@ -573,6 +581,11 @@ HELP
 
 # --- Main ---
 
+cmd_cache() {
+  # Manage build artifact caching
+  "$SCRIPT_DIR/cfs-build-cache.sh" "$@"
+}
+
 COMMAND="${1:-help}"
 shift || true
 
@@ -583,6 +596,7 @@ case "$COMMAND" in
   deploy)   cmd_deploy "$@" ;;
   validate) cmd_validate "$@" ;;
   health)   cmd_health "$@" ;;
+  cache)    cmd_cache "$@" ;;
   down)     cmd_down "$@" ;;
   destroy)  cmd_destroy "$@" ;;
   cost)     cmd_cost "$@" ;;
