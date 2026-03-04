@@ -50,6 +50,7 @@ pub mod gossip;
 pub mod health;
 pub mod hedge;
 pub mod keepalive;
+pub mod lease;
 pub mod loadshed;
 pub mod message;
 pub mod metrics;
@@ -74,12 +75,14 @@ pub mod rpc;
 pub mod session;
 pub mod server;
 pub mod segment_router;
+pub mod shard_map;
 pub mod splice;
 pub mod splice_queue;
 pub mod stream;
 pub mod tcp;
 pub mod tenant;
 pub mod timer_wheel;
+pub mod timeout_budget;
 pub mod tls;
 pub mod tls_tcp;
 pub mod ratelimit;
@@ -266,4 +269,16 @@ pub use splice_queue::{
 pub use conn_drain_aware::{
     ConnDrainConfig, ConnDrainError, ConnDrainManager, ConnDrainState, ConnDrainStats,
     ConnDrainStatsSnapshot, ConnDrainTracker,
+};
+pub use lease::{
+    Lease, LeaseConfig, LeaseError, LeaseId, LeaseManager, LeaseState, LeaseStats,
+    LeaseStatsSnapshot, LeaseType,
+};
+pub use shard_map::{
+    ShardInfo, ShardMap, ShardMapConfig, ShardMapError, ShardMapStats, ShardMapStatsSnapshot,
+    ShardReplica, ShardRole, VirtualShard,
+};
+pub use timeout_budget::{
+    TimeoutBudget, TimeoutBudgetConfig, TimeoutBudgetManager, TimeoutBudgetStats,
+    TimeoutBudgetStatsSnapshot,
 };
