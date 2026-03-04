@@ -4,10 +4,14 @@
 
 /// POSIX permission checking
 pub mod access;
+/// POSIX Access Control Lists (ACLs) for fine-grained permission control
+pub mod acl;
 /// Persistent file-backed KV store with WAL and checkpoint
 pub mod btree_store;
 /// Change Data Capture (CDC) event streaming
 pub mod cdc;
+/// Metadata checkpoint manager for fast restart
+pub mod checkpoint;
 /// Conflict detection and resolution for cross-site replication
 pub mod conflict;
 /// Raft consensus implementation
@@ -88,6 +92,8 @@ pub mod shard;
 pub mod shard_stats;
 /// Raft log snapshot and compaction
 pub mod snapshot;
+/// Symlink storage and resolution with loop detection
+pub mod symlink;
 /// Multi-tenant namespace isolation
 pub mod tenant;
 /// Distributed tracing context for metadata operations
@@ -109,8 +115,10 @@ pub mod xattr;
 mod proptests;
 
 pub use access::{AccessMode, UserContext};
+pub use acl::{Acl, AclEntry, AclStore, AclTag};
 pub use btree_store::PersistentKvStore;
 pub use cdc::{CdcCursor, CdcEvent, CdcStream};
+pub use checkpoint::{Checkpoint, CheckpointManager, CheckpointMeta};
 pub use conflict::{ConflictDetector, ConflictEvent, ConflictWinner};
 pub use cross_shard::{CrossShardCoordinator, CrossShardResult};
 pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
@@ -146,6 +154,7 @@ pub use service::MetadataServiceConfig;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use shard_stats::{ClusterShardStats, ShardStats};
 pub use snapshot::{RaftSnapshot, SnapshotManager};
+pub use symlink::SymlinkStore;
 pub use tenant::{TenantConfig, TenantId, TenantManager, TenantUsage};
 pub use tracecontext::{SpanId, SpanRecord, SpanStatus, TraceCollector, TraceContext, TraceId};
 pub use transaction::{Transaction, TransactionId, TransactionManager, TransactionState};

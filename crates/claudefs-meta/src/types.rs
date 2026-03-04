@@ -233,6 +233,10 @@ pub enum MetaError {
     #[error("permission denied")]
     PermissionDenied,
 
+    /// Invalid argument provided to a metadata operation.
+    #[error("invalid argument: {0}")]
+    InvalidArgument(String),
+
     /// Operation requires the Raft leader but this node is not the leader.
     #[error("not the Raft leader")]
     NotLeader {
@@ -901,6 +905,12 @@ mod tests {
             format!("{}", err),
             "entry 'foo' already exists in directory 1"
         );
+    }
+
+    #[test]
+    fn test_meta_error_invalid_argument() {
+        let err = MetaError::InvalidArgument("bad value".to_string());
+        assert_eq!(format!("{}", err), "invalid argument: bad value");
     }
 
     #[test]
