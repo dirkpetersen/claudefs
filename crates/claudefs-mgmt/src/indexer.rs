@@ -5,6 +5,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use thiserror::Error;
 
+use crate::metadata_consumer::MetadataConsumer;
+
 #[derive(Debug, Error)]
 pub enum IndexerError {
     #[error("I/O error: {0}")]
@@ -401,6 +403,65 @@ impl MetadataIndexer {
 
     pub fn stop(&self) {
         self.is_running.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub async fn start_consumer(
+        &self,
+        journal: Arc<claudefs_meta::journal::MetadataJournal>,
+    ) -> anyhow::Result<()> {
+        let consumer = MetadataConsumer::new(journal).await?;
+        let consumer = Arc::new(consumer);
+        let writer = self.writer.clone();
+        let is_running = self.is_running.clone();
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+
+            loop {
+                interval.tick().await;
+
+                if !is_running.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
+
+                match consumer.poll_batch().await {
+                    Ok(records) => {
+                        if records.is_empty() {
+                            continue;
+                        }
+
+                        let mut writer = writer.lock().await;
+                        for record in records {
+                            let inode_state = InodeState {
+                                inode: record.inode,
+                                path: record.path,
+                                filename: record.filename,
+                                parent_path: record.parent_path,
+                                owner_uid: record.owner_uid,
+                                owner_name: record.owner_name,
+                                group_gid: record.group_gid,
+                                group_name: record.group_name,
+                                size_bytes: record.size_bytes,
+                                blocks_stored: record.blocks_stored,
+                                mtime: record.mtime,
+                                ctime: record.ctime,
+                                file_type: record.file_type,
+                                is_replicated: record.is_replicated,
+                            };
+
+                            if let Err(e) = writer.flush(&[inode_state]) {
+                                tracing::error!("Failed to write record to index: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Consumer poll failed: {}", e);
+                    }
+                }
+            }
+        });
+
+        Ok(())
     }
 }
 

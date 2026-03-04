@@ -22,6 +22,8 @@ pub mod cost_tracker;
 pub mod grafana;
 /// Parquet metadata indexing
 pub mod indexer;
+/// Metadata journal consumer for analytics indexing
+pub mod metadata_consumer;
 /// Prometheus metrics collection
 pub mod metrics;
 /// Operational metrics aggregation
