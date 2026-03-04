@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 24: Compression Stats, Delta Index, Object Assembler (2026-03-04)
+
+#### 3 New Modules — 70 New Tests, 1758 Total
+
+**Status:** ✅ 1758 tests passing, 0 failures (+70 from 1688)
+
+**New modules:**
+- `compression_stats.rs` — Rolling 1-min window compression stats; bucket-based ratio/throughput; 24 tests
+- `delta_index.rs` — Super-Feature inverted index for similarity-based delta compression (Finesse algorithm); 24 tests
+- `object_assembler.rs` — 64MB S3 blob assembler; packs CAS chunks with offset index for tiering (D5); 22 tests
+
 ### A2: Metadata Service — Phase 6: SpaceAccounting, RangeLock, MtimeTracker (2026-03-04)
 
 #### 3 New Modules — 44 New Tests, 871 Total
