@@ -1,9 +1,20 @@
+//! Write buffering for coalescing small writes before flush to storage.
+//!
+//! This module provides a write buffer that accumulates small writes per inode,
+//! coalesces adjacent or overlapping ranges, and signals when a flush threshold
+//! is exceeded. This reduces the number of I/O operations and improves throughput
+//! for workloads with many small sequential or random writes.
+
 use crate::inode::InodeId;
 use std::collections::HashMap;
 
+/// Configuration parameters for the write buffer.
 pub struct WriteBufConfig {
+    /// Total bytes buffered before `buffer_write` returns `true` to signal a flush.
     pub flush_threshold: usize,
+    /// Maximum gap between ranges to merge during coalescing (in bytes).
     pub max_coalesce_gap: u64,
+    /// Maximum time dirty data may remain unflushed (in milliseconds).
     pub dirty_timeout_ms: u64,
 }
 
@@ -17,12 +28,16 @@ impl Default for WriteBufConfig {
     }
 }
 
+/// A contiguous range of data written to an inode.
 #[derive(Debug, Clone)]
 pub struct WriteRange {
+    /// Byte offset within the inode where this data should be written.
     pub offset: u64,
+    /// The actual data bytes to write.
     pub data: Vec<u8>,
 }
 
+/// Per-inode write buffer with coalescing and flush signaling.
 pub struct WriteBuf {
     config: WriteBufConfig,
     dirty: HashMap<InodeId, Vec<WriteRange>>,
@@ -30,6 +45,7 @@ pub struct WriteBuf {
 }
 
 impl WriteBuf {
+    /// Creates a new write buffer with the given configuration.
     pub fn new(config: WriteBufConfig) -> Self {
         tracing::debug!(
             "Initializing write buffer: flush_threshold={}, max_coalesce_gap={}, timeout={}ms",
@@ -44,6 +60,10 @@ impl WriteBuf {
         }
     }
 
+    /// Buffers a write for the given inode.
+    ///
+    /// Returns `true` if the total buffered bytes now meets or exceeds the
+    /// flush threshold, signaling that a flush should be performed.
     pub fn buffer_write(&mut self, ino: InodeId, offset: u64, data: &[u8]) -> bool {
         if data.is_empty() {
             tracing::debug!("Ignoring zero-length write for inode {}", ino);
@@ -73,6 +93,11 @@ impl WriteBuf {
         self.total_bytes >= self.config.flush_threshold
     }
 
+    /// Coalesces adjacent, overlapping, or nearly-adjacent ranges for an inode.
+    ///
+    /// Ranges within `max_coalesce_gap` bytes of each other are merged to reduce
+    /// the number of separate I/O operations. Overlapping ranges are handled by
+    /// keeping the later write's data for the overlapping region.
     pub fn coalesce(&mut self, ino: InodeId) {
         let ranges = match self.dirty.get_mut(&ino) {
             Some(r) => r,
@@ -125,6 +150,10 @@ impl WriteBuf {
         );
     }
 
+    /// Takes all dirty ranges for an inode, removing them from the buffer.
+    ///
+    /// Returns the ranges and decrements the total buffered byte count.
+    /// Returns an empty vector if the inode has no dirty data.
     pub fn take_dirty(&mut self, ino: InodeId) -> Vec<WriteRange> {
         let ranges = self.dirty.remove(&ino);
 
@@ -144,10 +173,12 @@ impl WriteBuf {
         result
     }
 
+    /// Returns `true` if the inode has any dirty (buffered) data.
     pub fn is_dirty(&self, ino: InodeId) -> bool {
         self.dirty.get(&ino).map(|r| !r.is_empty()).unwrap_or(false)
     }
 
+    /// Returns a list of all inodes that currently have dirty data.
     pub fn dirty_inodes(&self) -> Vec<InodeId> {
         self.dirty
             .iter()
@@ -156,10 +187,14 @@ impl WriteBuf {
             .collect()
     }
 
+    /// Returns the total number of bytes currently buffered across all inodes.
     pub fn total_buffered(&self) -> usize {
         self.total_bytes
     }
 
+    /// Discards all buffered data for an inode without flushing.
+    ///
+    /// Updates the total buffered byte count accordingly.
     pub fn discard(&mut self, ino: InodeId) {
         if let Some(ranges) = self.dirty.remove(&ino) {
             let bytes = ranges.iter().map(|r| r.data.len()).sum::<usize>();

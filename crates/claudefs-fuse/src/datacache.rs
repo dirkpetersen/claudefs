@@ -1,11 +1,21 @@
+//! Data cache for caching file data in the FUSE client.
+//!
+//! This module provides an LRU-based cache for file data to improve read performance.
+//! The cache enforces limits on both the number of files and total bytes cached,
+//! and tracks statistics for monitoring cache effectiveness.
+
 use crate::inode::InodeId;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 
+/// Configuration for the data cache.
 #[derive(Debug, Clone)]
 pub struct DataCacheConfig {
+    /// Maximum number of files to cache.
     pub max_files: usize,
+    /// Maximum total bytes to cache.
     pub max_bytes: u64,
+    /// Maximum size of a single file that can be cached.
     pub max_file_size: u64,
 }
 
@@ -19,21 +29,31 @@ impl Default for DataCacheConfig {
     }
 }
 
+/// Cached data entry with generation tracking.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CachedData {
+    /// The cached file data.
     pub data: Vec<u8>,
+    /// Generation number for cache invalidation.
     pub generation: u64,
 }
 
+/// Statistics for the data cache.
 #[derive(Debug, Default, Clone)]
 pub struct DataCacheStats {
+    /// Number of cache hits.
     pub hits: u64,
+    /// Number of cache misses.
     pub misses: u64,
+    /// Number of cache evictions.
     pub evictions: u64,
+    /// Total bytes currently cached.
     pub total_bytes: u64,
+    /// Number of files currently cached.
     pub files: usize,
 }
 
+/// LRU-based data cache for file contents.
 pub struct DataCache {
     config: DataCacheConfig,
     cache: LruCache<InodeId, CachedData>,
@@ -42,6 +62,7 @@ pub struct DataCache {
 }
 
 impl DataCache {
+    /// Creates a new data cache with the given configuration.
     pub fn new(config: DataCacheConfig) -> Self {
         let cache = LruCache::new(
             NonZeroUsize::new(config.max_files).unwrap_or(NonZeroUsize::new(1).unwrap()),
@@ -54,6 +75,10 @@ impl DataCache {
         }
     }
 
+    /// Inserts data into the cache for the given inode.
+    ///
+    /// Returns `true` if the data was inserted, `false` if it was too large.
+    /// Evicts entries as needed to stay within configured limits.
     pub fn insert(&mut self, ino: InodeId, data: Vec<u8>, generation: u64) -> bool {
         let size = data.len() as u64;
 
@@ -91,6 +116,9 @@ impl DataCache {
         true
     }
 
+    /// Retrieves cached data for the given inode.
+    ///
+    /// Updates hit/miss statistics.
     pub fn get(&mut self, ino: InodeId) -> Option<&CachedData> {
         if let Some(data) = self.cache.get(&ino) {
             self.stats.hits += 1;
@@ -101,6 +129,7 @@ impl DataCache {
         }
     }
 
+    /// Removes the cached entry for the given inode.
     pub fn invalidate(&mut self, ino: InodeId) {
         if let Some(data) = self.cache.pop(&ino) {
             self.total_bytes = self.total_bytes.saturating_sub(data.data.len() as u64);
@@ -109,6 +138,7 @@ impl DataCache {
         }
     }
 
+    /// Invalidates the cached entry if its generation doesn't match.
     pub fn invalidate_if_generation(&mut self, ino: InodeId, generation: u64) {
         if let Some(data) = self.cache.get(&ino) {
             if data.generation != generation {
@@ -117,22 +147,27 @@ impl DataCache {
         }
     }
 
+    /// Returns the cache statistics.
     pub fn stats(&self) -> &DataCacheStats {
         &self.stats
     }
 
+    /// Returns the number of cached files.
     pub fn len(&self) -> usize {
         self.cache.len()
     }
 
+    /// Returns `true` if the cache is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Returns the total bytes currently cached.
     pub fn total_bytes(&self) -> u64 {
         self.total_bytes
     }
 
+    /// Clears all entries from the cache.
     pub fn clear(&mut self) {
         self.cache.clear();
         self.total_bytes = 0;

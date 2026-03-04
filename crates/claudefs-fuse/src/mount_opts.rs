@@ -1,35 +1,60 @@
 #![warn(missing_docs)]
 
+//! FUSE mount option configuration.
+//!
+//! This module provides types for building and serializing FUSE mount options
+//! that control how the filesystem is mounted in the kernel.
+
 use std::path::PathBuf;
 
+/// Read/write access mode for the mount.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ReadWriteMode {
+    /// Read-write access (default).
     #[default]
     ReadWrite,
+    /// Read-only access.
     ReadOnly,
 }
 
+/// Cache behavior for file data and attributes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CacheMode {
+    /// No caching, all reads go to the daemon.
     #[default]
     None,
+    /// Relaxed caching, may return stale data.
     Relaxed,
+    /// Strict caching, guarantees freshness.
     Strict,
 }
 
+/// Configuration for a FUSE mount point.
 #[derive(Debug, Clone)]
 pub struct MountOptions {
+    /// Source path or identifier for the filesystem.
     pub source: PathBuf,
+    /// Target mount point in the filesystem.
     pub target: PathBuf,
+    /// Read/write or read-only mode.
     pub read_only: ReadWriteMode,
+    /// Allow other users to access the mount.
     pub allow_other: bool,
+    /// Use kernel's default permission checking.
     pub default_permissions: bool,
+    /// Cache mode for file data and attributes.
     pub cache_mode: CacheMode,
+    /// Maximum number of pending background requests.
     pub max_background: u32,
+    /// Threshold for kernel to start queuing requests.
     pub congestion_threshold: u32,
+    /// Bypass page cache for all file I/O.
     pub direct_io: bool,
+    /// Use kernel's page cache for reads.
     pub kernel_cache: bool,
+    /// Automatically unmount on daemon exit.
     pub auto_unmount: bool,
+    /// Pre-opened file descriptor for the mount.
     pub fd: Option<i32>,
 }
 
@@ -53,6 +78,7 @@ impl Default for MountOptions {
 }
 
 impl MountOptions {
+    /// Creates a new mount configuration with the given source and target.
     pub fn new(source: PathBuf, target: PathBuf) -> Self {
         Self {
             source,
@@ -61,6 +87,7 @@ impl MountOptions {
         }
     }
 
+    /// Converts mount options to a vector of FUSE command-line arguments.
     pub fn to_fuse_args(&self) -> Vec<String> {
         let mut args = Vec::new();
         args.push(self.source.to_string_lossy().to_string());

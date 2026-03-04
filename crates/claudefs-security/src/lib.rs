@@ -62,3 +62,7 @@ pub mod transport_security_tests;
 pub mod reduce_security_tests;
 #[cfg(test)]
 pub mod repl_security_tests;
+#[cfg(test)]
+pub mod fuse_ext_security_tests;
+#[cfg(test)]
+pub mod storage_encryption_tests;

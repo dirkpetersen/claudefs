@@ -1,18 +1,37 @@
+//! Connection reconnection logic with exponential backoff.
+//!
+//! This module provides utilities for managing connection state and implementing
+//! reconnection strategies with configurable exponential backoff and jitter.
+
 use std::fmt;
 
+/// Represents the current state of a connection.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConnectionState {
+    /// Connection is active and healthy.
     Connected,
+    /// Connection has been lost and not yet attempting reconnection.
     Disconnected,
-    Reconnecting { attempt: u32 },
+    /// Currently attempting to reconnect.
+    Reconnecting {
+        /// The current reconnection attempt number (1-indexed).
+        attempt: u32,
+    },
+    /// Reconnection attempts exhausted, connection permanently failed.
     Failed,
 }
 
+/// Configuration parameters for reconnection behavior.
 pub struct ReconnectConfig {
+    /// Initial delay in milliseconds before the first reconnection attempt.
     pub initial_delay_ms: u64,
+    /// Maximum delay in milliseconds between reconnection attempts.
     pub max_delay_ms: u64,
+    /// Maximum number of reconnection attempts before giving up.
     pub max_attempts: u32,
+    /// Multiplier applied to the delay for each subsequent attempt.
     pub backoff_multiplier: f64,
+    /// Fraction of the delay to add as random jitter (0.0 to 1.0).
     pub jitter_fraction: f64,
 }
 
@@ -28,9 +47,12 @@ impl Default for ReconnectConfig {
     }
 }
 
+/// Error indicating that reconnection attempts have been exhausted.
 #[derive(Debug)]
 pub struct ReconnectError {
+    /// Human-readable error message describing the failure.
     pub message: String,
+    /// The number of reconnection attempts that were made.
     pub attempt: u32,
 }
 
@@ -46,14 +68,22 @@ impl fmt::Display for ReconnectError {
 
 impl std::error::Error for ReconnectError {}
 
+/// Tracks the state of a reconnection process.
 pub struct ReconnectState {
+    /// Configuration parameters for reconnection behavior.
     pub config: ReconnectConfig,
+    /// Current state of the connection.
     pub state: ConnectionState,
+    /// Current reconnection attempt counter.
     pub attempt: u32,
+    /// Delay in milliseconds used for the last reconnection attempt.
     pub last_delay_ms: u64,
 }
 
 impl ReconnectState {
+    /// Creates a new `ReconnectState` with the given configuration.
+    ///
+    /// The initial state is `ConnectionState::Disconnected` with zero attempts.
     pub fn new(config: ReconnectConfig) -> Self {
         tracing::debug!(
             "Initializing reconnect state: initial_delay={}ms, max_delay={}ms, max_attempts={}",
@@ -78,6 +108,9 @@ impl ReconnectState {
         }
     }
 
+    /// Marks the connection as successfully established.
+    ///
+    /// Resets the attempt counter and delay to zero.
     pub fn on_connected(&mut self) {
         self.state = ConnectionState::Connected;
         self.attempt = 0;
@@ -85,6 +118,9 @@ impl ReconnectState {
         tracing::info!("Connection established, reset reconnect state");
     }
 
+    /// Transitions to reconnecting state after a connection loss.
+    ///
+    /// Increments the attempt counter if not already reconnecting.
     pub fn on_disconnected(&mut self) {
         let attempt = if self.attempt == 0 {
             1
@@ -98,6 +134,10 @@ impl ReconnectState {
         );
     }
 
+    /// Calculates and returns the delay in milliseconds before the next attempt.
+    ///
+    /// Uses exponential backoff with optional jitter. The delay is capped at
+    /// `max_delay_ms` and guaranteed to be at least 1ms.
     pub fn next_delay_ms(&mut self) -> u64 {
         let base_delay = if self.attempt == 0 {
             self.config.initial_delay_ms
@@ -128,10 +168,14 @@ impl ReconnectState {
         self.last_delay_ms
     }
 
+    /// Returns `true` if the maximum number of attempts has been reached.
     pub fn should_give_up(&self) -> bool {
         self.attempt >= self.config.max_attempts
     }
 
+    /// Advances the attempt counter and updates the connection state.
+    ///
+    /// If the maximum attempts are exceeded, transitions to `ConnectionState::Failed`.
     pub fn advance_attempt(&mut self) {
         self.attempt += 1;
 
@@ -149,6 +193,7 @@ impl ReconnectState {
         }
     }
 
+    /// Returns `true` if currently in the reconnecting state.
     pub fn is_retrying(&self) -> bool {
         matches!(self.state, ConnectionState::Reconnecting { .. })
     }
@@ -169,6 +214,10 @@ fn rand_jitter(max: u64) -> u64 {
     (nanos as u64) % max
 }
 
+/// Retries an operation with exponential backoff until success or max attempts.
+///
+/// On success, marks the connection as connected and returns the result.
+/// On failure after exhausting all attempts, returns the last error.
 pub fn retry_with_backoff<T, E, F>(state: &mut ReconnectState, mut op: F) -> Result<T, E>
 where
     F: FnMut() -> std::result::Result<T, E>,

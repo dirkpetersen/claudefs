@@ -1,11 +1,22 @@
+//! Sequential read prefetching engine for the FUSE client.
+//!
+//! Detects sequential access patterns and speculatively fetches upcoming
+//! blocks to reduce read latency. Uses a configurable window size and
+//! block-aligned caching for efficient prefetch management.
+
 use crate::inode::InodeId;
 use std::collections::HashMap;
 
+/// Configuration parameters for the prefetch engine.
 #[derive(Debug, Clone)]
 pub struct PrefetchConfig {
+    /// Number of blocks to prefetch ahead when sequential access is detected.
     pub window_size: usize,
+    /// Block size in bytes for alignment and cache granularity.
     pub block_size: u64,
+    /// Maximum number of in-flight prefetch requests per inode.
     pub max_inflight: usize,
+    /// Minimum sequential accesses required to trigger prefetching.
     pub detection_threshold: u32,
 }
 
@@ -20,17 +31,25 @@ impl Default for PrefetchConfig {
     }
 }
 
+/// A cached prefetch entry containing block-aligned data.
 #[derive(Debug, Clone)]
 pub struct PrefetchEntry {
+    /// Inode number for this entry.
     pub ino: InodeId,
+    /// Block-aligned offset where this data belongs.
     pub offset: u64,
+    /// The prefetched data bytes.
     pub data: Vec<u8>,
+    /// Whether this entry is ready to be served.
     pub ready: bool,
 }
 
+/// Tracks access pattern state for a single inode.
 #[derive(Debug, Clone)]
 pub struct AccessPattern {
+    /// Offset of the most recent access.
     pub last_offset: u64,
+    /// Count of consecutive sequential accesses.
     pub sequential_count: u32,
 }
 
@@ -43,12 +62,17 @@ impl AccessPattern {
     }
 }
 
+/// Runtime statistics for the prefetch engine.
 pub struct PrefetchStats {
+    /// Number of entries currently cached in the buffer.
     pub entries_cached: usize,
+    /// Number of inodes being tracked for access patterns.
     pub inodes_tracked: usize,
+    /// Number of inodes currently recognized as sequential.
     pub sequential_inodes: usize,
 }
 
+/// Sequential read prefetch engine with pattern detection and block caching.
 pub struct PrefetchEngine {
     config: PrefetchConfig,
     patterns: HashMap<InodeId, AccessPattern>,
@@ -56,6 +80,7 @@ pub struct PrefetchEngine {
 }
 
 impl PrefetchEngine {
+    /// Creates a new prefetch engine with the given configuration.
     pub fn new(config: PrefetchConfig) -> Self {
         tracing::debug!(
             "Initializing prefetch engine: window={}, block={}, max_inflight={}",
@@ -70,6 +95,9 @@ impl PrefetchEngine {
         }
     }
 
+    /// Records a read access and updates sequential detection state.
+    ///
+    /// Returns the block-aligned offset for the given access position.
     pub fn record_access(&mut self, ino: InodeId, offset: u64, size: u32) -> u64 {
         let block_offset = self.align_to_block(offset);
 
@@ -97,6 +125,7 @@ impl PrefetchEngine {
         block_offset
     }
 
+    /// Returns true if the inode has been recognized as having sequential access.
     pub fn is_sequential(&self, ino: InodeId) -> bool {
         self.patterns
             .get(&ino)
@@ -104,6 +133,10 @@ impl PrefetchEngine {
             .unwrap_or(false)
     }
 
+    /// Computes the list of blocks to prefetch for the given inode and offset.
+    ///
+    /// Returns an empty vector if sequential access has not been detected.
+    /// Excludes blocks already present in the cache.
     pub fn compute_prefetch_list(&self, ino: InodeId, current_offset: u64) -> Vec<(InodeId, u64)> {
         if !self.is_sequential(ino) {
             return Vec::new();
@@ -137,6 +170,7 @@ impl PrefetchEngine {
         result
     }
 
+    /// Stores prefetched data in the cache at the block-aligned offset.
     pub fn store_prefetch(&mut self, ino: InodeId, offset: u64, data: Vec<u8>) {
         let aligned = self.align_to_block(offset);
         let entry = PrefetchEntry {
@@ -154,6 +188,9 @@ impl PrefetchEngine {
         );
     }
 
+    /// Attempts to serve a read request from the prefetch cache.
+    ///
+    /// Returns the requested data slice if available and ready, or None.
     pub fn try_serve(&self, ino: InodeId, offset: u64, size: u32) -> Option<Vec<u8>> {
         let block_offset = self.align_to_block(offset);
         let in_block_offset = offset - block_offset;
@@ -187,6 +224,7 @@ impl PrefetchEngine {
         })
     }
 
+    /// Evicts all cached data and pattern state for the given inode.
     pub fn evict(&mut self, ino: InodeId) {
         let keys: Vec<_> = self
             .buffer
@@ -204,6 +242,7 @@ impl PrefetchEngine {
         tracing::debug!("Evicted prefetch state for inode {}", ino);
     }
 
+    /// Returns current statistics about the prefetch engine state.
     pub fn stats(&self) -> PrefetchStats {
         let sequential_count = self
             .patterns

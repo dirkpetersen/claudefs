@@ -8,22 +8,36 @@ use crate::error::Result;
 use crate::inode::InodeId;
 use std::collections::HashMap;
 
+/// Type of file lock operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LockType {
+    /// Shared (read) lock - multiple holders allowed on non-overlapping regions.
     Shared,
+    /// Exclusive (write) lock - only one holder allowed.
     Exclusive,
+    /// Unlock operation - releases a held lock.
     Unlock,
 }
 
+/// Record representing a file lock request or held lock.
 #[derive(Debug, Clone)]
 pub struct LockRecord {
+    /// The type of lock (shared, exclusive, or unlock).
     pub lock_type: LockType,
+    /// Unique lock owner identifier (typically the FUSE lock owner).
     pub owner: u64,
+    /// Process ID of the locking process.
     pub pid: u32,
+    /// Start byte offset of the locked region (inclusive).
     pub start: u64,
+    /// End byte offset of the locked region (exclusive).
     pub end: u64,
 }
 
+/// In-memory manager for POSIX advisory file locks.
+///
+/// Tracks locks per inode and handles conflict detection for shared
+/// and exclusive locks. Thread safety must be provided externally.
 pub struct LockManager {
     locks: HashMap<InodeId, Vec<LockRecord>>,
 }
@@ -33,12 +47,17 @@ fn ranges_overlap(s1: u64, e1: u64, s2: u64, e2: u64) -> bool {
 }
 
 impl LockManager {
+    /// Creates a new lock manager with no held locks.
     pub fn new() -> Self {
         Self {
             locks: HashMap::new(),
         }
     }
 
+    /// Attempts to acquire or release a lock on the given inode.
+    ///
+    /// Returns `Ok(true)` if the lock was granted (or released for Unlock type).
+    /// Returns `Ok(false)` if the lock conflicts with an existing lock.
     pub fn try_lock(&mut self, ino: InodeId, req: LockRecord) -> Result<bool> {
         if req.lock_type == LockType::Unlock {
             self.unlock(ino, req.owner);
@@ -60,12 +79,16 @@ impl LockManager {
         Ok(true)
     }
 
+    /// Releases all locks held by the given owner on the specified inode.
     pub fn unlock(&mut self, ino: InodeId, owner: u64) {
         if let Some(locks) = self.locks.get_mut(&ino) {
             locks.retain(|l| l.owner != owner);
         }
     }
 
+    /// Checks if the requested lock would conflict with existing locks.
+    ///
+    /// Does not exclude any owner from the conflict check.
     pub fn has_conflicting_lock(
         &self,
         ino: InodeId,
@@ -76,6 +99,8 @@ impl LockManager {
         self.has_conflicting_lock_with_owner(ino, lock_type, start, end, None)
     }
 
+    /// Checks if the requested lock would conflict with existing locks,
+    /// optionally excluding locks owned by `exclude_owner`.
     pub fn has_conflicting_lock_with_owner(
         &self,
         ino: InodeId,
@@ -106,14 +131,19 @@ impl LockManager {
         false
     }
 
+    /// Returns the number of locks held on the given inode.
     pub fn lock_count(&self, ino: InodeId) -> usize {
         self.locks.get(&ino).map(|l| l.len()).unwrap_or(0)
     }
 
+    /// Returns the total number of locks held across all inodes.
     pub fn total_locks(&self) -> usize {
         self.locks.values().map(|l| l.len()).sum()
     }
 
+    /// Removes all locks associated with the given inode.
+    ///
+    /// Called when an inode is evicted or deleted.
     pub fn clear_inode(&mut self, ino: InodeId) {
         self.locks.remove(&ino);
     }
