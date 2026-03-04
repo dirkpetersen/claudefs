@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A2: Metadata Service — Phase 5: ACL, Checkpoint, Symlink, DirWalk (2026-03-04)
+
+#### 4 New Modules — 54 New Tests, 812 Total
+
+**Status:** ✅ 812 tests passing, 0 failures, 0 clippy warnings (+54 from 758)
+
+**New modules:**
+
+1. **acl.rs** — POSIX extended ACLs with full POSIX ACL check algorithm (UserObj, User(uid), GroupObj,
+   Group(gid), Mask, Other). AclStore backed by KV store. Includes mask enforcement for named users/groups,
+   validate() checks required entries, effective_perms() applies mask. 11 tests.
+
+2. **checkpoint.rs** — Metadata checkpoint manager for fast node restarts. Captures full KV store
+   snapshots, evicts oldest checkpoints to maintain configured limit, restore() returns original KV pairs
+   for disaster recovery. 15 tests covering serialization, eviction, listing, and restore.
+
+3. **symlink.rs** — Symlink storage and resolution with loop detection. SymlinkStore backed by KV store.
+   validate_target() checks for empty/null/too-long targets, resolve() with max_depth limit and ROOT
+   resolution, list_all() for fsck. 13 tests.
+
+4. **dir_walk.rs** — Recursive directory tree walker for quota accounting, fsck, backup, and snapshot.
+   DirWalker with configurable max_depth, follow_symlinks, pre/post-order modes. WalkControl enum
+   (Continue/SkipSubtree/Stop). Cycle detection via visited HashSet. WalkStats (dirs/files/symlinks/other).
+   13 tests covering pre/post order, depth limits, skip subtree, stop early, cycle detection.
+
+**Also:** Added `MetaError::InvalidArgument(String)` variant to types.rs for proper error semantics.
+
+---
+
 ### A3: Data Reduction — Phase 20: GC Coordinator, Snapshot Diff, Write Fence (2026-03-04)
 
 #### 3 New Modules — 66 New Tests, 1476 Total
