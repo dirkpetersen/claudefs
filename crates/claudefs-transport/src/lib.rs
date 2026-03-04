@@ -58,6 +58,7 @@ pub mod retry;
 pub mod routing;
 pub mod rdma;
 pub mod rpc;
+pub mod session;
 pub mod server;
 pub mod splice;
 pub mod stream;
@@ -155,4 +156,12 @@ pub use splice::{
 pub use enrollment::{
     CertificateBundle, ClusterCA, EnrollmentConfig, EnrollmentError, EnrollmentService,
     EnrollmentStats, EnrollmentToken, RevocationEntry, RevocationReason,
+};
+pub use session::{
+    Session, SessionConfig, SessionError, SessionId, SessionManager, SessionState,
+    SessionStats, SessionStatsSnapshot, SessionToken,
+};
+pub use stream::{
+    StreamChunk, StreamConfig, StreamError, StreamId, StreamManager,
+    StreamReceiver, StreamSender, StreamStats, StreamStatsSnapshot,
 };
