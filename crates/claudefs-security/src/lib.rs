@@ -60,6 +60,9 @@ pub mod meta_access_xattr_security_tests;
 #[cfg(test)]
 pub mod gateway_security_tests;
 #[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_copy_referral_security_tests;
+#[cfg(test)]
 pub mod fuse_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
@@ -168,9 +171,12 @@ pub mod repl_phase2_security_tests;
     #[cfg(test)]
     #[allow(missing_docs)]
     pub mod gateway_wire_audit_security_tests;
-    #[cfg(test)]
-    #[allow(missing_docs)]
-    pub mod meta_fingerprint_negcache_watch_security_tests;
-    #[cfg(test)]
-    #[allow(missing_docs)]
-    pub mod gateway_metrics_health_stats_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_fingerprint_negcache_watch_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod gateway_metrics_health_stats_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_transaction_lease_security_tests;

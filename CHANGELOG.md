@@ -65,6 +65,23 @@ This blocks ALL Rust code authoring (including adding doc comments). Filed as Gi
 
 ---
 
+### A10: Security Audit — Phase 22: Gateway Copy-Offload/Referral & Meta Transaction/Lease (2026-03-04)
+
+#### 2 New Test Modules — 50 New Tests, 1721 Total
+
+**Status:** ✅ 1721 security tests passing, 0 failures (+50 from 1671)
+
+**New test modules:**
+- `gateway_copy_referral_security_tests.rs` — 25 tests: NFSv4.2 copy offload lifecycle (concurrent limits, state machine, cancel/fail/complete), CloneRequest builder, NFSv4.1 referral database (add/remove/enable/disable, prefix lookup, serialization to fs_locations)
+- `meta_transaction_lease_security_tests.rs` — 25 tests: 2PC transaction state machine (prepare/commit/abort), participant voting (unanimous commit, single-abort rule), timeout auto-abort, lease grants (read coexistence, write exclusivity), lease revocation (inode/client/specific), lease renewal
+
+**Key findings (21 total, 10 HIGH, 8 MEDIUM, 3 LOW):**
+- FINDING-META-TXN-06 (HIGH): Double-vote allowed — last vote wins, potential vote-flipping concern
+- FINDING-META-TXN-07 (HIGH): Timed-out transactions auto-abort — prevents indefinite lock holding
+- FINDING-META-LEASE-02 (HIGH): Write lease is exclusive — prevents concurrent writes
+- FINDING-META-LEASE-04 (HIGH): Inode revocation notifies all holders — cache coherence on change
+- FINDING-GW-COPY-01 (HIGH): Concurrent copy limit prevents resource exhaustion
+
 ### A10: Security Audit — Phase 21: Gateway Export/Mount/Portmap & Gateway Metrics/Health/Stats (2026-03-04)
 
 #### 2 New Test Modules — 50 New Tests, 1671 Total
