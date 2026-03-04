@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 16: Ingest Pipeline, Prefetch Manager, Dedup Index (2026-03-04)
+
+#### 3 New Modules — 66 New Tests, 1235 Total
+
+**Status:** ✅ 1235 tests passing, 0 failures, 0 clippy warnings (+66 from 1169)
+
+**New modules:**
+- `ingest_pipeline.rs` — Top-level orchestration: buffer→CDC→dedup→compress→encrypt stages
+- `prefetch_manager.rs` — Multi-file prefetch coordination with priority queuing
+- `dedup_index.rs` — Distributed-ready fingerprint index with shard routing (16 shards default)
+
+**Test expansions (+21):** block_map (+7), journal_segment (+7), tenant_isolator (+7)
+
+## [Unreleased]
+
 ### A3: Data Reduction — Phase 15: Segment GC, Checksum Store, Pipeline Backpressure (2026-03-04)
 
 #### 3 New Modules — 78 New Tests, 1169 Total
