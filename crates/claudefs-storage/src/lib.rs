@@ -48,6 +48,9 @@ pub mod tracing_storage;
 pub mod background_scheduler;
 pub mod device_health_monitor;
 pub mod prefetch_engine;
+pub mod write_path;
+pub mod read_path;
+pub mod storage_health;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
@@ -139,4 +142,14 @@ pub use compaction_manager::{
     CompactionJobState, CompactionJobId, CompactionJob,
     CompactionManagerStats, CompactionManagerConfig, CompactionManager,
     CompactionError,
+};
+pub use write_path::{
+    WritePath, WritePathConfig, WritePathError, WritePathStats, WriteResult,
+};
+pub use read_path::{
+    ReadPath, ReadPathConfig, ReadPathStats, ReadResult,
+};
+pub use storage_health::{
+    HealthEvent, HealthEventSeverity, StorageHealth, StorageHealthConfig,
+    StorageHealthSnapshot, StorageHealthStatus,
 };
