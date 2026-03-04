@@ -78,8 +78,8 @@ pub struct PathInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum PathSelectionPolicy {
-    #[default]
     RoundRobin,
+    #[default]
     LowestLatency,
     WeightedRandom,
     Failover,

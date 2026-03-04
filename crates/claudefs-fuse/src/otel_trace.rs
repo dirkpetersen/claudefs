@@ -1,78 +1,123 @@
+//! OpenTelemetry-compatible tracing types for FUSE operations.
+//!
+//! This module provides span, sampler, and export buffer types that follow
+//! the OpenTelemetry specification for distributed tracing.
+
 use crate::tracing_client::{SpanId, TraceContext, TraceId};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+/// Status of a span indicating whether it completed successfully.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SpanStatus {
+    /// The span completed successfully.
     Ok,
+    /// The span encountered an error with an optional message.
     Error(String),
+    /// The span status has not been set.
     Unset,
 }
 
+/// Classification of a span's role in a distributed trace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpanKind {
+    /// Internal work within a service.
     Internal,
+    /// A synchronous outgoing request to an external service.
     Client,
+    /// A synchronous incoming request handler.
     Server,
+    /// A message producer (asynchronous).
     Producer,
+    /// A message consumer (asynchronous).
     Consumer,
 }
 
+/// A key-value attribute attached to a span.
 #[derive(Debug, Clone)]
 pub struct SpanAttribute {
+    /// The attribute key name.
     pub key: String,
+    /// The attribute value as a string.
     pub value: String,
 }
 
+/// An OpenTelemetry span representing a unit of work.
 #[derive(Debug, Clone)]
 pub struct OtelSpan {
+    /// The trace ID this span belongs to.
     pub trace_id: TraceId,
+    /// The unique identifier for this span.
     pub span_id: SpanId,
+    /// The parent span ID, if this is a child span.
     pub parent_span_id: Option<SpanId>,
+    /// The operation name describing this span's work.
     pub operation: String,
+    /// The service name that emitted this span.
     pub service: String,
+    /// The start timestamp in Unix nanoseconds.
     pub start_unix_ns: u64,
+    /// The end timestamp in Unix nanoseconds.
     pub end_unix_ns: u64,
+    /// The status indicating success or failure.
     pub status: SpanStatus,
+    /// The kind classification of this span.
     pub kind: SpanKind,
+    /// Additional attributes attached to this span.
     pub attributes: Vec<SpanAttribute>,
 }
 
 impl OtelSpan {
+    /// Returns the duration of the span in nanoseconds.
     pub fn duration_ns(&self) -> u64 {
         self.end_unix_ns.saturating_sub(self.start_unix_ns)
     }
 
+    /// Returns true if this span represents an error.
     pub fn is_error(&self) -> bool {
         matches!(self.status, SpanStatus::Error(_))
     }
 
+    /// Adds a key-value attribute to this span.
     pub fn add_attribute(&mut self, key: String, value: String) {
         self.attributes.push(SpanAttribute { key, value });
     }
 
+    /// Sets the status of this span.
     pub fn set_status(&mut self, status: SpanStatus) {
         self.status = status;
     }
 
+    /// Marks the span as finished with the given end timestamp.
     pub fn finish(&mut self, end_ns: u64) {
         self.end_unix_ns = end_ns;
     }
 }
 
+/// A builder for constructing `OtelSpan` instances.
 pub struct OtelSpanBuilder {
+    /// The trace ID to use, or None to generate a default.
     pub trace_id: Option<TraceId>,
+    /// The parent span ID for trace linking.
     pub parent_span_id: Option<SpanId>,
+    /// The operation name for the span.
     pub operation: String,
+    /// The service name for the span.
     pub service: String,
+    /// The start timestamp in Unix nanoseconds.
     pub start_unix_ns: u64,
+    /// The optional end timestamp in Unix nanoseconds.
     pub end_unix_ns: Option<u64>,
+    /// The status of the span.
     pub status: SpanStatus,
+    /// The kind classification of the span.
     pub kind: SpanKind,
+    /// Attributes to attach to the span.
     pub attributes: Vec<SpanAttribute>,
 }
 
 impl OtelSpanBuilder {
+    /// Creates a new span builder with the given operation, service, and start time.
     pub fn new(operation: String, service: String, start_unix_ns: u64) -> Self {
         Self {
             trace_id: None,
@@ -87,27 +132,32 @@ impl OtelSpanBuilder {
         }
     }
 
+    /// Sets the trace and parent span IDs from an existing trace context.
     pub fn with_parent(mut self, parent: &TraceContext) -> Self {
         self.trace_id = Some(parent.trace_id);
         self.parent_span_id = Some(parent.span_id);
         self
     }
 
+    /// Sets the trace ID directly.
     pub fn with_trace_id(mut self, trace_id: TraceId) -> Self {
         self.trace_id = Some(trace_id);
         self
     }
 
+    /// Sets the span kind.
     pub fn with_kind(mut self, kind: SpanKind) -> Self {
         self.kind = kind;
         self
     }
 
+    /// Adds an attribute to the span being built.
     pub fn with_attribute(mut self, key: String, value: String) -> Self {
         self.attributes.push(SpanAttribute { key, value });
         self
     }
 
+    /// Builds the final `OtelSpan` with the given end timestamp.
     pub fn build(self, end_unix_ns: u64) -> OtelSpan {
         let trace_id = self.trace_id.unwrap_or(TraceId(0));
         let parent_span_id = self.parent_span_id;
@@ -134,13 +184,16 @@ impl OtelSpanBuilder {
     }
 }
 
+/// A fixed-capacity buffer for collecting spans before export.
 #[derive(Debug, Clone)]
 pub struct OtelExportBuffer {
+    /// The maximum number of spans the buffer can hold.
     pub capacity: usize,
     spans: Vec<OtelSpan>,
 }
 
 impl OtelExportBuffer {
+    /// Creates a new buffer with the given capacity (clamped to 1-10000).
     pub fn new(capacity: usize) -> Self {
         Self {
             capacity: capacity.clamp(1, 10_000),
@@ -148,6 +201,7 @@ impl OtelExportBuffer {
         }
     }
 
+    /// Adds a span to the buffer, evicting the oldest if at capacity.
     pub fn push(&mut self, span: OtelSpan) {
         if self.spans.len() >= self.capacity {
             self.spans.remove(0);
@@ -155,36 +209,45 @@ impl OtelExportBuffer {
         self.spans.push(span);
     }
 
+    /// Removes and returns all spans from the buffer.
     pub fn drain(&mut self) -> Vec<OtelSpan> {
         std::mem::take(&mut self.spans)
     }
 
+    /// Returns the current number of spans in the buffer.
     pub fn len(&self) -> usize {
         self.spans.len()
     }
 
+    /// Returns true if the buffer contains no spans.
     pub fn is_empty(&self) -> bool {
         self.spans.is_empty()
     }
 }
 
+/// The sampling decision for a trace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SamplingDecision {
+    /// Record the span and sample it for export.
     RecordAndSample,
+    /// Drop the span and do not export it.
     Drop,
 }
 
+/// A sampler that decides which traces to record based on a sample rate.
 pub struct OtelSampler {
     sample_rate: f64,
 }
 
 impl OtelSampler {
+    /// Creates a new sampler with the given sample rate (clamped to 0.0-1.0).
     pub fn new(sample_rate: f64) -> Self {
         Self {
             sample_rate: sample_rate.clamp(0.0, 1.0),
         }
     }
 
+    /// Determines whether to sample a trace based on its trace ID.
     pub fn should_sample(&self, trace_id: TraceId) -> SamplingDecision {
         if self.sample_rate >= 1.0 {
             return SamplingDecision::RecordAndSample;
@@ -205,6 +268,7 @@ impl OtelSampler {
         }
     }
 
+    /// Returns the configured sample rate.
     pub fn sample_rate(&self) -> f64 {
         self.sample_rate
     }
