@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 23: Chunk Pipeline, Eviction Policy, Replication Filter (2026-03-04)
+
+#### 3 New Modules — 70 New Tests, 1688 Total
+
+**Status:** ✅ 1688 tests passing, 0 failures (+70 from 1618)
+
+**New modules:**
+- `chunk_pipeline.rs` — Single-chunk dedup→compress→encrypt pipeline with mock fingerprint store; 24 tests
+- `eviction_policy.rs` — Flash layer eviction engine (D5: age×size scoring); 4 strategies; 24 tests
+- `replication_filter.rs` — Cross-site Bloom filter to skip blocks already at remote site; 22 tests
+
 ### A1: Storage Engine — Phase 4: I/O Accounting, Block Verifier, Compaction Manager (2026-03-04)
 
 #### 3 New Modules + lib.rs exports — 85 New Tests, 894 Total
