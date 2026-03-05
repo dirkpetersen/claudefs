@@ -6,6 +6,83 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 12: Distributed Tracing, QoS, Adaptive Routing (2026-03-05)
+
+**Status:** 🟡 **PHASE 12 PLANNING** — Specifications prepared, awaiting OpenCode code generation
+
+**Target Modules** (Priority 1 Features):
+1. **trace_aggregator.rs** — Distributed OTEL span aggregation across request path
+   - Span correlation and critical path analysis
+   - Timeline analysis for performance debugging (~24 tests)
+
+2. **bandwidth_shaper.rs** — Per-tenant QoS enforcement via token bucket
+   - Weighted fair queuing scheduler
+   - Hard bandwidth limits (reject excess) and soft warnings (~26 tests)
+
+3. **adaptive_router.rs** — Intelligent latency-aware request routing
+   - Endpoint health tracking (RTT percentiles, availability)
+   - Score-based routing with failover logic (~30 tests)
+
+**Target Results:**
+- 1380+ tests passing (adding ~80-100 tests to current 1304)
+- 84 total modules in claudefs-transport
+- Full Priority 1 feature gap coverage for transport layer
+
+**Notes:**
+- Detailed specifications: `a4-phase12-input.md` (364 lines)
+- Fireworks API currently overloaded with parallel agents (A1 Phase 8, A2 Phase 9, A3 Phase 26 all running)
+- Will execute OpenCode once API capacity available
+
+---
+
+### A2: Metadata Service — Phase 9: Snapshot Transfer & Distributed Transactions (2026-03-05)
+
+**Status:** 🟡 **PHASE 9 PLANNING** — Specifications prepared, awaiting OpenCode
+
+**Target Modules** (Priority 1 Features):
+1. **snapshot_transfer.rs** — Cross-site snapshot transfer for disaster recovery
+   - Metadata snapshot serialization, incremental transfer protocol
+   - Remote restoration and consistency verification (~25 tests)
+
+2. **distributed_transaction.rs** — POSIX atomic rename across shards
+   - Two-phase commit with deadlock detection
+   - Rollback semantics and conflict resolution (~30 tests)
+
+3. **client_session.rs** — Per-client session state and lease tracking
+   - Session lifecycle (create, heartbeat, close)
+   - Pending operations and staleness detection (~25 tests)
+
+**Target Results:**
+- 1070+ tests passing (adding ~75 tests to current 997)
+- 75 total modules in claudefs-meta
+- Advanced cross-site disaster recovery capability
+
+---
+
+### A3: Data Reduction — Phase 26: Key Rotation & WORM Compliance (2026-03-05)
+
+**Status:** 🟡 **PHASE 26 IN PROGRESS** — OpenCode running
+
+**Target Modules** (Priority 1 Enterprise Features):
+1. **key_rotation_orchestrator.rs** — Coordinate key rotation across encrypted data
+   - Envelope encryption strategy (outer key wraps inner data keys)
+   - Lazy rotation on chunk access, no re-encryption needed (~35 tests)
+
+2. **worm_retention_enforcer.rs** — Enforce WORM (Write-Once-Read-Many) policies
+   - Time-based retention, legal holds, compliance audit trail
+   - Prevent deletion of retained chunks (~35 tests)
+
+3. **rotation_checkpoint.rs** — Persist key rotation state for crash resilience
+   - Checkpoint persistence and recovery on restart
+   - Incremental checkpoint cleanup (~30 tests)
+
+**Target Results:**
+- 1978+ tests passing (adding ~100 tests to current 1878)
+- 92 total modules in claudefs-reduce
+- Full enterprise compliance (WORM + key rotation)
+
+---
+
 ### A1: Storage Engine — Phase 7: Advanced Observability & Resilience (2026-03-05)
 
 **Status:** 🟢 **PHASE 7 COMPLETE** — 1124 tests passing (e848f7a)
