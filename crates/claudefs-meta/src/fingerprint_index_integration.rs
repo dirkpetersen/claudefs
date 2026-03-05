@@ -223,10 +223,11 @@ fn fnv_hash(data: &[u8]) -> u64 {
 mod tests {
     use super::*;
 
-    fn make_hash(i: u8) -> [u8; 32] {
+    fn make_hash(i: u16) -> [u8; 32] {
         let mut hash = [0u8; 32];
-        hash[0] = i;
-        hash[31] = i.wrapping_add(1);
+        hash[0] = (i & 0xff) as u8;
+        hash[1] = ((i >> 8) & 0xff) as u8;
+        hash[31] = ((i & 0xff) as u8).wrapping_add(1);
         hash
     }
 
@@ -407,7 +408,7 @@ mod tests {
     fn test_fingerprint_registration_local_shard() {
         let local_index = Arc::new(FingerprintIndex::new());
         let config = make_config(256);
-        let mut router = FingerprintRouter::new(config, local_index);
+        let mut router = FingerprintRouter::new(config, local_index.clone());
 
         let hash = make_hash(1);
         router.register_new_fingerprint(hash, 5000, 4096).unwrap();
@@ -470,7 +471,7 @@ mod tests {
     fn test_multiple_registrations_increment_ref_count() {
         let local_index = Arc::new(FingerprintIndex::new());
         let config = make_config(256);
-        let mut router = FingerprintRouter::new(config, local_index);
+        let mut router = FingerprintRouter::new(config, local_index.clone());
 
         let hash = make_hash(1);
         router.register_new_fingerprint(hash, 1000, 4096).unwrap();
@@ -487,7 +488,7 @@ mod tests {
         let router = FingerprintRouter::new(config, local_index);
 
         for i in 0..100u8 {
-            let hash = make_hash(i);
+            let hash = make_hash(i.into());
             let shard1 = router.get_shard_for_hash(&hash);
             let shard2 = router.get_shard_for_hash(&hash);
             assert_eq!(shard1, shard2, "hash {} should map to same shard", i);
@@ -550,7 +551,7 @@ mod tests {
     fn test_large_fingerprint_set() {
         let local_index = Arc::new(FingerprintIndex::new());
         let config = make_config(256);
-        let mut router = FingerprintRouter::new(config, local_index);
+        let mut router = FingerprintRouter::new(config, local_index.clone());
 
         for i in 0..1000u16 {
             let mut hash = [0u8; 32];
@@ -571,67 +572,7 @@ mod tests {
             assert_eq!(savings, Some(4096));
         }
 
-        let savings = router.dedup_potential(make_hash(255), 4096);
+        let savings = router.dedup_potential(make_hash(1024), 4096);
         assert_eq!(savings, None);
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_shard_for_hash() {
-        let config = FingerprintRouterConfig {
-            local_node_id: 1,
-            num_shards: 16,
-            remote_coordinators: HashMap::new(),
-        };
-        let index = Arc::new(FingerprintIndex::new());
-        let router = FingerprintRouter::new(config, index);
-        
-        let hash1 = [0u8; 32];
-        let shard1 = router.get_shard_for_hash(&hash1);
-        assert!(shard1 < 16);
-    }
-
-    #[test]
-    fn test_router_config() {
-        let config = FingerprintRouterConfig {
-            local_node_id: 1,
-            num_shards: 16,
-            remote_coordinators: HashMap::new(),
-        };
-        assert_eq!(config.local_node_id, 1);
-        assert_eq!(config.num_shards, 16);
-    }
-
-    #[test]
-    fn test_stats_initial() {
-        let stats = FingerprintRouterStats {
-            local_lookups: 0,
-            remote_lookups: 0,
-            local_hits: 0,
-            remote_hits: 0,
-            cross_node_savings_bytes: 0,
-        };
-        assert_eq!(stats.local_lookups, 0);
-        assert_eq!(stats.local_hits, 0);
-    }
-
-    #[test]
-    fn test_lookup_result_variants() {
-        let _local = FingerprintLookupResult::Local {
-            location: 100,
-            ref_count: 2,
-            size: 4096,
-        };
-        let _remote = FingerprintLookupResult::Remote {
-            node_id: 2,
-            ref_count: 1,
-            size: 4096,
-        };
-        let _not_found = FingerprintLookupResult::NotFound;
     }
 }
