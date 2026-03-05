@@ -118,11 +118,4 @@ pub mod writeback_cache;
 pub mod writebuf;
 /// Extended attributes (xattrs), set/get/list/remove operations.
 pub mod xattr;
-/// I/O depth management for io_uring queue tracking and throttling.
-pub mod io_depth;
-/// Cache for directory listing (readdir) operations, reduces metadata round-trips.
-pub mod readdir_cache;
-/// Writeback data cache, dirty page tracking, flush scheduling.
-pub mod writeback_cache;
-
 pub use error::{FuseError, Result};
