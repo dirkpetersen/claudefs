@@ -90,6 +90,12 @@ pub mod qos;
 pub mod quota;
 /// Quota integration service for write enforcement
 pub mod quota_integration;
+/// Per-tenant quota tracking with soft/hard limits
+pub mod quota_tracker;
+/// Multi-tenant namespace isolation for metadata operations
+pub mod tenant_isolator;
+/// QoS coordination between metadata and transport services
+pub mod qos_coordinator;
 /// Persistent Raft log store for crash-safe consensus state
 pub mod raft_log;
 /// Raft-integrated metadata service (Phase 2)
@@ -190,7 +196,19 @@ pub use node_snapshot::NodeSnapshot;
 pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
 pub use prefetch::{PrefetchConfig, PrefetchEngine, PrefetchRequest, PrefetchResult};
 pub use qos::{QosClass, QosManager, QosPolicy};
+pub use qos_coordinator::{
+    Priority, OpType, RequestId, QosRequest, QosContext, QosMetrics, QosViolation, QosHint,
+    QosMetricsSummary, QosCoordinatorConfig, QosCoordinator,
+};
 pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
+pub use quota_tracker::{
+    QuotaType, TenantQuota, QuotaUsage as TenantQuotaUsage, ViolationType, Severity, QuotaViolation,
+    QuotaTrackerConfig, QuotaTracker,
+};
+pub use tenant_isolator::{
+    TenantNamespace, TenantCapabilities, TenantContext, IsolationViolationType, IsolationViolation,
+    TenantIsolatorConfig, TenantIsolator,
+};
 pub use raft_log::RaftLogStore;
 pub use raftservice::{RaftMetadataService, RaftServiceConfig};
 pub use range_lock::{RangeLock, RangeLockManager};
