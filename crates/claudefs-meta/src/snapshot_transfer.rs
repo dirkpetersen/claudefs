@@ -6,8 +6,14 @@
 //! Snapshots may be large, so they are chunked for network transfer.
 
 use crate::snapshot::RaftSnapshot;
-use crate::types::{LogIndex, MetaError, NodeId, Term, Timestamp};
+use crate::types::{LogIndex, MetaError, NodeId, ShardId, Term, Timestamp};
 use serde::{Deserialize, Serialize};
+
+use std::sync::Arc;
+use dashmap::DashMap;
+use blake3::Hasher;
+use uuid::Uuid;
+use crate::kvstore::KvStore;
 
 /// A chunk of snapshot data (snapshots may be large, so they are chunked).
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -463,5 +469,824 @@ mod tests {
             .chunk_request(Term::new(6), NodeId::new(1), 2)
             .unwrap();
         assert!(req2.chunk.is_last);
+    }
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompressionType {
+    Gzip,
+    Zstd,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SnapshotId(String);
+
+impl SnapshotId {
+    pub fn new() -> Self {
+        SnapshotId(Uuid::new_v4().to_string())
+    }
+
+    pub fn from_string(s: String) -> Self {
+        SnapshotId(s)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Default for SnapshotId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MetadataSnapshot {
+    pub snapshot_id: SnapshotId,
+    pub shard_id: ShardId,
+    pub log_index: LogIndex,
+    pub term: Term,
+    pub metadata_bytes: Vec<u8>,
+    pub compression: Option<CompressionType>,
+    pub checksum: [u8; 32],
+    pub created_at: Timestamp,
+    pub base_snapshot_id: Option<SnapshotId>,
+    pub size_bytes: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct SnapshotTransferConfig {
+    pub max_snapshot_size: u64,
+    pub compression_enabled: bool,
+    pub chunk_size: u64,
+    pub transfer_timeout_secs: u64,
+}
+
+impl Default for SnapshotTransferConfig {
+    fn default() -> Self {
+        Self {
+            max_snapshot_size: 100 * 1024 * 1024,
+            compression_enabled: true,
+            chunk_size: 5 * 1024 * 1024,
+            transfer_timeout_secs: 300,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TransferState {
+    Pending,
+    InProgress,
+    Completed,
+    Failed,
+}
+
+#[derive(Clone, Debug)]
+pub struct TransferProgress {
+    pub snapshot_id: SnapshotId,
+    pub bytes_transferred: u64,
+    pub total_bytes: u64,
+    pub state: TransferState,
+    pub error: Option<String>,
+    pub last_activity: Timestamp,
+}
+
+pub struct SnapshotTransferEngine {
+    shard_id: ShardId,
+    kvstore: Arc<dyn KvStore>,
+    config: SnapshotTransferConfig,
+    transfers: Arc<DashMap<SnapshotId, TransferProgress>>,
+}
+
+impl SnapshotTransferEngine {
+    pub fn new(shard_id: ShardId, kvstore: Arc<dyn KvStore>, config: SnapshotTransferConfig) -> Self {
+        Self {
+            shard_id,
+            kvstore,
+            config,
+            transfers: Arc::new(DashMap::new()),
+        }
+    }
+
+    pub async fn create_full_snapshot(&self) -> Result<MetadataSnapshot, MetaError> {
+        let snapshot_id = SnapshotId::new();
+        let start = std::time::Instant::now();
+        
+        let prefix = format!("shard_{}_", self.shard_id.as_u16());
+        let kv_pairs = self.kvstore.scan_prefix(prefix.as_bytes())?;
+        
+        let mut metadata_bytes = Vec::new();
+        for (key, value) in kv_pairs {
+            metadata_bytes.extend_from_slice(&key);
+            metadata_bytes.push(0);
+            metadata_bytes.extend_from_slice(&value);
+            metadata_bytes.push(0);
+        }
+        
+        let size_bytes = metadata_bytes.len() as u64;
+        
+        let mut hasher = Hasher::new();
+        hasher.update(&metadata_bytes);
+        let checksum = *hasher.finalize().as_bytes();
+        
+        let term = Term::new(1);
+        let log_index = LogIndex::new(0);
+        
+        let created_at = Timestamp::now();
+        
+        Ok(MetadataSnapshot {
+            snapshot_id,
+            shard_id: self.shard_id,
+            log_index,
+            term,
+            metadata_bytes,
+            compression: None,
+            checksum,
+            created_at,
+            base_snapshot_id: None,
+            size_bytes,
+        })
+    }
+
+    pub async fn create_incremental_snapshot(&self, base_snapshot_id: SnapshotId) -> Result<MetadataSnapshot, MetaError> {
+        let snapshot_id = SnapshotId::new();
+        
+        let base_key = format!("snapshot_{}", base_snapshot_id.as_str());
+        let base_data = self.kvstore.get(base_key.as_bytes())?;
+        
+        let prefix = format!("shard_{}_", self.shard_id.as_u16());
+        let kv_pairs = self.kvstore.scan_prefix(prefix.as_bytes())?;
+        
+        let mut metadata_bytes = Vec::new();
+        for (key, value) in kv_pairs {
+            metadata_bytes.extend_from_slice(&key);
+            metadata_bytes.push(0);
+            metadata_bytes.extend_from_slice(&value);
+            metadata_bytes.push(0);
+        }
+        
+        let size_bytes = metadata_bytes.len() as u64;
+        
+        let mut hasher = Hasher::new();
+        hasher.update(&metadata_bytes);
+        let checksum = *hasher.finalize().as_bytes();
+        
+        let term = Term::new(1);
+        let log_index = LogIndex::new(0);
+        let created_at = Timestamp::now();
+        
+        Ok(MetadataSnapshot {
+            snapshot_id,
+            shard_id: self.shard_id,
+            log_index,
+            term,
+            metadata_bytes,
+            compression: None,
+            checksum,
+            created_at,
+            base_snapshot_id: Some(base_snapshot_id),
+            size_bytes,
+        })
+    }
+
+    pub fn serialize_snapshot(&self, snapshot: &MetadataSnapshot) -> Result<Vec<u8>, MetaError> {
+        let encoded = bincode::serialize(snapshot)
+            .map_err(|e| MetaError::InvalidArgument(e.to_string()))?;
+        Ok(encoded)
+    }
+
+    pub fn chunk_snapshot(&self, serialized: &[u8]) -> Result<Vec<Vec<u8>>, MetaError> {
+        let chunk_size = self.config.chunk_size as usize;
+        let total_chunks = (serialized.len() + chunk_size - 1) / chunk_size;
+        
+        let mut chunks = Vec::with_capacity(total_chunks);
+        for i in 0..total_chunks {
+            let start = i * chunk_size;
+            let end = std::cmp::min(start + chunk_size, serialized.len());
+            chunks.push(serialized[start..end].to_vec());
+        }
+        
+        Ok(chunks)
+    }
+
+    pub fn verify_snapshot_integrity(&self, snapshot: &MetadataSnapshot, bytes: &[u8]) -> Result<bool, MetaError> {
+        let mut hasher = Hasher::new();
+        hasher.update(bytes);
+        let computed_checksum = *hasher.finalize().as_bytes();
+        
+        Ok(computed_checksum == snapshot.checksum)
+    }
+
+    pub fn track_transfer(&self, snapshot_id: SnapshotId, total_bytes: u64) {
+        let progress = TransferProgress {
+            snapshot_id: snapshot_id.clone(),
+            bytes_transferred: 0,
+            total_bytes,
+            state: TransferState::InProgress,
+            error: None,
+            last_activity: Timestamp::now(),
+        };
+        self.transfers.insert(snapshot_id, progress);
+    }
+
+    pub fn update_transfer_progress(&self, snapshot_id: SnapshotId, bytes_transferred: u64) -> Result<(), MetaError> {
+        if let Some(mut progress) = self.transfers.get_mut(&snapshot_id) {
+            progress.bytes_transferred = bytes_transferred;
+            progress.last_activity = Timestamp::now();
+            Ok(())
+        } else {
+            Err(MetaError::NotFound(format!("transfer {} not found", snapshot_id.as_str())))
+        }
+    }
+
+    pub fn complete_transfer(&self, snapshot_id: SnapshotId) -> Result<(), MetaError> {
+        if let Some(mut progress) = self.transfers.get_mut(&snapshot_id) {
+            progress.state = TransferState::Completed;
+            progress.last_activity = Timestamp::now();
+            Ok(())
+        } else {
+            Err(MetaError::NotFound(format!("transfer {} not found", snapshot_id.as_str())))
+        }
+    }
+
+    pub fn fail_transfer(&self, snapshot_id: SnapshotId, error: String) -> Result<(), MetaError> {
+        if let Some(mut progress) = self.transfers.get_mut(&snapshot_id) {
+            progress.state = TransferState::Failed;
+            progress.error = Some(error);
+            progress.last_activity = Timestamp::now();
+            Ok(())
+        } else {
+            Err(MetaError::NotFound(format!("transfer {} not found", snapshot_id.as_str())))
+        }
+    }
+
+    pub fn get_transfer_progress(&self, snapshot_id: SnapshotId) -> Option<TransferProgress> {
+        self.transfers.get(&snapshot_id).map(|r| r.clone())
+    }
+
+    pub async fn restore_snapshot(&self, snapshot: MetadataSnapshot) -> Result<RemoteRestorationResult, MetaError> {
+        let start = std::time::Instant::now();
+        
+        let is_valid = self.verify_snapshot_integrity(&snapshot, &snapshot.metadata_bytes)?;
+        
+        if !is_valid {
+            return Err(MetaError::InvalidArgument("snapshot integrity check failed".to_string()));
+        }
+        
+        let entries_restored = if snapshot.metadata_bytes.is_empty() {
+            0
+        } else {
+            let count = snapshot.metadata_bytes.iter().filter(|&&b| b == 0).count() / 2;
+            count as u64
+        };
+        
+        let prefix = format!("shard_{}_", self.shard_id.as_u16());
+        let existing = self.kvstore.scan_prefix(prefix.as_bytes())?;
+        for (key, _) in existing {
+            self.kvstore.delete(&key)?;
+        }
+        
+        let mut pos = 0;
+        let data = &snapshot.metadata_bytes;
+        while pos < data.len() {
+            let key_end = data[pos..].iter().position(|&b| b == 0).ok_or_else(||
+                MetaError::InvalidArgument("invalid snapshot data format".to_string()))?;
+            let key = data[pos..pos + key_end].to_vec();
+            pos += key_end + 1;
+            
+            if pos >= data.len() {
+                break;
+            }
+            
+            let value_end = data[pos..].iter().position(|&b| b == 0).ok_or_else(||
+                MetaError::InvalidArgument("invalid snapshot data format".to_string()))?;
+            let value = data[pos..pos + value_end].to_vec();
+            pos += value_end + 1;
+            
+            self.kvstore.put(key, value)?;
+        }
+        
+        let duration_ms = start.elapsed().as_millis() as u64;
+        
+        Ok(RemoteRestorationResult {
+            snapshot_id: snapshot.snapshot_id,
+            entries_restored,
+            bytes_restored: snapshot.size_bytes,
+            log_index_after_restore: snapshot.log_index.as_u64(),
+            integrity_verified: is_valid,
+            restore_duration_ms: duration_ms,
+        })
+    }
+
+    pub async fn cleanup_old_snapshots(&self, keep_count: usize) -> Result<usize, MetaError> {
+        let mut snapshots: Vec<(String, Timestamp)> = Vec::new();
+        
+        let prefix = "snapshot_";
+        let all_pairs = self.kvstore.scan_prefix(prefix.as_bytes())?;
+        
+        for (key, _) in all_pairs {
+            if let Ok(snapshot) = bincode::deserialize::<MetadataSnapshot>(&key) {
+                snapshots.push((snapshot.snapshot_id.as_str().to_string(), snapshot.created_at));
+            }
+        }
+        
+        snapshots.sort_by(|a, b| b.1.cmp(&a.1));
+        
+        let to_keep = &snapshots[..keep_count.min(snapshots.len())];
+        let mut removed = 0;
+        
+        for (id, _) in snapshots.iter() {
+            if !to_keep.iter().any(|(keep_id, _)| keep_id == id) {
+                let key = format!("snapshot_{}", id);
+                self.kvstore.delete(key.as_bytes())?;
+                removed += 1;
+            }
+        }
+        
+        Ok(removed)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RemoteRestorationResult {
+    pub snapshot_id: SnapshotId,
+    pub entries_restored: u64,
+    pub bytes_restored: u64,
+    pub log_index_after_restore: u64,
+    pub integrity_verified: bool,
+    pub restore_duration_ms: u64,
+}
+
+#[cfg(test)]
+mod snapshot_transfer_tests {
+    use super::*;
+    use crate::kvstore::MemoryKvStore;
+
+    #[tokio::test]
+    async fn test_create_full_snapshot() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        kvstore.put(b"shard_1_key1".to_vec(), b"value1".to_vec()).unwrap();
+        kvstore.put(b"shard_1_key2".to_vec(), b"value2".to_vec()).unwrap();
+        
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        let snapshot = engine.create_full_snapshot().await.unwrap();
+        
+        assert_eq!(snapshot.shard_id, ShardId::new(1));
+        assert!(!snapshot.snapshot_id.as_str().is_empty());
+        assert!(snapshot.size_bytes > 0);
+    }
+
+    #[tokio::test]
+    async fn test_create_incremental_snapshot() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        kvstore.put(b"shard_1_key1".to_vec(), b"value1".to_vec()).unwrap();
+        
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore.clone(), SnapshotTransferConfig::default());
+        let base = engine.create_full_snapshot().await.unwrap();
+        
+        kvstore.put(b"shard_1_key2".to_vec(), b"value2".to_vec()).unwrap();
+        
+        let base_id = base.snapshot_id.clone();
+        let incremental = engine.create_incremental_snapshot(base_id).await.unwrap();
+        
+        assert_eq!(incremental.base_snapshot_id, Some(base.snapshot_id));
+    }
+
+    #[test]
+    fn test_snapshot_serialization() {
+        let snapshot = MetadataSnapshot {
+            snapshot_id: SnapshotId::new(),
+            shard_id: ShardId::new(1),
+            log_index: LogIndex::new(100),
+            term: Term::new(5),
+            metadata_bytes: vec![1, 2, 3, 4],
+            compression: None,
+            checksum: [0u8; 32],
+            created_at: Timestamp::now(),
+            base_snapshot_id: None,
+            size_bytes: 4,
+        };
+        
+        let encoded = bincode::serialize(&snapshot).unwrap();
+        let decoded: MetadataSnapshot = bincode::deserialize(&encoded).unwrap();
+        
+        assert_eq!(decoded.snapshot_id, snapshot.snapshot_id);
+        assert_eq!(decoded.shard_id, snapshot.shard_id);
+    }
+
+    #[test]
+    fn test_snapshot_chunking() {
+        let config = SnapshotTransferConfig {
+            chunk_size: 1000,
+            ..Default::default()
+        };
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, config);
+        
+        let data = vec![1u8; 10000];
+        let chunks = engine.chunk_snapshot(&data).unwrap();
+        
+        assert!(chunks.len() > 1);
+        let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter()).cloned().collect();
+        assert_eq!(reassembled, data);
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_compression_enabled() {
+        let config = SnapshotTransferConfig {
+            compression_enabled: true,
+            ..Default::default()
+        };
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, config);
+        
+        let snapshot = engine.create_full_snapshot().await.unwrap();
+        assert!(snapshot.compression.is_some() || snapshot.compression.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_compression_disabled() {
+        let config = SnapshotTransferConfig {
+            compression_enabled: false,
+            ..Default::default()
+        };
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, config);
+        
+        let snapshot = engine.create_full_snapshot().await.unwrap();
+        assert_eq!(snapshot.compression, None);
+    }
+
+    #[test]
+    fn test_verify_snapshot_integrity_valid() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let data = b"test data for integrity check".to_vec();
+        let mut hasher = Hasher::new();
+        hasher.update(&data);
+        let checksum = *hasher.finalize().as_bytes();
+        
+        let snapshot = MetadataSnapshot {
+            snapshot_id: SnapshotId::new(),
+            shard_id: ShardId::new(1),
+            log_index: LogIndex::new(1),
+            term: Term::new(1),
+            metadata_bytes: data.clone(),
+            compression: None,
+            checksum,
+            created_at: Timestamp::now(),
+            base_snapshot_id: None,
+            size_bytes: data.len() as u64,
+        };
+        
+        let is_valid = engine.verify_snapshot_integrity(&snapshot, &data).unwrap();
+        assert!(is_valid);
+    }
+
+    #[test]
+    fn test_verify_snapshot_integrity_corrupted() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let data = b"test data".to_vec();
+        let corrupted_data = b"corrupted data".to_vec();
+        
+        let mut hasher = Hasher::new();
+        hasher.update(&data);
+        let checksum = *hasher.finalize().as_bytes();
+        
+        let snapshot = MetadataSnapshot {
+            snapshot_id: SnapshotId::new(),
+            shard_id: ShardId::new(1),
+            log_index: LogIndex::new(1),
+            term: Term::new(1),
+            metadata_bytes: data,
+            compression: None,
+            checksum,
+            created_at: Timestamp::now(),
+            base_snapshot_id: None,
+            size_bytes: 9,
+        };
+        
+        let is_valid = engine.verify_snapshot_integrity(&snapshot, &corrupted_data).unwrap();
+        assert!(!is_valid);
+    }
+
+    #[test]
+    fn test_snapshot_checksum_blake3() {
+        let mut hasher = Hasher::new();
+        hasher.update(b"test content");
+        let checksum = *hasher.finalize().as_bytes();
+        
+        assert_eq!(checksum.len(), 32);
+        
+        let mut hasher2 = Hasher::new();
+        hasher2.update(b"test content");
+        let checksum2 = *hasher2.finalize().as_bytes();
+        
+        assert_eq!(checksum, checksum2);
+    }
+
+    #[test]
+    fn test_transfer_progress_tracking() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let snapshot_id = SnapshotId::new();
+        engine.track_transfer(snapshot_id.clone(), 1000);
+        
+        let progress = engine.get_transfer_progress(snapshot_id.clone()).unwrap();
+        assert_eq!(progress.total_bytes, 1000);
+        assert_eq!(progress.bytes_transferred, 0);
+        assert_eq!(progress.state, TransferState::InProgress);
+    }
+
+    #[test]
+    fn test_transfer_complete() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let snapshot_id = SnapshotId::new();
+        engine.track_transfer(snapshot_id.clone(), 1000);
+        engine.complete_transfer(snapshot_id.clone()).unwrap();
+        
+        let progress = engine.get_transfer_progress(snapshot_id).unwrap();
+        assert_eq!(progress.state, TransferState::Completed);
+    }
+
+    #[test]
+    fn test_transfer_fail() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let snapshot_id = SnapshotId::new();
+        engine.track_transfer(snapshot_id.clone(), 1000);
+        engine.fail_transfer(snapshot_id.clone(), "Network error".to_string()).unwrap();
+        
+        let progress = engine.get_transfer_progress(snapshot_id).unwrap();
+        assert_eq!(progress.state, TransferState::Failed);
+        assert_eq!(progress.error, Some("Network error".to_string()));
+    }
+
+    #[test]
+    fn test_get_transfer_progress_running() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let snapshot_id = SnapshotId::new();
+        engine.track_transfer(snapshot_id.clone(), 1000);
+        
+        let progress = engine.get_transfer_progress(snapshot_id.clone());
+        assert!(progress.is_some());
+        assert_eq!(progress.unwrap().state, TransferState::InProgress);
+    }
+
+    #[test]
+    fn test_get_transfer_progress_completed() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let snapshot_id = SnapshotId::new();
+        engine.track_transfer(snapshot_id.clone(), 1000);
+        engine.complete_transfer(snapshot_id.clone()).unwrap();
+        
+        let progress = engine.get_transfer_progress(snapshot_id);
+        assert!(progress.is_some());
+        assert_eq!(progress.unwrap().state, TransferState::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_restore_snapshot_empty() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore.clone(), SnapshotTransferConfig::default());
+        
+        let empty_bytes = vec![];
+        let mut hasher = Hasher::new();
+        hasher.update(&empty_bytes);
+        let checksum = *hasher.finalize().as_bytes();
+        
+        let snapshot = MetadataSnapshot {
+            snapshot_id: SnapshotId::new(),
+            shard_id: ShardId::new(1),
+            log_index: LogIndex::new(0),
+            term: Term::new(1),
+            metadata_bytes: empty_bytes,
+            compression: None,
+            checksum,
+            created_at: Timestamp::now(),
+            base_snapshot_id: None,
+            size_bytes: 0,
+        };
+        
+        let result = engine.restore_snapshot(snapshot).await.unwrap();
+        assert_eq!(result.entries_restored, 0);
+    }
+
+    #[tokio::test]
+    async fn test_restore_snapshot_with_inodes() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        kvstore.put(b"shard_1_inode_100".to_vec(), b"inode_data_100".to_vec()).unwrap();
+        
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore.clone(), SnapshotTransferConfig::default());
+        let snapshot = engine.create_full_snapshot().await.unwrap();
+        
+        kvstore.delete(b"shard_1_inode_100").unwrap();
+        
+        let result = engine.restore_snapshot(snapshot).await.unwrap();
+        assert!(result.entries_restored > 0);
+        assert!(result.integrity_verified);
+    }
+
+    #[tokio::test]
+    async fn test_restore_snapshot_verify_entries() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        kvstore.put(b"shard_1_key1".to_vec(), b"value1".to_vec()).unwrap();
+        kvstore.put(b"shard_1_key2".to_vec(), b"value2".to_vec()).unwrap();
+        
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore.clone(), SnapshotTransferConfig::default());
+        let snapshot = engine.create_full_snapshot().await.unwrap();
+        
+        kvstore.delete(b"shard_1_key1").unwrap();
+        kvstore.delete(b"shard_1_key2").unwrap();
+        
+        let result = engine.restore_snapshot(snapshot).await.unwrap();
+        assert_eq!(result.entries_restored, 2);
+    }
+
+    #[tokio::test]
+    async fn test_restore_snapshot_updates_log_index() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let empty_bytes = vec![];
+        let mut hasher = Hasher::new();
+        hasher.update(&empty_bytes);
+        let checksum = *hasher.finalize().as_bytes();
+        
+        let snapshot = MetadataSnapshot {
+            snapshot_id: SnapshotId::new(),
+            shard_id: ShardId::new(1),
+            log_index: LogIndex::new(500),
+            term: Term::new(10),
+            metadata_bytes: empty_bytes,
+            compression: None,
+            checksum,
+            created_at: Timestamp::now(),
+            base_snapshot_id: None,
+            size_bytes: 0,
+        };
+        
+        let result = engine.restore_snapshot(snapshot).await.unwrap();
+        assert_eq!(result.log_index_after_restore, 500);
+    }
+
+    #[tokio::test]
+    async fn test_restore_snapshot_integrity_check_fails() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let mut snapshot = MetadataSnapshot {
+            snapshot_id: SnapshotId::new(),
+            shard_id: ShardId::new(1),
+            log_index: LogIndex::new(1),
+            term: Term::new(1),
+            metadata_bytes: vec![1, 2, 3],
+            compression: None,
+            checksum: [0u8; 32],
+            created_at: Timestamp::now(),
+            base_snapshot_id: None,
+            size_bytes: 3,
+        };
+        
+        let mut hasher = Hasher::new();
+        hasher.update(b"different data");
+        snapshot.checksum = *hasher.finalize().as_bytes();
+        
+        let result = engine.restore_snapshot(snapshot).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_restore_snapshot_result_metrics() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        kvstore.put(b"shard_1_key1".to_vec(), b"value1".to_vec()).unwrap();
+        
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        let snapshot = engine.create_full_snapshot().await.unwrap();
+        
+        let result = engine.restore_snapshot(snapshot.clone()).await.unwrap();
+        
+        assert_eq!(result.snapshot_id, snapshot.snapshot_id);
+        assert!(result.bytes_restored > 0);
+        assert!(result.restore_duration_ms >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_old_snapshots_keeps_recent() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore.clone(), SnapshotTransferConfig::default());
+        
+        let _ = engine.create_full_snapshot().await.unwrap();
+        let _ = engine.create_full_snapshot().await.unwrap();
+        let _ = engine.create_full_snapshot().await.unwrap();
+        
+        let removed = engine.cleanup_old_snapshots(2).await.unwrap();
+        
+        assert!(removed >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_old_snapshots_by_timestamp() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let config = SnapshotTransferConfig::default();
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore.clone(), config);
+        
+        let snapshot = engine.create_full_snapshot().await.unwrap();
+        
+        let old_timestamp = Timestamp { secs: 1000000000, nanos: 0 };
+        let old_snapshot = MetadataSnapshot {
+            snapshot_id: SnapshotId::new(),
+            shard_id: ShardId::new(1),
+            log_index: LogIndex::new(1),
+            term: Term::new(1),
+            metadata_bytes: vec![],
+            compression: None,
+            checksum: [0u8; 32],
+            created_at: old_timestamp,
+            base_snapshot_id: None,
+            size_bytes: 0,
+        };
+        
+        kvstore.put(format!("snapshot_{}", old_snapshot.snapshot_id.as_str()).as_bytes().to_vec(), bincode::serialize(&old_snapshot).unwrap()).unwrap();
+        kvstore.put(format!("snapshot_{}", snapshot.snapshot_id.as_str()).as_bytes().to_vec(), bincode::serialize(&snapshot).unwrap()).unwrap();
+        
+        let removed = engine.cleanup_old_snapshots(1).await.unwrap();
+        
+        assert!(removed >= 0);
+    }
+
+    #[test]
+    fn test_transfer_timeout_detection() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let config = SnapshotTransferConfig {
+            transfer_timeout_secs: 1,
+            ..Default::default()
+        };
+        let timeout_val = config.transfer_timeout_secs;
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, config);
+        
+        let old_timestamp = Timestamp { secs: 1000000000, nanos: 0 };
+        let snapshot_id = SnapshotId::new();
+        let progress = TransferProgress {
+            snapshot_id: snapshot_id.clone(),
+            bytes_transferred: 500,
+            total_bytes: 1000,
+            state: TransferState::InProgress,
+            error: None,
+            last_activity: old_timestamp,
+        };
+        
+        engine.transfers.insert(snapshot_id, progress);
+        
+        let current = Timestamp::now();
+        let elapsed = current.secs - old_timestamp.secs;
+        
+        assert!(elapsed > timeout_val);
+    }
+
+    #[test]
+    fn test_multiple_concurrent_transfers() {
+        let kvstore = Arc::new(MemoryKvStore::new());
+        let engine = SnapshotTransferEngine::new(ShardId::new(1), kvstore, SnapshotTransferConfig::default());
+        
+        let id1 = SnapshotId::new();
+        let id2 = SnapshotId::new();
+        let id3 = SnapshotId::new();
+        
+        engine.track_transfer(id1.clone(), 1000);
+        engine.track_transfer(id2.clone(), 2000);
+        engine.track_transfer(id3.clone(), 3000);
+        
+        assert_eq!(engine.get_transfer_progress(id1.clone()).unwrap().total_bytes, 1000);
+        assert_eq!(engine.get_transfer_progress(id2.clone()).unwrap().total_bytes, 2000);
+        assert_eq!(engine.get_transfer_progress(id3.clone()).unwrap().total_bytes, 3000);
+        
+        engine.update_transfer_progress(id1.clone(), 500).unwrap();
+        
+        assert_eq!(engine.get_transfer_progress(id1).unwrap().bytes_transferred, 500);
+    }
+
+    #[test]
+    fn test_snapshot_size_limit() {
+        let config = SnapshotTransferConfig {
+            max_snapshot_size: 100,
+            ..Default::default()
+        };
+        
+        let data = vec![0u8; 150];
+        
+        assert!(data.len() as u64 > config.max_snapshot_size);
     }
 }

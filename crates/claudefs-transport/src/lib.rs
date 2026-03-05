@@ -208,3 +208,21 @@ pub use enrollment::{
 };
 pub use metrics::TransportMetrics;
 pub use routing::{ConsistentHashRing, NodeId, NodeInfo};
+
+pub mod trace_aggregator;
+pub use trace_aggregator::{
+    TraceId, SpanRecord, TraceData, TraceAggregator, TraceAggregatorConfig,
+    TraceAggregatorStats, TraceLatencyStats,
+};
+
+pub mod bandwidth_shaper;
+pub use bandwidth_shaper::{
+    BandwidthId, BandwidthAllocation, BandwidthShaper, BandwidthShaperConfig,
+    BandwidthStats, BandwidthError, EnforcementMode, TokenBucket,
+};
+
+pub mod adaptive_router;
+pub use adaptive_router::{
+    EndpointId, EndpointMetrics, RoutingDecision, RoutingPolicy, AdaptiveRouter,
+    AdaptiveRouterConfig, RoutingError,
+};

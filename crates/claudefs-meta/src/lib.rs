@@ -136,6 +136,12 @@ pub mod watch;
 pub mod worm;
 /// Extended attribute operations
 pub mod xattr;
+/// Distributed transaction coordinator for cross-shard atomic operations
+pub mod distributed_transaction;
+/// Per-client session state and lease tracking
+pub mod client_session;
+/// Cross-site snapshot transfer for disaster recovery
+pub mod snapshot_transfer;
 
 #[cfg(test)]
 mod proptests;
@@ -197,6 +203,10 @@ pub use service::MetadataServiceConfig;
 pub use shard::{ShardAssigner, ShardInfo, ShardRouter};
 pub use shard_stats::{ClusterShardStats, ShardStats};
 pub use snapshot::{RaftSnapshot, SnapshotManager};
+pub use snapshot_transfer::{
+    CompressionType, SnapshotId, MetadataSnapshot, SnapshotTransferConfig,
+    TransferState, TransferProgress, SnapshotTransferEngine, RemoteRestorationResult,
+};
 pub use space_accounting::{DirUsage, SpaceAccountingStore};
 pub use symlink::SymlinkStore;
 pub use tenant::{TenantConfig, TenantId, TenantManager, TenantUsage};
@@ -205,6 +215,14 @@ pub use transaction::{Transaction, TransactionId, TransactionManager, Transactio
 pub use watch::{Watch, WatchEvent, WatchManager};
 pub use worm::{RetentionPolicy, WormAuditEvent, WormEntry, WormManager, WormState};
 pub use xattr::XattrStore;
+pub use distributed_transaction::{
+    DistributedTransactionEngine, TransactionId as DtxnId, TransactionOp, TransactionState as DtxnState,
+    TransactionVote, CommitResult, LockToken, DeadlockDetectionGraph,
+};
+pub use client_session::{
+    SessionManager, SessionId, ClientId as SessionClientId, OperationId, SessionState, PendingOperation,
+    OpResult, SessionLeaseRenewal, SessionManagerConfig, SessionMetrics, ClientSession,
+};
 
 /// Re-export key types for external users
 pub use types::{

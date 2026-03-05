@@ -139,6 +139,14 @@ pub mod key_rotation_orchestrator;
 pub mod worm_retention_enforcer;
 /// Persistence and recovery for key rotation checkpoints.
 pub mod rotation_checkpoint;
+/// Tier 2 similarity detection and delta compression coordinator.
+pub mod similarity_coordinator;
+/// AI-assisted data classification for workload-specific tiering.
+pub mod adaptive_classifier;
+/// Crash recovery and cross-shard consistency verification.
+pub mod recovery_enhancer;
+/// Detailed monitoring and metrics for Tier 2 pipeline effectiveness.
+pub mod similarity_tier_stats;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -341,4 +349,19 @@ pub use worm_retention_enforcer::{
 };
 pub use rotation_checkpoint::{
     RecoveryInfo, RotationCheckpoint, RotationCheckpointStore, RotationRecovery,
+};
+pub use similarity_coordinator::{
+    SimilarityCoordinator, SimilarityCoordinatorConfig, SimilarityJob, SimilarityMetrics,
+    SimilarityPhase,
+};
+pub use adaptive_classifier::{
+    AdaptiveClassifier, AdaptiveClassifierConfig, ClassificationHint, ClassificationMetrics,
+    DataWorkload, TieringAdvice, WorkloadDetector,
+};
+pub use recovery_enhancer::{
+    ConsistencyReport, IncompleteReduction, RecoveryCheckpoint, RecoveryEnhancer,
+    RecoveryEnhancerConfig, RecoveryMetrics,
+};
+pub use similarity_tier_stats::{
+    SimilarityTierStats, SimilarityTierStatsConfig, TierStats, WorkloadTierStats,
 };

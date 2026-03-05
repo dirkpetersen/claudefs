@@ -62,6 +62,7 @@ pub mod tier_orchestrator;
 pub mod io_coalescing;
 pub mod priority_queue_scheduler;
 pub mod numa_affinity;
+pub mod io_depth_limiter;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
