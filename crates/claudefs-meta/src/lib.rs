@@ -32,6 +32,8 @@ pub mod dirshard;
 pub mod filehandle;
 /// CAS fingerprint index for deduplication
 pub mod fingerprint;
+/// Fingerprint index integration for distributed deduplication
+pub mod fingerprint_index_integration;
 /// Read-only follower query routing for relaxed POSIX mode
 pub mod follower_read;
 /// Metadata integrity checker (fsck) for distributed filesystem
@@ -153,6 +155,10 @@ pub use dir_walk::{DirWalker, WalkConfig, WalkControl, WalkEntry, WalkStats};
 pub use dirshard::{DirShardConfig, DirShardManager, DirShardState};
 pub use filehandle::{FileHandle, FileHandleManager, OpenFlags};
 pub use fingerprint::FingerprintIndex;
+pub use fingerprint_index_integration::{
+    FingerprintLookupRequest, FingerprintLookupResult, FingerprintRouter, FingerprintRouterConfig,
+    FingerprintRouterStats, RemoteCoordinatorInfo,
+};
 pub use follower_read::{FollowerReadConfig, FollowerReadRouter, ReadConsistency, ReadTarget};
 pub use fsck::{FsckConfig, FsckFinding, FsckIssue, FsckRepairAction, FsckReport, FsckSeverity};
 pub use hardlink::HardLinkStore;
