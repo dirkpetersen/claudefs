@@ -44,6 +44,8 @@ pub mod zns;
 pub mod erasure;
 pub mod node_rebalance;
 pub mod nvme_passthrough;
+pub mod io_depth_limiter;
+pub mod command_queueing;
 pub mod tracing_storage;
 
 #[cfg(feature = "uring")]
@@ -122,6 +124,20 @@ pub use background_scheduler::{
 pub use device_health_monitor::{
     AlertSeverity as HealthAlertSeverity, DeviceHealthMonitor, DeviceHealthSummary,
     HealthAlert, HealthAlertType, SmartSnapshot, WearSnapshot,
+};
+pub mod device_timeout_handler;
+pub use device_timeout_handler::{
+    CommandType, OpMetadata, TimedOutOp, TimeoutConfig, TimeoutError, TimeoutHandler, TimeoutStats,
+};
+pub mod request_deduplication;
+pub use request_deduplication::{
+    ReadKey, RequestDeduplicator, DedupStats,
+};
+pub mod io_scheduler_fairness;
+pub use io_scheduler_fairness::{
+    WorkloadClass as IoWorkloadClass, FairnessStats as IoFairnessStats, 
+    TokenBucket as IoTokenBucket, WorkloadQueue as IoWorkloadQueue, 
+    IoSchedulerFairness as IoSchedulerFairness, FairnessError as IoFairnessError,
 };
 pub use prefetch_engine::{
     PrefetchConfig, PrefetchEngine, PrefetchHint, PrefetchStats,

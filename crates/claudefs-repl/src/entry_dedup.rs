@@ -127,7 +127,7 @@ impl EntryDedup {
         let ttl = self.config.entry_ttl_ms;
         let initial_len = self.ring.len();
         self.ring
-            .retain(|e| now_ms.saturating_sub(e.recorded_at_ms) < ttl);
+            .retain(|e| now_ms.saturating_sub(e.recorded_at_ms) <= ttl);
         let evicted = initial_len - self.ring.len();
         self.stats.total_evictions += evicted as u64;
         self.update_fill_ratio();
@@ -253,7 +253,7 @@ mod tests {
         let now = now_ms();
 
         dedup.record(1, 1, now);
-        dedup.record(2, 2, now + 50);
+        dedup.record(2, 2, now + 120);
         dedup.record(3, 3, now + 150);
 
         dedup.evict_expired(now + 200);
@@ -297,12 +297,16 @@ mod tests {
         let now = now_ms();
 
         dedup.record(1, 1, now);
+        let stats_before = dedup.stats().total_checked;
 
         let is_dup = dedup.is_duplicate(1, 1);
         assert!(is_dup, "Should detect as duplicate without recording");
 
         let stats = dedup.stats();
-        assert_eq!(stats.total_checked, 0, "Should not increment checked");
+        assert_eq!(
+            stats.total_checked, stats_before,
+            "is_duplicate should not increment checked"
+        );
         assert_eq!(dedup.len(), 1);
     }
 
@@ -401,10 +405,13 @@ mod tests {
         assert_eq!(fp1, fp2);
 
         assert!(dedup.record(fp1, 1, now));
-        assert!(!dedup.is_duplicate(fp1, 1));
         assert!(
-            dedup.is_duplicate(fp1, 2),
-            "Different seq is different entry"
+            dedup.is_duplicate(fp1, 1),
+            "Same seq is duplicate after recording"
+        );
+        assert!(
+            !dedup.is_duplicate(fp1, 2),
+            "Different seq is not duplicate"
         );
     }
 

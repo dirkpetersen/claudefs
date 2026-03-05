@@ -715,7 +715,10 @@ mod tests {
 
             store.save(&checkpoint).unwrap();
 
-            let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .unwrap();
             let result = rt.block_on(enhancer.resume_from_checkpoint(checkpoint));
 
             assert!(result.is_err() || result.is_ok());

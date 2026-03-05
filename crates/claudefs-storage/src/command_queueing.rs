@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 use crate::block::BlockId;
 use crate::io_scheduler::IoPriority;
-use crate::nvme_passthrough::{CoreId, QueuePair};
+use crate::nvme_passthrough::{CoreId, QueuePair, QueuePairId, NsId, QueueState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum CommandType {
@@ -959,6 +959,7 @@ mod tests {
     }
 }
 
+#[cfg(test)]
 fn create_test_limiter() -> CommandQueue {
     let qp = Arc::new(QueuePair {
         id: QueuePairId(0),

@@ -102,6 +102,8 @@ pub struct FilterStats {
     pub total_dropped: u64,
     /// Total entries that used default policy.
     pub total_default: u64,
+    /// Entries that passed through the filter (replicated).
+    pub entries_passed: u64,
     /// Rule match counts (rule_id -> match count).
     pub rules_matched: HashMap<u64, u64>,
 }
@@ -202,7 +204,10 @@ impl ReplFilter {
                 *self.stats.rules_matched.entry(rule.rule_id).or_insert(0) += 1;
 
                 match &decision {
-                    FilterDecision::Replicate => self.stats.total_replicated += 1,
+                    FilterDecision::Replicate => {
+                        self.stats.total_replicated += 1;
+                        self.stats.entries_passed += 1;
+                    }
                     FilterDecision::Drop => self.stats.total_dropped += 1,
                     FilterDecision::Default => {}
                 }
@@ -213,7 +218,11 @@ impl ReplFilter {
 
         self.stats.total_default += 1;
         let decision = match self.default_policy {
-            FilterAction::Include => FilterDecision::Replicate,
+            FilterAction::Include => {
+                self.stats.total_replicated += 1;
+                self.stats.entries_passed += 1;
+                FilterDecision::Replicate
+            }
             FilterAction::Exclude => FilterDecision::Drop,
         };
         (decision, None)

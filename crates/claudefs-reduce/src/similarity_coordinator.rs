@@ -301,9 +301,7 @@ impl SimilarityCoordinator {
             }
         }
 
-        if let Some(ref sim_hash) = similar_hash {
-            self.similarity_index.insert(*sim_hash, features);
-        }
+        self.similarity_index.insert(hash, features);
 
         let result = if similar_hash.is_some() {
             SimilarityResult::with_similar(hash, similar_hash.unwrap(), 0)
@@ -419,7 +417,11 @@ impl SimilarityCoordinator {
             return Ok(());
         }
 
-        let _ = self.process_chunk(hash, &data);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        let _ = rt.block_on(self.process_chunk(hash, &data));
         Ok(())
     }
 }
