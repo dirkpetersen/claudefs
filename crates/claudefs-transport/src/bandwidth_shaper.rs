@@ -711,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cleanup_removes_unused_tenants() {
+    fn test_cleanup_unused_after_allocation() {
         let config = BandwidthShaperConfig {
             tick_interval_ms: 10,
             cleanup_interval_ms: 1,
