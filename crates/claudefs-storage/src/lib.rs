@@ -54,6 +54,8 @@ pub mod storage_health;
 pub mod quota_enforcement;
 pub mod tier_rebalancer;
 pub mod pressure_cascade;
+pub mod cross_node_health;
+pub mod tiering_metrics;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
@@ -168,3 +170,5 @@ pub use pressure_cascade::{
     BackpressureSignal, PressureCascade, PressureCascadeConfig, PressureCascadeStats,
     PressureLevel,
 };
+pub use cross_node_health::CrossNodeHealth;
+pub use tiering_metrics::TieringMetrics;
