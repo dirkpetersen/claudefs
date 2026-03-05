@@ -256,7 +256,7 @@ impl AdaptiveClassifier {
         if entry.chunk_size_avg == 0 {
             entry.chunk_size_avg = chunk_size_avg;
         } else {
-            entry.chunk_size_avg = (entry.chunk_size_avg * (1.0 - smoothing)
+            entry.chunk_size_avg = ((entry.chunk_size_avg as f64) * (1.0 - smoothing)
                 + chunk_size_avg as f64 * smoothing) as usize;
         }
 
@@ -329,9 +329,9 @@ impl AdaptiveClassifier {
             }
         };
 
-        let compression_level = self.recommend_compression_level_internal(fp);
-        let dedup_strength = self.recommend_dedup_strength_internal(fp);
-        let s3_tiering_policy = self.recommend_s3_policy_internal(fp);
+        let compression_level = Self::recommend_compression_level_internal(fp);
+        let dedup_strength = Self::recommend_dedup_strength_internal(fp);
+        let s3_tiering_policy = Self::recommend_s3_policy_internal(fp);
 
         let confidence = if fp.pattern_type == AccessPatternType::Unknown {
             0.0

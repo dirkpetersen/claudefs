@@ -217,9 +217,9 @@ impl SimilarityTierStats {
             .unwrap()
             .get(workload)
             .cloned()
-            .ok_or_else(|| ReduceError::InvalidChunk {
-                reason: format!("Workload {} not found", workload),
-            })?;
+            .ok_or_else(|| ReduceError::NotFound(
+                format!("Workload {} not found", workload),
+            ))?;
 
         // Calculate throughput
         let avg_latency_us = if !stats.feature_extraction_latency_us.is_empty() {
@@ -301,9 +301,9 @@ impl SimilarityTierStats {
             .unwrap()
             .get(workload)
             .cloned()
-            .ok_or_else(|| ReduceError::InvalidChunk {
-                reason: format!("Workload {} not found", workload),
-            })?;
+            .ok_or_else(|| ReduceError::NotFound(
+                format!("Workload {} not found", workload),
+            ))?;
 
         if stats.feature_extraction_latency_us.is_empty() {
             return Ok((0, 0, 0));
