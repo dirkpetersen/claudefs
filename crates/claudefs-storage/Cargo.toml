@@ -19,6 +19,7 @@ io-uring = { version = "0.7", optional = true }
 crc32fast = "1"
 crc64fast = "1"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
+dashmap.workspace = true
 parking_lot = "0.12"
 uuid = { version = "1", features = ["v4"] }
 serde_json.workspace = true

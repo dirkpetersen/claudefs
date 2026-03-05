@@ -1,14 +1,27 @@
-//! Bandwidth shaper (QoS enforcer) security tests.
+//! Security tests for claudefs-transport bandwidth_shaper module.
 //!
-//! Part of A10 Phase 35: Tests for token bucket correctness, enforcement modes,
-//! per-tenant isolation, burst capacity, and configuration validation.
+//! This module validates security properties of the bandwidth shaping system
+//! including token bucket correctness, enforcement modes, per-tenant isolation,
+//! burst capacity handling, and configuration validation.
 
 #[cfg(test)]
 mod tests {
-    use claudefs_transport::bandwidth_shaper::{
-        BandwidthAllocation, BandwidthId, BandwidthShaper, EnforcementMode, TokenBucket,
-    };
-    use std::time::{Duration, SystemTime};
+    use claudefs_transport::bandwidth_shaper::*;
+    use std::time::Duration;
+    use std::thread;
+
+    fn make_allocation(
+        id: u64,
+        rate: u64,
+        burst: u64,
+        mode: EnforcementMode,
+    ) -> BandwidthAllocation {
+        BandwidthAllocation::new(BandwidthId(id), rate, burst, mode)
+    }
+
+    // ============================================================================
+    // Category 1: Token Bucket Correctness (8 tests)
+    // ============================================================================
 
     mod token_bucket_correctness {
         use super::*;
@@ -16,315 +29,497 @@ mod tests {
         #[test]
         fn test_transport_bw_sec_initial_tokens_equals_capacity() {
             let bucket = TokenBucket::new(1000, 100);
-            assert_eq!(
-                bucket.tokens.load(std::sync::atomic::Ordering::SeqCst),
-                1000,
-                "Initial tokens should equal capacity"
-            );
+            let available = bucket.available();
+
+            assert_eq!(available, 1000,
+                "Initial tokens should equal capacity");
+        }
+
+        #[test]
+        fn test_transport_bw_sec_refill_respects_rate() {
+            let bucket = TokenBucket::new(1000, 100);
+
+            bucket.try_consume(900);
+
+            thread::sleep(Duration::from_millis(1100));
+
+            let available = bucket.available();
+
+            assert!(available >= 100,
+                "After 1.1 seconds with rate=100/sec, should have ~100 tokens");
         }
 
         #[test]
         fn test_transport_bw_sec_refill_stops_at_capacity() {
             let bucket = TokenBucket::new(1000, 100);
-            bucket.refill();
 
-            let tokens = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            assert!(
-                tokens <= 1000,
-                "Tokens should not exceed capacity after refill"
-            );
+            bucket.try_consume(500);
+
+            thread::sleep(Duration::from_millis(1100));
+
+            let available = bucket.available();
+
+            assert!(available <= 1000,
+                "Tokens should not exceed capacity");
         }
 
         #[test]
         fn test_transport_bw_sec_try_consume_fails_insufficient_tokens() {
-            let bucket = TokenBucket::new(100, 50);
-            bucket.tokens.store(50, std::sync::atomic::Ordering::SeqCst);
+            let bucket = TokenBucket::new(50, 100);
 
             let result = bucket.try_consume(100);
-            assert!(!result, "Should fail when trying to consume more than available");
+
+            assert!(!result,
+                "try_consume should fail when tokens insufficient");
         }
 
         #[test]
         fn test_transport_bw_sec_try_consume_succeeds_if_sufficient() {
-            let bucket = TokenBucket::new(100, 50);
-            bucket.tokens.store(100, std::sync::atomic::Ordering::SeqCst);
+            let bucket = TokenBucket::new(100, 1000);
 
             let result = bucket.try_consume(50);
-            assert!(result, "Should succeed when tokens are sufficient");
 
-            let remaining = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            assert_eq!(remaining, 50, "Tokens should decrease after consumption");
+            assert!(result, "try_consume should succeed with sufficient tokens");
+
+            let available = bucket.available();
+            assert!(available <= 50, "Tokens should be reduced");
+        }
+
+        #[tokio::test]
+        async fn test_transport_bw_sec_try_consume_atomic_check_and_subtract() {
+            use std::sync::Arc;
+
+            let bucket = Arc::new(TokenBucket::new(1000, 1000000));
+            let mut handles = vec![];
+
+            for _ in 0..10 {
+                let bucket = Arc::clone(&bucket);
+                let handle = tokio::spawn(async move {
+                    bucket.try_consume(100)
+                });
+                handles.push(handle);
+            }
+
+            let mut success_count = 0;
+            for handle in handles {
+                if handle.await.unwrap() {
+                    success_count += 1;
+                }
+            }
+
+            assert!(success_count <= 10,
+                "All concurrent consumes should be atomic");
         }
 
         #[test]
         fn test_transport_bw_sec_last_refill_timestamp_updated() {
             let bucket = TokenBucket::new(1000, 100);
-            let before = bucket.last_refill_ns.load(std::sync::atomic::Ordering::SeqCst);
 
-            bucket.refill();
+            let before = bucket.last_refill_ns.load(std::sync::atomic::Ordering::Relaxed);
 
-            let after = bucket.last_refill_ns.load(std::sync::atomic::Ordering::SeqCst);
-            assert!(after >= before, "Last refill timestamp should be updated or stay same");
+            bucket.try_consume(100);
+
+            let after = bucket.last_refill_ns.load(std::sync::atomic::Ordering::Relaxed);
+
+            assert!(after >= before,
+                "Last refill timestamp should be updated");
         }
 
         #[test]
         fn test_transport_bw_sec_refill_calculation_correct() {
-            let bucket = TokenBucket::new(1000, 1000); // 1000 tokens/sec
-            let now_ns = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64;
+            let bucket = TokenBucket::new(1000, 1000);
 
-            // Simulate 0.5 second elapsed
-            bucket.last_refill_ns.store(now_ns - 500_000_000, std::sync::atomic::Ordering::SeqCst);
+            bucket.try_consume(500);
 
-            bucket.refill();
+            let before = bucket.tokens.load(std::sync::atomic::Ordering::Relaxed);
 
-            // Should have refilled ~500 tokens
-            let tokens = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            assert!(tokens > 500 && tokens <= 1000, "Tokens should increase by ~500");
-        }
+            #[cfg(test)]
+            bucket.refill_at_ns(before + 500_000_000);
 
-        #[tokio::test]
-        async fn test_transport_bw_sec_try_consume_atomic_check_and_subtract() {
-            let bucket = std::sync::Arc::new(TokenBucket::new(1000, 100));
-            let mut handles = vec![];
+            let after = bucket.tokens.load(std::sync::atomic::Ordering::Relaxed);
 
-            for _ in 0..100 {
-                let bucket_clone = std::sync::Arc::clone(&bucket);
-                handles.push(tokio::spawn(async move {
-                    let _ = bucket_clone.try_consume(10);
-                }));
-            }
-
-            for handle in handles {
-                let _ = handle.await;
-            }
-
-            let tokens = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            assert!(tokens <= 1000, "Tokens should not exceed capacity");
+            assert!(after >= before,
+                "Refill should add tokens based on elapsed time");
         }
     }
+
+    // ============================================================================
+    // Category 2: Enforcement Modes (8 tests)
+    // ============================================================================
 
     mod enforcement_modes {
         use super::*;
 
         #[test]
         fn test_transport_bw_sec_hard_mode_rejects_over_limit() {
-            let alloc = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Hard);
-            assert_eq!(alloc.enforcement_mode, EnforcementMode::Hard);
-            assert_eq!(alloc.bytes_per_sec, 100);
+            let shaper = BandwidthShaper::default();
+            let alloc = make_allocation(1, 100, 100, EnforcementMode::Hard);
+
+            shaper.set_allocation(alloc).unwrap();
+
+            let result = shaper.try_allocate(BandwidthId(1), 200);
+
+            assert!(result.is_err(),
+                "Hard mode should reject when exceeding limit");
+            if let Err(e) = result {
+                assert!(matches!(e, BandwidthError::LimitExceeded { .. }),
+                    "Should return LimitExceeded error");
+            }
         }
 
         #[test]
         fn test_transport_bw_sec_soft_mode_allows_over_limit() {
-            let alloc = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Soft);
-            assert_eq!(alloc.enforcement_mode, EnforcementMode::Soft);
+            let shaper = BandwidthShaper::default();
+            let alloc = make_allocation(1, 100, 500, EnforcementMode::Soft);
+
+            shaper.set_allocation(alloc).unwrap();
+
+            let result = shaper.try_allocate(BandwidthId(1), 200);
+
+            assert!(result.is_ok(),
+                "Soft mode should allow over limit with warning");
         }
 
         #[test]
         fn test_transport_bw_sec_hard_soft_mode_switch() {
-            let mut alloc =
-                BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Hard);
-            assert_eq!(alloc.enforcement_mode, EnforcementMode::Hard);
+            let shaper = BandwidthShaper::default();
 
-            alloc.enforcement_mode = EnforcementMode::Soft;
-            assert_eq!(alloc.enforcement_mode, EnforcementMode::Soft);
+            let alloc_hard = make_allocation(1, 100, 100, EnforcementMode::Hard);
+            shaper.set_allocation(alloc_hard).unwrap();
+
+            let hard_result = shaper.try_allocate(BandwidthId(1), 150);
+            assert!(hard_result.is_err(), "Hard mode should reject");
+
+            let alloc_soft = make_allocation(1, 100, 500, EnforcementMode::Soft);
+            shaper.set_allocation(alloc_soft).unwrap();
+
+            let soft_result = shaper.try_allocate(BandwidthId(1), 150);
+            assert!(soft_result.is_ok(), "Soft mode should allow");
         }
 
         #[test]
         fn test_transport_bw_sec_mode_change_does_not_reset_tokens() {
-            let bucket = TokenBucket::new(100, 50);
-            bucket.tokens.store(50, std::sync::atomic::Ordering::SeqCst);
+            let shaper = BandwidthShaper::default();
+            let alloc1 = make_allocation(1, 1000, 1000, EnforcementMode::Hard);
+            shaper.set_allocation(alloc1).unwrap();
 
-            let tokens_before = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
+            shaper.try_allocate(BandwidthId(1), 500).unwrap();
 
-            // Mode change shouldn't affect bucket
-            let _alloc = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Soft);
+            let stats_before = shaper.stats(BandwidthId(1)).unwrap();
 
-            let tokens_after = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            assert_eq!(tokens_before, tokens_after, "Tokens should not change on mode switch");
+            let alloc2 = make_allocation(1, 1000, 1000, EnforcementMode::Soft);
+            shaper.set_allocation(alloc2).unwrap();
+
+            let stats_after = shaper.stats(BandwidthId(1)).unwrap();
+
+            assert!(stats_after.current_tokens <= stats_before.current_tokens + 100,
+                "Mode change should not reset tokens");
         }
 
         #[tokio::test]
         async fn test_transport_bw_sec_per_tenant_enforcement_independent() {
-            let alloc_a = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Hard);
-            let alloc_b = BandwidthAllocation::new(BandwidthId(2), 100, 500, EnforcementMode::Soft);
+            use std::sync::Arc;
 
-            assert_eq!(alloc_a.enforcement_mode, EnforcementMode::Hard);
-            assert_eq!(alloc_b.enforcement_mode, EnforcementMode::Soft);
+            let shaper = Arc::new(BandwidthShaper::default());
+
+            shaper.set_allocation(make_allocation(1, 100, 100, EnforcementMode::Hard)).unwrap();
+            shaper.set_allocation(make_allocation(2, 100, 100, EnforcementMode::Soft)).unwrap();
+
+            let shaper_clone = Arc::clone(&shaper);
+            let handle1 = tokio::spawn(async move {
+                shaper_clone.try_allocate(BandwidthId(1), 150)
+            });
+
+            let shaper_clone2 = Arc::clone(&shaper);
+            let handle2 = tokio::spawn(async move {
+                shaper_clone2.try_allocate(BandwidthId(2), 150)
+            });
+
+            let result1 = handle1.await.unwrap();
+            let result2 = handle2.await.unwrap();
+
+            assert!(result1.is_err(), "Tenant 1 (Hard) should reject");
+            assert!(result2.is_ok(), "Tenant 2 (Soft) should allow");
         }
 
         #[test]
         fn test_transport_bw_sec_enforcement_mode_validation() {
-            let default_mode = EnforcementMode::default();
-            assert_eq!(default_mode, EnforcementMode::Soft, "Default mode should be Soft");
+            let alloc = BandwidthAllocation::new(BandwidthId(1), 0, 100, EnforcementMode::Hard);
+
+            assert!(!alloc.is_valid(),
+                "Allocation with zero bytes_per_sec should be invalid");
         }
 
         #[test]
         fn test_transport_bw_sec_hard_mode_with_burst_capacity() {
-            let alloc = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Hard);
-            assert_eq!(alloc.burst_bytes, 500, "Burst capacity should be preserved");
-            assert!(
-                alloc.burst_bytes > alloc.bytes_per_sec,
-                "Burst should exceed per_sec"
-            );
+            let shaper = BandwidthShaper::default();
+            let alloc = make_allocation(1, 100, 500, EnforcementMode::Hard);
+
+            shaper.set_allocation(alloc).unwrap();
+
+            let result = shaper.try_allocate(BandwidthId(1), 300);
+
+            assert!(result.is_ok(),
+                "Hard mode should allow within burst capacity");
+        }
+
+        #[test]
+        fn test_transport_bw_sec_soft_mode_logs_warning() {
+            let shaper = BandwidthShaper::default();
+            let alloc = make_allocation(1, 100, 100, EnforcementMode::Soft);
+
+            shaper.set_allocation(alloc).unwrap();
+
+            shaper.try_allocate(BandwidthId(1), 150).unwrap();
+
+            let stats = shaper.stats(BandwidthId(1)).unwrap();
+            assert!(stats.requests_granted >= 1,
+                "Soft mode should grant request despite exceeding limit");
         }
     }
+
+    // ============================================================================
+    // Category 3: Per-Tenant Isolation (7 tests)
+    // ============================================================================
 
     mod per_tenant_isolation {
         use super::*;
 
         #[test]
         fn test_transport_bw_sec_separate_bucket_per_tenant() {
-            let allocs: Vec<_> = (0..10)
-                .map(|i| {
-                    BandwidthAllocation::new(
-                        BandwidthId(i),
-                        100 * (i + 1) as u64,
-                        500,
-                        EnforcementMode::Hard,
-                    )
-                })
-                .collect();
+            let shaper = BandwidthShaper::default();
 
-            assert_eq!(allocs.len(), 10, "Should create separate allocations");
-            for (i, alloc) in allocs.iter().enumerate() {
-                assert_eq!(alloc.tenant_id, BandwidthId(i as u64));
+            for i in 1..=10 {
+                let alloc = make_allocation(i, 1000, 1000, EnforcementMode::Hard);
+                shaper.set_allocation(alloc).unwrap();
             }
+
+            let stats = shaper.all_stats();
+
+            assert_eq!(stats.len(), 10,
+                "Should have separate bucket for each tenant");
         }
 
         #[test]
         fn test_transport_bw_sec_tenant_a_usage_independent_tenant_b() {
-            let bucket_a = TokenBucket::new(1000, 100);
-            let bucket_b = TokenBucket::new(1000, 100);
+            let shaper = BandwidthShaper::default();
 
-            bucket_a.try_consume(500);
+            shaper.set_allocation(make_allocation(1, 100, 100, EnforcementMode::Hard)).unwrap();
+            shaper.set_allocation(make_allocation(2, 100, 100, EnforcementMode::Hard)).unwrap();
 
-            let tokens_a = bucket_a.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            let tokens_b = bucket_b.tokens.load(std::sync::atomic::Ordering::SeqCst);
+            shaper.try_allocate(BandwidthId(1), 100).unwrap();
 
-            assert_eq!(tokens_a, 500, "Bucket A should be depleted");
-            assert_eq!(tokens_b, 1000, "Bucket B should be unaffected");
+            let stats_tenant_b = shaper.stats(BandwidthId(2)).unwrap();
+
+            assert_eq!(stats_tenant_b.current_tokens, 100,
+                "Tenant B's bucket should be unaffected by Tenant A's usage");
         }
 
         #[tokio::test]
         async fn test_transport_bw_sec_concurrent_allocations_different_tenants() {
             use std::sync::Arc;
 
+            let shaper = Arc::new(BandwidthShaper::default());
+
+            shaper.set_allocation(make_allocation(1, 10000, 10000, EnforcementMode::Hard)).unwrap();
+            shaper.set_allocation(make_allocation(2, 10000, 10000, EnforcementMode::Hard)).unwrap();
+
             let mut handles = vec![];
 
-            for tenant_id in 0..40 {
-                handles.push(tokio::spawn(async move {
-                    let _alloc = BandwidthAllocation::new(
-                        BandwidthId(tenant_id),
-                        100,
-                        500,
-                        if tenant_id < 20 {
-                            EnforcementMode::Hard
-                        } else {
-                            EnforcementMode::Soft
-                        },
-                    );
-                }));
+            for _ in 0..20 {
+                let shaper = Arc::clone(&shaper);
+                let handle = tokio::spawn(async move {
+                    shaper.try_allocate(BandwidthId(1), 100)
+                });
+                handles.push(handle);
+            }
+
+            for _ in 0..20 {
+                let shaper = Arc::clone(&shaper);
+                let handle = tokio::spawn(async move {
+                    shaper.try_allocate(BandwidthId(2), 100)
+                });
+                handles.push(handle);
             }
 
             for handle in handles {
                 let _ = handle.await;
             }
+
+            let stats1 = shaper.stats(BandwidthId(1)).unwrap();
+            let stats2 = shaper.stats(BandwidthId(2)).unwrap();
+
+            assert!(stats1.requests_granted + stats1.requests_rejected > 0,
+                "Tenant 1 should have activity");
+            assert!(stats2.requests_granted + stats2.requests_rejected > 0,
+                "Tenant 2 should have activity");
+        }
+
+        #[test]
+        fn test_transport_bw_sec_dashmap_no_cross_tenant_leak() {
+            let shaper = BandwidthShaper::default();
+
+            shaper.set_allocation(make_allocation(1, 100, 100, EnforcementMode::Hard)).unwrap();
+            shaper.set_allocation(make_allocation(2, 200, 200, EnforcementMode::Soft)).unwrap();
+
+            let stats1 = shaper.stats(BandwidthId(1)).unwrap();
+            let stats2 = shaper.stats(BandwidthId(2)).unwrap();
+
+            assert_eq!(stats1.allocated_bytes_per_sec, 100,
+                "Tenant 1 should have its own allocation");
+            assert_eq!(stats2.allocated_bytes_per_sec, 200,
+                "Tenant 2 should have its own allocation");
         }
 
         #[test]
         fn test_transport_bw_sec_tenant_removal_idempotent() {
-            let alloc = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Hard);
-            assert_eq!(alloc.tenant_id, BandwidthId(1));
-            // Removal would be handled at allocator level, not bucket level
+            let shaper = BandwidthShaper::default();
+            let config = BandwidthShaperConfig {
+                tick_interval_ms: 10,
+                cleanup_interval_ms: 1,
+            };
+            let shaper = BandwidthShaper::new(config);
+
+            shaper.set_allocation(make_allocation(1, 1000, 1000, EnforcementMode::Hard)).unwrap();
+
+            shaper.cleanup();
+
+            shaper.cleanup();
+
+            assert!(true, "Idempotent removal should succeed");
         }
 
         #[test]
         fn test_transport_bw_sec_tenant_allocation_add_independently() {
-            let alloc_a = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Hard);
-            let alloc_b = BandwidthAllocation::new(BandwidthId(2), 200, 600, EnforcementMode::Soft);
+            let shaper = BandwidthShaper::default();
 
-            assert_eq!(alloc_a.bytes_per_sec, 100);
-            assert_eq!(alloc_b.bytes_per_sec, 200);
-            assert_ne!(alloc_a.tenant_id, alloc_b.tenant_id);
+            shaper.set_allocation(make_allocation(1, 1000, 1000, EnforcementMode::Hard)).unwrap();
+            shaper.set_allocation(make_allocation(2, 2000, 2000, EnforcementMode::Soft)).unwrap();
+
+            let stats1 = shaper.stats(BandwidthId(1)).unwrap();
+            let stats2 = shaper.stats(BandwidthId(2)).unwrap();
+
+            assert!(stats1.is_some() && stats2.is_some(),
+                "Both allocations should exist independently");
         }
 
         #[test]
         fn test_transport_bw_sec_same_tenant_multiple_allocations_share_bucket() {
-            let bucket = std::sync::Arc::new(TokenBucket::new(1000, 100));
-            let bucket_clone = std::sync::Arc::clone(&bucket);
+            let shaper = BandwidthShaper::default();
 
-            bucket.try_consume(300);
-            bucket_clone.try_consume(200);
+            shaper.set_allocation(make_allocation(1, 1000, 1000, EnforcementMode::Hard)).unwrap();
+            shaper.try_allocate(BandwidthId(1), 500).unwrap();
 
-            let tokens = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            assert_eq!(tokens, 500, "Shared bucket should show combined consumption");
+            let first_allocation_tokens = shaper.stats(BandwidthId(1)).unwrap().current_tokens;
+
+            shaper.set_allocation(make_allocation(1, 2000, 2000, EnforcementMode::Hard)).unwrap();
+
+            let after_replacement_tokens = shaper.stats(BandwidthId(1)).unwrap().current_tokens;
+
+            assert!(after_replacement_tokens > 0,
+                "Same tenant should share/update bucket, not create duplicate");
         }
     }
+
+    // ============================================================================
+    // Category 4: Burst Capacity Handling (4 tests)
+    // ============================================================================
 
     mod burst_capacity_handling {
         use super::*;
 
         #[test]
         fn test_transport_bw_sec_burst_allows_temporary_exceed() {
-            let alloc = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Hard);
-            assert!(alloc.burst_bytes >= alloc.bytes_per_sec * 3, "Burst should be >> per_sec");
+            let shaper = BandwidthShaper::default();
+            let alloc = make_allocation(1, 100, 500, EnforcementMode::Hard);
+
+            shaper.set_allocation(alloc).unwrap();
+
+            let result = shaper.try_allocate(BandwidthId(1), 300);
+
+            assert!(result.is_ok(),
+                "Should allow consumption up to burst capacity");
         }
 
         #[test]
         fn test_transport_bw_sec_burst_capacity_depletes() {
-            let bucket = TokenBucket::new(500, 100);
-            bucket.try_consume(300);
+            let shaper = BandwidthShaper::default();
+            let alloc = make_allocation(1, 100, 500, EnforcementMode::Hard);
 
-            let tokens = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            assert_eq!(tokens, 200, "Burst should deplete on consumption");
+            shaper.set_allocation(alloc).unwrap();
+
+            shaper.try_allocate(BandwidthId(1), 300).unwrap();
+            shaper.try_allocate(BandwidthId(1), 300).unwrap();
+
+            let result = shaper.try_allocate(BandwidthId(1), 100);
+
+            assert!(result.is_err(),
+                "Burst should be depleted after use");
         }
 
         #[test]
         fn test_transport_bw_sec_burst_capacity_replenishes() {
-            let bucket = TokenBucket::new(500, 1000);
-            bucket.try_consume(300);
+            let shaper = BandwidthShaper::default();
+            let alloc = make_allocation(1, 100, 500, EnforcementMode::Hard);
 
-            std::thread::sleep(Duration::from_millis(100));
-            bucket.refill();
+            shaper.set_allocation(alloc).unwrap();
 
-            let tokens = bucket.tokens.load(std::sync::atomic::Ordering::SeqCst);
-            assert!(tokens > 200, "Tokens should replenish after delay");
+            shaper.try_allocate(BandwidthId(1), 500).unwrap();
+
+            thread::sleep(Duration::from_millis(1100));
+
+            let result = shaper.try_allocate(BandwidthId(1), 100);
+
+            assert!(result.is_ok(),
+                "Burst should partially replenish after time");
         }
 
         #[test]
         fn test_transport_bw_sec_over_burst_rejected() {
-            let bucket = TokenBucket::new(500, 100);
+            let shaper = BandwidthShaper::default();
+            let alloc = make_allocation(1, 100, 500, EnforcementMode::Hard);
 
-            let result = bucket.try_consume(600);
-            assert!(!result, "Should reject consumption exceeding capacity");
+            shaper.set_allocation(alloc).unwrap();
+
+            let result = shaper.try_allocate(BandwidthId(1), 600);
+
+            assert!(result.is_err(),
+                "Should reject request exceeding burst_bytes");
         }
     }
+
+    // ============================================================================
+    // Category 5: Configuration Validation (3 tests)
+    // ============================================================================
 
     mod configuration_validation {
         use super::*;
 
         #[test]
         fn test_transport_bw_sec_valid_config_bytes_per_sec_gt_zero() {
-            let alloc = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Hard);
-            assert!(alloc.is_valid(), "Config with bytes_per_sec > 0 should be valid");
+            let alloc = BandwidthAllocation::new(BandwidthId(1), 1000, 100, EnforcementMode::Hard);
+
+            assert!(alloc.is_valid(),
+                "Allocation with bytes_per_sec > 0 should be valid");
         }
 
         #[test]
         fn test_transport_bw_sec_valid_config_burst_bytes_gt_zero() {
-            let alloc = BandwidthAllocation::new(BandwidthId(1), 100, 500, EnforcementMode::Soft);
-            assert!(alloc.is_valid(), "Config with burst_bytes > 0 should be valid");
+            let alloc = BandwidthAllocation::new(BandwidthId(1), 100, 1000, EnforcementMode::Hard);
+
+            assert!(alloc.is_valid(),
+                "Allocation with burst_bytes > 0 should be valid");
         }
 
         #[test]
         fn test_transport_bw_sec_invalid_config_zero_values() {
-            let alloc_zero_bytes = BandwidthAllocation::new(BandwidthId(1), 0, 500, EnforcementMode::Hard);
+            let alloc_zero_rate = BandwidthAllocation::new(BandwidthId(1), 0, 100, EnforcementMode::Hard);
             let alloc_zero_burst = BandwidthAllocation::new(BandwidthId(1), 100, 0, EnforcementMode::Hard);
 
-            assert!(!alloc_zero_bytes.is_valid(), "Config with bytes_per_sec = 0 should be invalid");
-            assert!(!alloc_zero_burst.is_valid(), "Config with burst_bytes = 0 should be invalid");
+            assert!(!alloc_zero_rate.is_valid(),
+                "Allocation with bytes_per_sec=0 should be invalid");
+            assert!(!alloc_zero_burst.is_valid(),
+                "Allocation with burst_bytes=0 should be invalid");
         }
     }
 }

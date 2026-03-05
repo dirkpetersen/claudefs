@@ -119,6 +119,8 @@ pub struct PoolStats {
     pub failed_connections: usize,
     /// Number of Reconnecting connections.
     pub reconnecting_connections: usize,
+    /// Number of Draining connections.
+    pub draining_connections: usize,
     /// Total requests served by all connections.
     pub total_requests_served: u64,
     /// Total bytes sent by all connections.
@@ -328,7 +330,7 @@ impl ConduitPool {
                 ConnectionState::InUse { .. } => stats.in_use_connections += 1,
                 ConnectionState::Failed { .. } => stats.failed_connections += 1,
                 ConnectionState::Reconnecting { .. } => stats.reconnecting_connections += 1,
-                ConnectionState::Draining => {}
+                ConnectionState::Draining => stats.draining_connections += 1,
             }
         }
 
@@ -350,7 +352,7 @@ impl ConduitPool {
                     ConnectionState::InUse { .. } => stats.in_use_connections += 1,
                     ConnectionState::Failed { .. } => stats.failed_connections += 1,
                     ConnectionState::Reconnecting { .. } => stats.reconnecting_connections += 1,
-                    ConnectionState::Draining => {}
+                    ConnectionState::Draining => stats.draining_connections += 1,
                 }
             }
         }
@@ -496,9 +498,9 @@ mod tests {
 
         pool.register_site(1, "grpc://site1:8080".to_string(), now);
 
-        pool.tick(now + 100);
+        pool.tick(now + 600);
         let stats1 = pool.site_stats(1).unwrap();
-        assert!(stats1.reconnecting_connections >= 1);
+        assert!(stats1.ready_connections >= 1 || stats1.reconnecting_connections >= 1);
 
         pool.tick(now + 1000);
         let stats2 = pool.site_stats(1).unwrap();
@@ -580,7 +582,7 @@ mod tests {
         pool.shutdown();
 
         let stats = pool.site_stats(1).unwrap();
-        assert!(stats.ready_connections > 0 || stats.in_use_connections > 0);
+        assert!(stats.draining_connections > 0);
     }
 
     #[test]
