@@ -123,7 +123,7 @@ pub use io_accounting::{
     TenantId, IoDirection, TenantIoStats, IoAccountingConfig, IoAccounting,
 };
 pub use qos_storage::{
-    BandwidthTracker, QosIoRequest, IoType, QosDecision, QosEnforcer, QosEnforcerStats, QosPolicy,
+    BandwidthTracker, IoRequest, IoType, QosDecision, QosEnforcer, QosEnforcerStats, QosPolicy,
     TokenBucket, WorkloadClass,
 };
 
