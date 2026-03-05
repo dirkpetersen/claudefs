@@ -20,6 +20,9 @@ prost.workspace = true
 tonic.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+dashmap.workspace = true
+uuid.workspace = true
+blake3.workspace = true
 
 [lib]
 name = "claudefs_meta"
