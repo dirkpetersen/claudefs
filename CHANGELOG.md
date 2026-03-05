@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A1: Storage Engine — Phase 7: Advanced Observability & Resilience (2026-03-05)
+
+**Status:** 🟢 **PHASE 7 COMPLETE** — 1124 tests passing (e848f7a)
+
+**Modules Added:**
+1. **latency_attribution.rs** — Per-operation I/O latency breakdown
+   - Track latency across pipeline stages (submission, device I/O, completion)
+   - Calculate p50, p95, p99 percentiles per operation type and stage
+   - Enables performance debugging and SLA monitoring (~45 tests)
+
+2. **resilience_coordinator.rs** — Node failure detection and recovery
+   - Tracks node health states (Healthy, Degraded, Failed, Recovering)
+   - Heartbeat-based timeout detection and recovery planning
+   - Coordinates with cross_node_health for failover triggers (~40 tests)
+
+3. **tier_orchestrator.rs** — High-level tiering coordination
+   - Manages tiering policy evaluation and shard placement
+   - Tracks pending migrations with priority-based scheduling
+   - Supports multiple migration reasons (capacity pressure, hot/cold data) (~45 tests)
+
+**Integration:** latency_attribution → io_uring_bridge; resilience_coordinator → cross_node_health + tier_rebalancer; tier_orchestrator → tiering_policy + tier_rebalancer
+
+---
+
 ### A11: Infrastructure & CI — Phase 2: Multi-Node Deployment Foundation (2026-03-05)
 
 #### Multi-Node Cluster Automation & POSIX Validation Integration
