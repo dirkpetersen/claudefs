@@ -80,7 +80,7 @@ impl Default for CommandQueueConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CommandQueue {
     core_id: CoreId,
     qp: Arc<QueuePair>,
@@ -127,6 +127,8 @@ impl CommandQueue {
             *first = Some(std::time::Instant::now());
         }
         
+        let bytes = cmd.length as u64;
+        
         queue.push_back(cmd);
         
         let mut stats = self.stats.lock().await;
@@ -134,8 +136,6 @@ impl CommandQueue {
         if queue.len() as u32 > stats.max_queue_size {
             stats.max_queue_size = queue.len() as u32;
         }
-        
-        let bytes = cmd.length as u64;
         stats.total_bytes += bytes;
         
         Ok(())
