@@ -4,6 +4,8 @@
 
 /// POSIX permission checking
 pub mod access;
+/// Access integration bridging DAC and POSIX ACL permission systems
+pub mod access_integration;
 /// POSIX Access Control Lists (ACLs) for fine-grained permission control
 pub mod acl;
 /// Persistent file-backed KV store with WAL and checkpoint
@@ -12,6 +14,8 @@ pub mod btree_store;
 pub mod cdc;
 /// Metadata checkpoint manager for fast restart
 pub mod checkpoint;
+/// Concurrent inode operations verification
+pub mod concurrent_inode_ops;
 /// Conflict detection and resolution for cross-site replication
 pub mod conflict;
 /// Raft consensus implementation
@@ -135,10 +139,14 @@ pub mod xattr;
 mod proptests;
 
 pub use access::{AccessMode, UserContext};
+pub use access_integration::{AccessCheckContext, AccessCheckResult, AccessOperation, SetAttrOp};
 pub use acl::{Acl, AclEntry, AclStore, AclTag};
 pub use btree_store::PersistentKvStore;
 pub use cdc::{CdcCursor, CdcEvent, CdcStream};
 pub use checkpoint::{Checkpoint, CheckpointManager, CheckpointMeta};
+pub use concurrent_inode_ops::{
+    AttrChanges, ClientId as ConcurrentClientId, ConcurrentOpContext, InodeOp, LinearizabilityResult, Violation,
+};
 pub use conflict::{ConflictDetector, ConflictEvent, ConflictWinner};
 pub use cross_shard::{CrossShardCoordinator, CrossShardResult};
 pub use dir_walk::{DirWalker, WalkConfig, WalkControl, WalkEntry, WalkStats};
