@@ -123,7 +123,7 @@ pub use io_accounting::{
     TenantId, IoDirection, TenantIoStats, IoAccountingConfig, IoAccounting,
 };
 pub use qos_storage::{
-    BandwidthTracker, IoRequest, IoType, QosDecision, QosEnforcer, QosEnforcerStats, QosPolicy,
+    BandwidthTracker, QosIoRequest, IoType, QosDecision, QosEnforcer, QosEnforcerStats, QosPolicy,
     TokenBucket, WorkloadClass,
 };
 
@@ -147,4 +147,15 @@ pub use prefetch_engine::{
     PrefetchConfig, PrefetchEngine, PrefetchHint, PrefetchStats,
 };
 pub use block_verifier::{
+    VerificationResult, BlockToVerify, VerifierStats, VerifierConfig,
+    VerifierAlgorithm, BlockVerifier,
+};
+pub use io_coalescing::{
+    IoCoalescer, CoalescingConfig, CoalescingRequest, CoalescingOpType, CoalescedRequest,
+};
+pub use priority_queue_scheduler::{
+    PriorityQueueScheduler, SchedulerConfig, PrioritizedIoOp, IoWorkloadClass,
+};
+pub use numa_affinity::{
+    NumaAffinityMap, NumaTopology, NumaNodeId, AffinityHint,
 };
