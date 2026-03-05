@@ -1,0 +1,110 @@
+name: POSIX Compliance Nightly
+
+on:
+  schedule:
+    # Run at 2 AM UTC daily
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  posix-suite:
+    name: POSIX Compliance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 1440  # 24 hours
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pjdfstest fsx xfstests
+          which pjdfstest && pjdfstest -v || echo "pjdfstest install failed"
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build ClaudeFS FUSE daemon
+        run: |
+          cargo build -p claudefs-fuse --release
+          mkdir -p /tmp/cfs-storage /tmp/cfs-mount
+
+      - name: Start ClaudeFS daemon
+        run: |
+          ./target/release/cfs mount /tmp/cfs-mount &
+          sleep 5
+          mount | grep cfs-mount || (echo "Mount failed"; exit 1)
+
+      - name: Run pjdfstest (1-2 hours)
+        run: |
+          cd /tmp/cfs-mount
+          timeout 120m pjdfstest 2>&1 | tee /tmp/pjdfstest-results.txt
+          echo "pjdfstest exit code: $?"
+        continue-on-error: true
+
+      - name: Run fsx overnight (4 hours)
+        run: |
+          cargo run -p claudefs-tests --release --bin fsx-runner -- \
+            --size 1GB \
+            --duration 4h \
+            --seed 42 \
+            --logfile /tmp/fsx-results.log 2>&1 | tee /tmp/fsx-output.txt
+          echo "fsx exit code: $?"
+        continue-on-error: true
+
+      - name: Run xfstests (up to 12 hours)
+        run: |
+          cd /tmp/cfs-mount
+          timeout 720m xfstests 2>&1 | tee /tmp/xfstests-results.txt
+          echo "xfstests exit code: $?"
+        continue-on-error: true
+
+      - name: Unmount filesystem
+        if: always()
+        run: fusermount -u /tmp/cfs-mount || true
+
+      - name: Collect results
+        if: always()
+        run: |
+          mkdir -p /tmp/posix-results
+          cp /tmp/pjdfstest-results.txt /tmp/posix-results/ || true
+          cp /tmp/fsx-results.log /tmp/posix-results/ || true
+          cp /tmp/fsx-output.txt /tmp/posix-results/ || true
+          cp /tmp/xfstests-results.txt /tmp/posix-results/ || true
+          echo "Test results collected"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: posix-compliance-results
+          path: /tmp/posix-results/
+          retention-days: 30
+
+      - name: Comment on PR with summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let summary = '## POSIX Compliance Test Results\n';
+
+            if (fs.existsSync('/tmp/pjdfstest-results.txt')) {
+              const pjdfs = fs.readFileSync('/tmp/pjdfstest-results.txt', 'utf8');
+              summary += '### pjdfstest\n```\n' + pjdfs.slice(-500) + '\n```\n';
+            }
+
+            if (fs.existsSync('/tmp/fsx-output.txt')) {
+              const fsx = fs.readFileSync('/tmp/fsx-output.txt', 'utf8');
+              summary += '### fsx\n```\n' + fsx.slice(-500) + '\n```\n';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary || 'POSIX compliance tests completed.'
+            });

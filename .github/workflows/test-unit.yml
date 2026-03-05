@@ -1,0 +1,41 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main, staging, 'feature/**']
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-directories: target
+
+      - name: Run unit tests
+        run: cargo test --lib --all
+        timeout-minutes: 30
+
+      - name: Check for new warnings
+        run: cargo clippy --all -- -D warnings
+        continue-on-error: true
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Unit Test Results
+          path: '**.xml'
+          reporter: 'java-junit'
+          fail-on-error: true
