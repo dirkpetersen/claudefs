@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A2: Metadata Service — Phase 9: Session Management & Replication (2026-03-05)
+
+**Status:** ✅ **PHASE 9 COMPLETE** — 1035 tests (+38), 73 modules total
+
+**Completed Modules** (Priority 1: Client Management & Cross-Site Replication):
+
+1. **client_session.rs** (~14 tests) — Per-client session state and lease tracking
+   - SessionId, ClientId, OperationId unique identifiers with UUID generation
+   - SessionState enum: Active, Idle (with idle_since), Expired, Revoked (with reason)
+   - PendingOperation tracking: op_id, op_type, inode_id, timeout_secs, OpResult (Success/Failure)
+   - SessionLeaseRenewal: track lease expiry, operations_completed, bytes_transferred metrics
+   - SessionManagerConfig with tunable lease_duration, operation_timeout, max_pending_ops
+   - DashMap-based concurrent session store for lock-free reads
+
+2. **distributed_transaction.rs** (~12 tests) — Atomic operations across metadata shards
+   - DistributedTxId, TransactionCoordinator for multi-shard operations
+   - TxPhase state machine: Prepare → Commit/Abort with rollback support
+   - ParticipantVote tracking (Accept/Reject/Timeout) from each shard owner
+   - Atomic rename/link/move operations with cross-shard safety
+   - Two-phase commit with majority quorum requirement
+   - Conflict detection and transaction isolation (read/write sets)
+
+3. **snapshot_transfer.rs** (~12 tests) — Cross-site snapshot transfer for disaster recovery
+   - SnapshotId, SnapshotMeta with content_hash, size, created_at, compression_ratio
+   - SnapshotTransferState: Queued → InProgress → Completed/Failed
+   - SnapshotTransferRequest with source_node, destination_site, priority_level
+   - TransferProgress tracking (bytes_transferred, chunks_sent, current_chunk_id, estimated_completion)
+   - Resumable transfers with checkpoint support (can_resume_from_checkpoint)
+   - SnapshotRestoreResult with log_index_after_restore, integrity_verified, restore_duration_ms
+   - CRC32 integrity verification for transferred data
+
+**Test Results:**
+- ✅ 1035 tests passing (+38 from Phase 8), 0 failures
+- ✅ Build clean, no clippy warnings on new code
+- ✅ Integration with existing session management, Raft consensus, journal replication
+
+**Architecture Integration:**
+- client_session → distributed_transaction (session-scoped operations)
+- distributed_transaction → consensus (Raft log coordination)
+- snapshot_transfer → journal_tailer (replication stream integration)
+- cross_shard module now coordinates with session context for operation lifetime
+
+**Phase 10 Planning** (Target: 1100+ tests, +65-75 new tests):
+- quota_tracker.rs — Per-tenant storage and IOPS quota enforcement
+- tenant_isolator.rs — Strong isolation between tenants (namespace, metadata, quota)
+- qos_coordinator.rs — QoS priority enforcement, deadline-based scheduling (A2↔A4 coordination)
+
+---
+
 ### A8: Management — Phase 3 Planning: Query Gateway, Web UI, CLI (2026-03-05)
 
 **Status:** 🟡 **PHASE 3 PLANNING** — Phase 2 complete, 965 tests, Phase 3 spec ready
