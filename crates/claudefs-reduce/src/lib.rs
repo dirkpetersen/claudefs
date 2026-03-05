@@ -133,6 +133,12 @@ pub mod object_assembler;
 pub mod defrag_planner;
 /// Read amplification tracker for performance monitoring.
 pub mod read_amplification;
+/// Key rotation orchestrator for envelope encryption and key lifecycle management.
+pub mod key_rotation_orchestrator;
+/// WORM retention enforcement with compliance audit logging.
+pub mod worm_retention_enforcer;
+/// Persistence and recovery for key rotation checkpoints.
+pub mod rotation_checkpoint;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -326,4 +332,13 @@ pub use defrag_planner::{
 };
 pub use read_amplification::{
     ReadAmplificationConfig, ReadAmplificationStats, ReadAmplificationTracker, ReadEvent,
+};
+pub use key_rotation_orchestrator::{
+    KeyRotationOrchestrator, RotationMetrics, RotationPhase, RotationSchedule,
+};
+pub use worm_retention_enforcer::{
+    AuditLogEntry, ComplianceHold, RetentionPolicy, RetentionType, WormRetentionEnforcer,
+};
+pub use rotation_checkpoint::{
+    RecoveryInfo, RotationCheckpoint, RotationCheckpointStore, RotationRecovery,
 };
