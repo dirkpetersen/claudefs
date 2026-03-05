@@ -155,7 +155,7 @@ struct LruCache<K: Eq + Hash + Clone, V> {
     capacity: usize,
 }
 
-impl<K: Eq + Hash + Clone, V> LruCache<K, V> {
+impl<K: Eq + Hash + Clone, V: Clone> LruCache<K, V> {
     fn new(capacity: usize) -> Self {
         Self {
             map: HashMap::new(),
@@ -164,7 +164,10 @@ impl<K: Eq + Hash + Clone, V> LruCache<K, V> {
         }
     }
 
-    fn get(&mut self, key: &K, ttl_secs: u64) -> Option<V> {
+    fn get(&mut self, key: &K, ttl_secs: u64) -> Option<V>
+    where
+        V: Clone,
+    {
         if let Some((value, inserted_at)) = self.map.get(key) {
             if inserted_at.elapsed() < Duration::from_secs(ttl_secs) {
                 self.order.retain(|k| k != key);
@@ -340,7 +343,7 @@ impl SimilarityCoordinator {
         &self,
         query_hash: ChunkHash,
         query_data: &[u8],
-        similar_hash: ChunkHash,
+        _similar_hash: ChunkHash,
         similar_data: &[u8],
     ) -> Result<(usize, f64), ReduceError> {
         if !self.config.delta_compression_enabled {
