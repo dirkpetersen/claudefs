@@ -197,6 +197,14 @@ pub use snapshot_transfer::{
 };
 pub use protocol::{Frame, FrameFlags, FrameHeader, Opcode};
 pub use circuitbreaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
-pub use ratelimit::{CompositeRateLimiter, RateLimiter, RateLimitConfig};
+pub use ratelimit::{CompositeRateLimiter, RateLimiter, RateLimitConfig, RateLimitResult};
+pub use error::TransportError;
+pub use conn_auth::{
+    AuthConfig, AuthLevel, AuthResult, AuthStats, CertificateInfo, ConnectionAuthenticator,
+    RevocationList,
+};
+pub use enrollment::{
+    ClusterCA, EnrollmentConfig, EnrollmentError, EnrollmentService, RevocationReason,
+};
 pub use metrics::TransportMetrics;
 pub use routing::{ConsistentHashRing, NodeId, NodeInfo};

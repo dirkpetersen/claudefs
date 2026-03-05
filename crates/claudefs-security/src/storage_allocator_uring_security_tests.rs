@@ -237,16 +237,21 @@ mod tests {
         
         let alloc_clone2 = Arc::clone(&alloc);
         let handle2 = thread::spawn(move || {
+            let mut blocks = Vec::new();
             for _ in 0..50 {
                 if let Ok(b) = alloc_clone2.allocate(BlockSize::B4K) {
                     let _ = alloc_clone2.free(b);
+                    blocks.push(b);
                 }
             }
+            blocks
         });
         handles.push(handle2);
         
-        let blocks = handles[0].join().unwrap();
-        handles[1].join().unwrap();
+        let handle1 = handles.remove(0);
+        let handle2 = handles.remove(0);
+        let blocks = handle1.join().unwrap();
+        let _ = handle2.join().unwrap();
         
         for block in blocks {
             let _ = alloc.free(block);
