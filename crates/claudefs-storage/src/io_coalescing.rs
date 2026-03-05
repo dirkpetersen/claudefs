@@ -5,14 +5,14 @@ use crate::error::StorageError;
 type Result<T> = std::result::Result<T, StorageError>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IoOpType {
+pub enum CoalescingOpType {
     Read,
     Write,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct IoRequest {
-    pub op_type: IoOpType,
+pub struct CoalescingRequest {
+    pub op_type: CoalescingOpType,
     pub block_id: u64,
     pub block_count: u32,
     pub priority: u8,
@@ -21,7 +21,7 @@ pub struct IoRequest {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CoalescedRequest {
-    pub op_type: IoOpType,
+    pub op_type: CoalescingOpType,
     pub start_block: u64,
     pub block_count: u32,
     pub constituent_count: usize,
@@ -35,8 +35,8 @@ pub struct CoalescingConfig {
 }
 
 pub struct IoCoalescer {
-    pending_reads: Vec<IoRequest>,
-    pending_writes: Vec<IoRequest>,
+    pending_reads: Vec<CoalescingRequest>,
+    pending_writes: Vec<CoalescingRequest>,
     config: CoalescingConfig,
 }
 
@@ -49,10 +49,10 @@ impl IoCoalescer {
         }
     }
 
-    pub fn add_request(&mut self, req: IoRequest) -> Result<()> {
+    pub fn add_request(&mut self, req: CoalescingRequest) -> Result<()> {
         let target = match req.op_type {
-            IoOpType::Read => &mut self.pending_reads,
-            IoOpType::Write => &mut self.pending_writes,
+            CoalescingOpType::Read => &mut self.pending_reads,
+            CoalescingOpType::Write => &mut self.pending_writes,
         };
 
         if target.len() >= self.config.max_pending_count {
@@ -78,8 +78,8 @@ impl IoCoalescer {
     pub fn coalesce(&mut self) -> Vec<CoalescedRequest> {
         let mut result = Vec::new();
 
-        result.extend(self.process_queue(&self.pending_reads, IoOpType::Read));
-        result.extend(self.process_queue(&self.pending_writes, IoOpType::Write));
+        result.extend(self.process_queue(&self.pending_reads, CoalescingOpType::Read));
+        result.extend(self.process_queue(&self.pending_writes, CoalescingOpType::Write));
 
         self.pending_reads.clear();
         self.pending_writes.clear();
@@ -87,7 +87,11 @@ impl IoCoalescer {
         result
     }
 
-    fn process_queue(&self, queue: &[IoRequest], op_type: IoOpType) -> Vec<CoalescedRequest> {
+    fn process_queue(
+        &self,
+        queue: &[CoalescingRequest],
+        op_type: CoalescingOpType,
+    ) -> Vec<CoalescedRequest> {
         if queue.is_empty() {
             return Vec::new();
         }
@@ -136,10 +140,10 @@ impl IoCoalescer {
         result
     }
 
-    pub fn pending_count(&self, op_type: IoOpType) -> usize {
+    pub fn pending_count(&self, op_type: CoalescingOpType) -> usize {
         match op_type {
-            IoOpType::Read => self.pending_reads.len(),
-            IoOpType::Write => self.pending_writes.len(),
+            CoalescingOpType::Read => self.pending_reads.len(),
+            CoalescingOpType::Write => self.pending_writes.len(),
         }
     }
 
@@ -173,8 +177,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -196,8 +200,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -205,8 +209,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 15,
                 block_count: 3,
                 priority: 1,
@@ -227,8 +231,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Write,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Write,
                 block_id: 20,
                 block_count: 4,
                 priority: 2,
@@ -236,8 +240,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Write,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Write,
                 block_id: 24,
                 block_count: 6,
                 priority: 2,
@@ -247,7 +251,7 @@ mod tests {
         let result = coalescer.coalesce();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].block_count, 10);
-        assert_eq!(result[0].op_type, IoOpType::Write);
+        assert_eq!(result[0].op_type, CoalescingOpType::Write);
     }
 
     #[test]
@@ -258,8 +262,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -267,8 +271,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 100,
                 block_count: 3,
                 priority: 1,
@@ -287,8 +291,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 0,
                 block_count: 8,
                 priority: 1,
@@ -296,8 +300,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 8,
                 block_count: 5,
                 priority: 1,
@@ -318,8 +322,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 3,
@@ -327,8 +331,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 15,
                 block_count: 3,
                 priority: 1,
@@ -347,8 +351,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -356,16 +360,16 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 20,
                 block_count: 3,
                 priority: 1,
                 client_id: 1,
             })
             .unwrap();
-        assert_eq!(coalescer.pending_count(IoOpType::Read), 2);
-        assert_eq!(coalescer.pending_count(IoOpType::Write), 0);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Read), 2);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Write), 0);
     }
 
     #[test]
@@ -376,16 +380,16 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Write,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Write,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
                 client_id: 1,
             })
             .unwrap();
-        assert_eq!(coalescer.pending_count(IoOpType::Write), 1);
-        assert_eq!(coalescer.pending_count(IoOpType::Read), 0);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Write), 1);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Read), 0);
     }
 
     #[test]
@@ -396,8 +400,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -405,8 +409,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Write,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Write,
                 block_id: 20,
                 block_count: 3,
                 priority: 1,
@@ -414,8 +418,8 @@ mod tests {
             })
             .unwrap();
         coalescer.clear().unwrap();
-        assert_eq!(coalescer.pending_count(IoOpType::Read), 0);
-        assert_eq!(coalescer.pending_count(IoOpType::Write), 0);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Read), 0);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Write), 0);
     }
 
     #[test]
@@ -426,8 +430,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -435,16 +439,16 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 20,
                 block_count: 3,
                 priority: 1,
                 client_id: 1,
             })
             .unwrap();
-        let result = coalescer.add_request(IoRequest {
-            op_type: IoOpType::Read,
+        let result = coalescer.add_request(CoalescingRequest {
+            op_type: CoalescingOpType::Read,
             block_id: 30,
             block_count: 2,
             priority: 1,
@@ -461,8 +465,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -470,8 +474,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Write,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Write,
                 block_id: 15,
                 block_count: 3,
                 priority: 1,
@@ -482,11 +486,11 @@ mod tests {
         assert_eq!(result.len(), 2);
         let reads: Vec<_> = result
             .iter()
-            .filter(|r| r.op_type == IoOpType::Read)
+            .filter(|r| r.op_type == CoalescingOpType::Read)
             .collect();
         let writes: Vec<_> = result
             .iter()
-            .filter(|r| r.op_type == IoOpType::Write)
+            .filter(|r| r.op_type == CoalescingOpType::Write)
             .collect();
         assert_eq!(reads.len(), 1);
         assert_eq!(writes.len(), 1);
@@ -501,8 +505,8 @@ mod tests {
         let mut coalescer = IoCoalescer::new(config);
         for i in 0..5 {
             coalescer
-                .add_request(IoRequest {
-                    op_type: IoOpType::Read,
+                .add_request(CoalescingRequest {
+                    op_type: CoalescingOpType::Read,
                     block_id: i * 3,
                     block_count: 3,
                     priority: 1,
@@ -524,8 +528,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -533,8 +537,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 15,
                 block_count: 3,
                 priority: 5,
@@ -542,8 +546,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 18,
                 block_count: 2,
                 priority: 3,
@@ -563,8 +567,8 @@ mod tests {
         let mut coalescer = IoCoalescer::new(config);
         for i in 0..3 {
             coalescer
-                .add_request(IoRequest {
-                    op_type: IoOpType::Read,
+                .add_request(CoalescingRequest {
+                    op_type: CoalescingOpType::Read,
                     block_id: i,
                     block_count: 1,
                     priority: 1,
@@ -572,8 +576,8 @@ mod tests {
                 })
                 .unwrap();
         }
-        let result = coalescer.add_request(IoRequest {
-            op_type: IoOpType::Read,
+        let result = coalescer.add_request(CoalescingRequest {
+            op_type: CoalescingOpType::Read,
             block_id: 100,
             block_count: 1,
             priority: 1,
@@ -590,8 +594,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 0,
                 block_count: 10,
                 priority: 1,
@@ -599,8 +603,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 10,
                 priority: 1,
@@ -619,8 +623,8 @@ mod tests {
             max_pending_count: 10,
         };
         let coalescer = IoCoalescer::new(config);
-        assert_eq!(coalescer.pending_count(IoOpType::Read), 0);
-        assert_eq!(coalescer.pending_count(IoOpType::Write), 0);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Read), 0);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Write), 0);
     }
 
     #[test]
@@ -631,8 +635,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 0,
                 priority: 1,
@@ -652,8 +656,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 255,
@@ -661,8 +665,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 15,
                 block_count: 3,
                 priority: 0,
@@ -681,8 +685,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -690,8 +694,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 15,
                 block_count: 3,
                 priority: 1,
@@ -711,8 +715,8 @@ mod tests {
         let mut coalescer = IoCoalescer::new(config);
         for i in 0..7 {
             coalescer
-                .add_request(IoRequest {
-                    op_type: IoOpType::Read,
+                .add_request(CoalescingRequest {
+                    op_type: CoalescingOpType::Read,
                     block_id: i * 2,
                     block_count: 2,
                     priority: 1,
@@ -733,8 +737,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 50,
                 block_count: 3,
                 priority: 1,
@@ -742,8 +746,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 53,
                 block_count: 4,
                 priority: 1,
@@ -763,8 +767,8 @@ mod tests {
         let mut coalescer = IoCoalescer::new(config);
         for i in 0..3 {
             coalescer
-                .add_request(IoRequest {
-                    op_type: IoOpType::Read,
+                .add_request(CoalescingRequest {
+                    op_type: CoalescingOpType::Read,
                     block_id: i * 3,
                     block_count: 3,
                     priority: 1,
@@ -772,8 +776,8 @@ mod tests {
                 })
                 .unwrap();
             coalescer
-                .add_request(IoRequest {
-                    op_type: IoOpType::Write,
+                .add_request(CoalescingRequest {
+                    op_type: CoalescingOpType::Write,
                     block_id: i * 3 + 100,
                     block_count: 3,
                     priority: 1,
@@ -784,11 +788,11 @@ mod tests {
         let result = coalescer.coalesce();
         let reads = result
             .iter()
-            .filter(|r| r.op_type == IoOpType::Read)
+            .filter(|r| r.op_type == CoalescingOpType::Read)
             .count();
         let writes = result
             .iter()
-            .filter(|r| r.op_type == IoOpType::Write)
+            .filter(|r| r.op_type == CoalescingOpType::Write)
             .count();
         assert_eq!(reads, 1);
         assert_eq!(writes, 1);
@@ -802,8 +806,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 100,
                 block_count: 5,
                 priority: 1,
@@ -811,8 +815,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 3,
                 priority: 1,
@@ -820,8 +824,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 50,
                 block_count: 4,
                 priority: 1,
@@ -843,8 +847,8 @@ mod tests {
         let mut coalescer = IoCoalescer::new(config);
         for i in 0..50 {
             coalescer
-                .add_request(IoRequest {
-                    op_type: IoOpType::Read,
+                .add_request(CoalescingRequest {
+                    op_type: CoalescingOpType::Read,
                     block_id: i * 2,
                     block_count: 1,
                     priority: 1,
@@ -864,8 +868,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 10,
@@ -873,8 +877,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 15,
                 block_count: 3,
                 priority: 20,
@@ -882,8 +886,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 18,
                 block_count: 2,
                 priority: 5,
@@ -902,15 +906,15 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         for i in 0..5 {
-            let _ = coalescer.add_request(IoRequest {
-                op_type: IoOpType::Read,
+            let _ = coalescer.add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: i * 10,
                 block_count: 1,
                 priority: 1,
                 client_id: i as u32,
             });
         }
-        assert_eq!(coalescer.pending_count(IoOpType::Read), 5);
+        assert_eq!(coalescer.pending_count(CoalescingOpType::Read), 5);
     }
 
     #[test]
@@ -921,8 +925,8 @@ mod tests {
         };
         let mut coalescer = IoCoalescer::new(config);
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Read,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Read,
                 block_id: 10,
                 block_count: 5,
                 priority: 1,
@@ -930,8 +934,8 @@ mod tests {
             })
             .unwrap();
         coalescer
-            .add_request(IoRequest {
-                op_type: IoOpType::Write,
+            .add_request(CoalescingRequest {
+                op_type: CoalescingOpType::Write,
                 block_id: 20,
                 block_count: 3,
                 priority: 1,

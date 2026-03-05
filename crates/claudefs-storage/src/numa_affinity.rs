@@ -1,12 +1,10 @@
 //! NUMA affinity module - NUMA-aware task distribution for multi-socket systems.
 
 use crate::error::StorageError;
+use crate::nvme_passthrough::CoreId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NumaNodeId(u32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CoreId(u32);
 
 #[derive(Debug, Clone)]
 pub struct NumaTopology {
