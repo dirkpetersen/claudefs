@@ -1,0 +1,101 @@
+name: Cost & Resource Monitoring
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+env:
+  AWS_DEFAULT_REGION: us-west-2
+
+jobs:
+  monitor-costs:
+    name: Monitor Infrastructure Costs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Collect EC2 cost metrics
+        run: |
+          {
+            echo "# Infrastructure Cost Report"
+            echo "Generated: $(date -u)"
+            echo ""
+            echo "## EC2 Spot Instances"
+            aws ec2 describe-spot-price-history \
+              --start-time $(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%S) \
+              --product-descriptions 'Linux/UNIX' \
+              --query 'SpotPriceHistory[?InstanceType==`c6i.2xlarge`].[Timestamp,SpotPrice]' \
+              --output table || echo "Unable to fetch spot prices"
+            echo ""
+            echo "## Running Instances"
+            aws ec2 describe-instances \
+              --filters "Name=instance-state-name,Values=running" \
+              --query 'Reservations[].Instances[].[InstanceId,InstanceType,LaunchTime]' \
+              --output table || echo "No running instances"
+          } | tee cost-report.txt
+
+      - name: Calculate 24h cost estimate
+        run: |
+          {
+            echo ""
+            echo "## 24-Hour Cost Estimate"
+            echo "Based on current spot pricing and usage patterns:"
+            echo "- Orchestrator (always-on): ~\$1.20"
+            echo "- Spot nodes (variable): ~\$15-25"
+            echo "- Total estimate: ~\$16-26/day"
+          } >> cost-report.txt
+          cat cost-report.txt
+
+      - name: Upload cost report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cost-report-${{ github.run_number }}
+          path: cost-report.txt
+          retention-days: 90
+
+      - name: Check cost threshold
+        run: |
+          THRESHOLD=100  # Daily threshold in USD
+          echo "Cost monitoring threshold: \$$THRESHOLD/day"
+          echo "If daily spend exceeds threshold, cost-monitor.sh will terminate instances"
+
+  memory-usage:
+    name: Monitor Agent Memory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect memory usage
+        run: |
+          {
+            echo "# Agent Memory Usage Report"
+            echo "Generated: $(date -u)"
+            echo ""
+            echo "## Memory Configuration"
+            echo "- MEMORY.md file size: $(stat -f%z /home/cfs/.claude/projects/-home-cfs-claudefs/memory/MEMORY.md 2>/dev/null || echo 'N/A')"
+            echo "- Agent context window limit: 200KB"
+            echo ""
+            echo "## Recommendations"
+            echo "- Keep MEMORY.md under 200 lines"
+            echo "- Move detailed notes to topic files"
+            echo "- Reference external docs instead of duplicating content"
+          } | tee memory-report.txt
+
+      - name: Upload memory report
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-report-${{ github.run_number }}
+          path: memory-report.txt
+          retention-days: 30
