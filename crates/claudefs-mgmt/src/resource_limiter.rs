@@ -595,10 +595,8 @@ mod tests {
         assert!(enforcer.is_some());
 
         enforcer.unwrap().add_usage(100);
-        drop(enforcer);
 
-        let enforcer = registry.get_enforcer("tenant1");
-        assert_eq!(enforcer.unwrap().current_usage, 100);
+        assert_eq!(registry.get_enforcer("tenant1").unwrap().current_usage, 100);
     }
 
     #[test]

@@ -449,6 +449,12 @@ impl EnrollmentService {
         self.ca.issue_client_cert(&node_id)
     }
 
+    pub fn set_token_expiry(&mut self, token_id: &str, expires_at: u64) -> Option<()> {
+        self.tokens
+            .get_mut(token_id)
+            .map(|t| t.expires_at = expires_at)
+    }
+
     /// Attempts to renew an existing certificate.
     #[allow(dead_code)]
     pub fn renew_certificate(

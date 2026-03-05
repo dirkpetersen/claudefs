@@ -47,7 +47,7 @@ impl EventSinkBackend {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EventSeverity {
     Info,
     Warning,
@@ -396,7 +396,6 @@ mod tests {
         assert_eq!(active.len(), 2);
     }
 
-    #[test]
     #[tokio::test]
     async fn test_event_sink_export_event() {
         let backends = vec![EventSinkBackend::log_file(PathBuf::from("/tmp/test.log"))];
@@ -408,7 +407,6 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test]
     #[tokio::test]
     async fn test_event_sink_export_event_multiple() {
         let backends = vec![EventSinkBackend::log_file(PathBuf::from("/tmp/test.log"))];
@@ -427,7 +425,6 @@ mod tests {
         assert_eq!(sink.pending_count(), 5);
     }
 
-    #[test]
     #[tokio::test]
     async fn test_event_sink_flush() {
         let backends = vec![EventSinkBackend::log_file(PathBuf::from("/tmp/test.log"))];
@@ -461,7 +458,6 @@ mod tests {
         assert_eq!(sink.backend_count(), 3);
     }
 
-    #[test]
     #[tokio::test]
     async fn test_event_sink_event_routing() {
         let backends = vec![
@@ -526,7 +522,6 @@ mod tests {
         assert_eq!(active.len(), 3);
     }
 
-    #[test]
     #[tokio::test]
     async fn test_event_sink_event_contains_timestamp() {
         let backends = vec![EventSinkBackend::log_file(PathBuf::from("/tmp/test.log"))];
@@ -562,11 +557,10 @@ mod tests {
         let active = sink.active_backends();
 
         if let EventSinkBackend::LogFile { path } = active[0] {
-            assert_eq!(path, PathBuf::from("/first.log"));
+            assert_eq!(*path, PathBuf::from("/first.log"));
         }
     }
 
-    #[test]
     #[tokio::test]
     async fn test_event_sink_flush_twice() {
         let backends = vec![EventSinkBackend::log_file(PathBuf::from("/tmp/test.log"))];
@@ -578,7 +572,6 @@ mod tests {
         assert_eq!(sink.pending_count(), 0);
     }
 
-    #[test]
     #[tokio::test]
     async fn test_event_sink_export_after_flush() {
         let backends = vec![EventSinkBackend::log_file(PathBuf::from("/tmp/test.log"))];

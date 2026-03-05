@@ -366,7 +366,7 @@ mod tests {
             .expect("Token generation failed");
 
         // Manually expire the token
-        service.tokens.get_mut(&token.token).unwrap().expires_at = 0;
+        service.set_token_expiry(&token.token, 0);
 
         let result = service.enroll_with_token(&token.token);
 
@@ -437,7 +437,7 @@ mod tests {
 
     #[test]
     fn test_auth_sec_revocation_list_concurrent_lookup() {
-        let rl = RevocationList::new();
+        let mut rl = RevocationList::new();
 
         rl.revoke_serial("01".to_string());
         rl.revoke_fingerprint("fp1".to_string());
