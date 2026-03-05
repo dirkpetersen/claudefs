@@ -1,0 +1,70 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'claudefs-local'
+    environment: 'development'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+rule_files:
+  - 'alerts.yml'
+  - 'recording_rules.yml'
+
+scrape_configs:
+  # ClaudeFS components
+  - job_name: 'claudefs-storage'
+    static_configs:
+      - targets: ['localhost:9001']
+    scrape_interval: 10s
+
+  - job_name: 'claudefs-meta'
+    static_configs:
+      - targets: ['localhost:9002']
+    scrape_interval: 10s
+
+  - job_name: 'claudefs-reduce'
+    static_configs:
+      - targets: ['localhost:9003']
+    scrape_interval: 10s
+
+  - job_name: 'claudefs-transport'
+    static_configs:
+      - targets: ['localhost:9004']
+    scrape_interval: 10s
+
+  - job_name: 'claudefs-fuse'
+    static_configs:
+      - targets: ['localhost:9005']
+    scrape_interval: 10s
+
+  - job_name: 'claudefs-repl'
+    static_configs:
+      - targets: ['localhost:9006']
+    scrape_interval: 10s
+
+  - job_name: 'claudefs-gateway'
+    static_configs:
+      - targets: ['localhost:9007']
+    scrape_interval: 10s
+
+  - job_name: 'claudefs-mgmt'
+    static_configs:
+      - targets: ['localhost:9008']
+    scrape_interval: 10s
+
+  # System metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+    scrape_interval: 30s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s

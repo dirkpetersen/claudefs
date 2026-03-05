@@ -127,7 +127,7 @@ impl EntryDedup {
         let ttl = self.config.entry_ttl_ms;
         let initial_len = self.ring.len();
         self.ring
-            .retain(|e| now_ms.saturating_sub(e.recorded_at_ms) <= ttl);
+            .retain(|e| now_ms.saturating_sub(e.recorded_at_ms) < ttl);
         let evicted = initial_len - self.ring.len();
         self.stats.total_evictions += evicted as u64;
         self.update_fill_ratio();

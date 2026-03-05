@@ -71,9 +71,9 @@ impl PercentileBucket {
         sorted.sort();
 
         let len = sorted.len();
-        let p50_idx = (len as f64 * 0.50) as usize;
-        let p90_idx = (len as f64 * 0.90) as usize;
-        let p99_idx = (len as f64 * 0.99) as usize;
+        let p50_idx = ((len - 1) as f64 * 0.50) as usize;
+        let p90_idx = ((len - 1) as f64 * 0.90) as usize;
+        let p99_idx = ((len - 1) as f64 * 0.99) as usize;
         let p99_9_idx = (len as f64 * 0.999) as usize;
 
         Self {
@@ -102,7 +102,12 @@ pub struct SlaComplianceStatus {
 }
 
 impl SlaComplianceStatus {
-    pub fn new(percentage_meeting_sla: f64, total_samples: usize, meeting_sla: usize, sla_us: u64) -> Self {
+    pub fn new(
+        percentage_meeting_sla: f64,
+        total_samples: usize,
+        meeting_sla: usize,
+        sla_us: u64,
+    ) -> Self {
         Self {
             percentage_meeting_sla,
             total_samples,
@@ -146,13 +151,19 @@ impl PerformanceTracker {
         let op_type = sample.op_type;
         let tenant_id = sample.tenant_id.clone();
 
-        let global_queue = self.global_samples.entry(op_type).or_insert_with(VecDeque::new);
+        let global_queue = self
+            .global_samples
+            .entry(op_type)
+            .or_insert_with(VecDeque::new);
         if global_queue.len() >= self.max_samples_per_type {
             global_queue.pop_front();
         }
         global_queue.push_back(sample.clone());
 
-        let tenant_ops = self.tenant_samples.entry(tenant_id.clone()).or_insert_with(HashMap::new);
+        let tenant_ops = self
+            .tenant_samples
+            .entry(tenant_id.clone())
+            .or_insert_with(HashMap::new);
         let tenant_queue = tenant_ops.entry(op_type).or_insert_with(VecDeque::new);
         if tenant_queue.len() >= self.max_samples_per_tenant_per_type {
             tenant_queue.pop_front();
@@ -172,7 +183,11 @@ impl PerformanceTracker {
         Some(PercentileBucket::from_samples(&latencies))
     }
 
-    pub fn get_tenant_percentiles(&self, tenant_id: &str, op_type: OperationType) -> Option<PercentileBucket> {
+    pub fn get_tenant_percentiles(
+        &self,
+        tenant_id: &str,
+        op_type: OperationType,
+    ) -> Option<PercentileBucket> {
         let tenant_ops = self.tenant_samples.get(tenant_id)?;
         let samples = tenant_ops.get(&op_type)?;
         if samples.is_empty() {
@@ -200,7 +215,12 @@ impl PerformanceTracker {
         SlaComplianceStatus::new(percentage, total, meeting, sla_us)
     }
 
-    pub fn check_tenant_sla_compliance(&self, tenant_id: &str, op_type: OperationType, sla_us: u64) -> SlaComplianceStatus {
+    pub fn check_tenant_sla_compliance(
+        &self,
+        tenant_id: &str,
+        op_type: OperationType,
+        sla_us: u64,
+    ) -> SlaComplianceStatus {
         let tenant_ops = match self.tenant_samples.get(tenant_id) {
             Some(o) => o,
             None => return SlaComplianceStatus::new(0.0, 0, 0, sla_us),
@@ -227,7 +247,10 @@ impl PerformanceTracker {
     }
 
     pub fn sample_count(&self, op_type: OperationType) -> usize {
-        self.global_samples.get(&op_type).map(|v| v.len()).unwrap_or(0)
+        self.global_samples
+            .get(&op_type)
+            .map(|v| v.len())
+            .unwrap_or(0)
     }
 
     pub fn tenant_sample_count(&self, tenant_id: &str, op_type: OperationType) -> usize {
@@ -469,8 +492,20 @@ mod tests {
     fn test_performance_tracker_operation_types() {
         let mut tracker = PerformanceTracker::new();
 
-        tracker.record_sample(LatencySample::new(OperationType::Read, 100, "t1".to_string())).unwrap();
-        tracker.record_sample(LatencySample::new(OperationType::Write, 200, "t1".to_string())).unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                100,
+                "t1".to_string(),
+            ))
+            .unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Write,
+                200,
+                "t1".to_string(),
+            ))
+            .unwrap();
 
         let types = tracker.operation_types();
         assert_eq!(types.len(), 2);
@@ -481,7 +516,13 @@ mod tests {
         let mut tracker = PerformanceTracker::new();
 
         for _ in 0..10 {
-            tracker.record_sample(LatencySample::new(OperationType::Read, 100, "t1".to_string())).unwrap();
+            tracker
+                .record_sample(LatencySample::new(
+                    OperationType::Read,
+                    100,
+                    "t1".to_string(),
+                ))
+                .unwrap();
         }
 
         assert_eq!(tracker.sample_count(OperationType::Read), 10);
@@ -493,18 +534,39 @@ mod tests {
         let mut tracker = PerformanceTracker::new();
 
         for _ in 0..5 {
-            tracker.record_sample(LatencySample::new(OperationType::Read, 100, "tenant1".to_string())).unwrap();
+            tracker
+                .record_sample(LatencySample::new(
+                    OperationType::Read,
+                    100,
+                    "tenant1".to_string(),
+                ))
+                .unwrap();
         }
 
-        assert_eq!(tracker.tenant_sample_count("tenant1", OperationType::Read), 5);
+        assert_eq!(
+            tracker.tenant_sample_count("tenant1", OperationType::Read),
+            5
+        );
     }
 
     #[test]
     fn test_performance_tracker_tenant_ids() {
         let mut tracker = PerformanceTracker::new();
 
-        tracker.record_sample(LatencySample::new(OperationType::Read, 100, "tenant1".to_string())).unwrap();
-        tracker.record_sample(LatencySample::new(OperationType::Read, 200, "tenant2".to_string())).unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                100,
+                "tenant1".to_string(),
+            ))
+            .unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                200,
+                "tenant2".to_string(),
+            ))
+            .unwrap();
 
         let ids = tracker.tenant_ids();
         assert_eq!(ids.len(), 2);
@@ -514,8 +576,20 @@ mod tests {
     fn test_performance_tracker_clear_operation() {
         let mut tracker = PerformanceTracker::new();
 
-        tracker.record_sample(LatencySample::new(OperationType::Read, 100, "t1".to_string())).unwrap();
-        tracker.record_sample(LatencySample::new(OperationType::Write, 200, "t1".to_string())).unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                100,
+                "t1".to_string(),
+            ))
+            .unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Write,
+                200,
+                "t1".to_string(),
+            ))
+            .unwrap();
 
         tracker.clear_operation(OperationType::Read);
 
@@ -527,8 +601,20 @@ mod tests {
     fn test_performance_tracker_clear_tenant() {
         let mut tracker = PerformanceTracker::new();
 
-        tracker.record_sample(LatencySample::new(OperationType::Read, 100, "tenant1".to_string())).unwrap();
-        tracker.record_sample(LatencySample::new(OperationType::Read, 200, "tenant2".to_string())).unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                100,
+                "tenant1".to_string(),
+            ))
+            .unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                200,
+                "tenant2".to_string(),
+            ))
+            .unwrap();
 
         tracker.clear_tenant("tenant1");
 
@@ -540,8 +626,20 @@ mod tests {
     fn test_performance_tracker_clear_all() {
         let mut tracker = PerformanceTracker::new();
 
-        tracker.record_sample(LatencySample::new(OperationType::Read, 100, "tenant1".to_string())).unwrap();
-        tracker.record_sample(LatencySample::new(OperationType::Write, 200, "tenant2".to_string())).unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                100,
+                "tenant1".to_string(),
+            ))
+            .unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Write,
+                200,
+                "tenant2".to_string(),
+            ))
+            .unwrap();
 
         tracker.clear_all();
 
@@ -553,9 +651,27 @@ mod tests {
     fn test_performance_tracker_multiple_operation_types() {
         let mut tracker = PerformanceTracker::new();
 
-        tracker.record_sample(LatencySample::new(OperationType::Read, 100, "t1".to_string())).unwrap();
-        tracker.record_sample(LatencySample::new(OperationType::Write, 200, "t1".to_string())).unwrap();
-        tracker.record_sample(LatencySample::new(OperationType::MetadataOp, 50, "t1".to_string())).unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                100,
+                "t1".to_string(),
+            ))
+            .unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Write,
+                200,
+                "t1".to_string(),
+            ))
+            .unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::MetadataOp,
+                50,
+                "t1".to_string(),
+            ))
+            .unwrap();
 
         let read_p = tracker.get_percentiles(OperationType::Read);
         let write_p = tracker.get_percentiles(OperationType::Write);
@@ -571,7 +687,13 @@ mod tests {
         let mut tracker = PerformanceTracker::with_limits(5, 5);
 
         for i in 0..10 {
-            tracker.record_sample(LatencySample::new(OperationType::Read, i * 100, "t1".to_string())).unwrap();
+            tracker
+                .record_sample(LatencySample::new(
+                    OperationType::Read,
+                    i * 100,
+                    "t1".to_string(),
+                ))
+                .unwrap();
         }
 
         assert_eq!(tracker.sample_count(OperationType::Read), 5);
@@ -580,7 +702,13 @@ mod tests {
     #[test]
     fn test_performance_tracker_single_sample_percentiles() {
         let mut tracker = PerformanceTracker::new();
-        tracker.record_sample(LatencySample::new(OperationType::Read, 1000, "t1".to_string())).unwrap();
+        tracker
+            .record_sample(LatencySample::new(
+                OperationType::Read,
+                1000,
+                "t1".to_string(),
+            ))
+            .unwrap();
 
         let p = tracker.get_percentiles(OperationType::Read).unwrap();
         assert_eq!(p.p50, 1000);
@@ -592,7 +720,13 @@ mod tests {
         let mut tracker = PerformanceTracker::new();
 
         for _ in 0..100 {
-            tracker.record_sample(LatencySample::new(OperationType::Read, 500, "t1".to_string())).unwrap();
+            tracker
+                .record_sample(LatencySample::new(
+                    OperationType::Read,
+                    500,
+                    "t1".to_string(),
+                ))
+                .unwrap();
         }
 
         let p = tracker.get_percentiles(OperationType::Read).unwrap();
@@ -607,7 +741,13 @@ mod tests {
 
         for i in 0..100 {
             let latency = if i < 98 { 100 } else { 1000000 };
-            tracker.record_sample(LatencySample::new(OperationType::Read, latency, "t1".to_string())).unwrap();
+            tracker
+                .record_sample(LatencySample::new(
+                    OperationType::Read,
+                    latency,
+                    "t1".to_string(),
+                ))
+                .unwrap();
         }
 
         let p = tracker.get_percentiles(OperationType::Read).unwrap();
@@ -620,7 +760,13 @@ mod tests {
 
         for i in 0..100 {
             let latency = if i < 95 { 800 } else { 2000 };
-            tracker.record_sample(LatencySample::new(OperationType::Read, latency, "t1".to_string())).unwrap();
+            tracker
+                .record_sample(LatencySample::new(
+                    OperationType::Read,
+                    latency,
+                    "t1".to_string(),
+                ))
+                .unwrap();
         }
 
         let status = tracker.check_sla_compliance(OperationType::Read, 1000);
@@ -632,8 +778,20 @@ mod tests {
         let mut tracker = PerformanceTracker::new();
 
         for _ in 0..50 {
-            tracker.record_sample(LatencySample::new(OperationType::Read, 500, "tenant1".to_string())).unwrap();
-            tracker.record_sample(LatencySample::new(OperationType::Read, 2000, "tenant2".to_string())).unwrap();
+            tracker
+                .record_sample(LatencySample::new(
+                    OperationType::Read,
+                    500,
+                    "tenant1".to_string(),
+                ))
+                .unwrap();
+            tracker
+                .record_sample(LatencySample::new(
+                    OperationType::Read,
+                    2000,
+                    "tenant2".to_string(),
+                ))
+                .unwrap();
         }
 
         let status1 = tracker.check_tenant_sla_compliance("tenant1", OperationType::Read, 1000);

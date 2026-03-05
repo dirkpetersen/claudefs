@@ -264,3 +264,9 @@ pub mod storage_allocator_uring_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod transport_auth_tls_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_io_depth_limiter_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_command_queueing_security_tests;
