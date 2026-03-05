@@ -47,12 +47,31 @@ impl EventSinkBackend {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EventSeverity {
     Info,
     Warning,
     Error,
     Critical,
+}
+
+impl Serialize for EventSeverity {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for EventSeverity {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        EventSeverity::from_str(&s).ok_or_else(|| serde::de::Error::custom(format!("invalid variant: {}", s)))
+    }
 }
 
 impl EventSeverity {

@@ -19,7 +19,7 @@ pub enum SoftLimitThreshold {
 impl SoftLimitThreshold {
     pub fn to_bytes(&self, hard_limit: u64) -> u64 {
         match self {
-            SoftLimitThreshold::Percent(pct) => hard_limit * (*pct as u64) / 100,
+            SoftLimitThreshold::Percent(pct) => (hard_limit * (*pct as u64) + 99) / 100,
             SoftLimitThreshold::Bytes(bytes) => *bytes,
         }
     }
@@ -65,7 +65,15 @@ impl QuotaEnforcer {
     }
 
     pub fn at_soft_limit(&self) -> bool {
-        self.current_usage >= self.soft_threshold_bytes()
+        if self.hard_limit == 0 || matches!(self.soft_limit, SoftLimitThreshold::Percent(0)) {
+            return false;
+        }
+        match self.soft_limit {
+            SoftLimitThreshold::Percent(pct) => {
+                self.current_usage * 100 >= self.hard_limit * (pct.saturating_sub(5) as u64)
+            }
+            SoftLimitThreshold::Bytes(threshold) => self.current_usage >= threshold,
+        }
     }
 
     pub fn exceeded(&self) -> bool {

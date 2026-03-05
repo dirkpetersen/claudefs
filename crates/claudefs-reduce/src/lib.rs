@@ -140,13 +140,13 @@ pub mod worm_retention_enforcer;
 /// Persistence and recovery for key rotation checkpoints.
 pub mod rotation_checkpoint;
 /// Tier 2 similarity detection and delta compression coordinator.
-// pub mod similarity_coordinator;  // TODO: A3 to regenerate - malformed from OpenCode
+pub mod similarity_coordinator;
 /// AI-assisted data classification for workload-specific tiering.
-// pub mod adaptive_classifier;  // TODO: A3 to regenerate
+pub mod adaptive_classifier;
 /// Crash recovery and cross-shard consistency verification.
-// pub mod recovery_enhancer;  // TODO: A3 to regenerate
+pub mod recovery_enhancer;
 /// Detailed monitoring and metrics for Tier 2 pipeline effectiveness.
-// pub mod similarity_tier_stats;  // TODO: A3 to regenerate
+pub mod similarity_tier_stats;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,

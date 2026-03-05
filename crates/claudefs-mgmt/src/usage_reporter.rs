@@ -96,6 +96,7 @@ impl BurstDetector {
 
     pub fn update_baseline(&mut self, iops: u64) {
         self.baseline_iops = iops;
+        self.history.clear();
     }
 
     pub fn record_sample(&mut self, timestamp: DateTime<Utc>, iops: u64) {

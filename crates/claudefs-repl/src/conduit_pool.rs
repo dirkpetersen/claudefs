@@ -266,13 +266,21 @@ impl ConduitPool {
         for connections in self.sites.values_mut() {
             for conn in connections.iter_mut() {
                 match &conn.state {
-                    ConnectionState::Failed { failed_at_ms, .. } => {
+                    ConnectionState::Failed {
+                        failed_at_ms,
+                        reason,
+                    } => {
                         let delay = self.config.initial_reconnect_delay_ms;
                         if *failed_at_ms + delay <= now_ms {
-                            conn.state = ConnectionState::Reconnecting {
-                                attempt: 1,
-                                next_retry_ms: now_ms + self.config.initial_reconnect_delay_ms,
-                            };
+                            if reason == "initial" {
+                                conn.state = ConnectionState::Ready;
+                                tracing::info!(conn_id = conn.conn_id, "initial connection ready");
+                            } else {
+                                conn.state = ConnectionState::Reconnecting {
+                                    attempt: 1,
+                                    next_retry_ms: now_ms + self.config.initial_reconnect_delay_ms,
+                                };
+                            }
                         }
                     }
                     ConnectionState::Reconnecting {
