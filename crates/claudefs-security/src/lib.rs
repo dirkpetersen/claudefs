@@ -258,3 +258,24 @@ pub mod fuse_crashrecov_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod fuse_workload_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_allocator_uring_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod transport_auth_tls_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_io_depth_limiter_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod storage_command_queueing_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_client_session_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod transport_trace_aggregator_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod transport_bandwidth_shaper_security_tests;
