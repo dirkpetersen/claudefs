@@ -103,20 +103,22 @@ impl PriorityQueueScheduler {
                 None => break,
             };
 
-            if let Some(op) = self.queues[idx].remove(0) {
-                self.total_pending = self.total_pending.saturating_sub(1);
-                result.push(op.clone());
+            if self.queues[idx].is_empty() {
+                continue;
+            }
+            let op = self.queues[idx].remove(0);
+            self.total_pending = self.total_pending.saturating_sub(1);
+            result.push(op.clone());
 
-                match idx {
-                    0 => {
-                        self.critical_time_used_ns += avg_op_size;
-                    }
-                    1 => {
-                        self.interactive_time_used_ns += avg_op_size;
-                    }
-                    2 => {}
-                    _ => {}
+            match idx {
+                0 => {
+                    self.critical_time_used_ns += avg_op_size;
                 }
+                1 => {
+                    self.interactive_time_used_ns += avg_op_size;
+                }
+                2 => {}
+                _ => {}
             }
         }
 
@@ -140,7 +142,7 @@ impl PriorityQueueScheduler {
             while i < self.queues[idx].len() {
                 if let Some(deadline) = self.queues[idx][i].deadline_ns {
                     if deadline <= current_time_ns {
-                        let mut op = self.queues[idx].remove(i);
+                        let op = self.queues[idx].remove(i);
                         expired_count += 1;
 
                         let target_idx = if idx == 0 { 0 } else { idx - 1 };
@@ -498,7 +500,7 @@ mod tests {
             critical_budget_ns: 1000000,
             interactive_budget_ns: 1000000,
         };
-        let scheduler = PriorityQueueScheduler::new(config);
+        let mut scheduler = PriorityQueueScheduler::new(config);
         let op = scheduler.dequeue();
         assert!(op.is_none());
     }
