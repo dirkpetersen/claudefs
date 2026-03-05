@@ -365,9 +365,6 @@ impl RebalanceCoordinator {
             return Err(RebalanceError::NoPlanNeeded);
         }
 
-        let target_per_node = self.total_shards as f64 / nodes.len() as f64;
-        let threshold = target_per_node as i64 + self.config.imbalance_threshold as i64;
-
         let mut node_shard_counts: Vec<(&[u8; 16], usize)> = nodes
             .iter()
             .map(|(id, info)| (id, info.current_shards.len()))
@@ -378,7 +375,8 @@ impl RebalanceCoordinator {
         let min_count = node_shard_counts.first().map(|(_, c)| *c).unwrap_or(0);
         let max_count = node_shard_counts.last().map(|(_, c)| *c).unwrap_or(0);
 
-        if (max_count as i64 - min_count as i64) <= threshold as i64 {
+        let imbalance = max_count as i64 - min_count as i64;
+        if imbalance <= self.config.imbalance_threshold as i64 {
             return Err(RebalanceError::NoPlanNeeded);
         }
 
