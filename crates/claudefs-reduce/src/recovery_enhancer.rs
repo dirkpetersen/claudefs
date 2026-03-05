@@ -153,6 +153,8 @@ pub trait CheckpointStore: Send + Sync {
     fn list_all(&self) -> Result<Vec<SimilarityCheckpoint>, ReduceError>;
     /// Delete checkpoint by ID.
     fn delete(&self, id: u64) -> Result<(), ReduceError>;
+    /// Generate a unique checkpoint ID.
+    fn generate_id(&self) -> u64;
 }
 
 /// In-memory checkpoint store for testing.
@@ -207,6 +209,13 @@ impl CheckpointStore for MemCheckpointStore {
         store.remove(&id);
         Ok(())
     }
+
+    fn generate_id(&self) -> u64 {
+        let mut next = self.next_id.write().unwrap();
+        let id = *next;
+        *next += 1;
+        id
+    }
 }
 
 /// Recovery enhancer for crash recovery.
@@ -242,14 +251,7 @@ impl RecoveryEnhancer {
     ) -> Result<u64, ReduceError> {
         let store = self.checkpoint_store.as_ref();
         
-        let mem_store = store
-            .as_any()
-            .downcast_ref::<MemCheckpointStore>()
-            .ok_or_else(|| {
-                ReduceError::InvalidInput("checkpoint store must be MemCheckpointStore".to_string())
-            })?;
-
-        let checkpoint_id = mem_store.generate_id();
+        let checkpoint_id = store.generate_id();
         let checkpoint = SimilarityCheckpoint::new(
             checkpoint_id,
             workload.to_string(),

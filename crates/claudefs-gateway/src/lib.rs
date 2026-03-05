@@ -110,11 +110,3 @@ pub mod token_auth;
 pub mod wire;
 /// XDR encoding/decoding for RPC.
 pub mod xdr;
-/// NFSv4 delegation state machine and lifecycle management.
-pub mod nfs_delegation_manager;
-/// Cross-protocol consistency detection and conflict resolution.
-pub mod cross_protocol_consistency;
-/// Tiered storage routing (hot NVMe ↔ cold S3).
-pub mod tiered_storage_router;
-/// OpenTelemetry observability and distributed tracing integration.
-pub mod gateway_observability;
