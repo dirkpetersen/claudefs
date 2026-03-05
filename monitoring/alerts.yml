@@ -1,0 +1,191 @@
+groups:
+  - name: claudefs.rules
+    interval: 30s
+    rules:
+      # Storage I/O Alerts
+      - alert: HighIOLatency
+        expr: |
+          histogram_quantile(0.99, rate(storage_read_latency_us_bucket[5m])) > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High I/O read latency (p99)"
+          description: "I/O latency exceeds 10ms: {{ $value | humanize }}us on {{ $labels.instance }}"
+
+      - alert: CriticalIOLatency
+        expr: |
+          histogram_quantile(0.99, rate(storage_read_latency_us_bucket[5m])) > 50000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL I/O latency"
+          description: "I/O latency exceeds 50ms: {{ $value | humanize }}us on {{ $labels.instance }}"
+
+      - alert: IODepthCritical
+        expr: |
+          io_depth_limiter_mode >= 2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "I/O subsystem in critical state"
+          description: "I/O depth limiter in critical mode on {{ $labels.instance }}"
+
+      # Metadata/Raft Alerts
+      - alert: HighReplicationLag
+        expr: |
+          replication_lag_seconds > 30
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High replication lag"
+          description: "Replication lag: {{ $value }}s on {{ $labels.instance }}"
+
+      - alert: RaftConsensusLoss
+        expr: |
+          raft_followers_active < 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Raft quorum at risk"
+          description: "Active followers: {{ $value }} on {{ $labels.instance }}"
+
+      # Data Reduction Alerts
+      - alert: LowDedupeRatio
+        expr: |
+          dedup_hit_ratio < 0.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low dedup hit ratio"
+          description: "Dedup efficiency: {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      - alert: HighCompressionError
+        expr: |
+          rate(compress_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Compression errors detected"
+          description: "Compression error rate: {{ $value }}/s on {{ $labels.instance }}"
+
+      # Transport/Network Alerts
+      - alert: HighRPCLatency
+        expr: |
+          histogram_quantile(0.99, rate(rpc_latency_us_bucket[5m])) > 100000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High RPC latency"
+          description: "RPC p99 latency: {{ $value | humanize }}us on {{ $labels.instance }}"
+
+      - alert: LowConnectionPool
+        expr: |
+          connection_pool_available / connection_pool_size < 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Connection pool nearly exhausted"
+          description: "Available connections: {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      # FUSE/Client Alerts
+      - alert: HighFUSELatency
+        expr: |
+          histogram_quantile(0.95, rate(fuse_operation_latency_us_bucket[5m])) > 50000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High FUSE operation latency"
+          description: "FUSE p95 latency: {{ $value | humanize }}us on {{ $labels.instance }}"
+
+      - alert: FUSECacheMemoryHigh
+        expr: |
+          fuse_cache_memory_bytes / node_memory_MemAvailable_bytes > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FUSE cache using excessive memory"
+          description: "Cache memory: {{ $value | humanizePercentage }} of available on {{ $labels.instance }}"
+
+      # Gateway Alerts
+      - alert: GatewayHighErrorRate
+        expr: |
+          rate(gateway_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway error rate elevated"
+          description: "Error rate: {{ $value }}/s on {{ $labels.instance }}"
+
+      - alert: GatewayResponseTime
+        expr: |
+          histogram_quantile(0.95, rate(gateway_operation_latency_us_bucket[5m])) > 1000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway response time high"
+          description: "p95 response time: {{ $value | humanize }}us on {{ $labels.instance }}"
+
+      # Resource Alerts
+      - alert: HighCPUUsage
+        expr: |
+          rate(process_cpu_seconds_total[5m]) > 0.7
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage: {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes / node_memory_MemAvailable_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage: {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      - alert: DiskSpaceLow
+        expr: |
+          node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space"
+          description: "Disk free: {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      # Operational Alerts
+      - alert: ModuleInitFailed
+        expr: |
+          module_initialized_timestamp_seconds == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Module initialization failed"
+          description: "Module {{ $labels.module }} failed to initialize on {{ $labels.instance }}"
+
+      - alert: HighErrorRate
+        expr: |
+          rate(module_errors_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Module error rate elevated"
+          description: "{{ $labels.module }} error rate: {{ $value }}/s on {{ $labels.instance }}"
