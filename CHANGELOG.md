@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A1: Storage Engine — Phase 8: I/O Scheduling & NUMA Optimization (2026-03-05)
+
+**Status:** ✅ **PHASE 8 COMPLETE** — 1204 tests (+80), 55 modules total
+
+**Completed Modules** (Performance Optimization):
+
+1. **io_coalescing.rs** (~28 tests) — Merge adjacent I/O requests
+   - Reduces device submission overhead for high-frequency I/O
+   - Configurable max coalesce size and pending count limits
+   - Separate read/write coalescing with priority tracking
+   - CoalescingOpType, CoalescingRequest (local types to avoid conflicts)
+
+2. **priority_queue_scheduler.rs** (~25 tests) — Priority-aware I/O scheduling
+   - Three workload classes: Critical, Interactive, Bulk
+   - Per-class budget enforcement prevents starvation
+   - Deadline-based promotion for SLA-sensitive operations
+   - Estimated latency prediction for scheduler feedback
+
+3. **numa_affinity.rs** (~27 tests) — NUMA-aware task distribution
+   - Map cores to NUMA nodes for multi-socket systems
+   - Block-id hash selects preferred node (deterministic)
+   - Load-aware fallback when preferred node overloaded
+   - Balance check detects and reports imbalance
+
+**Test Results:**
+- ✅ 1204 tests passing (+80 from Phase 7), 0 failures
+- ✅ Build clean, no clippy warnings on new code
+- ✅ Integration with existing io_uring_bridge, nvme_passthrough, error handling
+
+**Architecture Integration:**
+- io_coalescing → priority_queue_scheduler (merged request submission)
+- priority_queue_scheduler → numa_affinity (core selection for execution)
+- latency_attribution (Phase 7) tracks per-class latency metrics
+- resilience_coordinator (Phase 7) avoids degraded nodes in affinity hints
+
+---
+
 ### A3: Data Reduction — Phase 26: Key Rotation & WORM Compliance (2026-03-05)
 
 **Status:** ✅ **PHASE 26 COMPLETE** — 1927 tests (+49), 93 modules total
