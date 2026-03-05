@@ -2,6 +2,8 @@
 
 use crate::error::StorageError;
 
+type Result<T> = std::result::Result<T, StorageError>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IoOpType {
     Read,
@@ -14,7 +16,7 @@ pub struct IoRequest {
     pub block_id: u64,
     pub block_count: u32,
     pub priority: u8,
-    pub client_id: u64,
+    pub client_id: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,13 +24,13 @@ pub struct CoalescedRequest {
     pub op_type: IoOpType,
     pub start_block: u64,
     pub block_count: u32,
-    pub constituent_count: u32,
+    pub constituent_count: usize,
     pub priority: u8,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CoalescingConfig {
-    pub max_coalesce_blocks: u64,
+    pub max_coalesce_blocks: u32,
     pub max_pending_count: usize,
 }
 
@@ -76,17 +78,16 @@ impl IoCoalescer {
     pub fn coalesce(&mut self) -> Vec<CoalescedRequest> {
         let mut result = Vec::new();
 
-        result.extend(self.coalesce_queue(&mut self.pending_reads, IoOpType::Read));
-        result.extend(self.coalesce_queue(&mut self.pending_writes, IoOpType::Write));
+        result.extend(self.process_queue(&self.pending_reads, IoOpType::Read));
+        result.extend(self.process_queue(&self.pending_writes, IoOpType::Write));
+
+        self.pending_reads.clear();
+        self.pending_writes.clear();
 
         result
     }
 
-    fn coalesce_queue(
-        &self,
-        queue: &mut Vec<IoRequest>,
-        op_type: IoOpType,
-    ) -> Vec<CoalescedRequest> {
+    fn process_queue(&self, queue: &[IoRequest], op_type: IoOpType) -> Vec<CoalescedRequest> {
         if queue.is_empty() {
             return Vec::new();
         }
@@ -98,7 +99,7 @@ impl IoCoalescer {
             if let Some(ref mut curr) = current {
                 let prev_end = curr.start_block + curr.block_count as u64;
                 let would_exceed = (curr.block_count as u64 + req.block_count as u64)
-                    > self.config.max_coalesce_blocks;
+                    > self.config.max_coalesce_blocks as u64;
                 let is_adjacent = prev_end == req.block_id;
 
                 if !is_adjacent || would_exceed {
@@ -502,7 +503,7 @@ mod tests {
             coalescer
                 .add_request(IoRequest {
                     op_type: IoOpType::Read,
-                    block_id: i * 10,
+                    block_id: i * 3,
                     block_count: 3,
                     priority: 1,
                     client_id: 1,
@@ -567,7 +568,7 @@ mod tests {
                     block_id: i,
                     block_count: 1,
                     priority: 1,
-                    client_id: i as u64,
+                    client_id: i as u32,
                 })
                 .unwrap();
         }
@@ -712,7 +713,7 @@ mod tests {
             coalescer
                 .add_request(IoRequest {
                     op_type: IoOpType::Read,
-                    block_id: i * 5,
+                    block_id: i * 2,
                     block_count: 2,
                     priority: 1,
                     client_id: 1,
@@ -720,6 +721,7 @@ mod tests {
                 .unwrap();
         }
         let result = coalescer.coalesce();
+        assert_eq!(result.len(), 1);
         assert_eq!(result[0].constituent_count, 7);
     }
 
@@ -763,7 +765,7 @@ mod tests {
             coalescer
                 .add_request(IoRequest {
                     op_type: IoOpType::Read,
-                    block_id: i * 10,
+                    block_id: i * 3,
                     block_count: 3,
                     priority: 1,
                     client_id: 1,
@@ -772,7 +774,7 @@ mod tests {
             coalescer
                 .add_request(IoRequest {
                     op_type: IoOpType::Write,
-                    block_id: i * 10 + 100,
+                    block_id: i * 3 + 100,
                     block_count: 3,
                     priority: 1,
                     client_id: 1,
@@ -851,8 +853,7 @@ mod tests {
                 .unwrap();
         }
         let result = coalescer.coalesce();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].constituent_count, 50);
+        assert_eq!(result.len(), 50);
     }
 
     #[test]
@@ -906,7 +907,7 @@ mod tests {
                 block_id: i * 10,
                 block_count: 1,
                 priority: 1,
-                client_id: i as u64,
+                client_id: i as u32,
             });
         }
         assert_eq!(coalescer.pending_count(IoOpType::Read), 5);

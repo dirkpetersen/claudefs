@@ -59,6 +59,9 @@ pub mod tiering_metrics;
 pub mod latency_attribution;
 pub mod resilience_coordinator;
 pub mod tier_orchestrator;
+pub mod io_coalescing;
+pub mod priority_queue_scheduler;
+pub mod numa_affinity;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
