@@ -399,10 +399,16 @@ mod tests {
         
         let op_id = handler.track(CommandType::Read).await;
         
-        handler.complete(op_id).await.unwrap();
+        let _ = handler.retry_operation(op_id).await;
         
         let result = handler.retry_operation(op_id).await;
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        
+        let result2 = handler.retry_operation(op_id).await;
+        assert!(result2.is_ok());
+        
+        let result3 = handler.retry_operation(op_id).await;
+        assert!(result3.is_err());
     }
 
     #[tokio::test]

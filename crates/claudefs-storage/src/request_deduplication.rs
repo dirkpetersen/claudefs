@@ -154,9 +154,10 @@ mod tests {
         let dedup = create_test_dedup();
         
         let key = ReadKey { qp_id: QueuePairId(0), lba: 100, length: 4096 };
+        let key_clone = key.clone();
         
         let result1 = dedup.read_deduplicated(key, || Ok(vec![1, 2, 3, 4, 5])).await;
-        let result2 = dedup.read_deduplicated(key, || Ok(vec![])).await;
+        let result2 = dedup.read_deduplicated(key_clone, || Ok(vec![])).await;
         
         assert!(result1.is_ok());
         assert!(result2.is_ok());
@@ -175,6 +176,7 @@ mod tests {
         let mut handles = vec![];
         for _ in 0..5 {
             let d = Arc::clone(&dedup);
+            let key = key.clone();
             let handle = tokio::spawn(async move {
                 d.read_deduplicated(key, || Ok(vec![1, 2, 3])).await
             });
@@ -233,7 +235,7 @@ mod tests {
         let mut counter = 0;
         
         for _ in 0..3 {
-            let result = dedup.read_deduplicated(key, || {
+            let result = dedup.read_deduplicated(key.clone(), || {
                 counter += 1;
                 Ok(vec![counter])
             }).await;
@@ -253,7 +255,7 @@ mod tests {
         
         let key = ReadKey { qp_id: QueuePairId(0), lba: 100, length: 4096 };
         
-        let result = dedup.read_deduplicated(key, || Err("IO error".to_string())).await;
+        let result = dedup.read_deduplicated(key.clone(), || Err("IO error".to_string())).await;
         assert!(result.is_err());
         
         let result2 = dedup.read_deduplicated(key, || Ok(vec![])).await;
@@ -305,7 +307,7 @@ mod tests {
         let key = ReadKey { qp_id: QueuePairId(0), lba: 100, length: 4096 };
         
         for _ in 0..10 {
-            let _ = dedup.read_deduplicated(key, || Ok(vec![1, 2, 3])).await;
+            let _ = dedup.read_deduplicated(key.clone(), || Ok(vec![1, 2, 3])).await;
         }
         
         let stats = dedup.stats();
@@ -321,7 +323,7 @@ mod tests {
         
         let large_data: Vec<u8> = (0..4096).map(|i| (i % 256) as u8).collect();
         
-        let result1 = dedup.read_deduplicated(key, || Ok(large_data.clone())).await;
+        let result1 = dedup.read_deduplicated(key.clone(), || Ok(large_data.clone())).await;
         let result2 = dedup.read_deduplicated(key, || Ok(vec![])).await;
         
         assert!(result1.is_ok());
@@ -362,7 +364,7 @@ mod tests {
         let dedup = create_test_dedup();
         
         let key = ReadKey { qp_id: QueuePairId(0), lba: 100, length: 4096 };
-        let _ = dedup.read_deduplicated(key, || Ok(vec![1])).await;
+        let _ = dedup.read_deduplicated(key.clone(), || Ok(vec![1])).await;
         
         assert_eq!(dedup.pending_count(), 1);
         
@@ -378,7 +380,7 @@ mod tests {
         let key = ReadKey { qp_id: QueuePairId(0), lba: 100, length: 4096 };
         
         for _ in 0..3 {
-            let _ = dedup.read_deduplicated(key, || Ok(vec![1])).await;
+            let _ = dedup.read_deduplicated(key.clone(), || Ok(vec![1])).await;
         }
         
         let stats = dedup.stats();
@@ -393,7 +395,7 @@ mod tests {
         
         let read_key = ReadKey { qp_id: QueuePairId(0), lba: 100, length: 4096 };
         
-        let _ = dedup.read_deduplicated(read_key, || Ok(vec![1])).await;
+        let _ = dedup.read_deduplicated(read_key.clone(), || Ok(vec![1])).await;
         dedup.invalidate(&read_key).await;
         
         let result = dedup.read_deduplicated(read_key, || Ok(vec![2])).await;
@@ -407,7 +409,7 @@ mod tests {
         
         let key = ReadKey { qp_id: QueuePairId(0), lba: 100, length: 4096 };
         
-        let _ = dedup.read_deduplicated(key, || Err("error".to_string())).await;
+        let _ = dedup.read_deduplicated(key.clone(), || Err("error".to_string())).await;
         
         let result = dedup.read_deduplicated(key, || Ok(vec![1])).await;
         

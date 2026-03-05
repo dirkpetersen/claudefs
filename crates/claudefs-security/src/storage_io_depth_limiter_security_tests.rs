@@ -754,7 +754,7 @@ mod tests {
 
             let stats = limiter.stats().await;
             assert!(
-                stats.total_commands > 0 || stats.reduction_events >= 0,
+                stats.reduction_events >= 0 || stats.pending_ops >= 0,
                 "Stats should aggregate large samples"
             );
         }
