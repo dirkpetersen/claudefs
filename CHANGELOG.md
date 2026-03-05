@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Phase 3 Planning: Query Gateway, Web UI, CLI (2026-03-05)
+
+**Status:** 🟡 **PHASE 3 PLANNING** — Phase 2 complete, 965 tests, Phase 3 spec ready
+
+**Phase 2 Summary (2026-03-04 → 2026-03-05):**
+- ✅ Metadata journal consumer (A2 integration)
+- ✅ Prometheus metrics collection framework
+- ✅ DuckDB analytics engine with query methods (top_users, top_dirs, stale_files, reduction_stats)
+- ✅ Metadata indexing (Parquet writer, flushing)
+- ✅ 965 tests passing (822 → 965)
+- ✅ Build: clean, workspace dependencies (dashmap, uuid) fixed
+
+**Phase 3 Roadmap** (Target: 1100+ tests, +30-40 new tests):
+
+**Block 1: Query Gateway (10-12 tests)**
+- `query_gateway.rs` — DuckDB connection pooling, parameterized queries, caching, timeouts
+- `parquet_schema.rs` — Standard metadata schema + type mappings
+- Integration with existing analytics.rs methods
+
+**Block 2: Web API (8-10 tests)**
+- `web_api.rs` — Axum routes: `/api/v1/analytics/top-users`, `/top-dirs`, `/stale-files`, `/file-types`, `/reduction-report`, `/query`
+- `/api/v1/cluster/health` — Real-time cluster status
+- Error handling, JSON responses, parameter validation
+
+**Block 3: Authentication & RBAC (5-7 tests)**
+- `web_auth.rs` — OIDC integration, JWT validation, RBAC middleware
+- Roles: admin, operator, viewer, tenant_admin
+- Bearer token extraction, scope enforcement
+
+**Block 4: CLI & Dashboards (6-8 tests)**
+- Enhanced `cli.rs` with shortcuts: `top-users`, `top-dirs`, `find`, `stale`, `reduction-report`, `cluster status`
+- `dashboards.rs` — Pre-built Grafana JSON templates (cluster health, top consumers, capacity trends, reduction analytics)
+- Pattern matching, aggregation helpers
+
+**Block 5: Integration Tests (4-6 tests)**
+- E2E workflows: Parquet → API → CLI → Dashboard
+- Query gateway performance (100K records)
+- Auth flow with OIDC token
+- Result caching verification
+
+**Dependencies:** `jsonwebtoken` 9.x (JWT validation, new)
+
+---
+
 ### A1: Storage Engine — Phase 8: I/O Scheduling & NUMA Optimization (2026-03-05)
 
 **Status:** ✅ **PHASE 8 COMPLETE** — 1204 tests (+80), 55 modules total
