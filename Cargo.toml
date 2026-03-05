@@ -33,3 +33,5 @@ zeroize = { version = "1.7", features = ["derive"] }
 rand = "0.8"
 bytes = "1"
 tonic-build = "0.12"
+dashmap = "6"
+uuid = { version = "1", features = ["v4", "serde"] }
