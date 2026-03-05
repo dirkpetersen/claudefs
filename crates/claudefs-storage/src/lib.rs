@@ -56,6 +56,9 @@ pub mod tier_rebalancer;
 pub mod pressure_cascade;
 pub mod cross_node_health;
 pub mod tiering_metrics;
+pub mod latency_attribution;
+pub mod resilience_coordinator;
+pub mod tier_orchestrator;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
@@ -172,3 +175,14 @@ pub use pressure_cascade::{
 };
 pub use cross_node_health::CrossNodeHealth;
 pub use tiering_metrics::TieringMetrics;
+pub use latency_attribution::{
+    LatencyAttributor, LatencyStage, OpLatencyTrace, LatencyError, LatencyResult,
+};
+pub use resilience_coordinator::{
+    ResilienceCoordinator, NodeResilience, FailureMode, ResilienceError, ResilienceResult,
+};
+pub use tier_orchestrator::{
+    TierOrchestrator, TierPlacement as OrchestratorTierPlacement, TierLevel, 
+    MigrationReason, PendingMigration, TieringConfig as OrchestratorTieringConfig, 
+    TieringError, TieringResult,
+};
