@@ -256,3 +256,276 @@ Untracked files:
 
 no changes added to commit (use "git add" and/or "git commit -a")
 [0m
+
+[0m$ [0mgit show HEAD:crates/claudefs-meta/src/quota_tracker.rs 2>/dev/null | head -50 || echo "File does not exist in git"[0m[0m$ [0mgit ls-tree -r HEAD --name-only | grep quota_tracker
+
+
+
+crates/claudefs-reduce/src/quota_tracker.rs[0m[0m✱ [0mGlob "**/quota_tracker.rs"[90m 1 match[0m
+[0m[0m$ [0mls -la /home/cfs/claudefs/crates/claudefs-meta/src/ | wc -l77
+
+
+[0m
+[0m
+total 1372
+drwxr-xr-x 2 cfs cfs  4096 Mar  5 16:17 .
+-rw-rw-r-- 1 cfs cfs  9638 Mar  5 16:17 lib.rs
+-rw-rw-r-- 1 cfs cfs 45268 Mar  5 05:00 snapshot_transfer.rs
+-rw-r--r-- 1 cfs cfs 25520 Mar  5 04:53 client_session.rs
+-rw-r--r-- 1 cfs cfs 30562 Mar  5 04:49 distributed_transaction.rs
+-rw-rw-r-- 1 cfs cfs 18208 Mar  5 01:58 fingerprint_index_integration.rs
+-rw-rw-r-- 1 cfs cfs 10519 Mar  5 00:51 concurrent_inode_ops.rs
+-rw-rw-r-- 1 cfs cfs 32092 Mar  5 00:38 access_integration.rs
+-rw-r--r-- 1 cfs cfs 18800 Mar  4 23:21 membership_failure_detector.rs
+
+[0m$ [0mls -lat /home/cfs/claudefs/crates/claudefs-meta/src/ | head -10[0m→ [0mRead crates/claudefs-meta/src/lib.rs[90m [limit=200][0m
+[0m→ [0mRead crates/claudefs-meta/src/lib.rs[90m [offset=200][0m
+[0m
+[0m$ [0mgit show HEAD:crates/claudefs-meta/src/lib.rs | wc -l231
+
+[0m
+[0m$ [0mgit diff HEAD crates/claudefs-meta/src/lib.rs | head -100
+[0m[0m$ [0mls -la *.md 2>/dev/null | head -20
+
+[0m-rw-rw-r-- 1 cfs cfs  12493 Mar  1 17:02 A10-PHASE3-PHASE4-PLAN.md
+-rw-rw-r-- 1 cfs cfs   7529 Mar  5 14:40 A10-PHASE35-STATUS.md
+-rw-rw-r-- 1 cfs cfs  10774 Mar  1 18:45 A10-PHASE4-SESSION-SUMMARY.md
+-rw-rw-r-- 1 cfs cfs  14371 Mar  1 17:03 A10-SECURITY-AUDIT-SUMMARY.md
+-rw-rw-r-- 1 cfs cfs   9077 Mar  1 18:46 A10-SESSION-FINAL-SUMMARY.md
+-rw-rw-r-- 1 cfs cfs   8292 Mar  1 17:05 A10-SESSION-SUMMARY-2026-03-01.md
+-rw-rw-r-- 1 cfs cfs   7688 Mar  1 17:54 A10-SESSION-SUMMARY-PHASE4.md
+-rw-rw-r-- 1 cfs cfs   6691 Mar  1 14:12 A11-HANDOFF-STATUS.md
+-rw-r--r-- 1 cfs cfs  12529 Mar  3 20:59 A11-PHASE7-8-STATUS.md
+-rw-rw-r-- 1 cfs cfs   6733 Mar  1 14:12 A11-PHASE8-ROADMAP.md
+-rw-r--r-- 1 cfs cfs  10841 Mar  3 20:59 A11-PHASE8-WEEK1-PLAN.md
+-rw-rw-r-- 1 cfs cfs   7839 Mar  1 14:12 A11-SESSION-SUMMARY-2026-03-01.md
+-rw-r--r-- 1 cfs cfs   9888 Mar  3 21:01 A11-SESSION-SUMMARY-2026-03-03.md
+-rw-rw-r-- 1 cfs cfs   4551 Mar  4 07:08 A11-SESSION-SUMMARY-2026-03-04.md
+-rw-rw-r-- 1 cfs cfs   6551 Mar  1 14:12 A11-SESSION-SUMMARY.md
+-rw-rw-r-- 1 cfs cfs   6351 Mar  1 14:12 A11-STATUS-2026-03-01.md
+-rw-rw-r-- 1 cfs cfs  12559 Mar  4 16:30 A11_PHASE3_SESSION1_SUMMARY.md
+-rw-rw-r-- 1 cfs cfs  10553 Mar  1 14:12 A11_PHASE7_NOTES.md
+-rw-rw-r-- 1 cfs cfs  11811 Mar  1 14:12 A11_PHASE7_SUMMARY.md
+-rw-rw-r-- 1 cfs cfs   3764 Mar  1 14:12 A11_SESSION_SUMMARY.md
+
+[0m→ [0mRead a2-phase10-fix3.md[90m [limit=50][0m
+[0m→ [0mRead a2-phase10-fix3-output.md[90m [limit=50][0m
+[0m
+[0m$ [0mls -la /home/cfs/claudefs/crates/claudefs-meta/src/*.rs | wc -l
+[0m
+74
+qos.rs
+quota.rs
+quota_integration.rs
+tenant.rs[0m
+
+
+[0m$ [0mls /home/cfs/claudefs/crates/claudefs-meta/src/ | grep -E "quota|tenant|qos"[0m→ [0mRead a2-phase10-fix3-output.md[90m [offset=51][0m
+[0m→ [0mRead a2-phase10-fix1-output.md[90m [limit=100][0m
+[0m→ [0mRead a2-phase10-fix2-output.md[90m [limit=100][0m
+
+[0m[0m$ [0mgit status --porcelain | head -20
+
+[0mM a2-phase10-fix2-output.md
+ M a2-phase10-fix3-output.md
+ M a2-phase10-output.md
+File: /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
+  size: 9638      	Blocks: 24         IO Block: 4096   regular file
+Device: 10301h/66305d	Inode: 1036661     Links: 1
+Access: (0664/-rw-rw-r--)  Uid: ( 1001/     cfs)   Gid: ( 1001/     cfs)
+Access: 2026-03-05 16:17:20.552958581 +0000
+Modify: 2026-03-05 16:17:20.549958567 +0000
+Change: 2026-03-05 16:17:20.549958567 +0000
+ Birth: 2026-03-05 16:17:20.549958567 +0000
+
+[0m[0m$ [0mstat /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
+[0m→ [0mRead a2-phase10-fix1.md
+[0m→ [0mRead crates/claudefs-meta/src/tenant.rs[90m [limit=50][0m
+[0m→ [0mRead crates/claudefs-meta/src/quota.rs[90m [limit=100][0m
+[0mWrote file successfully.
+[0m
+
+
+[0m← [0mWrite crates/claudefs-meta/src/quota_tracker.rs[0m← [0mWrite crates/claudefs-meta/src/tenant_isolator.rs
+[0m
+Wrote file successfully.
+[0m
+
+
+[0m← [0mWrite crates/claudefs-meta/src/qos_coordinator.rsWrote file successfully.[0m→ [0mRead crates/claudefs-meta/src/lib.rs[90m [limit=50, offset=85][0m
+[0m
+[0m← [0mEdit crates/claudefs-meta/src/lib.rs
+Index: /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
+===================================================================
+--- /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
++++ /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
+@@ -89,8 +89,14 @@
+ /// Per-user/group quota management
+ pub mod quota;
+ /// Quota integration service for write enforcement
+ pub mod quota_integration;
++/// Per-tenant quota tracking with soft/hard limits
++pub mod quota_tracker;
++/// Multi-tenant namespace isolation for metadata operations
++pub mod tenant_isolator;
++/// QoS coordination between metadata and transport services
++pub mod qos_coordinator;
+ /// Persistent Raft log store for crash-safe consensus state
+ pub mod raft_log;
+ /// Raft-integrated metadata service (Phase 2)
+ pub mod raftservice;
+
+[0m
+[0m→ [0mRead crates/claudefs-meta/src/lib.rs[90m [limit=40, offset=188][0m
+[0m
+[0m← [0mEdit crates/claudefs-meta/src/lib.rs
+
+Index: /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
+===================================================================
+--- /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
++++ /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
+@@ -196,8 +196,16 @@
+ pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
+ pub use prefetch::{PrefetchConfig, PrefetchEngine, PrefetchRequest, PrefetchResult};
+ pub use qos::{QosClass, QosManager, QosPolicy};
+ pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
++pub use quota_tracker::{
++    QuotaType, TenantQuota, TenantQuotaUsage, ViolationType, Severity, QuotaViolation,
++    QuotaTrackerConfig, QuotaTracker,
++};
++pub use tenant_isolator::{
++    TenantNamespace, TenantCapabilities, TenantContext, IsolationViolationType, IsolationViolation,
++    TenantIsolatorConfig, TenantIsolator,
++};
+ pub use raft_log::RaftLogStore;
+ pub use raftservice::{RaftMetadataService, RaftServiceConfig};
+ pub use range_lock::{RangeLock, RangeLockManager};
+ pub use rate_limit::{ClientId, RateLimitConfig, RateLimitDecision, RateLimitStats, RateLimiter};
+[0m
+[0m✱ [0mGrep "pub use qos::"[90m in crates/claudefs-meta/src · 1 match[0m
+
+Index: /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
+===================================================================
+--- /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
++++ /home/cfs/claudefs/crates/claudefs-meta/src/lib.rs
+@@ -195,8 +195,12 @@
+ pub use node_snapshot::NodeSnapshot;
+ pub use pathres::{NegativeCacheEntry, PathCacheEntry, PathResolver};
+ pub use prefetch::{PrefetchConfig, PrefetchEngine, PrefetchRequest, PrefetchResult};
+ pub use qos::{QosClass, QosManager, QosPolicy};
++pub use qos_coordinator::{
++    Priority, OpType, RequestId, QosRequest, QosContext, QosMetrics, QosViolation, QosHint,
++    QosMetricsSummary, QosCoordinatorConfig, QosCoordinator,
++};
+ pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
+ pub use quota_tracker::{
+     QuotaType, TenantQuota, TenantQuotaUsage, ViolationType, Severity, QuotaViolation,
+     QuotaTrackerConfig, QuotaTracker,
+[0m← [0mEdit crates/claudefs-meta/src/lib.rs[0m
+
+
+[0m[0m$ [0mcargo check -p claudefs-meta 2>&1 | head -80
+[0mBlocking waiting for file lock on build directory
+    Checking claudefs-meta v0.1.0 (/home/cfs/claudefs/crates/claudefs-meta)
+warning: unused import: `std::collections::HashMap`
+ --> crates/claudefs-meta/src/client_session.rs:7:5
+  |
+7 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `size`
+   --> crates/claudefs-meta/src/fingerprint_index_integration.rs:178:55
+    |
+178 |     pub fn dedup_potential(&self, new_hash: [u8; 32], size: u64) -> Option<u64> {
+    |                                                       ^^^^ help: if this is intentional, prefix it with an underscore: `_size`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `txn`
+   --> crates/claudefs-meta/src/distributed_transaction.rs:284:21
+    |
+284 |         if let Some(txn) = self.active_txns.get(&txn_id) {
+    |                     ^^^ help: if this is intentional, prefix it with an underscore: `_txn`
+
+warning: unused variable: `start`
+   --> crates/claudefs-meta/src/snapshot_transfer.rs:574:13
+    |
+574 |         let start = std::time::Instant::now();
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_start`
+
+warning: unused variable: `base_data`
+   --> crates/claudefs-meta/src/snapshot_transfer.rs:616:13
+    |
+616 |         let base_data = self.kvstore.get(base_key.as_bytes())?;
+    |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_base_data`
+
+warning: field `kv` is never read
+  --> crates/claudefs-meta/src/quota_integration.rs:88:5
+   |
+85 | pub struct QuotaEnforcer {
+   |            ------------- field in this struct
+...
+88 |     kv: Arc<dyn KvStore>,
+   |     ^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated function `calculate_headroom` is never used
+   --> crates/claudefs-meta/src/quota_integration.rs:108:8
+    |
+ 91 | impl QuotaEnforcer {
+    | ------------------ associated function in this implementation
+...
+108 |     fn calculate_headroom(limit: &QuotaLimit, usage: &QuotaUsage) -> (u64, u64) {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: fields `my_shard_id` and `multiraft` are never read
+  --> crates/claudefs-meta/src/distributed_transaction.rs:84:5
+   |
+83 | pub struct DistributedTransactionEngine {
+   |            ---------------------------- fields in this struct
+84 |     my_shard_id: ShardId,
+   |     ^^^^^^^^^^^
+85 |     my_node_id: NodeId,
+86 |     multiraft: Arc<MultiRaftManager>,
+   |     ^^^^^^^^^
+
+warning: missing documentation for a struct
+ --> crates/claudefs-meta/src/concurrent_inode_ops.rs:8:1
+  |
+8 | pub struct ConcurrentOpContext {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+note: the lint level is defined here
+ --> crates/claudefs-meta/src/lib.rs:1:9
+  |
+1 | #![warn(missing_docs)]
+  |         ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+
+[0m$ [0mcargo check -p claudefs-meta 2>&1 | grep -E "^error"
+[0m
+[0m$ [0mcargo check -p claudefs-meta 2>&1 | tail -5
+818 |     pub restore_duration_ms: u64,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `claudefs-meta` (lib) generated 477 warnings (run `cargo fix --lib -p claudefs-meta` to apply 5 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.11s
+
+[0m[0m$ [0mls -la /home/cfs/claudefs/crates/claudefs-meta/src/{quota_tracker,tenant_isolator,qos_coordinator}.rs-rw-rw-r-- 1 cfs cfs 23396 Mar  5 16:20 /home/cfs/claudefs/crates/claudefs-meta/src/qos_coordinator.rs
+-rw-rw-r-- 1 cfs cfs 23792 Mar  5 16:19 /home/cfs/claudefs/crates/claudefs-meta/src/quota_tracker.rs
+-rw-rw-r-- 1 cfs cfs 20358 Mar  5 16:19 /home/cfs/claudefs/crates/claudefs-meta/src/tenant_isolator.rs
+
+
+[0mDone. All 18 compilation errors have been fixed. The three files have been created/updated:
+
+1. **quota_tracker.rs** - Renamed `QuotaUsage` → `TenantQuotaUsage` to avoid conflict with `quota.rs`, used `pub use crate::tenant::TenantId` for proper export
+2. **tenant_isolator.rs** - Fixed `TenantId` import with `pub use`, removed invalid `Ref` type annotation 
+3. **qos_coordinator.rs** - Added `pub use crate::tenant::TenantId`, uses `TenantQuotaUsage` instead of `QuotaUsage`
+
+Also updated `lib.rs` to add the new modules and exports.
+
+`cargo check -p claudefs-meta` now completes with **0 errors** (477 warnings).
