@@ -10,8 +10,6 @@
 
 use std::collections::HashMap;
 use std::time::Instant;
-use thiserror::Error;
-use tracing::debug;
 
 /// Lock type for byte-range locks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
