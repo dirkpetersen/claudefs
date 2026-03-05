@@ -544,6 +544,14 @@ Commands:
         replication  — Check cross-site replication setup
         monitor N    — Continuous monitoring (interval in seconds, default 60)
 
+  cluster <subcommand>
+      Phase 2: Multi-node test cluster operations.
+      Subcommands:
+        deploy   — Provision and deploy full 9-node cluster (orchestrator coordinates)
+        validate — Run POSIX validation tests (pjdfstest, fsx, xfstests)
+        destroy  — Tear down cluster
+        status   — Show node status
+
   down
       Terminate spot cluster nodes (keep orchestrator running).
 
@@ -586,6 +594,78 @@ cmd_cache() {
   "$SCRIPT_DIR/cfs-build-cache.sh" "$@"
 }
 
+cmd_cluster() {
+  # Phase 2: Multi-node cluster operations
+  local subcommand="${1:-help}"
+  shift || true
+
+  case "$subcommand" in
+    deploy)
+      info "Deploying multi-node test cluster..."
+      # Trigger GitHub Actions workflow
+      gh workflow run deploy-multinode.yml \
+        -f environment=test \
+        -f action=deploy \
+        -R dirkpetersen/claudefs || die "Failed to trigger deployment"
+      info "Cluster deployment started. Monitor at: https://github.com/dirkpetersen/claudefs/actions"
+      ;;
+    validate)
+      info "Validating cluster health and POSIX compliance..."
+      # Trigger GitHub Actions workflow
+      gh workflow run deploy-multinode.yml \
+        -f environment=test \
+        -f action=validate \
+        -R dirkpetersen/claudefs || die "Failed to trigger validation"
+      info "Validation started. Monitor at: https://github.com/dirkpetersen/claudefs/actions"
+      ;;
+    destroy)
+      info "Destroying multi-node test cluster..."
+      read -p "Are you sure? This will terminate all cluster nodes. (y/n) " -n 1 -r
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]]; then
+        gh workflow run deploy-multinode.yml \
+          -f environment=test \
+          -f action=destroy \
+          -R dirkpetersen/claudefs || die "Failed to trigger destroy"
+        info "Cluster destruction started. Monitor at: https://github.com/dirkpetersen/claudefs/actions"
+      else
+        info "Cancelled."
+      fi
+      ;;
+    status)
+      info "Checking multi-node cluster status..."
+      local nodes=$(aws ec2 describe-instances \
+        --filters "Name=tag:project,Values=$PROJECT_TAG" "Name=instance-state-name,Values=running" \
+        --query 'Reservations[].Instances[*].[Tags[?Key==`Name`].Value|[0],InstanceType,State.Name,InstanceLifecycle]' \
+        --output text --region "$REGION")
+      if [[ -z "$nodes" ]]; then
+        info "No cluster nodes running"
+        return 0
+      fi
+      echo "$nodes" | column -t -s $'\t' -N "Name,Type,State,Lifecycle"
+      ;;
+    *)
+      cat <<HELP
+Multi-Node Cluster Operations (Phase 2)
+
+Usage: cfs-dev cluster <subcommand>
+
+Subcommands:
+  deploy    Provision and deploy full multi-node test cluster
+  validate  Run POSIX compliance tests on deployed cluster
+  destroy   Tear down multi-node cluster
+  status    Show cluster node status
+
+Examples:
+  cfs-dev cluster deploy     # Provision and deploy 9-node cluster
+  cfs-dev cluster validate   # Run pjdfstest, fsx, xfstests
+  cfs-dev cluster destroy    # Terminate all cluster nodes
+HELP
+      [[ "$subcommand" != "help" ]] && die "Unknown subcommand: $subcommand"
+      ;;
+  esac
+}
+
 COMMAND="${1:-help}"
 shift || true
 
@@ -597,6 +677,7 @@ case "$COMMAND" in
   validate) cmd_validate "$@" ;;
   health)   cmd_health "$@" ;;
   cache)    cmd_cache "$@" ;;
+  cluster)  cmd_cluster "$@" ;;
   down)     cmd_down "$@" ;;
   destroy)  cmd_destroy "$@" ;;
   cost)     cmd_cost "$@" ;;
