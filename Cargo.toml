@@ -18,7 +18,6 @@ serde_bytes = "0.11"
 bincode = "1.3"
 prost = "0.13"
 tonic = "0.12"
-tonic-build = "0.12"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"] }
 blake3 = "1"
@@ -33,5 +32,4 @@ hmac = "0.12"
 zeroize = { version = "1.7", features = ["derive"] }
 rand = "0.8"
 bytes = "1"
-dashmap = "6"
-uuid = { version = "1", features = ["v4", "serde"] }
+tonic-build = "0.12"

@@ -24,9 +24,6 @@ pub mod fdp;
 pub mod flush;
 pub mod io_uring_bridge;
 pub mod io_scheduler;
-pub mod block_verifier;
-pub mod compaction_manager;
-pub mod io_accounting;
 pub mod metrics;
 pub mod prefetch_engine;
 pub mod quota;
@@ -48,21 +45,6 @@ pub mod erasure;
 pub mod node_rebalance;
 pub mod nvme_passthrough;
 pub mod tracing_storage;
-pub mod write_path;
-pub mod read_path;
-pub mod storage_health;
-pub mod quota_enforcement;
-pub mod tier_rebalancer;
-pub mod pressure_cascade;
-pub mod cross_node_health;
-pub mod tiering_metrics;
-pub mod latency_attribution;
-pub mod resilience_coordinator;
-pub mod tier_orchestrator;
-pub mod io_coalescing;
-pub mod priority_queue_scheduler;
-pub mod numa_affinity;
-pub mod io_depth_limiter;
 
 #[cfg(feature = "uring")]
 pub mod uring_engine;
@@ -120,9 +102,6 @@ pub use wear_leveling::{
 pub use quota::{
     QuotaLimit, QuotaUsage, QuotaStatus, TenantQuota, QuotaManager, QuotaStats,
 };
-pub use io_accounting::{
-    TenantId, IoDirection, TenantIoStats, IoAccountingConfig, IoAccounting,
-};
 pub use qos_storage::{
     BandwidthTracker, IoRequest, IoType, QosDecision, QosEnforcer, QosEnforcerStats, QosPolicy,
     TokenBucket, WorkloadClass,
@@ -146,17 +125,4 @@ pub use device_health_monitor::{
 };
 pub use prefetch_engine::{
     PrefetchConfig, PrefetchEngine, PrefetchHint, PrefetchStats,
-};
-pub use block_verifier::{
-    VerificationResult, BlockToVerify, VerifierStats, VerifierConfig,
-    VerifierAlgorithm, BlockVerifier,
-};
-pub use io_coalescing::{
-    IoCoalescer, CoalescingConfig, CoalescingRequest, CoalescingOpType, CoalescedRequest,
-};
-pub use priority_queue_scheduler::{
-    PriorityQueueScheduler, SchedulerConfig, PrioritizedIoOp, IoWorkloadClass,
-};
-pub use numa_affinity::{
-    NumaAffinityMap, NumaTopology, NumaNodeId, AffinityHint,
 };
