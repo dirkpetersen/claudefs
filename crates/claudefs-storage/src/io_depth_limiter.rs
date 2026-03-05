@@ -151,13 +151,13 @@ impl IoDepthLimiter {
         true
     }
 
-    pub fn release(&self, latency_us: u64) {
+    pub async fn release(&self, latency_us: u64) {
         let current = self.pending.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
         if current == 0 {
             return;
         }
         
-        let mut latencies = self.latencies.blocking_write();
+        let mut latencies = self.latencies.write().await;
         latencies.push_back(latency_us);
         if latencies.len() > self.config.history_size {
             latencies.pop_front();
@@ -370,7 +370,7 @@ mod tests {
         let limiter = create_test_limiter();
         
         limiter.try_acquire().await;
-        limiter.release(1000);
+        limiter.release(1000).await;
         
         let stats = limiter.stats().await;
         assert_eq!(stats.avg_latency_us, 1000);
@@ -384,9 +384,10 @@ mod tests {
         
         for _ in 0..100 {
             limiter.try_acquire().await;
-            limiter.release(3000);
+            limiter.release(3000).await;
         }
         
+        tokio::time::sleep(Duration::from_millis(60)).await;
         limiter.check_and_adjust().await;
         
         assert_eq!(limiter.mode().await, HealthAdaptiveMode::Degraded);
@@ -395,12 +396,13 @@ mod tests {
     #[tokio::test]
     async fn test_mode_transition_degraded_to_critical() {
         let limiter = create_test_limiter();
-        
+
         for _ in 0..100 {
             limiter.try_acquire().await;
-            limiter.release(6000);
+            limiter.release(6000).await;
         }
         
+        tokio::time::sleep(Duration::from_millis(60)).await;
         limiter.check_and_adjust().await;
         
         assert_eq!(limiter.mode().await, HealthAdaptiveMode::Critical);
@@ -413,8 +415,9 @@ mod tests {
         
         for _ in 0..100 {
             limiter.try_acquire().await;
-            limiter.release(6000);
+            limiter.release(6000).await;
         }
+        tokio::time::sleep(Duration::from_millis(60)).await;
         limiter.check_and_adjust().await;
         assert_eq!(limiter.mode().await, HealthAdaptiveMode::Critical);
         
@@ -422,7 +425,7 @@ mod tests {
         
         for _ in 0..100 {
             limiter.try_acquire().await;
-            limiter.release(100);
+            limiter.release(100).await;
         }
         
         limiter.check_and_adjust().await;
@@ -435,11 +438,11 @@ mod tests {
         let limiter = create_test_limiter();
         
         limiter.try_acquire().await;
-        limiter.release(100);
+        limiter.release(100).await;
         limiter.try_acquire().await;
-        limiter.release(200);
+        limiter.release(200).await;
         limiter.try_acquire().await;
-        limiter.release(300);
+        limiter.release(300).await;
         
         let stats = limiter.stats().await;
         assert_eq!(stats.mode, HealthAdaptiveMode::Healthy);
@@ -459,7 +462,7 @@ mod tests {
                 for _ in 0..50 {
                     if limiter.try_acquire().await {
                         tokio::time::sleep(Duration::from_micros(10)).await;
-                        limiter.release(100);
+                        limiter.release(100).await;
                     }
                 }
             });
@@ -471,7 +474,6 @@ mod tests {
         }
         
         let stats = limiter.stats().await;
-        assert!(stats.reduction_events >= 0);
     }
 
     #[tokio::test]
@@ -492,7 +494,7 @@ mod tests {
             tokio::spawn(async move {
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 for _ in 0..3 {
-                    limiter.release(100);
+                    limiter.release(100).await;
                 }
             })
         };
@@ -568,9 +570,10 @@ mod tests {
         
         for _ in 0..100 {
             limiter.try_acquire().await;
-            limiter.release(10000);
+            limiter.release(10000).await;
         }
         
+        tokio::time::sleep(Duration::from_millis(60)).await;
         limiter.check_and_adjust().await;
         
         assert_eq!(limiter.current_limit().await, 5);
@@ -582,9 +585,10 @@ mod tests {
         
         for _ in 0..50 {
             limiter.try_acquire().await;
-            limiter.release(10000);
+            limiter.release(10000).await;
         }
         
+        tokio::time::sleep(Duration::from_millis(60)).await;
         limiter.check_and_adjust().await;
         assert_eq!(limiter.mode().await, HealthAdaptiveMode::Critical);
         
@@ -593,9 +597,9 @@ mod tests {
         
         tokio::time::sleep(Duration::from_millis(60)).await;
         
-        for _ in 0..50 {
+        for _ in 0..100 {
             limiter.try_acquire().await;
-            limiter.release(100);
+            limiter.release(100).await;
         }
         
         limiter.check_and_adjust().await;
