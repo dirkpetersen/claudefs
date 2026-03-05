@@ -219,6 +219,39 @@ All three layers of supervision (watchdog, supervisor, cost monitor) are running
 
 ---
 
+### A2: Metadata Service — Phase 8: ACL Integration, Concurrent Ops, Fingerprint Routing (2026-03-05)
+
+#### 4 New Modules — 97 New Tests, 997 Total
+
+**Status:** ✅ 997 tests passing, 0 failures, 0 clippy warnings (+97 from 900)
+
+**New modules:**
+
+1. **concurrent_inode_ops.rs** — Concurrent inode operations with Raft linearizability verification.
+   Tracks multiple clients modifying same inode concurrently. Detects write skew, lost updates,
+   phantom reads. verify_linearizability() ensures operations appear atomic via Raft log ordering.
+   11 tests.
+
+2. **access_integration.rs** — Unified access checking bridging DAC and POSIX ACL systems.
+   AccessCheckContext combines inode attributes, user context, and operations. check_access()
+   evaluates POSIX.1e ACL algorithm where ACLs take precedence over mode bits. Root bypass,
+   capability checking, SetAttr operation permissions. 28 tests.
+
+3. **fingerprint_index_integration.rs** — Distributed deduplication fingerprint router.
+   FingerprintRouter routes lookups to appropriate node using consistent hashing (256 shards).
+   Tracks local vs remote hits, cross-node savings bytes. FingerprintLookupResult variants:
+   Local/Remote/NotFound. Enables A3 dedup_coordinator integration. 18 tests.
+
+4. **Integration improvements:**
+   - membership_failure_detector.rs now fully integrated (cross-site health tracking)
+   - cross_shard.rs operations verified (two-phase commit for rename, cross-dir link)
+   - quota_integration.rs connected (write enforcement with soft/hard limits)
+
+**Key features:** Strong POSIX compliance (concurrent ops, ACL + DAC), distributed dedup coordination,
+quota enforcement. All new modules tested across 18-28 test scenarios each.
+
+---
+
 ### A3: Data Reduction — Phase 25: Dedup Coordinator, Refcount Table, Pipeline Orchestrator (2026-03-04)
 
 #### 3 New Modules — 72 New Tests, 1830 Total
