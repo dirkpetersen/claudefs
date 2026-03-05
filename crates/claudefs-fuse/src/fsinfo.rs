@@ -404,7 +404,7 @@ mod tests {
     fn stats_age_secs_reflects_elapsed() {
         let mut cache = FsInfoCache::new(FsInfoConfig::default());
         cache.update(make_stats());
-        std::thread::sleep(Duration::from_millis(100));
+        std::thread::sleep(Duration::from_millis(1100));
         let age = cache.stats().age_secs;
         assert!(age >= 1);
     }
