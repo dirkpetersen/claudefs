@@ -5,7 +5,6 @@
 //! Returns cached (potentially stale) values quickly, with background refresh.
 
 use std::time::{Duration, Instant};
-use tracing::debug;
 
 /// Aggregate filesystem statistics (returned by statfs).
 #[derive(Debug, Clone, Default)]
