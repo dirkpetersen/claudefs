@@ -227,6 +227,7 @@ pub struct BarrierManager {
     journal: FsyncJournal,
     next_barrier_id: u64,
     next_sequence: u64,
+    #[allow(dead_code)]
     fsync_mode: FsyncMode,
 }
 

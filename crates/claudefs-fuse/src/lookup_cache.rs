@@ -6,7 +6,6 @@
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use tracing::debug;
 
 /// File type for lookup entries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

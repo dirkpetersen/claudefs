@@ -52,6 +52,24 @@ hex = "0.4"
 # Analytics
 duckdb = { version = "1.0", features = ["bundled"] }
 
+# Query gateway connection pooling
+bb8 = "0.8"
+
+# JWT / Auth
+jsonwebtoken = { version = "9.2", features = ["use_pem"] }
+base64 = "0.21"
+
+# HTTP / Web
+axum-core = "0.4"
+tower-layer = "0.1"
+tower-service = "0.3"
+
+# Time/Scheduling
+tokio-util = { version = "0.7", features = ["time"] }
+
+# DashMap for caching
+dashmap = "5.5"
+
 # Metadata journal integration
 claudefs-meta = { path = "../claudefs-meta" }
 
