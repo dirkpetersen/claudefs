@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 4 Planning: Active-Active Failover & HA (2026-03-06)
+
+**Status:** 🟡 **PHASE 4 PLANNING** — Design complete, ready for implementation
+
+**Phase 4 Overview:** Active-active failover and high-availability improvements (competitive differentiator)
+
+**Baseline (Phase 3 Complete):**
+- ✅ 878 tests passing
+- ✅ 45 modules implemented
+- ✅ All production stability fixes completed
+
+**Phase 4 Modules** (Target: 280-320 new tests, 4-5 modules):
+
+1. **write_aware_quorum.rs** (22-26 tests)
+   - Quorum-based write coordination across sites
+   - Supports Majority, All, or Custom quorum types
+   - Split-brain detection and timeout handling
+   - Integration with conflict_resolver, split_brain, conduit
+
+2. **read_repair_coordinator.rs** (20-24 tests)
+   - Dynamo-style read-repair for anti-entropy
+   - Divergence detection and repair strategy decisions
+   - QuickRepair (fast) vs SlowRepair (verify) modes
+   - Integration with conflict_resolver, conduit, metrics
+
+3. **vector_clock_replication.rs** (18-22 tests)
+   - Vector clock tracking for causal consistency
+   - Clock comparison (before/after/concurrent/equal)
+   - Lamport timestamps for total ordering
+   - OrderingBuffer for operation sequencing
+
+4. **dual_site_orchestrator.rs** (24-28 tests)
+   - High-level HA orchestration for true active-active
+   - Three consistency levels: Strong, Causal, Eventual
+   - Health probing and automatic failover
+   - Asymmetric failure handling
+
+5. **dual_site_metrics.rs** (14-18 tests, optional)
+   - Monitor active-active replication health
+   - Export HA metrics (failover time, availability, latency)
+   - Track divergence and repair statistics
+
+**Key Features Enabled:**
+- ✅ Instant failover (<1s detection)
+- ✅ Causal consistency guarantee
+- ✅ Automatic read-repair anti-entropy
+- ✅ Dual-site independent writes
+- ✅ Zero data loss on failover
+
+**Design Document:** docs/replication-phase4.md
+**Implementation Prompt:** a6-phase4-input.md (ready for OpenCode)
+
+**Next Steps:**
+1. Execute OpenCode generation for Phase 4 modules
+2. Run comprehensive testing (880+ tests total)
+3. Verify clippy clean, zero warnings
+4. Commit as `[A6] Phase 4: Active-Active Failover & HA`
+5. Push to GitHub
+
+**Target Completion:** Within 2 hours of OpenCode execution
+
+---
+
 ### A2: Metadata Service — Phase 9: Session Management & Replication (2026-03-05)
 
 **Status:** ✅ **PHASE 9 COMPLETE** — 1035 tests (+38), 73 modules total
