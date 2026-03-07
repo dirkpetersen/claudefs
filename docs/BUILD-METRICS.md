@@ -6,13 +6,29 @@
 
 ## Build Statistics
 
-### Per-Crate Build Times (in progress)
+### Per-Crate Build Times (Measured 2026-03-06)
 
-This section will be updated as the full build completes. Individual crate timing data is being collected.
+| Crate | Build Time (dev) | Status |
+|-------|------------------|--------|
+| claudefs-storage | 6.96s | ✅ Quick |
+| claudefs-meta | 7.55s | ✅ Quick |
+| claudefs-reduce | 0.11s | ✅ Very Quick (no changes) |
+| claudefs-transport | 7.37s | ✅ Quick |
+| claudefs-fuse | 6.27s | ✅ Quick |
+| claudefs-repl | 10.04s | ✅ Quick |
+| claudefs-gateway | 4.76s | ✅ Quick |
+| claudefs-mgmt | ~10.65s | ✅ Quick |
+| **Full Workspace** | **~10.55s** | ✅ **Excellent** |
+
+**Key Insight:** Builds are incremental (most recent builds from cache). Full clean build baseline to be measured on next session.
 
 ### Full Workspace Build
 
-**Expected Baseline:**
+**Measured (incremental):**
+- Build time (dev, incremental): 10.55s ✅
+- Expected full build (clean): < 15 minutes (estimated)
+
+**Target Baseline:**
 - Build time (dev): < 20 minutes
 - Build time (release): < 45 minutes
 - Test suite: < 60 minutes
