@@ -58,6 +58,7 @@ pub mod mgmt_phase2_tests;
 pub mod mgmt_topology_audit_tests;
 pub mod performance_suite;
 pub mod storage_new_modules_tests;
+pub mod test_collector;
 pub mod transport_new_modules_tests;
 pub mod transport_phase2_tests;
 pub mod repl_phase2_tests;
@@ -86,3 +87,4 @@ pub use report::{AggregateReport, ReportBuilder, TestCaseResult, TestStatus, Tes
 pub use soak::{
     generate_task_sequence, FileSoakTest, SoakConfig, SoakSnapshot, SoakStats, WorkerOp, WorkerTask,
 };
+pub use test_collector::TestCollector;

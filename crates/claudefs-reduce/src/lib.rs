@@ -147,6 +147,10 @@ pub mod adaptive_classifier;
 pub mod recovery_enhancer;
 /// Detailed monitoring and metrics for Tier 2 pipeline effectiveness.
 pub mod similarity_tier_stats;
+/// Per-tenant storage quotas for multi-tenancy and cost attribution.
+pub mod multi_tenant_quotas;
+/// Machine learning-inspired intelligent tiering advisor.
+pub mod tiering_advisor;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
