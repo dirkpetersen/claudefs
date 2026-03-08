@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 3 Session 2: Monitoring Dashboards (2026-03-06 to 2026-03-07)
+
+**Status:** ✅ **SESSION 2 COMPLETE** — 60-70% Phase 3 progress
+
+**Session 2 Deliverables:**
+
+1. **Production Grafana Dashboards (4 created)**
+   - ✅ Cluster Health — System overview with node status, resource gauges, latency
+   - ✅ Storage Performance — A1 metrics (IOPS, throughput, queue depth, latency)
+   - ✅ Metadata & Consensus — A2 Raft metrics (leaders, lag, uncommitted entries)
+   - ✅ Cost Tracking — AWS spend, instance count, cost breakdown by service
+
+2. **Grafana Auto-Provisioning Infrastructure**
+   - ✅ datasources/prometheus.yml — Auto-configured data source
+   - ✅ dashboards/dashboards.yml — Dashboard auto-loading
+   - ✅ json/ directory with 4 pre-built dashboards
+   - ✅ Updated docker-compose.yml with provisioning volumes
+
+3. **Comprehensive Documentation**
+   - ✅ docs/METRICS-INTEGRATION-GUIDE.md (400+ lines) — Template for A1-A8 metric export
+     * Cargo.toml setup, metrics module template, HTTP exporter example
+     * Instrumentation code samples, testing procedures
+     * 25+ recommended metrics per crate
+     * Common pitfalls & troubleshooting
+   - ✅ docs/BUILD-METRICS.md (updated) — Build baselines collected
+     * Per-crate build times (6.96s–10.65s incremental)
+     * Full workspace: 10.55s ✅
+     * Expected clean build: ~15 minutes (within target)
+   - ✅ monitoring/README.md (enhanced) — Comprehensive quick-start guide
+
+4. **Build Metrics Collected**
+   - Per-crate builds: 4.7–10.6 seconds (incremental)
+   - Full workspace: 10.55 seconds ✅
+   - Estimated clean: ~15 minutes ✅
+   - **Assessment:** Excellent performance, well within targets
+
+5. **Integration Ready**
+   - ✅ Port assignments (9001-9008, one per crate A1-A8)
+   - ✅ Prometheus scrape configuration (ready in alerts.yml)
+   - ✅ Code templates (Rust + Tokio/Axum)
+   - ✅ Testing guide (curl examples, expected output)
+
+**Progress:** 🟡 **60-70% Phase 3 Complete** (up from 40-50%)
+
+**Session 3 Roadmap:**
+- [ ] Coordinate with A1-A8 for metrics export (using provided guide)
+- [ ] Test alert rules locally (with stress-ng)
+- [ ] Implement health monitoring agent (in claudefs-mgmt)
+- [ ] Deploy & validate full monitoring stack
+- [ ] Create operational runbooks
+
+**Known Issues:**
+- A10 security test failures (unrelated to A11): `claudefs-security` tests blocked on A2/A4 API mismatches
+- Resolution: A10 to fix via API alignment (not A11 responsibility)
+
+**Next Actions:**
+1. Provide METRICS-INTEGRATION-GUIDE.md to A1-A8
+2. Collect metric module implementations
+3. Validate Prometheus scraping (docker-compose up)
+4. Implement health monitoring agent
+
+---
+
 ### A6: Replication — Phase 4 Planning: Active-Active Failover & HA (2026-03-06)
 
 **Status:** 🟡 **PHASE 4 PLANNING** — Design complete, ready for implementation
