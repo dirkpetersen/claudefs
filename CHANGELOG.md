@@ -6,6 +6,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A8: Management — Phase 3: Comprehensive Planning & Specification (2026-03-08 to 2026-03-09)
+
+**Status:** 🟡 **PLANNING COMPLETE** — Blocked by system resource exhaustion, ready for implementation
+
+**Phase 3 Planning Deliverables:**
+
+1. **Comprehensive Requirements Document** (`a8-phase3-block1-2-input.md`, 282 lines)
+   - Block 1: query_gateway.rs (DuckDB connection pool, caching, timeouts, parameterized queries)
+     * 12 unit tests covering pool lifecycle, query execution, caching, timeouts, error handling
+   - Block 2a: parquet_schema.rs (schema definition, Arrow type mappings, validation)
+     * 6 unit tests for schema definition, Arrow conversions, validation, versioning
+   - Block 2b: web_api.rs (Axum HTTP routes for 7 analytics endpoints)
+     * 10 unit tests for route registration, endpoint responses, error handling
+
+2. **Minimal Execution Spec** (`a8-query-gateway-only.md`, 50 lines)
+   - Focused specification for fastest OpenCode execution
+   - Same functionality, condensed requirements
+   - Fallback if system resources remain tight
+
+3. **Complete 5-Block Architecture Design**
+   - Block 1: Query Gateway — DuckDB async queries with caching (12 tests)
+   - Block 2: Web API + Schema — Axum routes + Parquet schema (16 tests)
+   - Block 3: Web Auth — OIDC integration + RBAC enforcement (6-8 tests)
+   - Block 4: CLI Tools + Dashboards — 6 shortcuts + 3-5 Grafana templates (12-16 tests)
+   - Block 5: Integration Tests — E2E workflows (4-6 tests)
+
+4. **Blocker Documentation** (`A8-PHASE3-SESSION3-BLOCKER.md`)
+   - System resource exhaustion: 14/15 GB used (93%)
+   - OpenCode blocked: A7's NFSv4 module uses 260GB+ RSS
+   - Recovery steps documented for supervisor
+
+**Phase 3 Target:** 1100+ total tests (Phase 2 baseline: 965, Phase 3: +30-40 new tests)
+
+**Architecture Highlights:**
+
+- **Query Gateway:** Persistent DuckDB connection with 10-min TTL query cache, result streaming, timeout enforcement
+- **Web API:** 7 RESTful analytics endpoints (top-users, top-dirs, stale-files, file-types, reduction-report, cluster-health, custom-query)
+- **Auth:** OIDC provider discovery, JWT validation, RBAC roles (admin, operator, viewer, tenant_admin)
+- **CLI:** 6 shortcuts for management operations (top-users, top-dirs, find, stale, reduction-report, cluster status)
+- **Dashboards:** Grafana templates for cluster health, storage, metadata, cost tracking
+
+**Implementation Status:**
+
+- ✅ Phase 2 baseline: 965 tests passing
+- ✅ All requirements specified and ready
+- 🔴 Blocked: System resource exhaustion (OpenCode hanging)
+- ⏳ Ready: When 4+ GB free memory available
+
+**Estimated Unblock & Completion:**
+- OpenCode minimal spec execution: 20-30 minutes
+- Code integration and testing: 40-60 minutes
+- Full Phase 3 completion: 4-5 hours
+- Fallback: Use Claude Sonnet if OpenCode unavailable >2 hours
+
+**Files Committed:**
+- `a8-phase3-block1-2-input.md` — 282 lines comprehensive requirements
+- `a8-query-gateway-only.md` — 50 lines minimal spec
+- `A8-PHASE3-SESSION3-BLOCKER.md` — 115 lines blocker documentation
+
+---
+
 ### A1: Storage Engine — Phase 10: Command Batching & Timeout Management (2026-03-09)
 
 **Status:** ✅ **PHASE 10 COMPLETE** — 1301+ tests passing, 4 new modules, all integration points verified
