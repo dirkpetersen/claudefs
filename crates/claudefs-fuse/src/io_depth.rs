@@ -5,6 +5,13 @@
 
 use std::collections::HashMap;
 
+/// Error type for I/O depth management.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IoDepthError {
+    /// I/O submission queue depth limit exceeded.
+    Throttled,
+}
+
 /// Configuration for I/O queue depth management.
 #[derive(Debug, Clone)]
 pub struct IoDepthConfig {
@@ -65,14 +72,14 @@ impl IoDepthManager {
 
     /// Attempts to submit a new I/O for the given inode.
     ///
-    /// Returns `Ok(())` if within limits, `Err(())` if throttled.
-    pub fn try_submit(&mut self, inode: u64) -> Result<(), ()> {
+    /// Returns `Ok(())` if within limits, `Err(IoDepthError::Throttled)` if throttled.
+    pub fn try_submit(&mut self, inode: u64) -> Result<(), IoDepthError> {
         let inode_inflight = self.per_inode_inflight.get(&inode).copied().unwrap_or(0);
         if self.global_inflight >= self.config.global_max
             || inode_inflight >= self.config.per_inode_max
         {
             self.stats.throttle_count += 1;
-            return Err(());
+            return Err(IoDepthError::Throttled);
         }
         self.global_inflight += 1;
         *self.per_inode_inflight.entry(inode).or_insert(0) += 1;
