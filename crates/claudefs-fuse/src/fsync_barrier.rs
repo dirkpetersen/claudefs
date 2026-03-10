@@ -2,7 +2,7 @@ use crate::{FuseError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Instant, SystemTime};
 use thiserror::Error;
 use tracing::{debug, trace, warn};
 

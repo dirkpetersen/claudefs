@@ -205,7 +205,7 @@ impl RangeLockManager {
 
     /// Attempts to acquire a lock on the given inode.
     pub fn try_lock(&mut self, inode: u64, lock: ByteRangeLock) -> Result<(), LockConflict> {
-        let table = self.tables.entry(inode).or_insert_with(RangeLockTable::new);
+        let table = self.tables.entry(inode).or_default();
         table.try_lock(lock)
     }
 
