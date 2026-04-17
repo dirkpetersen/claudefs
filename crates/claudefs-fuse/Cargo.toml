@@ -21,6 +21,7 @@ tracing-subscriber.workspace = true
 fuser = "0.15"
 libc = "0.2"
 lru = "0.12"
+dashmap.workspace = true
 
 [lib]
 name = "claudefs_fuse"

@@ -789,6 +789,7 @@ name = "claudefs-fuse"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dashmap 6.1.0",
  "fuser",
  "libc",
  "lru 0.12.5",

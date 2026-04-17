@@ -118,4 +118,14 @@ pub mod writeback_cache;
 pub mod writebuf;
 /// Extended attributes (xattrs), set/get/list/remove operations.
 pub mod xattr;
+/// OpenTelemetry tracing integration for distributed tracing.
+pub mod otel_tracing_integration;
+/// QoS client bridge for tenant-based bandwidth and IOPS throttling.
+pub mod qos_client_bridge;
+/// WORM enforcement for compliance, legal holds, and retention.
+pub mod worm_enforcement;
+/// Client-side quota tracking and pre-check enforcement.
+pub mod quota_client_tracker;
+/// Distributed session management across FUSE mounts.
+pub mod distributed_session_manager;
 pub use error::{FuseError, Result};
