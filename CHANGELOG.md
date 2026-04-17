@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 31: Operational Hardening & Cluster Testing (2026-04-17 Session 7 - Planning)
+
+**Status:** 🟡 **PHASE 31 PLANNING COMPLETE** — Ready for implementation
+
+**Summary - Comprehensive Operational Hardening Plan:**
+- ✅ Phase 30 completion verified: 2132 tests passing (2071 unit + 61 integration)
+- ✅ Phase 31 specification created: 6 test blocks, 130 total operational tests
+- ✅ Detailed specifications for cluster simulation, chaos engineering, performance, multi-tenant operations
+- ✅ Implementation strategy defined: 4-session plan with OpenCode execution
+
+**6 Test Blocks Planned (130 tests):**
+- Block 1: Cluster Dedup Consistency (25 tests) — Multi-node coordination, shard distribution, failure recovery
+- Block 2: Tier Migration & S3 Consistency (24 tests) — Hot-to-cold tiering, S3 failures, network delays
+- Block 3: Chaos & Failure Modes (30 tests) — Node crashes, disk corruption, network partitions, quota exhaustion
+- Block 4: Performance & Scalability (25 tests) — Throughput, latency percentiles, cache efficiency, multi-node scaling
+- Block 5: Multi-Tenant & Multi-Site Operations (26 tests) — Quota isolation, cross-site replication, LWW resolution
+- Block 6: Soak & Production Simulation (25 tests) — 24hr sustained load, memory/CPU stability, production workloads
+
+**Test Infrastructure:**
+- Single-machine cluster simulation (multi-node via simulated delays)
+- Chaos injection framework: mock S3, controlled failures, network delays
+- Multi-tenant simulation with separate quota contexts
+- Multi-site simulation with controlled replication lag
+- Deterministic testing (logical event ordering, no wall-clock timing)
+
+**Timeline & Implementation:**
+- Session 2: Blocks 1-2 + chaos framework (49 tests + utils)
+- Session 3: Blocks 3-4 (55 tests)
+- Session 4: Blocks 5-6 + validation (26 tests + tuning)
+- Session 5: Final validation, commit, CHANGELOG update
+
+**Expected Results:**
+- Phase 31 target: +130 tests → 2250-2280 total (from 2132 baseline)
+- Memory leak detection in 24hr soak tests
+- Deadlock detection under concurrent operations
+- Crash recovery RTO < 30 seconds
+- Multi-node consistency verified under all failure modes
+- Performance regressions detected vs Phase 30 baselines
+
+**Files Created:**
+- `docs/A3-PHASE31-PLAN.md` (430 lines - comprehensive specification)
+
+**Commit:** 705106f
+
+---
+
 ### A4: Transport — Phase 13: Prometheus Metrics Exporter (2026-04-17 Session 1)
 
 **Status:** ✅ **COMPLETE** — Ready for A11 Phase 4 Block 2 integration
