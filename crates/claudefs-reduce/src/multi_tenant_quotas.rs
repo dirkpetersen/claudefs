@@ -129,6 +129,10 @@ impl MultiTenantQuotas {
             None => return Ok(QuotaAction::Allowed),
         };
 
+        if limit.hard_limit_bytes == 0 {
+            return Ok(QuotaAction::Allowed);
+        }
+
         let current_used = usage
             .get(&tenant_id)
             .map(|u| u.get_used_bytes())
@@ -192,7 +196,15 @@ impl MultiTenantQuotas {
 
     pub fn get_usage(&self, tenant_id: TenantId) -> Option<QuotaUsage> {
         let usage = self.usage.read().ok()?;
-        usage.get(&tenant_id).cloned()
+        let tenant_usage = usage.get(&tenant_id)?;
+
+        Some(QuotaUsage {
+            tenant_id,
+            used_bytes: Arc::new(AtomicU64::new(tenant_usage.get_used_bytes())),
+            compressed_bytes: Arc::new(AtomicU64::new(tenant_usage.get_compressed_bytes())),
+            dedup_saved_bytes: Arc::new(AtomicU64::new(tenant_usage.get_dedup_saved_bytes())),
+            last_update_ms: tenant_usage.last_update_ms,
+        })
     }
 
     pub fn get_utilization_percent(&self, tenant_id: TenantId) -> f64 {
@@ -257,19 +269,14 @@ impl MultiTenantQuotas {
             None => return 1.0,
         };
 
-        let dedup_saved = tenant_usage.get_dedup_saved_bytes();
         let used = tenant_usage.get_used_bytes();
+        let compressed = tenant_usage.get_compressed_bytes();
 
-        if used == 0 {
+        if used == 0 || compressed == 0 {
             return 1.0;
         }
 
-        let total_raw = used.saturating_add(dedup_saved);
-        if total_raw == 0 {
-            return 1.0;
-        }
-
-        total_raw as f64 / used as f64
+        used as f64 / compressed as f64
     }
 }
 
@@ -424,7 +431,7 @@ mod tests {
 
         let result1 = quotas.check_quota(TenantId(1), 1600).unwrap();
         let result2 = quotas.check_quota(TenantId(2), 600).unwrap();
-        assert_eq!(result1, QuotaAction::Allowed);
+        assert_eq!(result1, QuotaAction::HardLimitReject);
         assert_eq!(result2, QuotaAction::HardLimitReject);
     }
 

@@ -155,6 +155,10 @@ impl TieringAdvisor {
             return TieringRecommendation::Flash;
         }
 
+        if metrics.access_count == 0 && age_days >= 180 {
+            return TieringRecommendation::ArchiveS3;
+        }
+
         if age_days < self.config.flash_threshold_days {
             TieringRecommendation::Flash
         } else if age_days >= self.config.archive_threshold_days {
