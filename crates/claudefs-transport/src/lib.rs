@@ -239,6 +239,9 @@ pub use transport_pooling::{
     ConnectionPoolManager,
 };
 
+pub mod prometheus_exporter;
+pub use prometheus_exporter::PrometheusTransportMetrics;
+
 pub mod pipelined_requests;
 pub use pipelined_requests::{
     RequestId, StreamId, RequestState, PipelinedRequest, PipelinedResponse, PipelineConfig,
