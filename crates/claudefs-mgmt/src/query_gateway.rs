@@ -26,9 +26,9 @@ pub struct QueryResult {
     pub execution_time_ms: u64,
 }
 
+#[derive(Debug)]
 pub struct QueryGateway {
     index_dir: PathBuf,
-    connection: Arc<RwLock<Option<duckdb::Connection>>>,
     cache: Arc<DashMap<String, (QueryResult, Instant)>>,
     timeout: Duration,
     cache_ttl: Duration,
@@ -38,7 +38,6 @@ impl QueryGateway {
     pub fn new(index_dir: PathBuf) -> Self {
         Self {
             index_dir,
-            connection: Arc::new(RwLock::new(None)),
             cache: Arc::new(DashMap::new()),
             timeout: Duration::from_secs(30),
             cache_ttl: Duration::from_secs(600),
@@ -46,11 +45,6 @@ impl QueryGateway {
     }
 
     async fn get_connection(&self) -> Result<duckdb::Connection, QueryError> {
-        let mut guard = self.connection.write().await;
-        if let Some(conn) = guard.as_ref() {
-            return Ok(conn.clone());
-        }
-
         let conn = duckdb::Connection::open_in_memory()
             .map_err(|e| QueryError::DuckDbError(e.to_string()))?;
 
@@ -70,7 +64,6 @@ impl QueryGateway {
             }
         }
 
-        *guard = Some(conn.clone());
         Ok(conn)
     }
 
@@ -106,7 +99,8 @@ impl QueryGateway {
         }
 
         let cache_key = format!("{}:{:?}", query, params);
-        if let Some((result, cached_at)) = self.cache.get(&cache_key) {
+        if let Some(entry) = self.cache.get(&cache_key) {
+            let (result, cached_at) = entry.value();
             if cached_at.elapsed() < self.cache_ttl {
                 return Ok(result.clone());
             }
@@ -116,7 +110,8 @@ impl QueryGateway {
         let query_owned = query.to_string();
         let params_owned = params;
 
-        let result = tokio::time::timeout(
+        let start = std::time::Instant::now();
+        let query_result = match tokio::time::timeout(
             timeout,
             tokio::task::spawn_blocking(move || {
                 let conn = duckdb::Connection::open_in_memory()
@@ -130,6 +125,8 @@ impl QueryGateway {
                 let mut stmt = conn.prepare(&query_owned)
                     .map_err(|e| QueryError::DuckDbError(e.to_string()))?;
 
+                let columns: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+
                 let param_refs: Vec<&dyn duckdb::ToSql> = params_owned
                     .iter()
                     .map(|s| s as &dyn duckdb::ToSql)
@@ -137,8 +134,6 @@ impl QueryGateway {
 
                 let mut rows = stmt.query(param_refs.as_slice())
                     .map_err(|e| QueryError::DuckDbError(e.to_string()))?;
-
-                let columns: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
                 let mut result_rows = Vec::new();
 
                 while let Some(row) = rows.next()
@@ -146,13 +141,22 @@ impl QueryGateway {
                     let mut row_values = Vec::new();
                     for i in 0..columns.len() {
                         let value: serde_json::Value = match row.get_ref(i) {
-                            Ok(duckdb::ValueRef::Null) => serde_json::Value::Null,
-                            Ok(duckdb::ValueRef::Integer(i)) => serde_json::json!(i),
-                            Ok(duckdb::ValueRef::Double(d)) => serde_json::json!(d),
-                            Ok(duckdb::ValueRef::Text(s)) => {
+                            Ok(duckdb::types::ValueRef::Null) => serde_json::Value::Null,
+                            Ok(duckdb::types::ValueRef::SmallInt(i)) => serde_json::json!(i),
+                            Ok(duckdb::types::ValueRef::Int(i)) => serde_json::json!(i),
+                            Ok(duckdb::types::ValueRef::BigInt(i)) => serde_json::json!(i),
+                            Ok(duckdb::types::ValueRef::Float(d)) => serde_json::json!(d),
+                            Ok(duckdb::types::ValueRef::Double(d)) => serde_json::json!(d),
+                            Ok(duckdb::types::ValueRef::Text(s)) => {
                                 serde_json::Value::String(String::from_utf8_lossy(s).to_string())
                             }
-                            Ok(duckdb::ValueRef::Boolean(b)) => serde_json::json!(b),
+                            Ok(duckdb::types::ValueRef::Boolean(b)) => serde_json::json!(b),
+                            Ok(duckdb::types::ValueRef::USmallInt(i)) => serde_json::json!(i),
+                            Ok(duckdb::types::ValueRef::UInt(i)) => serde_json::json!(i),
+                            Ok(duckdb::types::ValueRef::UBigInt(i)) => serde_json::json!(i),
+                            Ok(duckdb::types::ValueRef::Blob(b)) => {
+                                serde_json::Value::String(format!("[blob {} bytes]", b.len()))
+                            }
                             _ => serde_json::Value::Null,
                         };
                         row_values.push(value);
@@ -167,14 +171,20 @@ impl QueryGateway {
                     execution_time_ms: 0,
                 })
             })
-        ).await
-        .map_err(|_| QueryError::Timeout)??;
+        ).await {
+            Ok(Ok(Ok(result))) => result,
+            Ok(Ok(Err(e))) => return Err(e),
+            Ok(Err(_)) => return Err(QueryError::DuckDbError("Task execution failed".to_string())),
+            Err(_) => return Err(QueryError::Timeout),
+        };
 
-        if result.execution_time_ms == 0 {
-            self.cache.insert(cache_key, (result.clone(), Instant::now()));
-        }
+        let execution_time = start.elapsed().as_millis() as u64;
+        let mut query_result = query_result;
+        query_result.execution_time_ms = execution_time;
 
-        Ok(result)
+        self.cache.insert(cache_key, (query_result.clone(), Instant::now()));
+
+        Ok(query_result)
     }
 
     pub fn set_timeout(&mut self, duration: Duration) {

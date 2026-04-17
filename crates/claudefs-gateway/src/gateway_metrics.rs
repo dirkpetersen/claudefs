@@ -392,63 +392,140 @@ impl GatewayMetrics {
 
     /// Export metrics as a simple text format (Prometheus-like)
     pub fn export_text(&self) -> String {
-        let mut lines = Vec::new();
+        self.render_prometheus()
+    }
 
-        // Operation metrics
+    /// Render metrics in proper Prometheus text exposition format.
+    pub fn render_prometheus(&self) -> String {
+        let mut output = String::new();
+
         for ((protocol, op), metrics) in &self.ops {
-            lines.push(format!(
-                "gateway_requests_total{{protocol=\"{}\",op=\"{}\"}} {}",
+            output.push_str(&format!(
+                "# HELP claudefs_gateway_requests_total Total number of {} {} requests\n",
+                protocol, op
+            ));
+            output.push_str("# TYPE claudefs_gateway_requests_total counter\n");
+            output.push_str(&format!(
+                "claudefs_gateway_requests_total{{protocol=\"{}\",op=\"{}\"}} {}\n",
                 protocol, op, metrics.total_requests
             ));
-            lines.push(format!(
-                "gateway_requests_success_total{{protocol=\"{}\",op=\"{}\"}} {}",
+
+            output.push_str(&format!(
+                "# HELP claudefs_gateway_requests_success_total Total number of successful {} {} requests\n",
+                protocol, op
+            ));
+            output.push_str("# TYPE claudefs_gateway_requests_success_total counter\n");
+            output.push_str(&format!(
+                "claudefs_gateway_requests_success_total{{protocol=\"{}\",op=\"{}\"}} {}\n",
                 protocol, op, metrics.success_count
             ));
-            lines.push(format!(
-                "gateway_requests_error_total{{protocol=\"{}\",op=\"{}\"}} {}",
+
+            output.push_str(&format!(
+                "# HELP claudefs_gateway_requests_error_total Total number of failed {} {} requests\n",
+                protocol, op
+            ));
+            output.push_str("# TYPE claudefs_gateway_requests_error_total counter\n");
+            output.push_str(&format!(
+                "claudefs_gateway_requests_error_total{{protocol=\"{}\",op=\"{}\"}} {}\n",
                 protocol, op, metrics.error_count
             ));
-            lines.push(format!(
-                "gateway_bytes_read_total{{protocol=\"{}\",op=\"{}\"}} {}",
+
+            output.push_str(&format!(
+                "# HELP claudefs_gateway_bytes_read_total Total bytes read via {} {} protocol\n",
+                protocol, op
+            ));
+            output.push_str("# TYPE claudefs_gateway_bytes_read_total counter\n");
+            output.push_str(&format!(
+                "claudefs_gateway_bytes_read_total{{protocol=\"{}\",op=\"{}\"}} {}\n",
                 protocol, op, metrics.bytes_read
             ));
-            lines.push(format!(
-                "gateway_bytes_written_total{{protocol=\"{}\",op=\"{}\"}} {}",
+
+            output.push_str(&format!(
+                "# HELP claudefs_gateway_bytes_written_total Total bytes written via {} {} protocol\n",
+                protocol, op
+            ));
+            output.push_str("# TYPE claudefs_gateway_bytes_written_total counter\n");
+            output.push_str(&format!(
+                "claudefs_gateway_bytes_written_total{{protocol=\"{}\",op=\"{}\"}} {}\n",
                 protocol, op, metrics.bytes_written
             ));
-            lines.push(format!(
-                "gateway_latency_mean_us{{protocol=\"{}\",op=\"{}\"}} {}",
+
+            output.push_str(&format!(
+                "# HELP claudefs_gateway_latency_mean_us Mean latency for {} {} operations in microseconds\n",
+                protocol, op
+            ));
+            output.push_str("# TYPE claudefs_gateway_latency_mean_us gauge\n");
+            output.push_str(&format!(
+                "claudefs_gateway_latency_mean_us{{protocol=\"{}\",op=\"{}\"}} {}\n",
                 protocol,
                 op,
                 metrics.latency.mean_us()
             ));
-            lines.push(format!(
-                "gateway_latency_p99_us{{protocol=\"{}\",op=\"{}\"}} {}",
+
+            output.push_str(&format!(
+                "# HELP claudefs_gateway_latency_p99_us P99 latency for {} {} operations in microseconds\n",
+                protocol, op
+            ));
+            output.push_str("# TYPE claudefs_gateway_latency_p99_us gauge\n");
+            output.push_str(&format!(
+                "claudefs_gateway_latency_p99_us{{protocol=\"{}\",op=\"{}\"}} {}\n",
                 protocol,
                 op,
                 metrics.latency.p99_us()
             ));
         }
 
-        // Aggregate metrics
-        lines.push(format!("gateway_requests_total {}", self.total_requests()));
-        lines.push(format!("gateway_errors_total {}", self.total_errors()));
-        lines.push(format!("gateway_error_rate {}", self.overall_error_rate()));
-        lines.push(format!("gateway_uptime_seconds {}", self.uptime_secs()));
-        lines.push(format!(
-            "gateway_backend_errors_total {}",
+        output.push_str(
+            "# HELP claudefs_gateway_requests_total Total requests across all protocols\n",
+        );
+        output.push_str("# TYPE claudefs_gateway_requests_total counter\n");
+        output.push_str(&format!(
+            "claudefs_gateway_requests_total {}\n",
+            self.total_requests()
+        ));
+
+        output.push_str("# HELP claudefs_gateway_errors_total Total errors across all protocols\n");
+        output.push_str("# TYPE claudefs_gateway_errors_total counter\n");
+        output.push_str(&format!(
+            "claudefs_gateway_errors_total {}\n",
+            self.total_errors()
+        ));
+
+        output.push_str(
+            "# HELP claudefs_gateway_error_rate Overall error rate across all protocols\n",
+        );
+        output.push_str("# TYPE claudefs_gateway_error_rate gauge\n");
+        output.push_str(&format!(
+            "claudefs_gateway_error_rate {}\n",
+            self.overall_error_rate()
+        ));
+
+        output.push_str("# HELP claudefs_gateway_uptime_seconds Gateway uptime in seconds\n");
+        output.push_str("# TYPE claudefs_gateway_uptime_seconds gauge\n");
+        output.push_str(&format!(
+            "claudefs_gateway_uptime_seconds {}\n",
+            self.uptime_secs()
+        ));
+
+        output.push_str("# HELP claudefs_gateway_backend_errors_total Total backend errors\n");
+        output.push_str("# TYPE claudefs_gateway_backend_errors_total counter\n");
+        output.push_str(&format!(
+            "claudefs_gateway_backend_errors_total {}\n",
             self.backend_errors_total
         ));
 
-        // Active connections
         for (protocol, count) in &self.active_connections {
-            lines.push(format!(
-                "gateway_active_connections{{protocol=\"{}\"}} {}",
+            output.push_str(
+                "# HELP claudefs_gateway_active_connections Active connections per protocol\n",
+            );
+            output.push_str("# TYPE claudefs_gateway_active_connections gauge\n");
+            output.push_str(&format!(
+                "claudefs_gateway_active_connections{{protocol=\"{}\"}} {}\n",
                 protocol, count
             ));
         }
 
-        lines.join("\n")
+        output
     }
 
     /// Reset all metrics (for testing)

@@ -337,6 +337,142 @@ impl StorageMetrics {
         (self.cache_hits as f64) / (total as f64)
     }
 
+    /// Export metrics in Prometheus text exposition format.
+    pub fn render_prometheus(&self) -> String {
+        let mut output = String::new();
+
+        for (op_type, count) in &self.io_ops_total {
+            output
+                .push_str("# HELP claudefs_storage_io_ops_total Total number of I/O operations\n");
+            output.push_str("# TYPE claudefs_storage_io_ops_total counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_io_ops_total{{op=\"{}\"}} {}\n",
+                op_type, count
+            ));
+        }
+
+        for (op_type, bytes) in &self.io_bytes_total {
+            output.push_str("# HELP claudefs_storage_io_bytes_total Total number of I/O bytes\n");
+            output.push_str("# TYPE claudefs_storage_io_bytes_total counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_io_bytes_total{{op=\"{}\"}} {}\n",
+                op_type, bytes
+            ));
+        }
+
+        if self.io_errors_total > 0 {
+            output.push_str("# HELP claudefs_storage_io_errors_total Total number of I/O errors\n");
+            output.push_str("# TYPE claudefs_storage_io_errors_total counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_io_errors_total {}\n",
+                self.io_errors_total
+            ));
+        }
+
+        if self.blocks_allocated > 0 {
+            output.push_str(
+                "# HELP claudefs_storage_blocks_allocated Total number of blocks allocated\n",
+            );
+            output.push_str("# TYPE claudefs_storage_blocks_allocated counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_blocks_allocated {}\n",
+                self.blocks_allocated
+            ));
+        }
+
+        if self.blocks_freed > 0 {
+            output.push_str("# HELP claudefs_storage_blocks_freed Total number of blocks freed\n");
+            output.push_str("# TYPE claudefs_storage_blocks_freed counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_blocks_freed {}\n",
+                self.blocks_freed
+            ));
+        }
+
+        if self.capacity_total_bytes > 0 {
+            output.push_str("# HELP claudefs_storage_capacity_used_bytes Used capacity in bytes\n");
+            output.push_str("# TYPE claudefs_storage_capacity_used_bytes gauge\n");
+            output.push_str(&format!(
+                "claudefs_storage_capacity_used_bytes {}\n",
+                self.capacity_used_bytes
+            ));
+
+            output
+                .push_str("# HELP claudefs_storage_capacity_total_bytes Total capacity in bytes\n");
+            output.push_str("# TYPE claudefs_storage_capacity_total_bytes gauge\n");
+            output.push_str(&format!(
+                "claudefs_storage_capacity_total_bytes {}\n",
+                self.capacity_total_bytes
+            ));
+        }
+
+        if self.cache_hits > 0 || self.cache_misses > 0 {
+            output
+                .push_str("# HELP claudefs_storage_cache_hits_total Total number of cache hits\n");
+            output.push_str("# TYPE claudefs_storage_cache_hits_total counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_cache_hits_total {}\n",
+                self.cache_hits
+            ));
+
+            output.push_str(
+                "# HELP claudefs_storage_cache_misses_total Total number of cache misses\n",
+            );
+            output.push_str("# TYPE claudefs_storage_cache_misses_total counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_cache_misses_total {}\n",
+                self.cache_misses
+            ));
+
+            output.push_str("# HELP claudefs_storage_cache_hit_ratio Cache hit ratio\n");
+            output.push_str("# TYPE claudefs_storage_cache_hit_ratio gauge\n");
+            output.push_str(&format!(
+                "claudefs_storage_cache_hit_ratio {}\n",
+                self.cache_hit_rate()
+            ));
+        }
+
+        if self.journal_entries > 0 {
+            output.push_str(
+                "# HELP claudefs_storage_journal_entries_total Total number of journal entries\n",
+            );
+            output.push_str("# TYPE claudefs_storage_journal_entries_total counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_journal_entries_total {}\n",
+                self.journal_entries
+            ));
+        }
+
+        if self.journal_commits > 0 {
+            output.push_str(
+                "# HELP claudefs_storage_journal_commits_total Total number of journal commits\n",
+            );
+            output.push_str("# TYPE claudefs_storage_journal_commits_total counter\n");
+            output.push_str(&format!(
+                "claudefs_storage_journal_commits_total {}\n",
+                self.journal_commits
+            ));
+        }
+
+        if !self.io_latency_us.is_empty() {
+            let avg = self.avg_latency_us();
+            output.push_str(
+                "# HELP claudefs_storage_io_latency_avg_us Average I/O latency in microseconds\n",
+            );
+            output.push_str("# TYPE claudefs_storage_io_latency_avg_us gauge\n");
+            output.push_str(&format!("claudefs_storage_io_latency_avg_us {}\n", avg));
+
+            let p99 = self.p99_latency_us();
+            output.push_str(
+                "# HELP claudefs_storage_io_latency_p99_us P99 I/O latency in microseconds\n",
+            );
+            output.push_str("# TYPE claudefs_storage_io_latency_p99_us gauge\n");
+            output.push_str(&format!("claudefs_storage_io_latency_p99_us {}\n", p99));
+        }
+
+        output
+    }
+
     /// Reset all counters (for testing).
     pub fn reset(&mut self) {
         self.io_ops_total.clear();
