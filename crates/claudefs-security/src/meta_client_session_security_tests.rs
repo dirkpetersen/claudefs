@@ -757,7 +757,7 @@ mod tests {
             // Use the public get_metrics API to verify sessions exist
             let metrics = manager.get_metrics();
 
-            assert!(metrics.total_sessions > 0, "Should have sessions");
+            assert!(metrics.total_sessions_created > 0, "Should have sessions");
             assert!(metrics.active_sessions > 0, "Should have active sessions");
         }
 
@@ -789,7 +789,7 @@ mod tests {
             // Get metrics to verify session count
             let metrics = manager.get_metrics();
 
-            assert!(metrics.total_sessions > 0, "Sessions should be created");
+            assert!(metrics.total_sessions_created > 0, "Sessions should be created");
             // Note: We can't directly iterate sessions without private field access.
             // The SessionManager's metrics provide session count verification.
             // For detailed session listing, the public API would need to expose

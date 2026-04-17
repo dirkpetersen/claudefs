@@ -133,8 +133,7 @@ mod tests {
 
             let before = bucket.tokens.load(std::sync::atomic::Ordering::Relaxed);
 
-            #[cfg(test)]
-            bucket.refill_at_ns(before + 500_000_000);
+            bucket.reset();
 
             let after = bucket.tokens.load(std::sync::atomic::Ordering::Relaxed);
 
@@ -399,7 +398,7 @@ mod tests {
             let stats1 = shaper.stats(BandwidthId(1)).unwrap();
             let stats2 = shaper.stats(BandwidthId(2)).unwrap();
 
-            assert!(stats1.is_some() && stats2.is_some(),
+            assert!(stats1.allocated_bytes_per_sec > 0 && stats2.allocated_bytes_per_sec > 0,
                 "Both allocations should exist independently");
         }
 
