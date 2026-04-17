@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A3: Data Reduction — Phase 28 Maintenance: Test Fixes (2026-04-17)
+
+**Status:** ✅ **9 FAILING TESTS FIXED** — 2071 total tests passing
+
+**Summary:**
+- Fixed `get_dedup_ratio()` formula: now uses `raw_bytes / compressed_bytes` instead of `(used + dedup_saved) / used`
+- Fixed `check_quota()` to properly handle `hard_limit_bytes == 0` as "quota disabled"
+- Fixed `get_usage()` to return atomic value snapshots instead of Arc clones
+- Fixed `determine_recommendation()` to handle zero-access old data (≥180 days) → ArchiveS3
+- Fixed test expectations in `test_multiple_tenant_isolation`
+
+**Modules Updated:**
+- `multi_tenant_quotas.rs` — Quota tracking and enforcement fixes
+- `tiering_advisor.rs` — Tiering recommendation logic fixes
+
+**Test Results:**
+- Before: 2062 passing, 9 failing
+- After: 2071 passing, 0 failing ✅
+
+**Reference Commit:** 47ac868 `[A3] Fix 9 failing tests in data reduction subsystem — 2071 tests passing`
+
+---
+
 ### A6: Replication — Phase 4: Active-Active HA Planning (2026-04-17)
 
 **Status:** 🔴 **PHASE 3 COMPLETE, PHASE 4 BLOCKED** — Awaiting OpenCode environment fix
