@@ -59,6 +59,7 @@ pub mod mgmt_topology_audit_tests;
 pub mod performance_suite;
 pub mod storage_new_modules_tests;
 pub mod test_collector;
+pub mod flaky_tracker;
 pub mod transport_new_modules_tests;
 pub mod transport_phase2_tests;
 pub mod repl_phase2_tests;
