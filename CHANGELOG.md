@@ -6,6 +6,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A4: Transport — Phase 13: Prometheus Metrics Exporter (2026-04-17 Session 1)
+
+**Status:** ✅ **COMPLETE** — Ready for A11 Phase 4 Block 2 integration
+
+**Summary - Prometheus Metrics Export:**
+- ✅ Implemented PrometheusTransportMetrics struct (525 lines)
+- ✅ Added prometheus 0.13 crate dependency
+- ✅ Exports 23+ transport metrics in Prometheus text format
+- ✅ All 13 unit tests passing
+- ✅ Thread-safe concurrent metric updates with atomic reads
+- ✅ Integrates with A11 Phase 4 Block 2: Metrics Integration roadmap
+
+**Metrics Exported (23 total):**
+- **Counters:** requests_sent, requests_received, responses_sent, responses_received
+- **Gauges:** active_connections, bytes_sent_total, bytes_received_total, backpressure_level
+- **Error Tracking:** errors_total, retries_total, timeouts_total, health_checks_failed_total
+- **Connection Pool (Optional):** pool_connections_idle, pool_connections_active, pool_connections_total
+- **Backpressure (Optional):** backpressure_signals_emitted_total, backpressure_level (enum as 0-3)
+- **Trace Aggregation (Optional):** trace_aggregator_traces_recorded_total, trace_aggregator_active_traces
+- **QoS Shaping (Optional):** qos_requests_admitted_total, qos_requests_rejected_total per workload class
+
+**Design Highlights:**
+- Builder pattern with optional metric subsystems (trace, pool, backpressure, QoS)
+- Thread-safe (only atomic reads during scrape, no locks)
+- Standard Prometheus text format (HELP, TYPE, value lines)
+- Per-workload-class labels for QoS metrics
+- Backpressure level encoded as numeric (0=Ok, 1=Slow, 2=Degraded, 3=Overloaded)
+
+**Files Created/Modified:**
+- `crates/claudefs-transport/src/prometheus_exporter.rs` (525 lines) — NEW
+- `crates/claudefs-transport/Cargo.toml` — add prometheus dependency
+- `crates/claudefs-transport/src/lib.rs` — export PrometheusTransportMetrics
+
+**Testing:**
+- test_prometheus_transport_metrics_creation ✅
+- test_scrape_output_format ✅
+- test_scrape_contains_all_expected_metrics ✅
+- test_metrics_values_correct ✅
+- test_backpressure_level_numeric ✅
+- test_backpressure_stats_export ✅
+- test_pool_stats_export ✅
+- test_qos_stats_export ✅
+- test_trace_stats_export ✅
+- test_empty_optional_stats ✅
+- test_concurrent_metric_updates ✅
+- test_backpressure_level_export ✅
+- test_display_trait ✅
+
+**Next Steps:**
+- A4 ready for integration testing with management API `/metrics` endpoint
+- A11 Phase 4 Block 2 can now consume transport metrics from A4
+- Coordinate with A1-A3, A5-A8 for unified metrics dashboard
+
+**Commit:** bba409f
+
+---
+
 ### A11: Infrastructure & CI — Phase 4 Block 2: Metrics Integration (2026-04-17 Session 5 - In Progress)
 
 **Status:** 🔵 **BLOCK 2 IN PROGRESS** — OpenCode actively implementing
