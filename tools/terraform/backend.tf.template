@@ -1,0 +1,35 @@
+# Terraform Backend Configuration Template
+# Copy this to backend.tf and fill in your account details
+# Or use environment-specific configurations from environments/
+
+terraform {
+  backend "s3" {
+    bucket         = "claudefs-terraform-state-${ACCOUNT_ID}-${REGION}"
+    key            = "${ENVIRONMENT}/terraform.tfstate"
+    region         = "${REGION}"
+    encrypt        = true
+    dynamodb_table = "claudefs-terraform-locks"
+  }
+}
+
+# Example usage:
+# --------------
+# 1. First, run terraform init with the state-backend.tf to create the S3 bucket and DynamoDB table:
+#    cd tools/terraform
+#    terraform init
+#
+# 2. Then, copy this template to backend.tf and replace the placeholders:
+#    ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+#    REGION=us-west-2
+#    ENVIRONMENT=dev
+#
+# 3. Or use the pre-configured environment files:
+#    terraform init -backend-config=environments/dev/backend.config
+#
+# Example backend.config for dev:
+# -------------------------------
+# bucket = "claudefs-terraform-state-123456789012-us-west-2"
+# key    = "dev/terraform.tfstate"
+# region = "us-west-2"
+# encrypt = true
+# dynamodb_table = "claudefs-terraform-locks"

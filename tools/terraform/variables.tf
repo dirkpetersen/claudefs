@@ -155,3 +155,42 @@ variable "common_tags" {
     CreatedDate = "2026-03-01"
   }
 }
+
+# VPC Configuration
+variable "create_vpc" {
+  description = "Create a new VPC instead of using existing"
+  type        = bool
+  default     = false
+}
+
+# Subnet configuration
+variable "availability_zones" {
+  description = "List of availability zones for deployment"
+  type        = list(string)
+  default     = ["us-west-2a", "us-west-2b", "us-west-2c"]
+}
+
+variable "public_subnet_cidrs" {
+  description = "CIDR blocks for public subnets"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+}
+
+variable "private_subnet_cidrs" {
+  description = "CIDR blocks for private subnets"
+  type        = list(string)
+  default     = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]
+}
+
+# Storage node specific availability zones
+variable "storage_site_a_azs" {
+  description = "Availability zones for Site A storage nodes"
+  type        = list(string)
+  default     = ["us-west-2a", "us-west-2b"]
+}
+
+variable "storage_site_b_azs" {
+  description = "Availability zones for Site B storage nodes"
+  type        = list(string)
+  default     = ["us-west-2b", "us-west-2c"]
+}
