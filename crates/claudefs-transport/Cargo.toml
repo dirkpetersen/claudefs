@@ -8,6 +8,7 @@ description = "ClaudeFS subsystem: RDMA via libfabric, TCP via io_uring, custom 
 
 [dependencies]
 tokio.workspace = true
+prometheus = "0.13"
 thiserror.workspace = true
 serde.workspace = true
 bincode.workspace = true
