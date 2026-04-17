@@ -192,6 +192,128 @@ impl ReductionMetrics {
         }
     }
 
+    /// Render all metrics in Prometheus text exposition format.
+    pub fn render_prometheus(&self) -> String {
+        let mut output = String::new();
+
+        let chunks_processed = self.chunks_processed.load(Ordering::Relaxed);
+        let bytes_in = self.bytes_in.load(Ordering::Relaxed);
+        let bytes_out = self.bytes_out.load(Ordering::Relaxed);
+        let dedup_hits = self.dedup_hits.load(Ordering::Relaxed);
+        let dedup_misses = self.dedup_misses.load(Ordering::Relaxed);
+        let compress_bytes_in = self.compress_bytes_in.load(Ordering::Relaxed);
+        let compress_bytes_out = self.compress_bytes_out.load(Ordering::Relaxed);
+        let encrypt_ops = self.encrypt_ops.load(Ordering::Relaxed);
+        let gc_cycles = self.gc_cycles.load(Ordering::Relaxed);
+        let gc_bytes_freed = self.gc_bytes_freed.load(Ordering::Relaxed);
+        let key_rotations = self.key_rotations.load(Ordering::Relaxed);
+
+        output.push_str("# HELP claudefs_reduce_chunks_processed_total Total number of chunks processed through the reduction pipeline\n");
+        output.push_str("# TYPE claudefs_reduce_chunks_processed_total counter\n");
+        output.push_str(&format!(
+            "claudefs_reduce_chunks_processed_total {}\n",
+            chunks_processed
+        ));
+
+        output.push_str("# HELP claudefs_reduce_bytes_in_total Total raw bytes entering the reduction pipeline\n");
+        output.push_str("# TYPE claudefs_reduce_bytes_in_total counter\n");
+        output.push_str(&format!("claudefs_reduce_bytes_in_total {}\n", bytes_in));
+
+        output.push_str("# HELP claudefs_reduce_bytes_out_total Total bytes after reduction\n");
+        output.push_str("# TYPE claudefs_reduce_bytes_out_total counter\n");
+        output.push_str(&format!("claudefs_reduce_bytes_out_total {}\n", bytes_out));
+
+        output.push_str("# HELP claudefs_reduce_dedup_hits_total Total deduplication cache hits\n");
+        output.push_str("# TYPE claudefs_reduce_dedup_hits_total counter\n");
+        output.push_str(&format!(
+            "claudefs_reduce_dedup_hits_total {}\n",
+            dedup_hits
+        ));
+
+        output.push_str(
+            "# HELP claudefs_reduce_dedup_misses_total Total deduplication cache misses\n",
+        );
+        output.push_str("# TYPE claudefs_reduce_dedup_misses_total counter\n");
+        output.push_str(&format!(
+            "claudefs_reduce_dedup_misses_total {}\n",
+            dedup_misses
+        ));
+
+        output.push_str("# HELP claudefs_reduce_dedup_ratio Deduplication hit ratio\n");
+        output.push_str("# TYPE claudefs_reduce_dedup_ratio gauge\n");
+        output.push_str(&format!(
+            "claudefs_reduce_dedup_ratio {}\n",
+            self.dedup_ratio()
+        ));
+
+        output.push_str(
+            "# HELP claudefs_reduce_compress_bytes_in_total Total bytes fed to the compressor\n",
+        );
+        output.push_str("# TYPE claudefs_reduce_compress_bytes_in_total counter\n");
+        output.push_str(&format!(
+            "claudefs_reduce_compress_bytes_in_total {}\n",
+            compress_bytes_in
+        ));
+
+        output.push_str(
+            "# HELP claudefs_reduce_compress_bytes_out_total Total bytes after compression\n",
+        );
+        output.push_str("# TYPE claudefs_reduce_compress_bytes_out_total counter\n");
+        output.push_str(&format!(
+            "claudefs_reduce_compress_bytes_out_total {}\n",
+            compress_bytes_out
+        ));
+
+        output.push_str("# HELP claudefs_reduce_compression_ratio Compression ratio\n");
+        output.push_str("# TYPE claudefs_reduce_compression_ratio gauge\n");
+        output.push_str(&format!(
+            "claudefs_reduce_compression_ratio {}\n",
+            self.compression_ratio()
+        ));
+
+        output.push_str(
+            "# HELP claudefs_reduce_encrypt_ops_total Total encryption operations performed\n",
+        );
+        output.push_str("# TYPE claudefs_reduce_encrypt_ops_total counter\n");
+        output.push_str(&format!(
+            "claudefs_reduce_encrypt_ops_total {}\n",
+            encrypt_ops
+        ));
+
+        output.push_str(
+            "# HELP claudefs_reduce_gc_cycles_total Total garbage collection cycles completed\n",
+        );
+        output.push_str("# TYPE claudefs_reduce_gc_cycles_total counter\n");
+        output.push_str(&format!("claudefs_reduce_gc_cycles_total {}\n", gc_cycles));
+
+        output.push_str(
+            "# HELP claudefs_reduce_gc_bytes_freed_total Total bytes freed by garbage collection\n",
+        );
+        output.push_str("# TYPE claudefs_reduce_gc_bytes_freed_total counter\n");
+        output.push_str(&format!(
+            "claudefs_reduce_gc_bytes_freed_total {}\n",
+            gc_bytes_freed
+        ));
+
+        output.push_str("# HELP claudefs_reduce_key_rotations_total Total key rotation events\n");
+        output.push_str("# TYPE claudefs_reduce_key_rotations_total counter\n");
+        output.push_str(&format!(
+            "claudefs_reduce_key_rotations_total {}\n",
+            key_rotations
+        ));
+
+        output.push_str(
+            "# HELP claudefs_reduce_overall_reduction_ratio Overall data reduction ratio\n",
+        );
+        output.push_str("# TYPE claudefs_reduce_overall_reduction_ratio gauge\n");
+        output.push_str(&format!(
+            "claudefs_reduce_overall_reduction_ratio {}\n",
+            self.overall_reduction_ratio()
+        ));
+
+        output
+    }
+
     /// Collect all metrics as a vector of ReduceMetric structs.
     ///
     /// Returns metrics with proper names, help text, and values formatted

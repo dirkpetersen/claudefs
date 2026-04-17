@@ -52,6 +52,8 @@ pub mod io_depth;
 pub mod io_priority;
 /// Low-level locking primitives, synchronization utilities.
 pub mod locking;
+/// Prometheus metrics export for FUSE operations.
+pub mod metrics;
 /// Fast (parent_inode, name) -> (child_inode, FileType) lookup cache.
 pub mod lookup_cache;
 /// Data migration between tiers, migration tracking.

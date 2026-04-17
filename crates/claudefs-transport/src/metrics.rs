@@ -195,6 +195,112 @@ impl TransportMetrics {
             health_checks_failed: self.health_checks_failed.load(Ordering::Relaxed),
         }
     }
+
+    /// Render all transport metrics in Prometheus text exposition format.
+    pub fn render_prometheus(&self) -> String {
+        let snapshot = self.snapshot();
+        let mut output = String::new();
+
+        output.push_str("# HELP claudefs_transport_requests_sent_total Total number of requests sent\n");
+        output.push_str("# TYPE claudefs_transport_requests_sent_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_requests_sent_total {}\n",
+            snapshot.requests_sent
+        ));
+
+        output.push_str("# HELP claudefs_transport_requests_received_total Total number of requests received\n");
+        output.push_str("# TYPE claudefs_transport_requests_received_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_requests_received_total {}\n",
+            snapshot.requests_received
+        ));
+
+        output.push_str("# HELP claudefs_transport_responses_sent_total Total number of responses sent\n");
+        output.push_str("# TYPE claudefs_transport_responses_sent_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_responses_sent_total {}\n",
+            snapshot.responses_sent
+        ));
+
+        output.push_str("# HELP claudefs_transport_responses_received_total Total number of responses received\n");
+        output.push_str("# TYPE claudefs_transport_responses_received_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_responses_received_total {}\n",
+            snapshot.responses_received
+        ));
+
+        output.push_str("# HELP claudefs_transport_bytes_sent_total Total bytes sent\n");
+        output.push_str("# TYPE claudefs_transport_bytes_sent_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_bytes_sent_total {}\n",
+            snapshot.bytes_sent
+        ));
+
+        output.push_str("# HELP claudefs_transport_bytes_received_total Total bytes received\n");
+        output.push_str("# TYPE claudefs_transport_bytes_received_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_bytes_received_total {}\n",
+            snapshot.bytes_received
+        ));
+
+        output.push_str("# HELP claudefs_transport_errors_total Total number of transport errors\n");
+        output.push_str("# TYPE claudefs_transport_errors_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_errors_total {}\n",
+            snapshot.errors_total
+        ));
+
+        output.push_str("# HELP claudefs_transport_retries_total Total number of retries\n");
+        output.push_str("# TYPE claudefs_transport_retries_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_retries_total {}\n",
+            snapshot.retries_total
+        ));
+
+        output.push_str("# HELP claudefs_transport_timeouts_total Total number of timeouts\n");
+        output.push_str("# TYPE claudefs_transport_timeouts_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_timeouts_total {}\n",
+            snapshot.timeouts_total
+        ));
+
+        output.push_str("# HELP claudefs_transport_connections_opened_total Total number of connections opened\n");
+        output.push_str("# TYPE claudefs_transport_connections_opened_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_connections_opened_total {}\n",
+            snapshot.connections_opened
+        ));
+
+        output.push_str("# HELP claudefs_transport_connections_closed_total Total number of connections closed\n");
+        output.push_str("# TYPE claudefs_transport_connections_closed_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_connections_closed_total {}\n",
+            snapshot.connections_closed
+        ));
+
+        output.push_str("# HELP claudefs_transport_active_connections Number of currently active connections\n");
+        output.push_str("# TYPE claudefs_transport_active_connections gauge\n");
+        output.push_str(&format!(
+            "claudefs_transport_active_connections {}\n",
+            snapshot.active_connections
+        ));
+
+        output.push_str("# HELP claudefs_transport_health_checks_total Total number of health checks performed\n");
+        output.push_str("# TYPE claudefs_transport_health_checks_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_health_checks_total {}\n",
+            snapshot.health_checks_total
+        ));
+
+        output.push_str("# HELP claudefs_transport_health_checks_failed_total Total number of health checks that failed\n");
+        output.push_str("# TYPE claudefs_transport_health_checks_failed_total counter\n");
+        output.push_str(&format!(
+            "claudefs_transport_health_checks_failed_total {}\n",
+            snapshot.health_checks_failed
+        ));
+
+        output
+    }
 }
 
 #[cfg(test)]

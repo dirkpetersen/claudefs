@@ -259,6 +259,121 @@ impl Default for MetricsCollector {
     }
 }
 
+impl MetadataMetrics {
+    /// Render all metadata metrics in Prometheus text format.
+    pub fn render_prometheus(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("# HELP claudefs_metadata_total_ops Total number of metadata operations\n");
+        output.push_str("# TYPE claudefs_metadata_total_ops counter\n");
+        output.push_str(&format!("claudefs_metadata_total_ops {}\n", self.total_ops));
+
+        output.push_str("# HELP claudefs_metadata_total_errors Total number of metadata errors\n");
+        output.push_str("# TYPE claudefs_metadata_total_errors counter\n");
+        output.push_str(&format!(
+            "claudefs_metadata_total_errors {}\n",
+            self.total_errors
+        ));
+
+        output.push_str("# HELP claudefs_metadata_active_leases Number of active leases\n");
+        output.push_str("# TYPE claudefs_metadata_active_leases gauge\n");
+        output.push_str(&format!(
+            "claudefs_metadata_active_leases {}\n",
+            self.active_leases
+        ));
+
+        output.push_str("# HELP claudefs_metadata_active_watches Number of active watches\n");
+        output.push_str("# TYPE claudefs_metadata_active_watches gauge\n");
+        output.push_str(&format!(
+            "claudefs_metadata_active_watches {}\n",
+            self.active_watches
+        ));
+
+        output.push_str(
+            "# HELP claudefs_metadata_active_file_handles Number of active file handles\n",
+        );
+        output.push_str("# TYPE claudefs_metadata_active_file_handles gauge\n");
+        output.push_str(&format!(
+            "claudefs_metadata_active_file_handles {}\n",
+            self.active_file_handles
+        ));
+
+        output.push_str("# HELP claudefs_metadata_cache_hits Number of metadata cache hits\n");
+        output.push_str("# TYPE claudefs_metadata_cache_hits counter\n");
+        output.push_str(&format!(
+            "claudefs_metadata_cache_hits {}\n",
+            self.cache_hits
+        ));
+
+        output.push_str("# HELP claudefs_metadata_cache_misses Number of metadata cache misses\n");
+        output.push_str("# TYPE claudefs_metadata_cache_misses counter\n");
+        output.push_str(&format!(
+            "claudefs_metadata_cache_misses {}\n",
+            self.cache_misses
+        ));
+
+        output.push_str(
+            "# HELP claudefs_metadata_negative_cache_hits Number of negative cache hits\n",
+        );
+        output.push_str("# TYPE claudefs_metadata_negative_cache_hits counter\n");
+        output.push_str(&format!(
+            "claudefs_metadata_negative_cache_hits {}\n",
+            self.negative_cache_hits
+        ));
+
+        output.push_str("# HELP claudefs_metadata_inode_count Total inode count\n");
+        output.push_str("# TYPE claudefs_metadata_inode_count gauge\n");
+        output.push_str(&format!(
+            "claudefs_metadata_inode_count {}\n",
+            self.inode_count
+        ));
+
+        for (op, metrics) in &self.ops {
+            let op_name = op.as_str();
+            output.push_str(&format!(
+                "# HELP claudefs_metadata_op_count_total Total count of {} operations\n",
+                op_name
+            ));
+            output.push_str(&format!(
+                "# TYPE claudefs_metadata_op_count_total counter\n"
+            ));
+            output.push_str(&format!(
+                "claudefs_metadata_op_count_total{{op=\"{}\"}} {}\n",
+                op_name, metrics.count
+            ));
+
+            if metrics.count > 0 {
+                output.push_str(&format!(
+                    "# HELP claudefs_metadata_op_errors_total Total errors for {} operations\n",
+                    op_name
+                ));
+                output.push_str(&format!(
+                    "# TYPE claudefs_metadata_op_errors_total counter\n"
+                ));
+                output.push_str(&format!(
+                    "claudefs_metadata_op_errors_total{{op=\"{}\"}} {}\n",
+                    op_name, metrics.errors
+                ));
+
+                output.push_str(&format!(
+                    "# HELP claudefs_metadata_op_latency_avg_us Average latency for {} operations\n",
+                    op_name
+                ));
+                output.push_str(&format!(
+                    "# TYPE claudefs_metadata_op_latency_avg_us gauge\n"
+                ));
+                output.push_str(&format!(
+                    "claudefs_metadata_op_latency_avg_us{{op=\"{}\"}} {}\n",
+                    op_name,
+                    metrics.avg_duration_us()
+                ));
+            }
+        }
+
+        output
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,29 +1,25 @@
 use claudefs_reduce::{
-    cache_coherency::{CacheCoherency, InvalidationEvent},
-    chunk_scheduler::OpPriority,
-    fingerprint::ChunkHash,
+    cache_coherency::{CacheKey, CacheVersion, CoherencyTracker, InvalidationEvent},
     gc_coordinator::{GcCandidate, GcCoordinator, GcCoordinatorConfig},
-    metrics::{MetricKind, MetricValue, MetricsHandle},
+    metrics::ReductionMetrics,
     multi_tenant_quotas::{MultiTenantQuotas, QuotaLimit, TenantId},
     pipeline_backpressure::{BackpressureConfig, PipelineBackpressure},
-    pipeline_monitor::{AlertThreshold, PipelineMonitor},
+    pipeline_monitor::{AlertThreshold, PipelineAlert, PipelineMonitor, StageMetrics},
     read_amplification::{ReadAmplificationConfig, ReadAmplificationTracker, ReadEvent},
-    similarity_coordinator::{SimilarityConfig, SimilarityCoordinator},
-    tenant_isolator::{TenantId as IsolatorTenantId, TenantIsolator},
+    tenant_isolator::{TenantId as IsolatorTenantId, TenantIsolator, TenantPolicy, TenantPriority},
     write_amplification::{
         WriteAmplificationConfig, WriteAmplificationStats, WriteAmplificationTracker, WriteEvent,
     },
     write_coalescer::{CoalesceConfig, WriteCoalescer, WriteOp},
 };
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 #[test]
 fn test_write_amplification_ratio_tracking() {
     let config = WriteAmplificationConfig { max_events: 100 };
-    let mut tracker = WriteAmplificationTracker::new(config);
+    let mut tracker = WriteAmplificationTracker::with_config(config);
 
-    tracker.record_event(WriteEvent {
+    tracker.record(WriteEvent {
         logical_bytes: 10 * 1024 * 1024,
         physical_bytes: 7 * 1024 * 1024,
         dedup_bytes_saved: 2 * 1024 * 1024,
@@ -32,7 +28,7 @@ fn test_write_amplification_ratio_tracking() {
         timestamp_ms: 0,
     });
 
-    let stats = tracker.aggregate_stats();
+    let stats = tracker.stats();
     let ratio = 7.0 / 10.0;
 
     assert!((stats.write_amplification() - ratio).abs() < 0.01);
@@ -43,56 +39,51 @@ fn test_read_amplification_basic() {
     let config = ReadAmplificationConfig::default();
     let mut tracker = ReadAmplificationTracker::new(config);
 
-    tracker.record_event(ReadEvent {
+    tracker.record(ReadEvent {
         logical_bytes: 1024 * 1024,
-        physical_blocks: 5,
-        timestamp_ms: 0,
+        physical_bytes: 5 * 1024 * 1024,
+        io_count: 5,
+        cache_hit: false,
     });
 
-    let stats = tracker.aggregate_stats();
-    let amp = stats.amplification_factor();
+    let stats = tracker.stats();
+    let amp = stats.amplification_ratio();
 
     assert!((amp - 5.0).abs() < 0.1, "Amplification should be 5x");
 }
 
 #[test]
 fn test_metrics_export() {
-    let mut handle = MetricsHandle::default();
+    let metrics = ReductionMetrics::new();
 
-    handle
-        .record_metric(
-            "test_metric".to_string(),
-            MetricKind::Counter(100),
-            HashMap::new(),
-        )
-        .unwrap();
+    metrics.record_chunk(100, 50);
+    metrics.record_dedup_hit();
+    metrics.record_dedup_miss();
+    metrics.record_compress(100, 50);
+    metrics.record_encrypt();
+    metrics.record_gc_cycle(100);
+    metrics.record_key_rotation();
 
-    let output = handle.export_prometheus();
-    assert!(output.contains("test_metric"));
+    let collected = metrics.collect();
+    assert!(!collected.is_empty());
+
+    let output = metrics.render_prometheus();
+    assert!(output.contains("claudefs_reduce_chunks_processed_total"));
 }
 
 #[test]
 fn test_metrics_dedup_stats() {
-    let mut handle = MetricsHandle::default();
+    let metrics = ReductionMetrics::new();
 
-    handle
-        .record_metric(
-            "dedup_blocks_found".to_string(),
-            MetricKind::Counter(100),
-            HashMap::new(),
-        )
-        .unwrap();
-    handle
-        .record_metric(
-            "dedup_bytes_saved".to_string(),
-            MetricKind::Counter(1024),
-            HashMap::new(),
-        )
-        .unwrap();
+    metrics.record_dedup_hit();
+    metrics.record_dedup_hit();
+    metrics.record_dedup_miss();
 
-    let output = handle.export_prometheus();
-    assert!(output.contains("dedup_blocks_found"));
-    assert!(output.contains("dedup_bytes_saved"));
+    let ratio = metrics.dedup_ratio();
+    assert!((ratio - 2.0 / 3.0).abs() < 0.01);
+
+    let output = metrics.render_prometheus();
+    assert!(output.contains("claudefs_reduce_dedup_ratio"));
 }
 
 #[test]
@@ -102,47 +93,30 @@ fn test_tenant_isolation() {
     let tenant1 = TenantId(1);
     let tenant2 = TenantId(2);
 
-    quotas.set_quota(
-        tenant1,
-        QuotaLimit::new(50 * 1024 * 1024, 50 * 1024 * 1024, true),
-    );
-    quotas.set_quota(
-        tenant2,
-        QuotaLimit::new(50 * 1024 * 1024, 50 * 1024 * 1024, true),
-    );
+    quotas
+        .set_quota(
+            tenant1,
+            QuotaLimit::new(50 * 1024 * 1024, 50 * 1024 * 1024, true),
+        )
+        .unwrap();
+    quotas
+        .set_quota(
+            tenant2,
+            QuotaLimit::new(50 * 1024 * 1024, 50 * 1024 * 1024, true),
+        )
+        .unwrap();
 
     for _ in 0..1000 {
-        let _ = quotas.check_and_update(tenant1, 50 * 1024);
+        let _ = quotas.record_write(tenant1, 50 * 1024, 25 * 1024, 25 * 1024);
     }
 
     let start = Instant::now();
     for _ in 0..100 {
-        let _ = quotas.check_and_update(tenant2, 1024);
+        let _ = quotas.record_write(tenant2, 1024, 512, 512);
     }
     let elapsed = start.elapsed();
 
     assert!(elapsed < Duration::from_millis(100), "Should be fast");
-}
-
-#[test]
-fn test_similarity_detection_performance() {
-    let config = SimilarityConfig {
-        threshold: 90,
-        batch_size: 100,
-    };
-    let coordinator = SimilarityCoordinator::new(config);
-
-    let blocks: Vec<Vec<u8>> = (0..50).map(|i| vec![i as u8; 4096]).collect();
-
-    let start = Instant::now();
-    for i in 0..50 {
-        for j in (i + 1)..50.min(i + 5) {
-            let _ = coordinator.detect_similarity(&blocks[i], &blocks[j]);
-        }
-    }
-    let elapsed = start.elapsed();
-
-    assert!(elapsed < Duration::from_millis(500));
 }
 
 #[test]
@@ -164,54 +138,70 @@ fn test_pipeline_backpressure_basic() {
 
 #[test]
 fn test_pipeline_monitor_alerts() {
-    let thresholds = vec![AlertThreshold {
-        metric: "write_latency_ms".to_string(),
-        operator: claudefs_reduce::pipeline_monitor::AlertOperator::GreaterThan,
-        value: 50.0,
-    }];
-    let mut monitor = PipelineMonitor::new(thresholds);
+    let mut monitor = PipelineMonitor::new();
 
-    monitor.record_latency("write_latency_ms", 60.0);
-    monitor.record_latency("write_latency_ms", 70.0);
+    monitor.record_stage(StageMetrics {
+        stage_name: "write".to_string(),
+        chunks_in: 100,
+        chunks_out: 100,
+        bytes_in: 1024,
+        bytes_out: 512,
+        errors: 0,
+        latency_sum_us: 60000,
+        latency_count: 10,
+    });
 
-    let alerts = monitor.check_alerts();
+    let threshold = AlertThreshold {
+        max_error_rate: 0.01,
+        min_reduction_ratio: 1.0,
+        max_latency_us: 5000,
+    };
+
+    let alerts = monitor.check_alerts(&threshold);
     assert!(!alerts.is_empty());
+    assert!(matches!(alerts[0], PipelineAlert::HighLatency { .. }));
 }
 
 #[test]
-fn test_pipeline_monitor_percentiles() {
-    let mut monitor = PipelineMonitor::default();
+fn test_pipeline_monitor_snapshot() {
+    let mut monitor = PipelineMonitor::new();
 
-    for i in 0..1000 {
-        let latency = (i as f64 * 0.1) + 10.0;
-        monitor.record_latency("test_op", latency);
-    }
+    monitor.record_stage(StageMetrics {
+        stage_name: "dedup".to_string(),
+        chunks_in: 100,
+        chunks_out: 80,
+        bytes_in: 1024,
+        bytes_out: 800,
+        errors: 0,
+        latency_sum_us: 1000,
+        latency_count: 100,
+    });
 
-    let percentiles = monitor.get_percentiles("test_op");
-
-    assert!(percentiles.p50 < percentiles.p95);
-    assert!(percentiles.p95 < percentiles.p99);
+    let snapshot = monitor.snapshot();
+    assert_eq!(snapshot.stages.len(), 1);
+    assert_eq!(snapshot.total_bytes_in, 1024);
 }
 
 #[test]
 fn test_write_coalescer_basic() {
     let config = CoalesceConfig {
-        max_coalesce_bytes: 256 * 1024,
-        max_latency_ms: 10,
+        max_gap_bytes: 0,
+        max_coalesced_bytes: 256 * 1024,
+        window_ms: 10,
     };
     let mut coalescer = WriteCoalescer::new(config);
 
-    let coalesced_count = (0..100)
-        .filter_map(|_| {
-            let op = WriteOp {
-                data: vec![0u8; 4 * 1024],
-                priority: OpPriority::Background,
-            };
-            coalescer.try_add(op).and_then(|o| o)
-        })
-        .count();
+    for _ in 0..100 {
+        coalescer.add(WriteOp {
+            inode_id: 1,
+            offset: 0,
+            data: vec![0u8; 4 * 1024],
+            timestamp_ms: 100,
+        });
+    }
 
-    assert!(coalesced_count >= 0);
+    let flushed = coalescer.flush_all();
+    assert!(!flushed.is_empty());
 }
 
 #[test]
@@ -230,48 +220,58 @@ fn test_gc_coordinator_stats() {
         });
     }
 
-    let candidates = coordinator.candidates();
-    assert_eq!(candidates.len(), 100);
+    assert_eq!(coordinator.candidate_count(), 100);
 }
 
 #[test]
 fn test_cache_coherency_basic() {
-    let mut coherency = CacheCoherency::default();
+    let mut tracker = CoherencyTracker::new();
 
-    let hash = ChunkHash([42u8; 32]);
+    let key = CacheKey {
+        inode_id: 1,
+        chunk_index: 0,
+    };
+    let version = CacheVersion::new();
 
-    coherency.cache(hash, vec![0x42u8; 1024]).unwrap();
+    tracker.register(key, version, 1024);
 
-    coherency.invalidate(InvalidationEvent {
-        hash,
-        reason: "write".to_string(),
-    });
+    let is_valid = tracker.is_valid(&key, &version);
+    assert!(is_valid);
 
-    let cached = coherency.get(&hash);
-    assert!(cached.is_none());
+    tracker.invalidate(&InvalidationEvent::ChunkInvalidated { key });
+
+    let is_valid_after = tracker.is_valid(&key, &version);
+    assert!(!is_valid_after);
 }
 
 #[test]
-fn test_tenant_isolator_routing() {
+fn test_tenant_isolator_usage() {
     let mut isolator = TenantIsolator::default();
 
     let tenant1 = IsolatorTenantId(1);
     let tenant2 = IsolatorTenantId(2);
 
-    let mut hashes1 = 0usize;
-    let mut hashes2 = 0usize;
+    isolator.register_tenant(TenantPolicy {
+        tenant_id: tenant1,
+        quota_bytes: 10 * 1024 * 1024,
+        max_iops: 1000,
+        priority: TenantPriority::Normal,
+    });
+    isolator.register_tenant(TenantPolicy {
+        tenant_id: tenant2,
+        quota_bytes: 10 * 1024 * 1024,
+        max_iops: 1000,
+        priority: TenantPriority::Normal,
+    });
 
-    for i in 0..1000 {
-        let hash = [i as u8; 32];
-        let tenant = isolator.route_hash(hash);
+    isolator.record_write(tenant1, 1024).unwrap();
+    isolator.record_write(tenant1, 2048).unwrap();
 
-        if tenant == tenant1 {
-            hashes1 += 1;
-        } else if tenant == tenant2 {
-            hashes2 += 1;
-        }
-    }
+    isolator.record_write(tenant2, 512).unwrap();
 
-    let total = hashes1 + hashes2;
-    assert!(total > 0, "Should route some hashes");
+    let usage1 = isolator.get_usage(tenant1).unwrap();
+    let usage2 = isolator.get_usage(tenant2).unwrap();
+
+    assert_eq!(usage1.bytes_used, 3072);
+    assert_eq!(usage2.bytes_used, 512);
 }
