@@ -7,7 +7,6 @@ use crate::error::ReduceError;
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::sync::Arc;
-use std::time::Instant;
 
 /// Per-workload Tier 2 performance metrics.
 #[derive(Debug, Clone)]
@@ -136,7 +135,7 @@ impl SimilarityTierStats {
         &self,
         workload: &str,
         latency_us: u64,
-        bytes_processed: u64,
+        _bytes_processed: u64,
     ) {
         let mut stats = self.stats_by_workload.write().unwrap();
         let entry = stats.entry(workload.to_string()).or_insert_with(|| {

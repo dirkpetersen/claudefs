@@ -354,18 +354,17 @@ pub use worm_retention_enforcer::{
 pub use rotation_checkpoint::{
     RecoveryInfo, RotationCheckpoint, RotationCheckpointStore, RotationRecovery,
 };
-// pub use similarity_coordinator::{  // TODO: A3 to regenerate
-//     SimilarityCoordinator, SimilarityCoordinatorConfig, SimilarityJob, SimilarityMetrics,
-//     SimilarityPhase,
-// };
-// pub use adaptive_classifier::{  // TODO: A3 to regenerate
-//     AdaptiveClassifier, AdaptiveClassifierConfig, ClassificationHint, ClassificationMetrics,
-//     DataWorkload, TieringAdvice, WorkloadDetector,
-// };
-// pub use recovery_enhancer::{  // TODO: A3 to regenerate
-//     ConsistencyReport, IncompleteReduction, RecoveryCheckpoint, RecoveryEnhancer,
-//     RecoveryEnhancerConfig, RecoveryMetrics,
-// };
-// pub use similarity_tier_stats::{  // TODO: A3 to regenerate
-//     SimilarityTierStats, SimilarityTierStatsConfig, TierStats, WorkloadTierStats,
-// };
+pub use similarity_coordinator::{
+    SimilarityCoordinator, SimilarityConfig, CoordinatorStats,
+};
+pub use adaptive_classifier::{
+    AdaptiveClassifier, ClassifierConfig, AccessPatternType, ClassifierStats,
+    WorkloadFingerprint, CompressionLevel, DedupStrength, S3TieringPolicy,
+};
+pub use recovery_enhancer::{
+    RecoveryEnhancer, RecoveryConfig, InconsistencyRecord, RecoveryStats,
+    SimilarityCheckpoint, MemCheckpointStore,
+};
+pub use similarity_tier_stats::{
+    SimilarityTierStats, StatsConfig, TierStats, EffectivenessMetrics,
+};

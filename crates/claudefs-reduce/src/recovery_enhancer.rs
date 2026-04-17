@@ -360,10 +360,10 @@ impl RecoveryEnhancer {
         &self,
     ) -> Result<Vec<InconsistencyRecord>, ReduceError> {
         let mut inconsistencies = Vec::new();
-        
+
         let stats = self.similarity_coordinator.stats();
         if stats.similarity_hits > 0 {
-            let mut inconsistency = InconsistencyRecord {
+            let inconsistency = InconsistencyRecord {
                 shard_id: 0,
                 chunk_hash: ChunkHash([0u8; 32]),
                 expected_delta_index_entry: None,
@@ -373,6 +373,7 @@ impl RecoveryEnhancer {
                     .unwrap()
                     .as_secs(),
             };
+            inconsistencies.push(inconsistency);
 
             let mut stats_guard = self.stats.write().unwrap();
             stats_guard.inconsistencies_detected += 1;
