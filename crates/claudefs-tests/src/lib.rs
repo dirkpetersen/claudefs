@@ -88,8 +88,6 @@ pub use report::{AggregateReport, ReportBuilder, TestCaseResult, TestStatus, Tes
 pub use soak::{
     generate_task_sequence, FileSoakTest, SoakConfig, SoakSnapshot, SoakStats, WorkerOp, WorkerTask,
 };
-pub mod flaky_tracker;
-pub mod changelog_generator;
 
 pub use test_collector::TestCollector;
 pub use flaky_tracker::{FlakyTracker, FlakyTestRecord, TestRun, TestStatus as FlakyTestStatus};
