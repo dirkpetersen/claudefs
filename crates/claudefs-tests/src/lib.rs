@@ -93,7 +93,4 @@ pub mod changelog_generator;
 
 pub use test_collector::TestCollector;
 pub use flaky_tracker::{FlakyTracker, FlakyTestRecord, TestRun, TestStatus as FlakyTestStatus};
-<<<<<<< Updated upstream
 pub use changelog_generator::{ChangelogEntry, TestStats, CrateStatus, update_changelog};
-=======
->>>>>>> Stashed changes
