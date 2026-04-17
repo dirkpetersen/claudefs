@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 4 Block 2: Metrics Integration (2026-04-17 Session 5 - In Progress)
+
+**Status:** 🔵 **BLOCK 2 IN PROGRESS** — OpenCode actively implementing
+
+**Summary:**
+- Prometheus metrics integration from all 8 crates (A1-A8)
+- Per-crate metrics: queue depth, latency, cache hits, dedup ratios, etc.
+- Grafana dashboards: cluster-health, performance, data-reduction, replication, cost-tracking
+- Alert rules: CPU scaling, low disk, high latency, quorum loss
+- Estimated completion: Next session (Session 6)
+
+**Metrics to Export (46 total):**
+- A1 Storage (6): queue_depth, io_latency, allocator_free, gc_activity, nvme_throughput, write_amplification
+- A2 Metadata (6): raft_commits, kv_ops, shard_distribution, txn_latency, leader_changes, quorum_health
+- A3 Reduce (5): dedup_ratio, compression_ratio, tiering_rate, similarity_detection, pipeline_latency
+- A4 Transport (6): rpc_latency, bandwidth, trace_aggregation, router_score, pool_size, rdma_ratio
+- A5 FUSE (5): ops_per_sec, cache_hit_ratio, passthrough_pct, quota_usage, syscall_latency
+- A6 Repl (5): journal_lag, failover_count, cross_site_latency, conflict_rate, batch_size
+- A7 Gateway (5): nfsv3_ops, pnfs_ops, protocol_distribution, error_rate, smb_connections
+- A8 Mgmt (7): duckdb_latency, api_latency, auth_failures, health_score, + existing
+
+**Reference:** `docs/A11-PHASE4-SESSION5-SUMMARY.md`
+
+---
+
 ### A11: Infrastructure & CI — Phase 4 Block 1: Production Infrastructure (2026-04-17 Session 5)
 
 **Status:** 🟢 **PHASE 4 BLOCK 1 COMPLETE** — Production-grade infrastructure
