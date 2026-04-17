@@ -150,3 +150,15 @@ pub use performance_tracker::{PerformanceTracker, OperationType, LatencySample, 
 /// High-throughput event export to multiple backends
 pub mod event_sink;
 pub use event_sink::{EventSink, EventSinkBackend, ExportedEvent, EventSeverity, EventSinkError};
+
+/// DuckDB query gateway with caching and timeout support
+pub mod query_gateway;
+pub use query_gateway::{QueryGateway, QueryError, QueryResult};
+
+/// Parquet schema definitions for metadata indexing
+pub mod parquet_schema;
+pub use parquet_schema::{ParquetSchema, SchemaField, MetadataRecord, arrow_type_from_rust, rust_type_from_arrow};
+
+/// Axum HTTP routes for analytics endpoints
+pub mod web_api;
+pub use web_api::{create_router, AppState, ApiError, TopUser, TopDir, StaleFile, FileTypeStats, ReductionReport, ClusterHealth, CustomQueryRequest};
