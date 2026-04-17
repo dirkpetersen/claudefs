@@ -6,7 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### A11: Infrastructure & CI — Phase 3 Complete: Multi-Node Automation (2026-04-17)
+### A11: Infrastructure & CI — Phase 4 Planning: Production Deployment & Hardening (2026-04-17 Session 4)
+
+**Status:** 🟡 **PHASE 4 PLANNING** — Ready to implement
+
+**Summary:**
+- ✅ Merge conflicts fixed (gateway protocol.rs, tests lib.rs)
+- ✅ Phase 4 planning document complete: 6 implementation blocks
+- 🔴 Blocker: GitHub Issue #27 (A8 web_api.rs compilation errors)
+
+**Phase 4 Roadmap (10-day plan):**
+- Block 1: Infrastructure-as-Code (Terraform/Pulumi for AWS)
+- Block 2: Metrics Integration (all 8 crates → Prometheus → Grafana)
+- Block 3: Automated Recovery (health.rs actions, dead node removal)
+- Block 4: Release Pipeline (binary building, signing, staged rollout)
+- Block 5: Cost Monitoring & Optimization (AWS spend tracking)
+- Block 6: Disaster Recovery & Testing (backup/restore, RTO validation)
+
+**Reference:** `docs/A11-PHASE4-PLAN.md` (376 lines, comprehensive specification)
+
+**Blocker Status:**
+- Awaiting A8 resolution of web_api.rs Send+Sync errors (Issue #27)
+- Once resolved, Phase 4 Block 1 can begin immediately
+
+**Phase 4 Success Criteria:**
+- All blocks complete (10 days)
+- <$20/day dev cluster cost
+- RTO <30 min verified
+- All metrics exporting (100% crate coverage)
+- Automated recovery >80% effective
+
+---
+
+### A11: Infrastructure & CI — Phase 3 Complete: Multi-Node Automation (2026-04-17 Session 3)
 
 **Status:** 🟢 **PHASE 3 COMPLETE (100%)** — Production infrastructure ready
 
