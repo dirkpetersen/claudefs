@@ -9,6 +9,40 @@ use crate::xdr::{XdrDecoder, XdrEncoder};
 /// Maximum size of an NFSv3 file handle in bytes.
 pub const NFS3_FHSIZE: usize = 64;
 
+/// Protocol types supported by the gateway.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Protocol {
+    /// NFSv3 protocol
+    Nfs3,
+    /// NFSv4 protocol
+    Nfs4,
+    /// pNFS protocol
+    Pnfs,
+    /// S3 API protocol
+    S3,
+    /// SMB3 protocol
+    Smb3,
+}
+
+impl Protocol {
+    /// Returns the protocol name as a string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Protocol::Nfs3 => "nfs3",
+            Protocol::Nfs4 => "nfs4",
+            Protocol::Pnfs => "pnfs",
+            Protocol::S3 => "s3",
+            Protocol::Smb3 => "smb3",
+        }
+    }
+}
+
+impl std::fmt::Display for Protocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 /// NFSv3 file handle - an opaque identifier for a file or directory.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FileHandle3 {
