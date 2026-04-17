@@ -68,4 +68,32 @@ pub enum ReplError {
     /// Compression/decompression error.
     #[error("compression error: {0}")]
     Compression(String),
+
+    /// Quorum-related error in write coordination.
+    #[error("quorum error: {msg}")]
+    QuorumError {
+        /// Error message describing the issue.
+        msg: String,
+    },
+
+    /// Read repair operation error.
+    #[error("repair error: {msg}")]
+    RepairError {
+        /// Error message describing the issue.
+        msg: String,
+    },
+
+    /// Causal ordering error in vector clock operations.
+    #[error("causal error: {msg}")]
+    CausalError {
+        /// Error message describing the issue.
+        msg: String,
+    },
+
+    /// Orchestrator error in active-active HA coordination.
+    #[error("orchestrator error: {msg}")]
+    OrchestratorError {
+        /// Error message describing the issue.
+        msg: String,
+    },
 }
