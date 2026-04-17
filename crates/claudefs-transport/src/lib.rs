@@ -226,3 +226,21 @@ pub use adaptive_router::{
     EndpointId, EndpointMetrics, RoutingDecision, RoutingPolicy, AdaptiveRouter,
     AdaptiveRouterConfig, RoutingError,
 };
+
+pub mod reactive_backpressure;
+pub use reactive_backpressure::{
+    BackpressureLevel, BackpressureSignal, BackpressureCoordinator, BackpressureConfig,
+    ComponentMetrics, BackpressureStats, BackpressureStatsSnapshot,
+};
+
+pub mod transport_pooling;
+pub use transport_pooling::{
+    ConnectionState, PooledConnection, ConnectionPool, PoolConfig, PoolStats, PoolStatsSnapshot,
+    ConnectionPoolManager,
+};
+
+pub mod pipelined_requests;
+pub use pipelined_requests::{
+    RequestId, StreamId, RequestState, PipelinedRequest, PipelinedResponse, PipelineConfig,
+    InFlightRequest, RequestPipeline, PipelineStats, PipelineStatsSnapshot,
+};
