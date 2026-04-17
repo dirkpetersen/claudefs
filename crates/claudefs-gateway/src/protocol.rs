@@ -9,11 +9,7 @@ use crate::xdr::{XdrDecoder, XdrEncoder};
 /// Maximum size of an NFSv3 file handle in bytes.
 pub const NFS3_FHSIZE: usize = 64;
 
-<<<<<<< Updated upstream
-/// Protocol types supported by the gateway.
-=======
 /// Protocol types supported by the gateway
->>>>>>> Stashed changes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Protocol {
     /// NFSv3 protocol
@@ -29,11 +25,7 @@ pub enum Protocol {
 }
 
 impl Protocol {
-<<<<<<< Updated upstream
-    /// Returns the protocol name as a string.
-=======
     /// Returns the protocol name as a string
->>>>>>> Stashed changes
     pub fn as_str(&self) -> &'static str {
         match self {
             Protocol::Nfs3 => "nfs3",
