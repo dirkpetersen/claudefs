@@ -20,7 +20,7 @@ jobs:
   build:
     name: Build Workspace
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +30,7 @@ jobs:
           toolchain: stable
           components: clippy, rustfmt
 
-      - name: Cache cargo registry and git
+      - name: Cache cargo registry and git dependencies
         uses: actions/cache@v4
         with:
           path: |
@@ -38,27 +38,31 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-deps-
+          restore-keys: |
+            ${{ runner.os }}-cargo-deps-
+            ${{ runner.os }}-cargo-
 
-      - name: Cache cargo build (debug)
+      # Combined build cache for both debug and release
+      - name: Cache cargo build output
         uses: actions/cache@v4
         with:
-          path: target/debug
-          key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-debug-
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock', 'Cargo.toml', 'crates/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+            ${{ runner.os }}-cargo-
 
-      - name: Cache cargo build (release)
-        uses: actions/cache@v4
-        with:
-          path: target/release
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-release-
+      # Quick incremental check before full build
+      - name: Incremental check (fail fast on obvious errors)
+        run: cargo check --workspace --all-targets --message-format short
+        continue-on-error: false
 
       - name: Build all crates (debug)
         run: cargo build --workspace --all-targets
 
       - name: Build all crates (release)
         run: cargo build --workspace --release
+        timeout-minutes: 20
 
   # Format check
   fmt:
@@ -77,11 +81,11 @@ jobs:
       - name: Check code formatting
         run: cargo fmt --all -- --check
 
-  # Linting with clippy (per-crate for faster CI)
+  # Linting with clippy (per-crate for faster CI, parallelized)
   clippy:
     name: Lint Check (Clippy)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       matrix:
         crate: [
@@ -113,28 +117,32 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-deps-
+          restore-keys: |
+            ${{ runner.os }}-cargo-deps-
+            ${{ runner.os }}-cargo-
 
       - name: Cache cargo build (clippy)
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-clippy-
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock', 'Cargo.toml', 'crates/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+            ${{ runner.os }}-cargo-
 
       - name: Run clippy on ${{ matrix.crate }} (debug)
-        run: cargo clippy -p ${{ matrix.crate }} --all-targets -- -D warnings
-        continue-on-error: false
+        run: cargo clippy -p ${{ matrix.crate }} --all-targets --message-format short -- -D warnings
+        timeout-minutes: 12
 
       - name: Run clippy on ${{ matrix.crate }} (release)
-        run: cargo clippy -p ${{ matrix.crate }} --all-targets --release -- -D warnings
-        continue-on-error: false
+        run: cargo clippy -p ${{ matrix.crate }} --all-targets --release --message-format short -- -D warnings
+        timeout-minutes: 12
 
   # Security audit
   security-audit:
     name: Security Audit (cargo-audit)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -145,9 +153,11 @@ jobs:
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
+        timeout-minutes: 5
 
-      - name: Run cargo audit
+      - name: Run cargo audit (fetch latest advisories)
         run: cargo audit --deny warnings
+        timeout-minutes: 10
 
   # Documentation check
   docs:
