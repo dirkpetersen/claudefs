@@ -110,7 +110,7 @@ impl TieringAdvisor {
     }
 
     fn calculate_size_score(&self, size_mb: f64) -> f64 {
-        if size_mb >= 100.0 {
+        if size_mb >= 50.0 {
             1.0
         } else if size_mb >= 10.0 {
             0.7
@@ -151,31 +151,19 @@ impl TieringAdvisor {
         metrics: &AccessMetrics,
         score: f64,
     ) -> TieringRecommendation {
-        if age_days < self.config.flash_threshold_days || metrics.access_count > 500 {
-            if metrics.compression_ratio < 1.5 && metrics.access_count > 100 {
-                return TieringRecommendation::Flash;
-            }
-            if score > 0.7 {
-                return TieringRecommendation::Flash;
-            }
+        if metrics.access_count >= 100 && score > 0.6 {
+            return TieringRecommendation::Flash;
         }
 
-        if age_days >= self.config.archive_threshold_days {
-            return TieringRecommendation::ArchiveS3;
+        if age_days < self.config.flash_threshold_days {
+            TieringRecommendation::Flash
+        } else if age_days >= self.config.archive_threshold_days {
+            TieringRecommendation::ArchiveS3
+        } else if age_days >= self.config.cold_threshold_days {
+            TieringRecommendation::ColdS3
+        } else {
+            TieringRecommendation::WarmS3
         }
-
-        if age_days >= self.config.cold_threshold_days {
-            if metrics.compression_ratio < 2.0 {
-                return TieringRecommendation::ColdS3;
-            }
-            return TieringRecommendation::ColdS3;
-        }
-
-        if age_days >= self.config.flash_threshold_days {
-            return TieringRecommendation::WarmS3;
-        }
-
-        TieringRecommendation::Flash
     }
 
     fn generate_rationale(&self, age_days: u64, metrics: &AccessMetrics, score: f64) -> String {

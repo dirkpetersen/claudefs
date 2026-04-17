@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 4: Active-Active HA Planning (2026-04-17)
+
+**Status:** 🔴 **PHASE 3 COMPLETE, PHASE 4 BLOCKED** — Awaiting OpenCode environment fix
+
+**Phase 3 Summary (Completed 2026-03-09):**
+- ✅ 878 tests passing (Phase 2: 817 + Phase 3: +61)
+- ✅ 45 replication modules implemented
+- ✅ Cross-site journal replication with cloud conduit (gRPC/mTLS)
+- ✅ Conflict resolution with split-brain detection
+- ✅ Site failover and active-active stubs
+- ✅ Journal tailer, cursor tracking, sliding window protocol
+- ✅ Catch-up state machine for replica recovery
+- ✅ Duplicate entry detection, connection pooling
+- ✅ Selective replication filters
+
+**Phase 4 Specification (Ready for Implementation):**
+1. `write_aware_quorum.rs` (22-26 tests) — Quorum-based write coordination across sites
+2. `read_repair_coordinator.rs` (20-24 tests) — Anti-entropy read-repair for replica divergence
+3. `vector_clock_replication.rs` (24-28 tests) — Causal consistency tracking via vector clocks
+4. `dual_site_orchestrator.rs` (26-32 tests) — HA orchestration combining all Phase 4 components
+
+**Target:** ~320 new tests → ~1200 total tests for Phase 4 completion
+
+**Blocker Details:**
+- OpenCode environment issue prevents Rust code generation
+- CLAUDE.md constraint: Claude agents cannot write Rust directly
+- Alternative approaches blocked by same root cause
+- Full analysis in `A6-PHASE4-SESSION4-STATUS.md`
+- Awaiting supervisor intervention or OpenCode environment fix
+
+**Deliverables:**
+- ✅ `a6-phase4-input.md` — 18.7 KB complete specification
+- ✅ `input.md` — OpenCode-ready prompt with code patterns
+- ✅ `a6_phase4_prompt.txt` — Alternative prompt format
+- ✅ `A6-PHASE4-OPENCODE-INVESTIGATION.md` — Root cause analysis (2026-03-09)
+- ✅ `A6-PHASE4-SESSION4-STATUS.md` — Current session blocker documentation
+
+**Phase 3 Reference Commit:** 7feb17c `[A6] Phase 4 Planning & Investigation: Active-Active Failover & HA — BLOCKED by OpenCode`
+
+---
+
 ### A8: Management — Phase 3: Comprehensive Planning & Specification (2026-03-08 to 2026-03-09)
 
 **Status:** 🟡 **PLANNING COMPLETE** — Blocked by system resource exhaustion, ready for implementation

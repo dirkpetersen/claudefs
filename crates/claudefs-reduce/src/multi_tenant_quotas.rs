@@ -99,6 +99,14 @@ impl MultiTenantQuotas {
             ReduceError::InvalidInput(format!("Failed to acquire write lock: {}", e))
         })?;
         quotas.insert(tenant_id, limit.clone());
+
+        let mut usage = self.usage.write().map_err(|e| {
+            ReduceError::InvalidInput(format!("Failed to acquire write lock: {}", e))
+        })?;
+        usage
+            .entry(tenant_id)
+            .or_insert_with(|| QuotaUsage::new(tenant_id));
+
         info!("Set quota for tenant {:?}: {:?}", tenant_id, limit);
         Ok(())
     }
