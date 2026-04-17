@@ -158,7 +158,7 @@ impl TestCollector {
                     test_starts.insert(name.clone(), start_time);
                 }
                 CargoTestEvent::Ok { name, duration } => {
-                    let (start_time, _) = test_times.remove(&name).unwrap_or((0, 0));
+                    let (start_time, _) = collector.test_times.remove(&name).unwrap_or((0, 0));
                     let end_time = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap()
@@ -176,7 +176,7 @@ impl TestCollector {
                     collector.add_result(&crate_name, result);
                 }
                 CargoTestEvent::Failed { name, duration } => {
-                    let (start_time, _) = test_times.remove(&name).unwrap_or((0, 0));
+                    let (start_time, _) = collector.test_times.remove(&name).unwrap_or((0, 0));
                     let end_time = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap()
