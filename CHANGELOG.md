@@ -6,6 +6,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A5: FUSE Client — Phase 38: Advanced Configuration & Multi-Node Integration (2026-04-18 Session 1 - Planning)
+
+**Status:** 🟡 **PHASE 38 PLANNING COMPLETE** — Ready for implementation
+
+**Summary - Advanced Configuration Management & Multi-Node Integration:**
+- ✅ Phase 37 completion verified: 1175+ tests (production readiness modules)
+- ✅ Phase 38 comprehensive planning document created: 5 blocks, 110 total advanced tests
+- ✅ Detailed specifications for configuration management, observability, multi-node failover, performance tuning
+- ✅ Implementation strategy: 4-session plan with OpenCode execution
+
+**5 Implementation Blocks (110 tests):**
+- Block 1: Configuration Management (25 tests) — Hot-reload policies, HTTP API, persistence, replication
+- Block 2: Observability & Dashboarding (22 tests) — Jaeger export, metrics aggregation, Grafana dashboards, alerting
+- Block 3: Multi-Node Integration (25 tests) — Session failover, distributed policy enforcement, consistency verification
+- Block 4: Performance & Stress Testing (20 tests) — Tracing overhead, token bucket throughput, session lookup scaling
+- Block 5: Failure Modes & Edge Cases (15 tests) — Network partitions, clock skew, quota boundaries, concurrent updates
+
+**Key Features:**
+- Configuration versioning with epoch-based invalidation
+- Policy hot-reload without mount restart
+- OpenTelemetry Jaeger integration for distributed tracing
+- Session failover with FD-to-inode mapping transfer
+- LWW conflict resolution for distributed policies
+- Comprehensive performance benchmarks (p99 latencies, throughput)
+
+**Integration Points:**
+- A4 Transport: RPC for config updates, multi-node coordination
+- A2 Metadata: PolicyEpoch KV storage, audit trails
+- A6 Replication: Cross-site policy replication
+- A8 Management: /config REST API endpoint
+- A9 Testing: Multi-node failover validation
+- A11 Infrastructure: 3-5 node cluster for integration tests
+
+**Timeline & Implementation:**
+- Session 2: OpenCode Blocks 1-2 (Config + Observability) → 47 tests + utilities
+- Session 3: OpenCode Blocks 3-4 (Multi-Node + Performance) → 45 tests
+- Session 4: OpenCode Block 5 (Failures) + validation → 15-20 tests
+- Session 5: Final validation, commit, CHANGELOG update
+
+**Expected Results:**
+- Phase 38 target: +110 tests → 1285+ total (from 1175 baseline)
+- All 5 Phase 37 modules enhanced with config management
+- Zero-downtime policy updates verified under load
+- Multi-node failover latency < 500ms
+- Performance regressions detected vs Phase 37 baselines
+- Full state consistency after network partitions and failovers
+
+**Files Created:**
+- `docs/A5-PHASE38-PLAN.md` (620 lines - comprehensive specification)
+
+**Commit:** 2cfa495
+
+---
+
 ### A3: Data Reduction — Phase 31: Operational Hardening & Cluster Testing (2026-04-17 Session 7 - Planning)
 
 **Status:** 🟡 **PHASE 31 PLANNING COMPLETE** — Ready for implementation
