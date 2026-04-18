@@ -194,3 +194,158 @@ variable "storage_site_b_azs" {
   type        = list(string)
   default     = ["us-west-2b", "us-west-2c"]
 }
+
+# Network
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "enable_nat_gateway" {
+  description = "Enable NAT Gateway for private subnets"
+  type        = bool
+  default     = true
+}
+
+# ASG Scaling Configuration
+variable "site_a_min_size" {
+  description = "Minimum size for Site A ASG"
+  type        = number
+  default     = 3
+}
+
+variable "site_a_desired_capacity" {
+  description = "Desired capacity for Site A ASG"
+  type        = number
+  default     = 5
+}
+
+variable "site_a_max_size" {
+  description = "Maximum size for Site A ASG"
+  type        = number
+  default     = 10
+}
+
+variable "site_b_min_size" {
+  description = "Minimum size for Site B ASG"
+  type        = number
+  default     = 1
+}
+
+variable "site_b_desired_capacity" {
+  description = "Desired capacity for Site B ASG"
+  type        = number
+  default     = 2
+}
+
+variable "site_b_max_size" {
+  description = "Maximum size for Site B ASG"
+  type        = number
+  default     = 5
+}
+
+variable "scale_up_cpu_threshold" {
+  description = "CPU threshold for scale up (percentage)"
+  type        = number
+  default     = 70
+}
+
+variable "scale_down_cpu_threshold" {
+  description = "CPU threshold for scale down (percentage)"
+  type        = number
+  default     = 20
+}
+
+variable "scale_up_cooldown" {
+  description = "Cooldown period for scale up in seconds"
+  type        = number
+  default     = 300
+}
+
+variable "scale_down_cooldown" {
+  description = "Cooldown period for scale down in seconds"
+  type        = number
+  default     = 900
+}
+
+variable "enable_disk_scaling" {
+  description = "Enable disk-based scaling triggers"
+  type        = bool
+  default     = false
+}
+
+variable "on_demand_percentage" {
+  description = "Percentage of on-demand instances in ASG"
+  type        = number
+  default     = 0
+}
+
+# Monitoring
+variable "enable_monitoring" {
+  description = "Enable CloudWatch monitoring"
+  type        = bool
+  default     = true
+}
+
+variable "enable_cloudwatch_logs" {
+  description = "Enable CloudWatch logs"
+  type        = bool
+  default     = true
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 7
+}
+
+variable "enable_sns_alerts" {
+  description = "Enable SNS alerts"
+  type        = bool
+  default     = false
+}
+
+variable "enable_prometheus" {
+  description = "Enable Prometheus integration"
+  type        = bool
+  default     = false
+}
+
+# State Backend
+variable "create_state_backend" {
+  description = "Create state backend resources"
+  type        = bool
+  default     = true
+}
+
+variable "state_bucket_name" {
+  description = "Existing S3 bucket for state"
+  type        = string
+  default     = ""
+}
+
+variable "force_destroy_state" {
+  description = "Force destroy S3 state bucket"
+  type        = bool
+  default     = false
+}
+
+# IAM
+variable "production_mode" {
+  description = "Use production IAM policies (restricted)"
+  type        = bool
+  default     = false
+}
+
+variable "artifact_bucket_name" {
+  description = "S3 bucket for artifacts"
+  type        = string
+  default     = "claudefs-artifacts"
+}
+
+variable "data_bucket_name" {
+  description = "S3 bucket for data tiering"
+  type        = string
+  default     = "claudefs-data"
+}

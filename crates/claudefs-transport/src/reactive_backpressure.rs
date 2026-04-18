@@ -52,6 +52,9 @@ pub struct BackpressureConfig {
     pub queue_slow_threshold: u32,
     pub queue_degraded_threshold: u32,
     pub queue_overloaded_threshold: u32,
+    pub latency_slow_threshold: u32,
+    pub latency_degraded_threshold: u32,
+    pub latency_overloaded_threshold: u32,
     pub signal_ttl_ms: u64,
     pub max_backoff_ms: u32,
 }
@@ -68,6 +71,9 @@ impl Default for BackpressureConfig {
             queue_slow_threshold: 100,
             queue_degraded_threshold: 500,
             queue_overloaded_threshold: 1000,
+            latency_slow_threshold: 50,
+            latency_degraded_threshold: 200,
+            latency_overloaded_threshold: 1000,
             signal_ttl_ms: 5000,
             max_backoff_ms: 10000,
         }
@@ -174,7 +180,17 @@ impl BackpressureCoordinator {
             BackpressureLevel::Ok
         };
 
-        let levels = [cpu_level, mem_level, queue_level];
+        let latency_level = if metrics.latency_ms >= self.config.latency_overloaded_threshold {
+            BackpressureLevel::Overloaded
+        } else if metrics.latency_ms >= self.config.latency_degraded_threshold {
+            BackpressureLevel::Degraded
+        } else if metrics.latency_ms >= self.config.latency_slow_threshold {
+            BackpressureLevel::Slow
+        } else {
+            BackpressureLevel::Ok
+        };
+
+        let levels = [cpu_level, mem_level, queue_level, latency_level];
         *levels.iter().max_by(|a, b| a.cmp(b)).unwrap()
     }
 
@@ -223,7 +239,9 @@ impl BackpressureCoordinator {
 
         let base: u64 = 10;
         let jitter_max: u64 = 5;
-        let exponential = base * (2u64.pow(iteration));
+        let max_iter = 30; // Prevent overflow
+        let iter = iteration.min(max_iter);
+        let exponential = base * (2u64.pow(iter));
         let jitter = (rand_simple(iteration) % jitter_max) as u64;
         let backoff = (exponential + jitter).min(self.config.max_backoff_ms as u64);
 

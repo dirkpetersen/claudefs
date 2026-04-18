@@ -229,6 +229,9 @@ impl ConnectionPool {
             connections.push(conn.clone());
 
             self.stats
+                .connections_acquired
+                .fetch_add(1, Ordering::Relaxed);
+            self.stats
                 .connections_created
                 .fetch_add(1, Ordering::Relaxed);
             self.stats.total_connections.fetch_add(1, Ordering::Relaxed);
