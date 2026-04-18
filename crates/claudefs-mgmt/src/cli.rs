@@ -1,10 +1,19 @@
 use crate::config::MgmtConfig;
 use crate::metrics::ClusterMetrics;
 use crate::api::AdminApi;
+use crate::health::{HealthAggregator, NodeHealth, HealthStatus, ClusterHealth};
+use crate::event_sink::{ExportedEvent, EventSeverity};
+use crate::recovery_actions::{RecoveryExecutor, RecoveryLog, RecoveryAction, ActionStatus, RecoveryConfig};
+use crate::alerting::{AlertManager, Alert, AlertSeverity, AlertState, AlertRule};
+use crate::capacity::{CapacityPlanner, CapacityDataPoint, CapacityProjection, CapacityRecommendation};
+use crate::diagnostics::{DiagnosticsRunner, DiagnosticReport, DiagnosticLevel, DiagnosticCheck};
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand};
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -55,6 +64,64 @@ pub enum Command {
         #[arg(short, long, default_value = "/etc/claudefs/mgmt.toml")]
         config: PathBuf,
     },
+    Health {
+        #[arg(short, long)]
+        verbose: bool,
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        node: Option<String>,
+    },
+    Diagnostics {
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        csv: bool,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+    Recovery {
+        #[command(subcommand)]
+        cmd: RecoveryCmd,
+    },
+    Capacity {
+        #[arg(long, default_value = "30")]
+        forecast_days: usize,
+        #[arg(long)]
+        json: bool,
+    },
+    Alerts {
+        #[arg(long)]
+        severity: Option<String>,
+        #[arg(long)]
+        alert_type: Option<String>,
+        #[arg(long)]
+        active: bool,
+        #[arg(long)]
+        resolved: bool,
+        #[arg(long, default_value = "50")]
+        limit: usize,
+        #[arg(long)]
+        acknowledge: Option<String>,
+        #[arg(long)]
+        silence: Option<String>,
+        #[arg(long)]
+        silence_duration: Option<u64>,
+        #[arg(long)]
+        json: bool,
+    },
+    Dashboard {
+        #[arg(long, default_value = "all")]
+        dashboard: String,
+        #[arg(long, default_value = "now-6h")]
+        time_from: String,
+        #[arg(long, default_value = "now")]
+        time_to: String,
+        #[arg(long)]
+        open: bool,
+        #[arg(long, default_value = "http://localhost:3000")]
+        grafana_host: String,
+    },
 }
 
 #[derive(Subcommand, Clone)]
@@ -65,6 +132,36 @@ pub enum NodeCmd {
     },
     Show {
         node_id: String,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+pub enum RecoveryCmd {
+    Show {
+        #[arg(long)]
+        action_type: Option<String>,
+        #[arg(long)]
+        node: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long, default_value = "50")]
+        limit: usize,
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        csv: bool,
+    },
+    Execute {
+        #[arg(long, required = true)]
+        action_type: String,
+        #[arg(long)]
+        node: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        force: bool,
+        #[arg(long, default_value = "NORMAL")]
+        priority: String,
     },
 }
 

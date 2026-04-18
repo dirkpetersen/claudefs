@@ -106,7 +106,14 @@ pub mod dual_site_orchestrator;
 pub mod repl_metrics_exporter;
 /// Health integration for replication metrics and health checks.
 pub mod health_integration;
+/// Automated failover controller with health-check-based triggering.
+pub mod failover_controller;
+/// Operational state machine and procedures for replication.
+pub mod ops_runbook;
 
 pub use repl_metrics_exporter::ReplMetricsExporter;
 pub use health_integration::{ReplHealthChecker, ReplHealthStatus};
 pub use dual_site_orchestrator::HealthStatus;
+pub use failover_controller::{FailoverConfig, FailoverController, FailoverControllerState};
+pub use ops_runbook::{OperationalRunbook, OperationalScenario, ProcedureStep};
+pub use split_brain::{ResolutionEvent, ResolutionStrategy, SplitBrainResolver};

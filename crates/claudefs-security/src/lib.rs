@@ -285,3 +285,12 @@ pub mod storage_background_subsystems_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod fuse_cache_coherence_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod protocol_security_fuzzing_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod meta_multi_tenancy_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod emerging_threats_compliance_tests;

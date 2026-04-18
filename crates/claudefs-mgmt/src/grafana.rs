@@ -18,6 +18,8 @@ pub enum PanelType {
     Table,
     Heatmap,
     BarChart,
+    PieChart,
+    Timeline,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -313,10 +315,86 @@ pub fn generate_top_users_dashboard() -> Value {
     })
 }
 
+pub fn generate_health_overview_dashboard() -> Value {
+    json!({
+        "title": "ClaudeFS Health Overview",
+        "uid": "claudefs-health-overview-phase4b4",
+        "schemaVersion": 38,
+        "version": 1,
+        "refresh": "30s",
+        "time": {"from": "now-24h", "to": "now"},
+        "panels": [
+            {"id": 1, "title": "Cluster Health Score", "type": "gauge", "gridPos": {"x": 0, "y": 0, "w": 6, "h": 6}, "targets": [{"expr": "claudefs_cluster_health_score", "legend": "Health %"}], "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 50}, {"color": "green", "value": 80}]}}}},
+            {"id": 2, "title": "Node Status Grid", "type": "table", "gridPos": {"x": 6, "y": 0, "w": 18, "h": 10}, "targets": [{"expr": "claudefs_node_status", "legend": "Status"}]},
+            {"id": 3, "title": "Recovery Actions", "type": "table", "gridPos": {"x": 0, "y": 10, "w": 12, "h": 8}, "targets": [{"expr": "claudefs_recovery_actions_total", "legend": "Actions"}]},
+            {"id": 4, "title": "Backup Status", "type": "stat", "gridPos": {"x": 12, "y": 10, "w": 12, "h": 8}, "targets": [{"expr": "claudefs_backup_last_timestamp_seconds", "legend": "Last Backup"}, {"expr": "claudefs_backup_next_scheduled_timestamp_seconds", "legend": "Next Backup"}, {"expr": "claudefs_backup_success_rate", "legend": "Success Rate %"}]}
+        ]
+    })
+}
+
+pub fn generate_performance_trends_dashboard() -> Value {
+    json!({
+        "title": "ClaudeFS Performance Trends",
+        "uid": "claudefs-performance-trends-phase4b4",
+        "schemaVersion": 38,
+        "version": 1,
+        "refresh": "15s",
+        "time": {"from": "now-1h", "to": "now"},
+        "panels": [
+            {"id": 1, "title": "IOPS Over Time", "type": "timeseries", "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}, "targets": [{"expr": "rate(claudefs_ops_read_total[5m])", "legend": "Read IOPS"}, {"expr": "rate(claudefs_ops_write_total[5m])", "legend": "Write IOPS"}]},
+            {"id": 2, "title": "Latency Percentiles", "type": "timeseries", "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}, "targets": [{"expr": "claudefs_latency_p50_ms", "legend": "p50"}, {"expr": "claudefs_latency_p95_ms", "legend": "p95"}, {"expr": "claudefs_latency_p99_ms", "legend": "p99"}]},
+            {"id": 3, "title": "Throughput (Bytes/s)", "type": "timeseries", "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}, "targets": [{"expr": "rate(claudefs_bytes_read_total[5m])", "legend": "Read"}, {"expr": "rate(claudefs_bytes_written_total[5m])", "legend": "Write"}]},
+            {"id": 4, "title": "Cache Hit Rate", "type": "gauge", "gridPos": {"x": 12, "y": 8, "w": 6, "h": 8}, "targets": [{"expr": "claudefs_cache_hit_ratio * 100", "legend": "Hit Rate %"}], "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 50}, {"color": "green", "value": 80}]}}}},
+            {"id": 5, "title": "Query Latency", "type": "timeseries", "gridPos": {"x": 18, "y": 8, "w": 6, "h": 8}, "targets": [{"expr": "claudefs_metadata_query_latency_ms", "legend": "Metadata"}, {"expr": "claudefs_data_query_latency_ms", "legend": "Data"}]}
+        ]
+    })
+}
+
+pub fn generate_capacity_planning_dashboard() -> Value {
+    json!({
+        "title": "ClaudeFS Capacity Planning",
+        "uid": "claudefs-capacity-planning-phase4b4",
+        "schemaVersion": 38,
+        "version": 1,
+        "refresh": "60s",
+        "time": {"from": "now-30d", "to": "now"},
+        "panels": [
+            {"id": 1, "title": "Storage Utilization", "type": "gauge", "gridPos": {"x": 0, "y": 0, "w": 6, "h": 8}, "targets": [{"expr": "claudefs_storage_utilization_percent", "legend": "Utilization %"}], "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 85}]}}}},
+            {"id": 2, "title": "Flash vs S3 Distribution", "type": "piechart", "gridPos": {"x": 6, "y": 0, "w": 9, "h": 8}, "targets": [{"expr": "claudefs_flash_used_bytes", "legend": "Flash"}, {"expr": "claudefs_s3_used_bytes", "legend": "S3"}], "options": {"pieType": "pie", "displayLabels": ["percent"], "legend": {"displayMode": "list", "placement": "right"}}},
+            {"id": 3, "title": "Capacity Forecast", "type": "timeseries", "gridPos": {"x": 15, "y": 0, "w": 9, "h": 8}, "targets": [{"expr": "claudefs_storage_utilized_bytes", "legend": "Current"}]},
+            {"id": 4, "title": "Ingest Rate", "type": "stat", "gridPos": {"x": 0, "y": 8, "w": 6, "h": 6}, "targets": [{"expr": "rate(claudefs_bytes_ingested_total[5m])", "legend": "Ingest"}]},
+            {"id": 5, "title": "Eviction Rate", "type": "stat", "gridPos": {"x": 6, "y": 8, "w": 6, "h": 6}, "targets": [{"expr": "rate(claudefs_bytes_evicted_to_s3_total[5m])", "legend": "Eviction"}]},
+            {"id": 6, "title": "Days Until Full", "type": "stat", "gridPos": {"x": 12, "y": 8, "w": 6, "h": 6}, "targets": [{"expr": "(100 - claudefs_storage_utilization_percent) / (rate(claudefs_bytes_ingested_total[5m]) * 86400 / claudefs_storage_total_bytes)", "legend": "Days"}], "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 7}, {"color": "green", "value": 14}]}}}},
+            {"id": 7, "title": "Tiering Effectiveness", "type": "barchart", "gridPos": {"x": 0, "y": 14, "w": 24, "h": 8}, "targets": [{"expr": "claudefs_s3_cache_hits_total", "legend": "S3 Hits"}, {"expr": "claudefs_flash_hits_total", "legend": "Flash Hits"}], "options": {"orientation": "auto", "showValue": "auto", "groupBy": [], "values": false}}
+        ]
+    })
+}
+
+pub fn generate_alerts_dashboard() -> Value {
+    json!({
+        "title": "ClaudeFS Alerts & Issues",
+        "uid": "claudefs-alerts-issues-phase4b4",
+        "schemaVersion": 38,
+        "version": 1,
+        "refresh": "10s",
+        "time": {"from": "now-7d", "to": "now"},
+        "panels": [
+            {"id": 1, "title": "Active Alerts", "type": "table", "gridPos": {"x": 0, "y": 0, "w": 24, "h": 8}, "targets": [{"expr": "claudefs_active_alerts", "legend": "Alerts"}]},
+            {"id": 2, "title": "Alert Timeline", "type": "barchart", "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}, "targets": [{"expr": "claudefs_alerts_total", "legend": "Alerts"}], "options": {"orientation": "horizontal", "showValue": "auto", "groupBy": [], "values": false}},
+            {"id": 3, "title": "Alert Types Distribution", "type": "piechart", "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}, "targets": [{"expr": "claudefs_alerts_infrastructure_total", "legend": "Infrastructure"}, {"expr": "claudefs_alerts_performance_total", "legend": "Performance"}, {"expr": "claudefs_alerts_capacity_total", "legend": "Capacity"}, {"expr": "claudefs_alerts_cost_total", "legend": "Cost"}, {"expr": "claudefs_alerts_recovery_total", "legend": "Recovery"}], "options": {"pieType": "pie", "displayLabels": ["percent"], "legend": {"displayMode": "list", "placement": "right"}}},
+            {"id": 4, "title": "Recovery Correlation", "type": "table", "gridPos": {"x": 0, "y": 16, "w": 24, "h": 8}, "targets": [{"expr": "claudefs_recovery_correlation", "legend": "Correlation"}]}
+        ]
+    })
+}
+
 pub fn all_dashboards() -> Vec<Value> {
     vec![
         generate_cluster_overview_dashboard(),
         generate_top_users_dashboard(),
+        generate_health_overview_dashboard(),
+        generate_performance_trends_dashboard(),
+        generate_capacity_planning_dashboard(),
+        generate_alerts_dashboard(),
     ]
 }
 
@@ -364,9 +442,9 @@ mod tests {
     }
 
     #[test]
-    fn test_all_dashboards_returns_2() {
+    fn test_all_dashboards_returns_6() {
         let dashboards = all_dashboards();
-        assert_eq!(dashboards.len(), 2);
+        assert_eq!(dashboards.len(), 6);
     }
 
     #[test]
@@ -422,5 +500,69 @@ mod tests {
     fn test_top_users_has_panels() {
         let dashboard = generate_top_users_dashboard();
         assert!(dashboard.get("panels").is_some());
+    }
+
+    #[test]
+    fn test_health_dashboard_valid_json() {
+        let dashboard = generate_health_overview_dashboard();
+        assert!(dashboard.get("title").is_some());
+        assert!(dashboard.get("uid").is_some());
+        assert!(dashboard.get("panels").is_some());
+        assert!(dashboard.get("schemaVersion").is_some());
+    }
+
+    #[test]
+    fn test_health_dashboard_panel_count() {
+        let dashboard = generate_health_overview_dashboard();
+        let panels = dashboard["panels"].as_array().unwrap();
+        assert_eq!(panels.len(), 4);
+    }
+
+    #[test]
+    fn test_performance_dashboard_valid_json() {
+        let dashboard = generate_performance_trends_dashboard();
+        assert!(dashboard.get("title").is_some());
+        assert!(dashboard.get("uid").is_some());
+        assert!(dashboard.get("panels").is_some());
+        assert!(dashboard.get("schemaVersion").is_some());
+    }
+
+    #[test]
+    fn test_performance_dashboard_panel_count() {
+        let dashboard = generate_performance_trends_dashboard();
+        let panels = dashboard["panels"].as_array().unwrap();
+        assert_eq!(panels.len(), 5);
+    }
+
+    #[test]
+    fn test_capacity_dashboard_valid_json() {
+        let dashboard = generate_capacity_planning_dashboard();
+        assert!(dashboard.get("title").is_some());
+        assert!(dashboard.get("uid").is_some());
+        assert!(dashboard.get("panels").is_some());
+        assert!(dashboard.get("schemaVersion").is_some());
+    }
+
+    #[test]
+    fn test_capacity_dashboard_panel_count() {
+        let dashboard = generate_capacity_planning_dashboard();
+        let panels = dashboard["panels"].as_array().unwrap();
+        assert_eq!(panels.len(), 7);
+    }
+
+    #[test]
+    fn test_alerts_dashboard_valid_json() {
+        let dashboard = generate_alerts_dashboard();
+        assert!(dashboard.get("title").is_some());
+        assert!(dashboard.get("uid").is_some());
+        assert!(dashboard.get("panels").is_some());
+        assert!(dashboard.get("schemaVersion").is_some());
+    }
+
+    #[test]
+    fn test_alerts_dashboard_panel_count() {
+        let dashboard = generate_alerts_dashboard();
+        let panels = dashboard["panels"].as_array().unwrap();
+        assert_eq!(panels.len(), 4);
     }
 }
