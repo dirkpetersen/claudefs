@@ -4,7 +4,7 @@
 //!        worm_enforcement (2), quota_client_tracker (2)
 
 use claudefs_fuse::readdir_cache::{DirEntry, DirPage, ReaddirCache, ReaddirCacheConfig};
-use claudefs_fuse::writeback_cache::{DirtyPage, WritebackCache, WritebackConfig};
+use claudefs_fuse::writeback_cache::{WritebackCache, WritebackConfig};
 use claudefs_fuse::mmap::{MmapProt, MmapRegion, MmapTracker};
 use claudefs_fuse::otel_tracing_integration::{
     FuseOp, FuseSpanContext, FuseTracer, NoopExporter, SpanStatus, TraceId,
@@ -211,13 +211,8 @@ mod writeback_cache_tests {
         };
         let mut cache = WritebackCache::new(config);
         
-        let mut hit_limit = false;
         for i in 0..100 {
-            let over_limit = cache.write(1, i * 4096, vec![0u8; 4096]);
-            if over_limit {
-                hit_limit = true;
-                break;
-            }
+            let _over_limit = cache.write(1, i * 4096, vec![0u8; 4096]);
         }
         
         let dirty = cache.dirty_bytes();
