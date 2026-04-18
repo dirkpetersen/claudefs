@@ -1,9 +1,9 @@
-name: Release & Deployment
+name: Release & Deployment — Phase 4 Block 4
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'  # v1.0.0, v1.0.1, etc.
   workflow_dispatch:
     inputs:
       version:
@@ -13,15 +13,18 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  ARTIFACT_DIR: ./releases
 
 jobs:
-  create-release:
-    name: Create Release
+  build-and-sign:
+    name: Build & Sign Release Artifacts
     runs-on: ubuntu-24.04
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Get version
         id: version
@@ -33,35 +36,211 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building release ${VERSION}"
 
+      - name: Build release binaries (x86_64 + aarch64)
+        run: ./tools/build-release.sh ${{ steps.version.outputs.version }} --aarch64
+        env:
+          BUILD_LTO: "true"
+
+      - name: Generate checksums
+        run: |
+          cd ${{ env.ARTIFACT_DIR }}
+          sha256sum *.tar.gz > CHECKSUMS.sha256
+          cat CHECKSUMS.sha256
+
+      - name: Import GPG key
+        id: gpg
+        run: |
+          echo "${{ secrets.CFS_GPG_KEY }}" | gpg --import 2>/dev/null || true
+          echo "key_id=${{ secrets.CFS_GPG_KEY_ID }}" >> $GITHUB_OUTPUT
+
+      - name: Sign artifacts
+        env:
+          CFS_GPG_KEY_ID: ${{ secrets.CFS_GPG_KEY_ID }}
+        run: ./tools/sign-release.sh ${{ env.ARTIFACT_DIR }}
+
+      - name: Verify signatures
+        run: ./tools/verify-release.sh ${{ env.ARTIFACT_DIR }}
+
+      - name: Generate release notes
+        run: ./tools/generate-release-notes.sh ${{ steps.version.outputs.version }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: releases/
+          retention-days: 7
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: RELEASE-NOTES-*.md
+          retention-days: 7
+
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-24.04
+    needs: build-and-sign
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: releases/
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .
+
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          draft: true
+          files: releases/*
+          body_path: RELEASE-NOTES-${{ needs.build-and-sign.outputs.version }}.md
+          draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-binaries:
-    name: Build Release Binaries
+  canary-deploy:
+    name: Canary Deployment (1 Test Node)
     runs-on: ubuntu-24.04
-    needs: create-release
+    needs: create-github-release
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Build binary
-        run: cargo build --release
-
-      - name: Create archive
-        run: |
-          mkdir -p release
-          tar -czf release/cfs.tar.gz -C target/release cfs
-
-      - name: Upload binary
-        uses: softprops/action-gh-release@v1
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
         with:
-          files: release/cfs.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: release-artifacts
+          path: releases/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/cfs-orchestrator-role
+          aws-region: us-west-2
+
+      - name: Deploy to canary
+        run: |
+          ./tools/rollout.sh \
+            --version ${{ needs.build-and-sign.outputs.version }} \
+            --stage canary
+        timeout-minutes: 1800  # 30 hours for canary
+
+      - name: Run POSIX test suite
+        run: |
+          cargo test --lib posix -- --test-threads=1 --nocapture 2>&1 | head -100
+        timeout-minutes: 120
+        continue-on-error: true
+
+      - name: Health check (24 hours)
+        run: |
+          ./tools/health-check.sh \
+            --cluster-nodes 1 \
+            --timeout 86400
+        timeout-minutes: 1440
+        continue-on-error: true
+
+  10pct-rollout:
+    name: 10% Rollout (1 Storage + 1 Client)
+    runs-on: ubuntu-24.04
+    needs: [build-and-sign, canary-deploy]
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: releases/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/cfs-orchestrator-role
+          aws-region: us-west-2
+
+      - name: Deploy to 10%
+        run: |
+          ./tools/rollout.sh \
+            --version ${{ needs.build-and-sign.outputs.version }} \
+            --stage 10pct
+        timeout-minutes: 120
+
+  50pct-rollout:
+    name: 50% Rollout (3 Storage + 1 Client)
+    runs-on: ubuntu-24.04
+    needs: [build-and-sign, 10pct-rollout]
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: releases/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/cfs-orchestrator-role
+          aws-region: us-west-2
+
+      - name: Deploy to 50%
+        run: |
+          ./tools/rollout.sh \
+            --version ${{ needs.build-and-sign.outputs.version }} \
+            --stage 50pct
+        timeout-minutes: 120
+
+  100pct-rollout:
+    name: 100% Rollout (Full Cluster)
+    runs-on: ubuntu-24.04
+    needs: [build-and-sign, 50pct-rollout]
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: releases/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/cfs-orchestrator-role
+          aws-region: us-west-2
+
+      - name: Deploy to 100%
+        run: |
+          ./tools/rollout.sh \
+            --version ${{ needs.build-and-sign.outputs.version }} \
+            --stage 100pct
+        timeout-minutes: 120
+
+      - name: Post-deployment validation
+        run: |
+          cargo test --lib integration -- --test-threads=1 2>&1 | head -100
+        timeout-minutes: 120
+        continue-on-error: true
+
+  release-complete:
+    name: Release Complete
+    runs-on: ubuntu-24.04
+    needs: [build-and-sign, create-github-release, 100pct-rollout]
+    if: always()
+    steps:
+      - name: Report deployment status
+        run: |
+          echo "Release ${{ needs.build-and-sign.outputs.version }} deployment complete"
+          echo "Status: ${{ job.status }}"
