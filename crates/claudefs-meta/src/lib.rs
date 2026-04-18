@@ -92,6 +92,7 @@ pub mod quota;
 pub mod quota_integration;
 /// Per-tenant quota tracking with soft/hard limits
 pub mod quota_tracker;
+#[allow(missing_docs)]
 /// Cross-site quota configuration replication with conflict resolution
 pub mod quota_replication;
 /// Multi-tenant namespace isolation for metadata operations
@@ -206,6 +207,11 @@ pub use quota::{QuotaEntry, QuotaLimit, QuotaManager, QuotaTarget, QuotaUsage};
 pub use quota_tracker::{
     QuotaType, TenantQuota, QuotaUsage as TenantQuotaUsage, ViolationType, Severity, QuotaViolation,
     QuotaTrackerConfig, QuotaTracker,
+};
+pub use quota_replication::{
+    QuotaReplicationRequest, QuotaReplicationAck, QuotaReplicationConflict,
+    QuotaReplicationMetrics, ReplicationStatus, ResolutionStrategy,
+    QuotaReplicationError,
 };
 pub use tenant_isolator::{
     TenantNamespace, TenantCapabilities, TenantContext, IsolationViolationType, IsolationViolation,
