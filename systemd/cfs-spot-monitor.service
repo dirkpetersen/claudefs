@@ -1,0 +1,23 @@
+[Unit]
+Description=ClaudeFS Spot Instance Disruption Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cfs
+ExecStart=/home/cfs/tools/cfs-disruption-handler.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cfs-spot-monitor
+
+MemoryLimit=100M
+CPUQuota=10%
+
+KillMode=mixed
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

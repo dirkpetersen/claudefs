@@ -18,3 +18,11 @@ Now I'll create the input.md and run OpenCode to generate the test file:
 
 
 [0m← [0mWrite input.mdWrote file successfully.
+[0m$ [0m~/.opencode/bin/opencode run "$(cat input.md)" --model fireworks-ai/accounts/fireworks/models/minimax-m2p5 > output.md 2>&1
+[0m✗ [0mread failed
+
+[91m[1mError: [0mCannot read binary file: /home/cfs/claudefs/output.md[0m[0m$ [0mls -la output.md
+
+
+[0m
+-rw-rw-r-- 1 cfs cfs 47985 Apr 18 18:38 output.md
