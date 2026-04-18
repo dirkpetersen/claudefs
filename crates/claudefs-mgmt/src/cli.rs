@@ -14,7 +14,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Parser)]
@@ -178,6 +178,16 @@ impl Cli {
             Command::ReductionReport => self.reduction_report().await,
             Command::ReplicationStatus => self.replication_status().await,
             Command::Serve { ref config } => self.serve(config).await,
+            Command::Health { verbose, json, node } => self.health(verbose, json, node.as_deref()).await,
+            Command::Diagnostics { json, csv, output } => self.diagnostics(json, csv, output.as_deref()).await,
+            Command::Recovery { ref cmd } => self.recovery(cmd).await,
+            Command::Capacity { forecast_days, json } => self.capacity(forecast_days, json).await,
+            Command::Alerts { severity, alert_type, active, resolved, limit, acknowledge, silence, silence_duration, json } => {
+                self.alerts(severity.as_deref(), alert_type.as_deref(), active, resolved, limit, acknowledge.as_deref(), silence.as_deref(), silence_duration, json).await
+            },
+            Command::Dashboard { dashboard, time_from, time_to, open, grafana_host } => {
+                self.dashboard(&dashboard, &time_from, &time_to, open, &grafana_host).await
+            },
         }
     }
 
@@ -433,6 +443,468 @@ impl Cli {
 
         let api = AdminApi::new(metrics, config.clone(), config.index_dir.clone());
         api.serve().await
+    }
+
+    async fn health(&self, verbose: bool, json: bool, node: Option<&str>) -> Result<()> {
+        let client = Client::new();
+        let url = if let Some(n) = node {
+            format!("{}/api/v1/health?node={}", self.server, n)
+        } else {
+            format!("{}/api/v1/health", self.server)
+        };
+
+        let mut request = client.get(&url);
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Request failed: {}", response.status());
+        }
+
+        #[derive(Deserialize, Serialize)]
+        struct HealthResponse {
+            status: String,
+            nodes: Option<Vec<NodeHealthStatus>>,
+            latency_ms: Option<u64>,
+            subsystems: Option<HashMap<String, SubsystemStatus>>,
+        }
+
+        #[derive(Deserialize, Serialize)]
+        struct NodeHealthStatus {
+            node_id: String,
+            status: String,
+            latency_ms: Option<u64>,
+            capacity_used_pct: Option<f64>,
+        }
+
+        #[derive(Deserialize, Serialize)]
+        struct SubsystemStatus {
+            status: String,
+            message: Option<String>,
+        }
+
+        let health: HealthResponse = response.json().await?;
+
+        if json {
+            println!("{}", serde_json::to_string_pretty(&health)?);
+            return Ok(());
+        }
+
+        println!("Cluster Health: {}", health.status);
+
+        if let Some(nodes) = health.nodes {
+            println!("\nNode Status:");
+            println!("{:<20} {:<15} {:>12} {:>15}", "NODE ID", "STATUS", "LATENCY", "CAPACITY %");
+            println!("{}", "-".repeat(65));
+
+            for n in nodes {
+                let latency = n.latency_ms.map(|l| format!("{} ms", l)).unwrap_or_else(|| "N/A".to_string());
+                let capacity = n.capacity_used_pct.map(|c| format!("{:.1}%", c)).unwrap_or_else(|| "N/A".to_string());
+                println!("{:<20} {:<15} {:>12} {:>15}", n.node_id, n.status, latency, capacity);
+            }
+        }
+
+        if verbose {
+            if let Some(latency) = health.latency_ms {
+                println!("\nLatency: {} ms", latency);
+            }
+            if let Some(subsystems) = health.subsystems {
+                println!("\nSubsystems:");
+                for (name, sub) in subsystems {
+                    let status_str = sub.status;
+                    let msg = sub.message.unwrap_or_default();
+                    println!("  {}: {} {}", name, status_str, if msg.is_empty() { "" } else { &msg });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn diagnostics(&self, json: bool, csv: bool, output: Option<&Path>) -> Result<()> {
+        let client = Client::new();
+        let url = format!("{}/api/v1/diagnostics", self.server);
+
+        let mut request = client.get(&url);
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Request failed: {}", response.status());
+        }
+
+        #[derive(Deserialize, Serialize)]
+        struct DiagnosticResult {
+            check_name: String,
+            status: String,
+            message: Option<String>,
+            details: Option<HashMap<String, serde_json::Value>>,
+        }
+
+        let diagnostics: Vec<DiagnosticResult> = response.json().await?;
+
+        if json || csv {
+            if let Some(out_path) = output {
+                if json {
+                    let file = std::fs::File::create(out_path)?;
+                    serde_json::to_writer(file, &diagnostics)?;
+                    println!("Diagnostics written to {}", out_path.display());
+                } else {
+                    let file = std::fs::File::create(out_path)?;
+                    let mut wtr = csv::Writer::from_writer(file)?;
+                    wtr.write_record(&["check_name", "status", "message"])?;
+                    for d in &diagnostics {
+                        wtr.write_record(&[&d.check_name, &d.status, &d.message.clone().unwrap_or_default()])?;
+                    }
+                    wtr.flush()?;
+                    println!("Diagnostics written to {}", out_path.display());
+                }
+            } else {
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&diagnostics)?);
+                } else {
+                    println!("check_name,status,message");
+                    for d in &diagnostics {
+                        println!("{},{},{}", d.check_name, d.status, d.message.clone().unwrap_or_default());
+                    }
+                }
+            }
+            return Ok(());
+        }
+
+        println!("Diagnostic Checks:");
+        println!("{:<40} {:<12} {}", "CHECK", "STATUS", "MESSAGE");
+        println!("{}", "-".repeat(85));
+
+        for d in diagnostics {
+            let msg = d.message.unwrap_or_default();
+            println!("{:<40} {:<12} {}", d.check_name, d.status, msg);
+        }
+
+        Ok(())
+    }
+
+    async fn recovery(&self, cmd: &RecoveryCmd) -> Result<()> {
+        match cmd {
+            RecoveryCmd::Show { action_type, node, status, limit, json, csv } => {
+                self.recovery_show(action_type.as_deref(), node.as_deref(), status.as_deref(), *limit, *json, *csv).await
+            },
+            RecoveryCmd::Execute { action_type, node, dry_run, force, priority } => {
+                self.recovery_execute(action_type, node.as_deref(), *dry_run, *force, priority).await
+            },
+        }
+    }
+
+    async fn recovery_show(&self, action_type: Option<&str>, node: Option<&str>, status: Option<&str>, limit: usize, json: bool, csv: bool) -> Result<()> {
+        let client = Client::new();
+        let mut url = format!("{}/api/v1/recovery?limit={}", self.server, limit);
+
+        if let Some(at) = action_type {
+            url.push_str(&format!("&action_type={}", at));
+        }
+        if let Some(n) = node {
+            url.push_str(&format!("&node={}", n));
+        }
+        if let Some(s) = status {
+            url.push_str(&format!("&status={}", s));
+        }
+
+        let mut request = client.get(&url);
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Request failed: {}", response.status());
+        }
+
+        #[derive(Deserialize, Serialize)]
+        struct RecoveryActionInfo {
+            action_id: String,
+            action_type: String,
+            node_id: Option<String>,
+            status: String,
+            created_at: String,
+            message: Option<String>,
+        }
+
+        let actions: Vec<RecoveryActionInfo> = response.json().await?;
+
+        if json {
+            println!("{}", serde_json::to_string_pretty(&actions)?);
+            return Ok(());
+        }
+
+        if csv {
+            println!("action_id,action_type,node_id,status,created_at,message");
+            for a in &actions {
+                println!("{},{},{},{},{},{}", a.action_id, a.action_type, a.node_id.clone().unwrap_or_default(), a.status, a.created_at, a.message.clone().unwrap_or_default());
+            }
+            return Ok(());
+        }
+
+        println!("Recovery Actions:");
+        println!("{:<36} {:<20} {:<15} {:<12} {}", "ACTION ID", "TYPE", "NODE", "STATUS", "CREATED");
+        println!("{}", "-".repeat(100));
+
+        for a in actions {
+            println!("{:<36} {:<20} {:<15} {:<12} {}", a.action_id, a.action_type, a.node_id.clone().unwrap_or_default(), a.status, a.created_at);
+        }
+
+        Ok(())
+    }
+
+    async fn recovery_execute(&self, action_type: &str, node: Option<&str>, dry_run: bool, force: bool, priority: &str) -> Result<()> {
+        let client = Client::new();
+        let url = format!("{}/api/v1/recovery/execute", self.server);
+
+        let mut body = json!({
+            "action_type": action_type,
+            "dry_run": dry_run,
+            "force": force,
+            "priority": priority,
+        });
+
+        if let Some(n) = node {
+            body["node"] = json!(n);
+        }
+
+        let mut request = client.post(&url).json(&body);
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Request failed: {}", response.status());
+        }
+
+        #[derive(Deserialize)]
+        struct ExecuteResponse {
+            action_id: String,
+            status: String,
+            message: String,
+        }
+
+        let result: ExecuteResponse = response.json().await?;
+
+        println!("Action ID: {}", result.action_id);
+        println!("Status: {}", result.status);
+        println!("Message: {}", result.message);
+
+        Ok(())
+    }
+
+    async fn capacity(&self, forecast_days: usize, json: bool) -> Result<()> {
+        let client = Client::new();
+        let url = format!("{}/api/v1/capacity?forecast_days={}", self.server, forecast_days);
+
+        let mut request = client.get(&url);
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Request failed: {}", response.status());
+        }
+
+        #[derive(Deserialize, Serialize)]
+        struct CapacityResponse {
+            total_bytes: u64,
+            used_bytes: u64,
+            available_bytes: u64,
+            usage_percent: f64,
+            projections: Option<Vec<CapacityProjectionInfo>>,
+        }
+
+        #[derive(Deserialize, Serialize)]
+        struct CapacityProjectionInfo {
+            date: String,
+            projected_used_bytes: u64,
+            projected_percent: f64,
+        }
+
+        let capacity: CapacityResponse = response.json().await?;
+
+        if json {
+            println!("{}", serde_json::to_string_pretty(&capacity)?);
+            return Ok(());
+        }
+
+        println!("Capacity Usage:");
+        println!("  Total: {}", Self::format_bytes(capacity.total_bytes));
+        println!("  Used: {}", Self::format_bytes(capacity.used_bytes));
+        println!("  Available: {}", Self::format_bytes(capacity.available_bytes));
+        println!("  Usage: {:.1}%", capacity.usage_percent);
+
+        if let Some(projections) = capacity.projections {
+            if !projections.is_empty() {
+                println!("\nCapacity Projections (next {} days):", forecast_days);
+                println!("{:<12} {:>15} {:>15}", "DATE", "PROJECTED", "USAGE %");
+                println!("{}", "-".repeat(45));
+
+                for p in projections {
+                    println!("{:<12} {:>15} {:>15}", p.date, Self::format_bytes(p.projected_used_bytes), format!("{:.1}%", p.projected_percent));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn alerts(&self, severity: Option<&str>, alert_type: Option<&str>, active: bool, resolved: bool, limit: usize, acknowledge: Option<&str>, silence: Option<&str>, silence_duration: Option<u64>, json: bool) -> Result<()> {
+        if let Some(ack_id) = acknowledge {
+            let client = Client::new();
+            let url = format!("{}/api/v1/alerts/{}/acknowledge", self.server, ack_id);
+
+            let mut request = client.post(&url);
+            if let Some(ref token) = self.token {
+                request = request.bearer_auth(token);
+            }
+
+            let response = request.send().await?;
+
+            if !response.status().is_success() {
+                anyhow::bail!("Request failed: {}", response.status());
+            }
+
+            #[derive(Deserialize)]
+            struct AckResponse {
+                alert_id: String,
+                status: String,
+            }
+
+            let result: AckResponse = response.json().await?;
+            println!("Alert {} acknowledged: {}", result.alert_id, result.status);
+            return Ok(());
+        }
+
+        if let Some(sil_id) = silence {
+            let client = Client::new();
+            let url = format!("{}/api/v1/alerts/{}/silence", self.server, sil_id);
+
+            let body = json!({
+                "duration_secs": silence_duration.unwrap_or(3600),
+            });
+
+            let mut request = client.post(&url).json(&body);
+            if let Some(ref token) = self.token {
+                request = request.bearer_auth(token);
+            }
+
+            let response = request.send().await?;
+
+            if !response.status().is_success() {
+                anyhow::bail!("Request failed: {}", response.status());
+            }
+
+            #[derive(Deserialize)]
+            struct SilenceResponse {
+                alert_id: String,
+                status: String,
+                until: String,
+            }
+
+            let result: SilenceResponse = response.json().await?;
+            println!("Alert {} silenced until: {}", result.alert_id, result.until);
+            return Ok(());
+        }
+
+        let client = Client::new();
+        let mut url = format!("{}/api/v1/alerts?limit={}&active={}&resolved={}", self.server, limit, active, resolved);
+
+        if let Some(s) = severity {
+            url.push_str(&format!("&severity={}", s));
+        }
+        if let Some(at) = alert_type {
+            url.push_str(&format!("&alert_type={}", at));
+        }
+
+        let mut request = client.get(&url);
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Request failed: {}", response.status());
+        }
+
+        #[derive(Deserialize, Serialize)]
+        struct AlertInfo {
+            alert_id: String,
+            severity: String,
+            alert_type: String,
+            message: String,
+            state: String,
+            created_at: String,
+            acknowledged_at: Option<String>,
+            silenced_until: Option<String>,
+        }
+
+        let alerts: Vec<AlertInfo> = response.json().await?;
+
+        if json {
+            println!("{}", serde_json::to_string_pretty(&alerts)?);
+            return Ok(());
+        }
+
+        if alerts.is_empty() {
+            println!("No alerts found matching the specified filters.");
+            return Ok(());
+        }
+
+        println!("Alerts:");
+        println!("{:<36} {:<10} {:<15} {:<10} {}", "ALERT ID", "SEVERITY", "TYPE", "STATE", "CREATED");
+        println!("{}", "-".repeat(100));
+
+        for a in alerts {
+            println!("{:<36} {:<10} {:<15} {:<10} {}", a.alert_id, a.severity, a.alert_type, a.state, a.created_at);
+            if !a.message.is_empty() {
+                println!("  Message: {}", a.message);
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn dashboard(&self, dashboard: &str, time_from: &str, time_to: &str, open: bool, grafana_host: &str) -> Result<()> {
+        let encoded_dashboard = urlencoding::encode(dashboard);
+        let url = format!("{}/d-solo/_?orgId=1&panelId=1&from={}&to={}&var-dashboard={}",
+            grafana_host, time_from, time_to, encoded_dashboard);
+
+        if open {
+            let result = std::process::Command::new("xdg-open")
+                .arg(&url)
+                .spawn();
+
+            match result {
+                Ok(_) => println!("Opened dashboard in browser: {}", url),
+                Err(e) => {
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        println!("Could not open browser. Dashboard URL: {}", url);
+                    } else {
+                        anyhow::bail!("Failed to open browser: {}", e);
+                    }
+                }
+            }
+        } else {
+            println!("Dashboard URL: {}", url);
+        }
+
+        Ok(())
     }
 
     fn format_bytes(bytes: u64) -> String {
