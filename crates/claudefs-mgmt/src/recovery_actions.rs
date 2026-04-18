@@ -53,21 +53,23 @@ pub struct RecoveryLog {
 
 #[derive(Debug, Clone)]
 pub struct RecoveryConfig {
-    pub max_thread_reduction_pct: f64,
-    pub max_cache_reduction_pct: f64,
-    pub cold_data_age_days: u32,
-    pub recovery_timeout_secs: u64,
-    pub monitor_duration_secs: u64,
+    pub cpu_threshold_high: f64,
+    pub cpu_threshold_critical: f64,
+    pub memory_threshold_high: f64,
+    pub memory_threshold_critical: f64,
+    pub disk_threshold_warning: f64,
+    pub disk_threshold_critical: f64,
 }
 
 impl Default for RecoveryConfig {
     fn default() -> Self {
         Self {
-            max_thread_reduction_pct: 20.0,
-            max_cache_reduction_pct: 50.0,
-            cold_data_age_days: 7,
-            recovery_timeout_secs: 60,
-            monitor_duration_secs: 30,
+            cpu_threshold_high: 70.0,
+            cpu_threshold_critical: 85.0,
+            memory_threshold_high: 80.0,
+            memory_threshold_critical: 95.0,
+            disk_threshold_warning: 80.0,
+            disk_threshold_critical: 95.0,
         }
     }
 }
@@ -302,10 +304,10 @@ pub fn memory_to_action(mem_usage_pct: f64) -> Option<RecoveryAction> {
     }
 }
 
-pub fn disk_to_action(disk_free_pct: f64) -> Option<RecoveryAction> {
-    if disk_free_pct < 5.0 {
+pub fn disk_to_action(free_pct: f64) -> Option<RecoveryAction> {
+    if free_pct < 5.0 {
         Some(RecoveryAction::TriggerEmergencyCleanup)
-    } else if disk_free_pct < 10.0 {
+    } else if free_pct < 10.0 {
         Some(RecoveryAction::EvictColdData { target_bytes: 1024 * 1024 * 1024 })
     } else {
         None
@@ -313,7 +315,7 @@ pub fn disk_to_action(disk_free_pct: f64) -> Option<RecoveryAction> {
 }
 
 pub fn should_remove_node(missed_heartbeats: u32) -> bool {
-    missed_heartbeats > 3
+    missed_heartbeats >= 3
 }
 
 #[cfg(test)]
@@ -382,7 +384,8 @@ mod tests {
     #[test]
     fn test_should_remove_node_logic() {
         assert!(!should_remove_node(1));
-        assert!(!should_remove_node(3));
+        assert!(!should_remove_node(2));
+        assert!(should_remove_node(3));
         assert!(should_remove_node(4));
     }
 
@@ -503,11 +506,12 @@ mod tests {
     #[test]
     fn test_recovery_config_default() {
         let config = RecoveryConfig::default();
-        assert_eq!(config.max_thread_reduction_pct, 20.0);
-        assert_eq!(config.max_cache_reduction_pct, 50.0);
-        assert_eq!(config.cold_data_age_days, 7);
-        assert_eq!(config.recovery_timeout_secs, 60);
-        assert_eq!(config.monitor_duration_secs, 30);
+        assert_eq!(config.cpu_threshold_high, 70.0);
+        assert_eq!(config.cpu_threshold_critical, 85.0);
+        assert_eq!(config.memory_threshold_high, 80.0);
+        assert_eq!(config.memory_threshold_critical, 95.0);
+        assert_eq!(config.disk_threshold_warning, 80.0);
+        assert_eq!(config.disk_threshold_critical, 95.0);
     }
 
     #[tokio::test]
