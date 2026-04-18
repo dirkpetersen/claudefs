@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 5 Block 2 Planning Complete (2026-04-18 Session 12)
+
+**Status:** 🟡 **PLANNING COMPLETE** — Ready for OpenCode implementation
+
+**Deliverables Summary:**
+- ✅ Comprehensive Block 2 Architecture Plan (550 lines)
+  - Spot pricing intelligence engine with AWS API integration
+  - Instance lifecycle manager (provision, drain, replace)
+  - Disruption handler with EC2 IMDS polling
+  - Cost tracking and daily reporting
+- ✅ 15 Detailed Test Specifications (320+ lines)
+  - Spot pricing (4 tests): query validation, trend analysis, breakeven calculation, launch decision logic
+  - Instance lifecycle (4 tests): provisioning, retries, graceful drain, timeout handling
+  - Disruption handling (4 tests): IMDS detection, drain triggering, replacement launch, concurrent disruptions
+  - Cost tracking (3 tests): per-instance calculation, replacement chains, daily aggregation
+
+**Timeline & Integration:**
+- **Previous:** Phase 5 Block 1 ✅ COMPLETE (Terraform tests 36/36)
+- **Next:** 3-4 day implementation via OpenCode (shell scripts + Rust tests)
+- **Dependencies:** All available (Block 1, Phase 4 cost monitor, AWS permissions)
+- **No blockers:** Ready to proceed immediately
+
+**Key Objectives:**
+- Cost savings: 60-70% via spot instances vs on-demand
+- Reliability: Zero data loss during spot interruptions (2-min graceful drain)
+- Automation: Zero manual ops for instance replacement
+- Observability: Full cost attribution and disruption tracking
+
+**Phase 5 Roadmap Remaining:**
+- Block 2: Preemptible Instance Lifecycle (3-4 days, ~1,200 LOC) — PLANNING COMPLETE
+- Block 3: GitHub Actions CI/CD Hardening (3-4 days, ~600 LOC)
+- Block 4: Monitoring Integration (3-5 days, ~800 LOC)
+- Block 5: GitOps Orchestration (3-4 days, ~700 LOC)
+
+**Commit:** 1a3f953 ([A11] Phase 5 Block 2: Planning Complete — Preemptible Instance Lifecycle)
+
+---
+
 ### A3: Data Reduction — Phase 31 Implementation Complete (2026-04-18 Session 11)
 
 **Status:** ✅ **PHASE 31 100% COMPLETE** — All 152 tests passing (2,284 total, +152 Phase 31)
