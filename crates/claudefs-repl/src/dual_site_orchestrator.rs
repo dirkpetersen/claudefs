@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use crate::read_repair_coordinator::{ReadRepairCoordinator, ReadRepairPolicy};
 use crate::vector_clock_replication::CausalQueue;
@@ -55,6 +56,7 @@ pub struct DualSiteOrchestrator {
     read_repair: ReadRepairCoordinator,
     causal_queue: CausalQueue,
     replication_lag: u64,
+    health_checker: Mutex<Option<crate::health_integration::ReplHealthChecker>>,
 }
 
 impl DualSiteOrchestrator {
@@ -102,6 +104,7 @@ impl DualSiteOrchestrator {
             read_repair: ReadRepairCoordinator::new(read_repair_policy, 2),
             causal_queue: CausalQueue::new(),
             replication_lag: 0,
+            health_checker: Mutex::new(None),
         })
     }
 
@@ -223,6 +226,16 @@ impl DualSiteOrchestrator {
         if let Some(site) = self.sites.get_mut(&site_id) {
             site.health = health;
         }
+    }
+
+    pub fn set_health_checker(&self, checker: crate::health_integration::ReplHealthChecker) {
+        let mut guard = self.health_checker.lock().unwrap();
+        *guard = Some(checker);
+    }
+
+    pub fn get_health_status(&self) -> Option<crate::health_integration::ReplHealthStatus> {
+        let guard = self.health_checker.lock().unwrap();
+        guard.as_ref().map(|c| c.check_health())
     }
 }
 

@@ -89,6 +89,7 @@ pub struct ReplicationEngine {
     wal: Arc<tokio::sync::Mutex<ReplicationWal>>,
     detector: Arc<ConflictDetector>,
     site_stats: Arc<tokio::sync::Mutex<HashMap<u64, SiteReplicationStats>>>,
+    metrics_exporter: Arc<crate::repl_metrics_exporter::ReplMetricsExporter>,
 }
 
 impl ReplicationEngine {
@@ -102,7 +103,13 @@ impl ReplicationEngine {
             wal: Arc::new(tokio::sync::Mutex::new(ReplicationWal::new())),
             detector: Arc::new(detector),
             site_stats: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            metrics_exporter: Arc::new(crate::repl_metrics_exporter::ReplMetricsExporter::new()),
         }
+    }
+
+    /// Get the metrics exporter.
+    pub fn metrics_exporter(&self) -> Arc<crate::repl_metrics_exporter::ReplMetricsExporter> {
+        self.metrics_exporter.clone()
     }
 
     /// Start the engine (returns immediately; engine runs in background tasks).

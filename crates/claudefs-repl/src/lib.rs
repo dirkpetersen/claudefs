@@ -102,3 +102,11 @@ pub mod read_repair_coordinator;
 pub mod vector_clock_replication;
 /// High-level orchestrator for dual-site active-active replication.
 pub mod dual_site_orchestrator;
+/// Prometheus metrics exporter for replication.
+pub mod repl_metrics_exporter;
+/// Health integration for replication metrics and health checks.
+pub mod health_integration;
+
+pub use repl_metrics_exporter::ReplMetricsExporter;
+pub use health_integration::{ReplHealthChecker, ReplHealthStatus};
+pub use dual_site_orchestrator::HealthStatus;
