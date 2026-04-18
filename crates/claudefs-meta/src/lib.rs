@@ -92,6 +92,8 @@ pub mod quota;
 pub mod quota_integration;
 /// Per-tenant quota tracking with soft/hard limits
 pub mod quota_tracker;
+/// Cross-site quota configuration replication with conflict resolution
+pub mod quota_replication;
 /// Multi-tenant namespace isolation for metadata operations
 pub mod tenant_isolator;
 /// QoS coordination between metadata and transport services
