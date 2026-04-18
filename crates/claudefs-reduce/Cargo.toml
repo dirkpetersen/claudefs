@@ -30,6 +30,7 @@ reed-solomon-erasure = { version = "6", features = ["simd-accel"] }
 proptest = "1"
 regex = "1"
 serde_json = "1"
+urlencoding = "2"
 
 [lib]
 name = "claudefs_reduce"
