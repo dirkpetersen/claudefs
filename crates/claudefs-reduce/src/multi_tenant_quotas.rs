@@ -5,7 +5,7 @@ use tracing::{debug, info, warn};
 
 use crate::error::ReduceError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct TenantId(pub u64);
 
 #[derive(Debug, Clone)]
