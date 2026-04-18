@@ -157,6 +157,14 @@ pub mod gc_controller;
 pub mod reference_count_validator;
 /// GC backpressure mechanism for write path.
 pub mod gc_backpressure;
+/// Per-tenant quota manager with soft/hard limits and admin overrides.
+pub mod quota_manager;
+/// Fairness queue for weighted tenant write scheduling.
+pub mod fairness_queue;
+/// Crash-safe quota accounting with journal and reconciliation.
+pub mod quota_accountant;
+/// Cross-tenant deduplication tracking for shared blocks.
+pub mod cross_tenant_dedup;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -385,3 +393,9 @@ pub use reference_count_validator::{
 pub use gc_backpressure::{
     BackpressureState as GcBackpressureState, GcBackpressure, GcBackpressureConfig,
 };
+pub use quota_manager::{
+    QuotaConfig as QmConfig, QuotaManager, TenantQuota, QuotaDecision, UsageReason, UsageKind, TenantUsage as QmTenantUsage, QuotaMetrics,
+};
+pub use fairness_queue::{FairnessQueueConfig, QueuedWrite, QueueMetrics, FairnessQueue};
+pub use quota_accountant::{QuotaJournalEntry, QuotaSnapshot, ReconciliationStats, QuotaJournal, QuotaAccountant};
+pub use cross_tenant_dedup::{CrossTenantDedupEntry, CrossTenantDedupManager};

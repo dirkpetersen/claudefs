@@ -63,7 +63,11 @@ impl GcBackpressure {
         let current_delay = self.current_delay_us.load(Ordering::Relaxed);
 
         if latency_ms > self.config.stall_threshold_ms {
-            let new_delay = ((current_delay as f64) * self.config.increment_factor) as u64;
+            let new_delay = if current_delay == 0 {
+                1000
+            } else {
+                ((current_delay as f64) * self.config.increment_factor) as u64
+            };
             let capped_delay = new_delay.min(self.config.max_delay_us);
             self.current_delay_us.store(capped_delay, Ordering::Relaxed);
             self.total_delays_applied.fetch_add(1, Ordering::Relaxed);

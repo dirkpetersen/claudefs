@@ -1,0 +1,81 @@
+apiVersion: claudefs.io/v1alpha1
+kind: Cluster
+metadata:
+  name: cfs-dev-cluster
+  environment: development
+  region: us-west-2
+  createdAt: "2026-04-18"
+
+spec:
+  version: 2026.04
+
+  nodes:
+    storage:
+      count: 5
+      instance_type: i4i.2xlarge
+      volume_size_gb: 500
+      tags:
+        role: storage
+        Name: cfs-storage-node
+        Environment: development
+
+    clients:
+      count: 2
+      instance_type: c7a.xlarge
+      tags:
+        role: client
+        Name: cfs-client-node
+        Environment: development
+
+    conduit:
+      count: 1
+      instance_type: t3.medium
+      tags:
+        role: conduit
+        Name: cfs-conduit
+        Environment: development
+
+    jepsen:
+      count: 1
+      instance_type: c7a.xlarge
+      tags:
+        role: jepsen
+        Name: cfs-jepsen
+        Environment: development
+
+  monitoring:
+    prometheus:
+      enabled: true
+      scrape_interval_seconds: 15
+      retention_days: 30
+      port: 9090
+
+    alertmanager:
+      enabled: true
+      port: 9093
+
+    grafana:
+      enabled: true
+      port: 3000
+      admin_user: admin
+      dashboard_count: 4
+
+  networking:
+    region: us-west-2
+    availability_zones:
+      - us-west-2a
+      - us-west-2b
+    security_group_name: cfs-cluster-sg
+    enable_cross_az_replication: true
+
+  storage:
+    s3_bucket: cfs-terraform-backups
+    tiering_enabled: true
+    cache_mode: write_through
+
+  gitops:
+    enabled: true
+    poll_interval_seconds: 300
+    auto_remediation_enabled: true
+    auto_rollback_on_critical: true
+    max_concurrent_operations: 3

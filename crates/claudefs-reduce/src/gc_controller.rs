@@ -109,6 +109,9 @@ impl DynamicGcController {
     pub fn get_memory_percent() -> Result<f64, std::io::Error> {
         let rss_bytes = Self::get_rss_bytes()?;
         let total_bytes = Self::get_total_memory_bytes().unwrap_or(64 * 1024 * 1024 * 1024);
+        if rss_bytes == 0 || total_bytes == 0 {
+            return Ok(50.0);
+        }
         Ok((rss_bytes as f64 / total_bytes as f64) * 100.0)
     }
 
@@ -153,7 +156,7 @@ impl DynamicGcController {
 
         if avg_rate > 0.1 || avg_batch > 100.0 {
             WorkloadType::Batch
-        } else if avg_rate > 0.001 {
+        } else if avg_rate > 0.0001 || avg_batch > 10.0 {
             WorkloadType::Streaming
         } else {
             WorkloadType::Idle
@@ -162,20 +165,18 @@ impl DynamicGcController {
 
     fn calculate_adaptive_interval(&self, memory_percent: f64, workload: WorkloadType) -> u64 {
         let base_interval = match workload {
-            WorkloadType::Batch => self.config.max_collection_interval_ms,
+            WorkloadType::Batch => self.config.min_collection_interval_ms,
             WorkloadType::Streaming => {
                 (self.config.min_collection_interval_ms + self.config.max_collection_interval_ms)
                     / 2
             }
-            WorkloadType::Idle => self.config.min_collection_interval_ms,
+            WorkloadType::Idle => self.config.max_collection_interval_ms,
         };
 
         if memory_percent > self.config.high_memory_threshold {
             self.config.min_collection_interval_ms
         } else if memory_percent < self.config.low_memory_threshold {
-            self.config
-                .max_collection_interval_ms
-                .min(base_interval * 2)
+            base_interval * 2
         } else {
             base_interval
         }
