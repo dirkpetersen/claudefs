@@ -50,4 +50,16 @@ pub enum ReduceError {
     /// Erasure coding: recovery failed due to too many missing shards
     #[error("erasure recovery failed: {0}")]
     RecoveryFailed(String),
+    /// Memory pressure too high for GC operations
+    #[error("Memory pressure too high: {0}%")]
+    MemoryPressureHigh(f64),
+    /// GC audit failed
+    #[error("GC audit failed: {0}")]
+    GcAuditFailed(String),
+    /// Reference count corruption detected
+    #[error("Reference count corruption: block {0} has inconsistent count {1}")]
+    RefcountCorruption(String, u64),
+    /// GC backpressure stall
+    #[error("GC backpressure stall: collection took {0}ms")]
+    GcBackpressureStall(u64),
 }

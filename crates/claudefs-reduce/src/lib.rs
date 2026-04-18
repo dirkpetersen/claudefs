@@ -151,6 +151,12 @@ pub mod similarity_tier_stats;
 pub mod multi_tenant_quotas;
 /// Machine learning-inspired intelligent tiering advisor.
 pub mod tiering_advisor;
+/// Dynamic GC controller with memory pressure adaptation.
+pub mod gc_controller;
+/// Reference count validator with mark-and-sweep audit.
+pub mod reference_count_validator;
+/// GC backpressure mechanism for write path.
+pub mod gc_backpressure;
 
 pub use async_meta_bridge::{
     AsyncFingerprintStore, AsyncIntegratedWritePath, AsyncLocalFingerprintStore,
@@ -367,4 +373,15 @@ pub use recovery_enhancer::{
 };
 pub use similarity_tier_stats::{
     SimilarityTierStats, StatsConfig, TierStats, EffectivenessMetrics,
+};
+pub use gc_controller::{
+    DynamicGcController, GcController, GcControllerConfig, GcControllerStats,
+    GcThresholds, WorkloadType,
+};
+pub use reference_count_validator::{
+    BlockId, MarkAndSweepAudit, ReconciliationAction, ReconciliationResult,
+    RefCountValidator, ReferenceCountValidator, ValidatorStats,
+};
+pub use gc_backpressure::{
+    BackpressureState as GcBackpressureState, GcBackpressure, GcBackpressureConfig,
 };
