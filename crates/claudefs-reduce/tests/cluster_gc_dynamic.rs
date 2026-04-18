@@ -138,6 +138,7 @@ async fn test_gc_mixed_workload_adaptation() {
     let config = GcControllerConfig {
         min_collection_interval_ms: 100,
         max_collection_interval_ms: 5000,
+        workload_sample_window_secs: 1,
         ..Default::default()
     };
     let mut controller = DynamicGcController::new(config);
@@ -146,14 +147,21 @@ async fn test_gc_mixed_workload_adaptation() {
         controller.update_workload_stats(1000, 0.5);
     }
 
-    let batch_interval = controller.get_thresholds().collection_interval_ms;
+    let batch_thresholds = controller.get_thresholds();
+    let batch_interval = batch_thresholds.collection_interval_ms;
+    let batch_workload = batch_thresholds.workload_type;
 
-    for _ in 0..50 {
-        controller.update_workload_stats(10, 0.01);
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    for _ in 0..200 {
+        controller.update_workload_stats(1, 0.0005);
     }
 
-    let streaming_interval = controller.get_thresholds().collection_interval_ms;
+    let streaming_thresholds = controller.get_thresholds();
+    let streaming_interval = streaming_thresholds.collection_interval_ms;
+    let streaming_workload = streaming_thresholds.workload_type;
 
+    assert_eq!(batch_workload, WorkloadType::Batch, "First phase should be Batch");
     assert!(batch_interval < streaming_interval, "Batch should trigger more frequent GC");
 }
 
@@ -342,7 +350,7 @@ async fn test_gc_force_collection() {
 async fn test_backpressure_state_reporting() {
     let mut backpressure = GcBackpressure::with_default();
 
-    backpressure.record_collection(500);
+    backpressure.record_collection(1500);
     let _ = backpressure.calculate_delay();
 
     let state = backpressure.get_state();
