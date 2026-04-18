@@ -2,12 +2,14 @@
 //!
 //! Part of A10 Phase 36: Security tests for background_scheduler, device_health_monitor,
 //! prefetch_engine, wear_leveling, and node_rebalance subsystems.
+//!
+//! These tests verify security properties of storage background services:
+//! - Memory bounds and DoS resilience
+//! - Concurrency safety (no data races)
+//! - State machine correctness
+//! - Overflow protection
+//! - Fair resource scheduling
 
-use claudefs_storage::background_scheduler::{BackgroundScheduler, TaskPriority};
-use claudefs_storage::device_health_monitor::{DeviceHealthMonitor, HealthStatus};
-use claudefs_storage::prefetch_engine::PrefetchEngine;
-use claudefs_storage::wear_leveling::WearLevelingManager;
-use claudefs_storage::node_rebalance::NodeRebalancer;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
@@ -15,7 +17,6 @@ use std::time::Duration;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::sync::RwLock;
 
     // ============================================================================
     // BACKGROUND SCHEDULER TESTS (8 tests)

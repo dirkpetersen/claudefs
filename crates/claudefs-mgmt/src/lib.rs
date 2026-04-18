@@ -162,3 +162,7 @@ pub use parquet_schema::{ParquetSchema, SchemaField, MetadataRecord, arrow_type_
 /// Axum HTTP routes for analytics endpoints
 pub mod web_api;
 pub use web_api::{create_router, AppState, ApiError, TopUser, TopDir, StaleFile, FileTypeStats, ReductionReport, ClusterHealth, CustomQueryRequest};
+
+/// Cluster recovery actions and execution
+pub mod recovery_actions;
+pub use recovery_actions::{RecoveryExecutor, RecoveryAction, RecoveryLog, ActionStatus, RecoveryError, ExecutionContext};
