@@ -7,10 +7,9 @@
 /// - S3 operations
 /// - Network diagnostics (ping, network stats)
 /// - File operations on FUSE mounts
-
 use std::process::{Command, Stdio};
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 /// Represents a node in the ClaudeFS cluster
 #[derive(Debug, Clone)]
@@ -18,7 +17,7 @@ pub struct ClusterNode {
     pub id: String,
     pub ip: String,
     pub role: NodeRole,
-    pub az: String,  // us-west-2a or us-west-2b
+    pub az: String, // us-west-2a or us-west-2b
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -188,7 +187,10 @@ pub fn wait_for_metric(
 
 /// Measure latency from one node to another via ping
 pub fn measure_latency(from_ip: &str, to_ip: &str) -> ClusterResult<f64> {
-    let cmd = format!("ping -c 3 {} | tail -1 | awk '{{print $4}}' | cut -d'/' -f2", to_ip);
+    let cmd = format!(
+        "ping -c 3 {} | tail -1 | awk '{{print $4}}' | cut -d'/' -f2",
+        to_ip
+    );
     let result = ssh_exec(from_ip, &cmd, 15)?;
     result
         .trim()
@@ -362,7 +364,7 @@ where
 pub fn restart_service(node_ip: &str, service_name: &str) -> ClusterResult<()> {
     let cmd = format!("sudo systemctl restart {}", service_name);
     ssh_exec(node_ip, &cmd, 30)?;
-    thread::sleep(Duration::from_secs(5));  // Wait for restart
+    thread::sleep(Duration::from_secs(5)); // Wait for restart
     Ok(())
 }
 
