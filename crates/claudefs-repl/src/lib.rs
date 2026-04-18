@@ -100,3 +100,5 @@ pub mod write_aware_quorum;
 pub mod read_repair_coordinator;
 /// Causal consistency tracking via vector clocks for multi-site replication.
 pub mod vector_clock_replication;
+/// High-level orchestrator for dual-site active-active replication.
+pub mod dual_site_orchestrator;

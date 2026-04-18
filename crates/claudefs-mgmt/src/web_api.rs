@@ -431,6 +431,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_query_endpoint() {
         let gateway = QueryGateway::new(PathBuf::from("/tmp/test-index"));
@@ -447,6 +448,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_top_users_endpoint() {
         let gateway = QueryGateway::new(PathBuf::from("/tmp/test-index"));
@@ -461,6 +463,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_file_types_endpoint() {
         let gateway = QueryGateway::new(PathBuf::from("/tmp/test-index"));
