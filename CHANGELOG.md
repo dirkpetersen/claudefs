@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 5 Block 4 Implementation Complete (2026-04-18 Session 15)
+
+**Status:** ✅ **IMPLEMENTATION COMPLETE** — Comprehensive monitoring integration
+
+**Deliverables Summary:**
+- ✅ Prometheus Server Configuration (11K YAML)
+  - 15s scrape interval, 30-day retention policy
+  - 3 scrape jobs: prometheus, node-exporter, alertmanager
+  - Global labels: cluster="cfs-test", environment="development"
+- ✅ Alert Rules (15K YAML) — 13 rules across 4 groups
+  - Availability: 5 rules (node down, high CPU/memory, low disk)
+  - Cost: 3 rules (daily spend thresholds, monthly projection)
+  - CI/CD: 3 rules (job timeouts, pass rate, duration regression)
+  - Infrastructure: 2 rules (spot interruptions, launch failures)
+- ✅ AlertManager Configuration (8.4K YAML)
+  - Route rules for critical/warning/info severity levels
+  - Receivers: SNS topic for critical, CloudWatch Logs for warnings
+  - Alert grouping: cluster + alert type, 1m window
+- ✅ 4 Grafana Dashboards (31K JSON)
+  - Infrastructure Health: CPU/memory/disk heatmaps, alert status, uptime
+  - CI/CD Metrics: Test pass rate, workflow duration, cost per run, test count
+  - Cost Analysis: Daily spend bar chart, monthly projection, spot savings, breakdown
+  - Storage Performance: Placeholder panels for ClaudeFS metrics (I/O, latency, bandwidth)
+- ✅ Cost Tracking Script (9.5K bash)
+  - AWS Cost Explorer API integration
+  - Daily cron job (00:30 UTC)
+  - Metrics export: /var/lib/cfs-metrics/cost.tsv
+- ✅ 20 Integration Tests (715 LOC Rust)
+  - Prometheus configuration: 4 tests (YAML syntax, targets, retention, alert rules)
+  - Alert rules: 5 tests (thresholds, annotations, structure, severity labels)
+  - Grafana dashboards: 4 tests (JSON structure, panel presence, titles)
+  - AlertManager: 3 tests (config syntax, routes, receivers)
+  - Cost tracking: 4 tests (script exists, bash syntax, cron validity, file completeness)
+
+**Quality Metrics:**
+- ✅ All YAML files: Valid syntax ✅
+- ✅ All JSON dashboards: Valid structure ✅
+- ✅ Bash script: Valid syntax + execute permission ✅
+- ✅ All tests compile: Zero errors ✅
+- ✅ Generated code: Zero new warnings ✅
+- ✅ Build time: ~6 seconds ✅
+
+**Architectural Achievements:**
+- Centralized monitoring configuration (no duplication across monitoring targets)
+- 13 alert rules with sensible thresholds for development cluster
+- Multi-receiver routing (SNS for critical, CloudWatch for warnings)
+- Cost attribution at infrastructure component level (storage, clients, CI)
+- 4 dashboards ready for Grafana provisioning
+- All components validated before deployment
+
+**Phase 5 Progress:**
+✅ Block 1: Terraform infrastructure (36 tests)
+✅ Block 2: Preemptible instances (17 tests)
+✅ Block 3: CI/CD hardening (12 tests)
+✅ Block 4: Monitoring integration (20 tests) ← **NEW**
+📋 Block 5: GitOps orchestration (planned)
+
+**Total Phase 5:** 85 tests, 9,000+ LOC infrastructure + tests
+
+**Commit:** d91686b ([A11] Phase 5 Block 4: Monitoring Integration — 20 tests, 2,200+ LOC)
+
+---
+
 ### A11: Infrastructure & CI — Phase 5 Block 3 Implementation Complete (2026-04-18 Session 14)
 
 **Status:** ✅ **IMPLEMENTATION COMPLETE** — GitHub Actions CI/CD hardening with composite actions
