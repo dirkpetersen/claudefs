@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 36 Module 1: Storage Background Subsystems Security Tests (2026-04-18 Session 9)
+
+**Status:** ✅ **MODULE 1 COMPLETE** — 30 new security tests, 2,413 total security tests (+30 from 2,383 baseline)
+
+**Summary:** Comprehensive security testing of storage background services covering previously untested subsystems.
+
+**Module 1 Coverage (30 tests, 691 LOC):**
+- **background_scheduler** (8 tests) — concurrency safety, priority enforcement, deadline handling, starvation prevention
+- **device_health_monitor** (7 tests) — SMART parsing, state transitions, thermal alerts, error rate accuracy
+- **prefetch_engine** (8 tests) — LRU eviction, pattern detection, queue bounds, I/O ordering, cache coherence
+- **wear_leveling** (5 tests) — wear tracking, hotspot detection, fair distribution, overflow protection
+- **node_rebalance** (2 tests) — segment distribution consistency, failover safety
+
+**Security Properties Validated:**
+- Concurrency safety (no data races, atomic operations)
+- Memory bounds (DoS resilience, no unbounded growth)
+- State machine correctness (valid transitions only)
+- Overflow protection (saturating arithmetic, no panics)
+- Fair resource scheduling (no starvation)
+
+**Phase 36 Status:**
+- ✅ Module 1: 30 tests (complete, 74e885e)
+- 📋 Module 2: 35 tests (FUSE cache coherence) — next
+- 📋 Module 3: 25 tests (metadata multi-tenancy)
+- 📋 Module 4: 20 tests (protocol fuzzing)
+- 📋 Module 5: 15 tests (compliance & emerging threats)
+- **Target:** 95-100 total tests for Phase 36
+
+**Bug Fixes:**
+- Fixed A11 cost_monitoring_tests.rs: CostBudget moved value error (added clone)
+
+---
+
 ### A6: Replication — Phase 5 Block 1: Metrics Integration & Prometheus Export (2026-04-18 Session 9 - Implementation Complete)
 
 **Status:** ✅ **BLOCK 1 COMPLETE** — 25 new tests, 1,007 total, 100% pass rate
