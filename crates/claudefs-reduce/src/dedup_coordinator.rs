@@ -55,6 +55,12 @@ pub struct NodeFingerprintStore {
     entries: HashMap<[u8; 32], u32>,
 }
 
+impl Default for NodeFingerprintStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NodeFingerprintStore {
     pub fn new() -> Self {
         Self {

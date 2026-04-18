@@ -18,12 +18,12 @@ impl Default for BloomConfig {
 impl BloomConfig {
     pub fn bit_count(&self) -> usize {
         let n = self.expected_items as f64;
-        let p = self.false_positive_rate as f64;
+        let p = self.false_positive_rate;
         (n * (-1.44) * p.ln() / std::f64::consts::LN_2 / std::f64::consts::LN_2).ceil() as usize
     }
 
     pub fn hash_count(&self) -> usize {
-        ((-(self.false_positive_rate as f64).ln() / std::f64::consts::LN_2).ceil() as usize).max(1)
+        ((-self.false_positive_rate.ln() / std::f64::consts::LN_2).ceil() as usize).max(1)
     }
 }
 

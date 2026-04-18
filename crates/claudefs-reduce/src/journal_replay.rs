@@ -51,17 +51,11 @@ pub struct InodeReplayState {
 }
 
 #[derive(Debug)]
+#[derive(Default)]
 pub struct ReplayState {
     pub inode_states: HashMap<u64, InodeReplayState>,
 }
 
-impl Default for ReplayState {
-    fn default() -> Self {
-        Self {
-            inode_states: HashMap::new(),
-        }
-    }
-}
 
 pub struct JournalReplayer {
     #[allow(dead_code)]

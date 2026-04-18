@@ -54,6 +54,12 @@ pub struct InlineDedupIndex {
     hashes: std::collections::HashSet<[u8; 32]>,
 }
 
+impl Default for InlineDedupIndex {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InlineDedupIndex {
     pub fn new() -> Self {
         Self {

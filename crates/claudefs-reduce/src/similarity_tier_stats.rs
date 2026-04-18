@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 /// Per-workload Tier 2 performance metrics.
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct TierStats {
     /// Workload identifier.
     pub workload: String,
@@ -35,23 +36,6 @@ pub struct TierStats {
     pub timestamp_secs: u64,
 }
 
-impl Default for TierStats {
-    fn default() -> Self {
-        Self {
-            workload: String::new(),
-            feature_extraction_samples: 0,
-            feature_extraction_latency_us: Vec::new(),
-            similarity_lookups: 0,
-            similarity_hits: 0,
-            delta_compressions_scheduled: 0,
-            delta_compressions_completed: 0,
-            delta_bytes_before: 0,
-            delta_bytes_after: 0,
-            delta_compression_latency_us: Vec::new(),
-            timestamp_secs: 0,
-        }
-    }
-}
 
 /// Effectiveness metrics for Tier 2 tuning and optimization.
 #[derive(Debug, Clone)]
@@ -249,11 +233,7 @@ impl SimilarityTierStats {
         };
 
         // Calculate bytes saved
-        let total_bytes_saved = if stats.delta_bytes_before > stats.delta_bytes_after {
-            stats.delta_bytes_before - stats.delta_bytes_after
-        } else {
-            0
-        };
+        let total_bytes_saved = stats.delta_bytes_before.saturating_sub(stats.delta_bytes_after);
 
         // Estimate CPU cost (placeholder: assume 5% per 1M ops/sec)
         let ops_per_sec = if stats.feature_extraction_samples > 0 {
@@ -374,11 +354,7 @@ impl SimilarityTierStats {
         output.push_str("# HELP tier2_bytes_saved Total bytes saved by delta compression\n");
         output.push_str("# TYPE tier2_bytes_saved counter\n");
         for (workload, tier_stats) in stats.iter() {
-            let saved = if tier_stats.delta_bytes_before > tier_stats.delta_bytes_after {
-                tier_stats.delta_bytes_before - tier_stats.delta_bytes_after
-            } else {
-                0
-            };
+            let saved = tier_stats.delta_bytes_before.saturating_sub(tier_stats.delta_bytes_after);
             output.push_str(&format!(
                 "tier2_bytes_saved{{workload=\"{}\"}} {}\n",
                 workload, saved

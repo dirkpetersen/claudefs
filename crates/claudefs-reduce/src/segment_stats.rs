@@ -67,6 +67,12 @@ pub struct SegmentStatsCollector {
     segments: std::collections::HashMap<u64, SegmentStat>,
 }
 
+impl Default for SegmentStatsCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SegmentStatsCollector {
     pub fn new() -> Self {
         Self {

@@ -99,7 +99,7 @@ impl HashRing {
             }
         }
 
-        for (_, member) in &self.ring {
+        for member in self.ring.values() {
             if seen.insert(member.id) {
                 result.push(member);
                 if result.len() >= count {

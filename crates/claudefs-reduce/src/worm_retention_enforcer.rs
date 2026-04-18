@@ -195,7 +195,7 @@ impl WormRetentionEnforcer {
         hold: ComplianceHold,
         user: &str,
     ) -> Result<(), ReduceError> {
-        self.holds.entry(resource_id.to_string()).or_insert_with(Vec::new).push(hold.clone());
+        self.holds.entry(resource_id.to_string()).or_default().push(hold.clone());
 
         self.audit_log.push(AuditLogEntry {
             timestamp: Self::now(),

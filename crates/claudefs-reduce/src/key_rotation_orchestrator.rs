@@ -207,7 +207,10 @@ impl KeyRotationOrchestrator {
 
     /// Check if a key version needs lazy rewrap (old key still in use).
     pub fn needs_lazy_rewrap(&self, version: KeyVersion) -> bool {
-        self.old_kek.as_ref().map(|k| k.version == version).unwrap_or(false)
+        self.old_kek
+            .as_ref()
+            .map(|k| k.version == version)
+            .unwrap_or(false)
             && self.phase == RotationPhase::Completed
     }
 
