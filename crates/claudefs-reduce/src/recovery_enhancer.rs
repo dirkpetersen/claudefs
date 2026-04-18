@@ -9,7 +9,7 @@ use crate::similarity_coordinator::SimilarityCoordinator;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Recovery configuration.
 #[derive(Debug, Clone)]

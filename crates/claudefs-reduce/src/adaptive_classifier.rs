@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 /// Access pattern classification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AccessPatternType {
     /// Sequential access pattern (logs, archives).
     Sequential,
@@ -26,38 +26,29 @@ pub enum AccessPatternType {
     /// Low similarity hit rate workload.
     SimilarityLow,
     /// Unknown pattern (insufficient data).
+    #[default]
     Unknown,
 }
 
-impl Default for AccessPatternType {
-    fn default() -> Self {
-        AccessPatternType::Unknown
-    }
-}
-
 /// Compression level recommendation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CompressionLevel {
     /// No compression.
     None,
     /// Fast compression (LZ4).
     Fast,
     /// Default compression (Zstd level 3).
+    #[default]
     Default,
     /// Best compression (Zstd level 19).
     Best,
 }
 
-impl Default for CompressionLevel {
-    fn default() -> Self {
-        CompressionLevel::Default
-    }
-}
-
 /// Deduplication strength recommendation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DedupStrength {
     /// Inline dedup (fast path).
+    #[default]
     Inline,
     /// Async dedup (batch processing).
     Async,
@@ -65,16 +56,11 @@ pub enum DedupStrength {
     None,
 }
 
-impl Default for DedupStrength {
-    fn default() -> Self {
-        DedupStrength::Inline
-    }
-}
-
 /// S3 tiering policy recommendation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum S3TieringPolicy {
     /// Flash tier (keep in NVMe).
+    #[default]
     Flash,
     /// Warm tier (S3 Standard).
     Warm,
@@ -82,12 +68,6 @@ pub enum S3TieringPolicy {
     Cold,
     /// Archive tier (S3 Glacier).
     Archive,
-}
-
-impl Default for S3TieringPolicy {
-    fn default() -> Self {
-        S3TieringPolicy::Flash
-    }
 }
 
 /// Workload fingerprint: learned access pattern characteristics.
@@ -234,9 +214,7 @@ impl AdaptiveClassifier {
         let pattern = Self::infer_pattern(similarity_hit_rate, compression_ratio);
 
         let mut fingerprints = self.fingerprints.write().unwrap();
-        let entry = fingerprints
-            .entry(workload.to_string())
-            .or_insert_with(WorkloadFingerprint::default);
+        let entry = fingerprints.entry(workload.to_string()).or_default();
 
         let samples = self
             .stats_history

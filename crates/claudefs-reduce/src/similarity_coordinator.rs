@@ -360,7 +360,7 @@ impl SimilarityCoordinator {
 
         let compressed = DeltaCompressor::compress_delta(query_data, similar_data, 3)?;
         let delta_bytes = query_data.len() - compressed.len();
-        let ratio = if query_data.len() > 0 {
+        let ratio = if !query_data.is_empty() {
             1.0 - (compressed.len() as f64 / query_data.len() as f64)
         } else {
             0.0
