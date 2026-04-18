@@ -6,6 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 5 Planning Complete (2026-04-18 Session 10)
+
+**Status:** 🟡 **PHASE 5 PLANNING COMPLETE** — Ready for implementation
+
+**Phase 5 Roadmap — Operational Automation & Production Readiness:**
+
+Comprehensive 5-block plan covering automation, monitoring, and declarative infrastructure:
+
+**Block 1: Terraform Cluster Provisioning (3-4 days)**
+- Orchestrator (c7a.2xlarge) + 9 preemptible nodes (i4i.2xlarge, c7a.xlarge, t3.medium)
+- VPC networking, security groups, CloudWatch integration
+- Terraform modules: 1,910 LOC, 36 tests
+- Success criteria: Full cluster in <5 min, idempotent destroy
+
+**Block 2: Preemptible Instance Lifecycle Management (3-4 days)**
+- Spot pricing intelligence & cost-efficient scaling
+- Disruption handling: 120s drain window, auto-recovery
+- Instance health monitoring, replacement launch
+- 1,150 LOC, 35 tests
+- Success criteria: Zero data loss during interruptions, 60-70% cost reduction
+
+**Block 3: GitHub Actions CI/CD Hardening (3-4 days)**
+- 6 production workflows: build, test, security, deploy, cost-report, metrics
+- Matrix testing (Ubuntu/macOS/Windows), LTO builds, GPG signing
+- SBOM generation, secret scanning, artifact management
+- 500+ LOC YAML, 33 tests
+- Success criteria: 60-min full pipeline, 99%+ uptime
+
+**Block 4: Monitoring Integration & Alerting (3-5 days)**
+- Prometheus metrics collection (all subsystems)
+- AlertManager deduplication & routing
+- Automated recovery workflows (node down → replace, quorum loss → failover)
+- 1,550 LOC, 31 tests
+- Success criteria: <10s metric→alert, <5min alert→recovery (MTTR)
+
+**Block 5: GitOps & Declarative Infrastructure (3-4 days)**
+- YAML-based cluster topology (infra/cluster.yaml, infra/rollout.yaml)
+- Git-driven reconciliation loop, audit trail, rollback (git revert)
+- Multi-environment support (dev/staging/prod)
+- 700 LOC, 23 tests
+- Success criteria: All infrastructure changes via git, zero manual ops
+
+**Phase 5 Totals:**
+- Time: 16-21 engineer-hours (3-4 weeks)
+- Code: 5,810 LOC (Terraform + YAML + Rust tests)
+- Tests: 158 total (50+ new)
+- Dashboards: 5 (via A8 integration)
+
+**Reference:** docs/A11-PHASE5-PLAN.md (complete specification)
+
+---
+
 ### A11: Infrastructure & CI — Phase 4 Block 5: Task 6 Complete — Cost Monitoring Tests (2026-04-18 Session 9)
 
 **Status:** ✅ **PHASE 4 BLOCK 5 COMPLETE (7/7 TASKS)** — All cost monitoring infrastructure deliverables finished
