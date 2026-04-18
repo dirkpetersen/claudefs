@@ -282,3 +282,6 @@ pub mod transport_bandwidth_shaper_security_tests;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod storage_background_subsystems_security_tests;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod fuse_cache_coherence_security_tests;
