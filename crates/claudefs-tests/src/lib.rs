@@ -94,6 +94,7 @@ pub mod ci_composite_actions_tests;
 pub mod ci_cost_optimization_tests;
 pub mod ci_dry_principle_tests;
 pub mod ci_workflow_validation_tests;
+pub mod ci_monitoring_integration_tests;
 pub mod cost_monitoring_tests;
 pub mod terraform_infrastructure_tests;
 pub mod preemptible_lifecycle_tests;
