@@ -91,6 +91,7 @@ pub use soak::{
 
 pub mod changelog_generator;
 pub mod cost_monitoring_tests;
+pub mod terraform_infrastructure_tests;
 
 pub use test_collector::TestCollector;
 pub use flaky_tracker::{FlakyTracker, FlakyTestRecord, TestRun, TestStatus as FlakyTestStatus};
