@@ -13,6 +13,13 @@
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
+use claudefs_storage::{
+    BackgroundScheduler, BackgroundTask, BackgroundTaskType, SchedulerStats,
+    DeviceHealthMonitor, DeviceHealthSummary, HealthAlert, HealthAlertType,
+    PrefetchEngine, PrefetchConfig, PrefetchStats,
+    WearLevelingEngine, WearConfig, WearStats,
+    RebalanceEngine, RebalanceConfig, RebalanceStats,
+};
 
 #[cfg(test)]
 mod tests {
