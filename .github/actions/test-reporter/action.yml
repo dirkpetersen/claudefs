@@ -1,0 +1,104 @@
+name: Test Reporter & Artifact Handler
+description: Parse test results, create GitHub check runs, collect artifacts
+
+inputs:
+  test-type:
+    description: 'Test format (junit, tap, dotnet)'
+    required: false
+    default: 'junit'
+  fail-on-error:
+    description: 'Fail workflow if tests failed'
+    required: false
+    default: 'true'
+  name:
+    description: 'Report title'
+    required: false
+    default: 'Test Results'
+  artifact-name:
+    description: 'Artifact name for upload'
+    required: false
+    default: 'test-results'
+  artifact-retention-days:
+    description: 'Days to retain artifacts'
+    required: false
+    default: '7'
+
+outputs:
+  test-count:
+    description: 'Total tests run'
+    value: ${{ steps.aggregate.outputs.test-count }}
+  test-passed:
+    description: 'Passed tests'
+    value: ${{ steps.aggregate.outputs.test-passed }}
+  test-failed:
+    description: 'Failed tests'
+    value: ${{ steps.aggregate.outputs.test-failed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Find test result files
+      id: find-files
+      shell: bash
+      run: |
+        echo "Searching for test result files..."
+        find . -type f \( -name "*.xml" -o -name "*.json" \) -path "*/test-results/*" 2>/dev/null | head -20
+        find . -type f -name "junit.xml" 2>/dev/null | head -20
+        find . -type f -name "*.xml" -path "*/target/*" 2>/dev/null | head -20
+
+    - name: Parse and report test results
+      id: report
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: ${{ inputs.name }}
+        path: '**/*.xml'
+        reporter: java-junit
+        fail-on-error: ${{ inputs.fail-on-error }}
+
+    - name: Aggregate test counts
+      id: aggregate
+      shell: bash
+      if: always()
+      run: |
+        TOTAL=0
+        PASSED=0
+        FAILED=0
+        SKIPPED=0
+        
+        for file in $(find . -name "*.xml" -path "*/target/*" 2>/dev/null); do
+          if command -v xmllint &> /dev/null; then
+            t=$(xmllint --xpath "sum(//testsuite/@tests)" "$file" 2>/dev/null || echo 0)
+            p=$(xmllint --xpath "sum(//testsuite/@tests - //testsuite/@skipped - //testsuite/@failures)" "$file" 2>/dev/null || echo 0)
+            f=$(xmllint --xpath "sum(//testsuite/@failures)" "$file" 2>/dev/null || echo 0)
+            s=$(xmllint --xpath "sum(//testsuite/@skipped)" "$file" 2>/dev/null || echo 0)
+            TOTAL=$((TOTAL + t))
+            PASSED=$((PASSED + p))
+            FAILED=$((FAILED + f))
+            SKIPPED=$((SKIPPED + s))
+          fi
+        done
+        
+        echo "test-count=$TOTAL" >> $GITHUB_OUTPUT
+        echo "test-passed=$PASSED" >> $GITHUB_OUTPUT
+        echo "test-failed=$FAILED" >> $GITHUB_OUTPUT
+        
+        echo "Test Summary: $TOTAL total, $PASSED passed, $FAILED failed, $SKIPPED skipped"
+        echo "::notice title=Test Results::$PASSED passed, $FAILED failed, $SKIPPED skipped"
+
+    - name: Upload test artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          target/test-results/
+          target/*.xml
+        retention-days: ${{ inputs.artifact-retention-days }}
+
+    - name: Fail if tests failed
+      if: ${{ inputs.fail-on-error == 'true' && failure() }}
+      shell: bash
+      run: |
+        echo "::error::Tests failed - failing workflow as requested"
+        exit 1

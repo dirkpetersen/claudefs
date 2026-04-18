@@ -1,0 +1,154 @@
+name: CI Build & Quality
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - '.github/workflows/perf-baseline.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Cargo manifests
+        run: cargo metadata --format-version 1 > /dev/null
+
+      - name: Check for debug statements
+        run: |
+          if grep -r 'println!\|dbg!\|eprintln!' --include="*.rs" crates/ 2>/dev/null; then
+            echo "Found debug output in crates"
+            exit 1
+          fi
+          echo "No debug statements found"
+
+  build:
+    name: Build
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      matrix:
+        target: [debug, release]
+      fail-fast: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          toolchain: stable
+          components: rustfmt,clippy
+
+      - name: Cache Cargo
+        uses: ./.github/actions/cache-cargo
+        with:
+          cache-target-debug: ${{ matrix.target == 'debug' }}
+          cache-target-release: ${{ matrix.target == 'release' }}
+
+      - name: Build ${{ matrix.target }}
+        run: |
+          if [ "${{ matrix.target }}" = "release" ]; then
+            cargo build --workspace --release --message-format=short
+          else
+            cargo build --workspace --message-format=short
+          fi
+        timeout-minutes: 20
+
+  quality:
+    name: Quality
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        check: [fmt, clippy, docs]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          toolchain: stable
+          components: rustfmt,clippy
+
+      - name: Cache Cargo
+        uses: ./.github/actions/cache-cargo
+
+      - name: Format check
+        if: matrix.check == 'fmt'
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (per-crate)
+        if: matrix.check == 'clippy'
+        run: |
+          for crate in claudefs-storage claudefs-meta claudefs-reduce \
+                        claudefs-transport claudefs-fuse claudefs-repl \
+                        claudefs-gateway claudefs-mgmt claudefs-tests; do
+            echo "Checking $crate..."
+            cargo clippy -p $crate --all-targets -- -D warnings || exit 1
+          done
+        timeout-minutes: 15
+
+      - name: Documentation
+        if: matrix.check == 'docs'
+        run: cargo doc --no-deps --workspace
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  security:
+    name: Security
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+
+      - name: Cargo audit
+        run: cargo audit --deny warnings
+
+      - name: Cargo deny
+        run: |
+          cargo install cargo-deny --locked --quiet
+          cargo deny check advisories
+          cargo deny check licenses
+
+  ci-status:
+    name: CI Status
+    needs: [validate, build, quality, security]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job statuses
+        run: |
+          echo "Build: ${{ needs.build.result }}"
+          echo "Quality: ${{ needs.quality.result }}"
+          echo "Security: ${{ needs.security.result }}"
+          
+          if [[ "${{ needs.build.result }}" != "success" ]] || \
+             [[ "${{ needs.quality.result }}" != "success" ]] || \
+             [[ "${{ needs.security.result }}" != "success" ]]; then
+            echo "CI failed"
+            exit 1
+          fi
+          echo "CI passed"

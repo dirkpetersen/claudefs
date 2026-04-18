@@ -1,0 +1,68 @@
+name: Setup Rust Toolchain
+description: Install Rust with specified components and configuration for CI builds
+
+inputs:
+  toolchain:
+    description: 'Rust toolchain channel (stable, nightly, or version like 1.75.0)'
+    required: false
+    default: 'stable'
+  components:
+    description: 'Comma-separated component list (rustfmt, clippy, rust-analyzer)'
+    required: false
+    default: 'rustfmt,clippy'
+  profile:
+    description: 'Debug info level (full, line-tables, minimal)'
+    required: false
+    default: 'debuginfo'
+
+outputs:
+  rustc-version:
+    description: 'Installed Rust version'
+    value: ${{ steps.install.outputs.rustc-version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Rust toolchain
+      id: install
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        components: ${{ inputs.components }}
+        profile: ${{ inputs.profile }}
+
+    - name: Log installed version
+      shell: bash
+      run: |
+        echo "Rust version: $(rustc --version)"
+        echo "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT
+
+    - name: Configure cargo profile
+      shell: bash
+      run: |
+        mkdir -p ~/.cargo
+        cat > ~/.cargo/config.toml << 'EOF'
+        [build]
+        jobs = 4
+        incremental = true
+        
+        [term]
+        verbose = false
+        color = 'always'
+        progress = true
+        EOF
+
+    - name: Set environment variables
+      shell: bash
+      run: |
+        echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
+        echo "CARGO_TERM_COLOR=always" >> $GITHUB_ENV
+
+    - name: Verify cargo is available
+      shell: bash
+      run: |
+        if ! command -v cargo &> /dev/null; then
+          echo "ERROR: cargo not found in PATH"
+          exit 1
+        fi
+        echo "Cargo verified in PATH: $(which cargo)"
