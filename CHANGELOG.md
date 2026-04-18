@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A11: Infrastructure & CI — Phase 4 Block 3: Automated Recovery Actions (2026-04-18 Session 7 - Planning & Documentation)
+
+**Status:** 🟡 **BLOCK 3 PLANNING COMPLETE** — Ready for OpenCode implementation
+
+**Summary - Automated Recovery Actions Infrastructure:**
+- ✅ Phase 4 Block 2 confirmed 80% complete (metrics export + Grafana dashboards)
+- ✅ Comprehensive Block 3 specification created: `docs/A11-PHASE4-BLOCK3-PLAN.md` (520 lines)
+- ✅ 4 recovery modules designed: recovery_actions, backup_rotation, graceful_shutdown, recovery_config
+- ✅ 52 tests planned (40 unit + 12 integration) with async/await patterns
+- ✅ Cross-crate API integration designed for A1, A2, A3, A5, A6
+
+**4 Recovery Modules (1,050 lines planned):**
+1. recovery_actions.rs (450 lines) — 7 recovery action types, RecoveryExecutor with 12 methods, 20 tests
+2. backup_rotation.rs (250 lines) — Daily S3 + weekly Glacier backups, 8 methods, 5 tests
+3. graceful_shutdown.rs (200 lines) — Coordinated termination, state preservation, 5 methods, 3 tests
+4. recovery_config.rs (150 lines) — Configuration schema validation, defaults
+
+**Recovery Actions Implemented:**
+- ReduceWorkerThreads (CPU > 70%)
+- ShrinkMemoryCaches (Memory > 80%)
+- EvictColdData (Disk > 90%)
+- TriggerEmergencyCleanup (Disk > 95%)
+- RemoveDeadNode (3 missed heartbeats)
+- RotateBackup (Daily/weekly S3 + Glacier)
+- GracefulShutdown (Coordinated termination)
+
+**Health.rs Integration:**
+- RecoveryCallback trait for async recovery hooks
+- Stale node detection (configurable heartbeat timeout)
+- Auto-rebalancing after node removal
+- Audit trail logging for all actions
+
+**OpenCode Readiness:**
+- Complete specification in docs/A11-PHASE4-BLOCK3-PLAN.md
+- input.md and input_recovery_short.md prepared
+- All cross-crate APIs documented
+- Test cases designed and specified
+- Configuration thresholds validated
+
+**Timeline to 100%:**
+- Implementation: 1-2 sessions with OpenCode (4-6 hours)
+- Integration testing: 1 session (local + 5-node cluster)
+- Total: 2-3 sessions to complete Block 3
+
+---
+
 ### A5: FUSE Client — Phase 38: Advanced Configuration & Multi-Node Integration (2026-04-18 Session 1 - Planning)
 
 **Status:** 🟡 **PHASE 38 PLANNING COMPLETE** — Ready for implementation
