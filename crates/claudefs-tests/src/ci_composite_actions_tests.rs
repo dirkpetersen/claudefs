@@ -1,13 +1,23 @@
 #[cfg(test)]
 mod ci_composite_actions {
     use std::fs;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+
+    fn workspace_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf()
+    }
 
     #[test]
     fn test_setup_rust_action_exists() -> Result<(), String> {
-        let path = Path::new(".github/actions/setup-rust/action.yml");
-        let content =
-            fs::read_to_string(path).map_err(|e| format!("setup-rust action not found: {}", e))?;
+        let root = workspace_root();
+        let path = root.join(".github/actions/setup-rust/action.yml");
+        let content = fs::read_to_string(&path)
+            .map_err(|e| format!("setup-rust action not found: {} - {}", path.display(), e))?;
 
         if !content.contains("name: Setup Rust Toolchain") {
             return Err("Missing name field".to_string());
@@ -36,9 +46,10 @@ mod ci_composite_actions {
 
     #[test]
     fn test_cache_cargo_action_config() -> Result<(), String> {
-        let path = Path::new(".github/actions/cache-cargo/action.yml");
-        let content =
-            fs::read_to_string(path).map_err(|e| format!("cache-cargo action not found: {}", e))?;
+        let root = workspace_root();
+        let path = root.join(".github/actions/cache-cargo/action.yml");
+        let content = fs::read_to_string(&path)
+            .map_err(|e| format!("cache-cargo action not found: {} - {}", path.display(), e))?;
 
         if !content.contains("cache-target-debug:") {
             return Err("Missing cache-target-debug input".to_string());
@@ -58,9 +69,10 @@ mod ci_composite_actions {
 
     #[test]
     fn test_test_reporter_action_integration() -> Result<(), String> {
-        let path = Path::new(".github/actions/test-reporter/action.yml");
-        let content = fs::read_to_string(path)
-            .map_err(|e| format!("test-reporter action not found: {}", e))?;
+        let root = workspace_root();
+        let path = root.join(".github/actions/test-reporter/action.yml");
+        let content = fs::read_to_string(&path)
+            .map_err(|e| format!("test-reporter action not found: {} - {}", path.display(), e))?;
 
         if !content.contains("test-type:") {
             return Err("Missing test-type input".to_string());

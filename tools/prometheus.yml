@@ -1,0 +1,259 @@
+# =============================================================================
+# ClaudeFS Prometheus Configuration
+# =============================================================================
+# This is the main Prometheus scrape and configuration file for the
+# ClaudeFS test cluster. It configures scrape intervals, retention policy,
+# and all monitoring targets.
+#
+# Installation location (managed by Terraform):
+#   /etc/prometheus/prometheus.yml
+#
+# For operators:
+# - To add new scrape targets, add a new job to scrape_configs
+# - To adjust scrape frequency, modify global.scrape_interval
+# - To change retention, modify global.retention
+# - File-based service discovery is recommended for dynamic infrastructure
+#
+# Related files:
+#   - tools/prometheus-alerts.yml: Alert rule definitions
+#   - tools/alertmanager.yml: Alert routing configuration
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global Configuration
+# -----------------------------------------------------------------------------
+# These settings apply to all scrape jobs unless overridden per-job.
+global:
+  # How often to scrape targets. Lower values = more precision but more load.
+  # 15s is a good balance for development clusters.
+  # Production might use 30s-60s to reduce overhead.
+  scrape_interval: 15s
+
+  # How often to evaluate alert rules. Should be >= scrape_interval.
+  # Alert evaluation happens independently of scraping.
+  evaluation_interval: 15s
+
+  # How long to keep metrics data. Longer retention = more disk space.
+  # 30 days is reasonable for a development/test cluster.
+  # Production clusters might use 15-90 days depending on storage budget.
+  # Note: Prometheus storage grows roughly 10-15 bytes per sample per hour.
+  # With 15s scrape interval ~100 metrics per target, expect ~5GB/month per target.
+  retention: 30d
+
+  # Attach these labels to all time series, including remote write targets.
+  # These help identify which cluster/environment metrics belong to.
+  external_labels:
+    # Cluster identifier - useful when pushing to central Prometheus
+    cluster: "cfs-test"
+    # Environment type - development, staging, or production
+    environment: "development"
+    # Owner label for chargeback / accountability
+    owner: "claudefs-team"
+
+# -----------------------------------------------------------------------------
+# Alerting Configuration
+# -----------------------------------------------------------------------------
+# Point to AlertManager instance for alert dispatch.
+# The AlertManager handles routing, grouping, and notification delivery.
+alerting:
+  alertmanagers:
+    - static_configs:
+        # AlertManager runs on same orchestrator node, port 9093
+        - targets:
+            - "localhost:9093"
+
+# -----------------------------------------------------------------------------
+# Rule Files
+# -----------------------------------------------------------------------------
+# Load recording and alerting rules from separate files.
+# This keeps the main config clean and allows rule updates without restart.
+rule_files:
+  # Alert rules for infrastructure, cost, CI/CD, and cluster alerts
+  - "alerts.yml"
+
+# -----------------------------------------------------------------------------
+# Scrape Configurations
+# -----------------------------------------------------------------------------
+# Define what and how to scrape. Each job is an independent scrape pipeline.
+
+scrape_configs:
+  # -------------------------------------------------------------------------
+  # Prometheus Self-Monitoring
+  # -------------------------------------------------------------------------
+  # Monitor Prometheus itself - essential for alerting on Prometheus downtime.
+  # Scrapes internal metrics about Prometheus health, scrape performance, etc.
+  - job_name: "prometheus"
+    # Override global scrape interval for this job
+    scrape_interval: 30s
+    metrics_path: "/metrics"
+    scheme: "http"
+
+    # Static configuration for single-node Prometheus setup
+    static_configs:
+      - targets:
+          # Prometheus serves metrics on port 9090
+          - "localhost:9090"
+        labels:
+          # Label this target for filtering in dashboards
+          role: "prometheus"
+          # Add instance label for consistency with other targets
+          instance: "localhost:9090"
+
+    # Optional: track scrape duration for performance monitoring
+    # This adds a histogram metric showing how long each scrape takes
+
+  # -------------------------------------------------------------------------
+  # Node Exporter - System Metrics for All Cluster Nodes
+  # -------------------------------------------------------------------------
+  # The Prometheus Node Exporter runs on every cluster node (storage, clients,
+  # orchestrator, Jepsen controller). It exposes CPU, memory, disk, network metrics.
+  #
+  # Installation: Each node runs node_exporter as a systemd service on port 9100.
+  # On the orchestrator, use file-based service discovery to dynamically detect
+  # nodes from Terraform state or AWS autoscaling groups.
+  #
+  # Node inventory (from Terraform outputs):
+  #   - 5 storage nodes: cfs-storage-[0-4].internal
+  #   - 2 client nodes: cfs-client-[0-1].internal
+  #   - 1 orchestrator: cfs-orchestrator.internal
+  #   - 1 metadata conduit: cfs-conduit.internal
+  #   - 1 Jepsen controller: cfs-jepsen.internal
+  #
+  # Total: 10 nodes. Each exposes ~100 system metrics at 15s intervals.
+  # Expected storage: ~50MB/month for all node metrics.
+  - job_name: "node-exporter"
+    # More frequent for infrastructure monitoring
+    scrape_interval: 15s
+    metrics_path: "/metrics"
+    scheme: "http"
+
+    # File-based service discovery - dynamically finds nodes
+    # This allows adding/removing nodes without config changes.
+    # Generate this file from Terraform outputs or AWS tags.
+    #
+    # Example file format (YAML):
+    #   - targets: ['10.0.1.10:9100', '10.0.1.11:9100']
+    #     labels:
+    #       role: 'storage'
+    #       zone: 'us-west-2a'
+    #
+    # For now, use static config with all known nodes:
+    # TODO: Replace with file_sd_config after Terraform provisions instances
+    file_sd_configs:
+      - files:
+          # This file will be generated by a sidecar process or Terraform
+          # Format: JSON array of targets with labels
+          - "/etc/prometheus/file-sd/nodes.json"
+        # Refresh file every 60s to detect new nodes
+        refresh_interval: 60s
+
+    # Fallback static config for development (remove in production)
+    # Static IPs - UPDATE these after Terraform apply completes
+    # Replace with actual private IPs from Terraform outputs
+    static_configs:
+      - targets:
+          # Storage nodes - update with actual IPs after terraform apply
+          # Example: 10.0.1.10 - 10.0.1.14
+          - "10.0.1.10:9100"
+          - "10.0.1.11:9100"
+          - "10.0.1.12:9100"
+          - "10.0.1.13:9100"
+          - "10.0.1.14:9100"
+          # Client nodes
+          - "10.0.2.10:9100"
+          - "10.0.2.11:9100"
+          # Orchestrator (also runs Prometheus)
+          - "localhost:9100"
+          # Conduit node
+          - "10.0.3.10:9100"
+          # Jepsen controller
+          - "10.0.4.10:9100"
+        labels:
+          # Common label for all cluster nodes
+          role: "node"
+          # Environment label for multi-cluster deployments
+          environment: "cfs-test"
+
+    # Add relabeling to customize metric labels from node_exporter
+    # This example adds a 'zone' label based on instance tags
+    # relabel_configs:
+    #   - source_labels: [__meta_ec2_tag_Zone]
+    #     target_label: zone
+
+  # -------------------------------------------------------------------------
+  # AlertManager Self-Monitoring
+  # -------------------------------------------------------------------------
+  # Monitor AlertManager itself - essential for ensuring alerts are routing.
+  # Exposes metrics about alert dispatch, silences, notifications sent/failed.
+  - job_name: "alertmanager"
+    scrape_interval: 30s
+    metrics_path: "/metrics"
+    scheme: "http"
+
+    static_configs:
+      - targets:
+          # AlertManager serves on port 9093 (different from scrape port!)
+          - "localhost:9093"
+        labels:
+          role: "alertmanager"
+          instance: "localhost:9093"
+
+  # -------------------------------------------------------------------------
+  # ClaudeFS Service Metrics (Future)
+  # -------------------------------------------------------------------------
+  # When ClaudeFS services emit their own metrics (storage, metadata, etc.),
+  # add scrape configs here. Placeholder for now.
+  #
+  # Expected metrics endpoints:
+  #   - Storage service:  localhost:9400/metrics (claudefs-storage)
+  #   - Metadata service: localhost:9401/metrics (claudefs-meta)
+  #   - FUSE daemon:      localhost:9402/metrics (claudefs-fuse)
+  #   - Gateway:         localhost:9403/metrics (claudefs-gateway)
+  #   - Management:      localhost:9404/metrics (claudefs-mgmt)
+  #
+  # Example (commented out until services are running):
+  # - job_name: "claudefs-storage"
+  #   static_configs:
+  #     - targets: ["localhost:9400"]
+  #       labels:
+  #         component: "storage"
+
+  # -------------------------------------------------------------------------
+  # CloudWatch Metrics (Future - Optional)
+  # -------------------------------------------------------------------------
+  # For AWS cost metrics, use AWS CloudWatch exporter or custom script
+  # that pushes cost data as Prometheus metrics.
+  #
+  # Alternative: Use cfs-cost-aggregator.sh to generate textfile metrics
+  # that Prometheus can scrape via node_exporter's textfile collector.
+  # See tools/cfs-cost-aggregator.sh for details.
+
+# -----------------------------------------------------------------------------
+# Remote Write Configuration (Future)
+# -----------------------------------------------------------------------------
+# For long-term metric storage, configure remote write to object storage.
+# This is optional for development but recommended for production.
+#
+# Example (commented out):
+# remote_write:
+#   - url: "https://metrics.example.com/api/v1/write"
+#     # Sign requests with AWS SigV4 for S3-compatible stores
+#     sigv4:
+#       region: "us-west-2"
+#     # Queue settings for reliability
+#     queue_config:
+#       capacity: 10000
+#       max_shards: 5
+#       min_shards: 2
+#       # Retry failed writes up to 3 times
+#       max_retries: 3
+
+# -----------------------------------------------------------------------------
+# Tips for Operators
+# -----------------------------------------------------------------------------
+# 1. After modifying this file, validate syntax: promtool check config prometheus.yml
+# 2. Reload config without restart: curl -X POST http://localhost:9090/-/reload
+# 3. Check target health: http://localhost:9090/targets
+# 4. View discovered nodes: http://localhost:9090/service-discovery
+# 5. For production, enable TLS and basic auth on all scrape endpoints
+# 6. Consider enabling Prometheus federation if running multiple clusters

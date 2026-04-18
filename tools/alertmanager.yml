@@ -1,0 +1,205 @@
+# =============================================================================
+# ClaudeFS AlertManager Configuration
+# =============================================================================
+# This file configures alert routing, grouping, and notification delivery
+# for the ClaudeFS test cluster.
+#
+# Installation location (managed by Terraform):
+#   /etc/alertmanager/alertmanager.yml
+#
+# Related files:
+#   - tools/prometheus.yml: References this config
+#   - tools/prometheus-alerts.yml: Alert definitions that route here
+#
+# For operators:
+# - Test routing with: amtool check config alertmanager.yml
+# - Checksilences with: amtool silence query
+# - Reload config: killall -HUP alertmanager
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global Configuration
+# -----------------------------------------------------------------------------
+global:
+  # Default timeout for notifications
+  resolve_timeout: 5m
+  # AWS region for SNS (if using AWS integrations)
+  aws_region: "us-west-2"
+
+# -----------------------------------------------------------------------------
+# Route Configuration
+# -----------------------------------------------------------------------------
+# The routing tree determines which receiver handles which alerts.
+# Alerts are matched top-to-bottom; first match wins.
+route:
+  # Default receiver for unmatched alerts
+  receiver: "default-receiver"
+
+  # Group alerts by these labels - alerts with same values group together
+  group_by:
+    - cluster       # Group by cluster name
+    - alertname     # Group by alert type
+
+  # How long to wait before sending a notification about new alerts
+  # Prevents alert storms when many alerts fire simultaneously
+  group_wait: 10s
+
+  # How long to wait before sending a notification about new alerts
+  # that have already been notified about
+  group_interval: 1m
+
+  # How long to wait before repeating notifications for resolved alerts
+  # Set to 0 to disable repeat notifications
+  repeat_interval: 4h
+
+  # Child routes - route by severity for different handling
+  routes:
+    # -------------------------------------------------------------------------
+    # Critical severity alerts - escalate immediately
+    # -------------------------------------------------------------------------
+    - match:
+        severity: critical
+      # Use critical alert receiver (SNS + SMS)
+      receiver: "critical-alerts"
+      # Don't continue matching after this route
+      continue: false
+
+    # -------------------------------------------------------------------------
+    # Warning severity alerts - standard notification
+    # -------------------------------------------------------------------------
+    - match:
+        severity: warning
+      # Log to CloudWatch for standard warnings
+      receiver: "warning-alerts"
+      continue: false
+
+    # -------------------------------------------------------------------------
+    # Info severity alerts - low priority, just log
+    # -------------------------------------------------------------------------
+    - match:
+        severity: info
+      # Info alerts go to default (just logging)
+      receiver: "default-receiver"
+      continue: false
+
+    # -------------------------------------------------------------------------
+    # Team-specific routing (optional expansion)
+    # -------------------------------------------------------------------------
+    # Example: Route infrastructure alerts to on-call
+    # - match:
+    #     team: infrastructure
+    #   receiver: "infrastructure-oncall"
+    #   continue: true
+
+# -----------------------------------------------------------------------------
+# Receiver Definitions
+# -----------------------------------------------------------------------------
+# Define all possible notification destinations
+receivers:
+  # -------------------------------------------------------------------------
+  # Default Receiver - Catch-all for development
+  # -------------------------------------------------------------------------
+  # In development, just log alerts. In production, add email/Slack.
+  - name: "default-receiver"
+    # Log to file (also goes to CloudWatch via agent)
+    webhook_configs:
+      - url: "http://localhost:5050/webhook"
+        send_resolved: true
+
+  # -------------------------------------------------------------------------
+  # Critical Alerts Receiver - SNS for immediate attention
+  # -------------------------------------------------------------------------
+  - name: "critical-alerts"
+    # SNS notification for critical alerts - triggers SMS/email
+    sns_configs:
+      - # Topic ARN - UPDATE with actual topic after terraform applies
+        # Format: arn:aws:sns:us-west-2:ACCOUNT_ID:cfs-alerts-critical
+        topic_arn: "arn:aws:sns:us-west-2:123456789012:cfs-alerts-critical"
+        # Use instance name as SMS subject for quick identification
+        subject: "[ClaudeFS] Critical Alert: {{ .GroupLabels.alertname }}"
+        # Send all labels as message attributes for filtering
+        use_attrs: true
+        # SigV4 authentication (uses IAM role on orchestrator)
+        sigv4:
+          region: "us-west-2"
+    # Also log to webhook for redundancy
+    webhook_configs:
+      - url: "http://localhost:5050/webhook"
+        send_resolved: true
+
+  # -------------------------------------------------------------------------
+  # Warning Alerts Receiver - CloudWatch Logs
+  # -------------------------------------------------------------------------
+  - name: "warning-alerts"
+    # CloudWatch Logs via webhook (using cloudwatch-agent sidecar)
+    webhook_configs:
+      - url: "http://localhost:5050/webhook"
+        send_resolved: true
+
+  # -------------------------------------------------------------------------
+  # On-Call Receiver (placeholder for future PagerDuty/OpsGenie)
+  # -------------------------------------------------------------------------
+  - name: "oncall-receiver"
+    # Placeholder - integrate with PagerDuty/OpsGenie here
+    # pagerduty_configs:
+    #   - service_key: "PAGERDUTY_SERVICE_KEY"
+    #     severity: "{{ .Labels.severity }}"
+    webhook_configs:
+      - url: "http://localhost:5050/webhook"
+        send_resolved: true
+
+# -----------------------------------------------------------------------------
+# Inhibition Rules
+# -----------------------------------------------------------------------------
+# Suppress alerts when certain conditions are met.
+# Use with caution - can hide important alerts.
+inhibit_rules:
+  # -------------------------------------------------------------------------
+  # If Prometheus is down, don't fire node-exporter alerts
+  # -------------------------------------------------------------------------
+  - source_match:
+      alertname: "PrometheusDown"
+    target_match:
+      alertname: "NodeExporterDown"
+    # Equal labels that must match for inhibition
+    equal:
+      - cluster
+
+  # -------------------------------------------------------------------------
+  # If a node is down, don't fire CPU/memory/disk alerts for it
+  # The node-down alert is more important
+  # -------------------------------------------------------------------------
+  - source_match:
+      alertname: "NodeExporterDown"
+    target_match_re:
+      alertname: "High(CPU|Memory|Disk)"
+    equal:
+      - instance
+
+  # -------------------------------------------------------------------------
+  # If daily spend exceeded at critical level, suppress warning level
+  # -------------------------------------------------------------------------
+  - source_match:
+      alertname: "DailySpendExceeded100Percent"
+    target_match:
+      alertname: "DailySpendExceeded80Percent"
+
+# -----------------------------------------------------------------------------
+# Tips for Operators
+# -----------------------------------------------------------------------------
+# 1. Test config: amtool check config alertmanager.yml
+# 2. Check routing tree: amtool routingtree
+# 3. View silenced alerts: amtool silence query
+# 4. Create silence: amtool silence add alertname=HighCPUUsage
+# 5. Reload: curl -X POST http://localhost:9093/-/reload
+# 6. Check status: http://localhost:9093/status
+#
+# For SNS to work:
+#   - SNS topic must exist in AWS
+#   - Orchestrator IAM role must have sns:Publish permission
+#   - Topic subscription (email/SMS) must be confirmed
+#
+# For CloudWatch Logs to work:
+#   - cloudwatch-agent must be running on orchestrator
+#   - Log group /aws/cfs-alerts/warnings must exist
+#   - IAM role must have logs:CreateLogStream permission

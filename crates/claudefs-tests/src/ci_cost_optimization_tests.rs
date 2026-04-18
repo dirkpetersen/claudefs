@@ -1,23 +1,36 @@
 #[cfg(test)]
 mod ci_cost_optimization {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    fn workspace_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf()
+    }
+
     #[test]
     fn test_cache_keys_use_cargo_lock() -> Result<(), String> {
-        use std::fs;
-        use std::path::Path;
+        let root = workspace_root();
 
         let action_paths = vec![
-            ".github/actions/cache-cargo/action.yml",
-            ".github/actions/setup-rust/action.yml",
+            root.join(".github/actions/cache-cargo/action.yml"),
+            root.join(".github/actions/setup-rust/action.yml"),
         ];
 
         for action_path in action_paths {
-            let path = Path::new(action_path);
-            if path.exists() {
-                let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+            if action_path.exists() {
+                let content = fs::read_to_string(&action_path).map_err(|e| e.to_string())?;
 
                 if content.contains("key:") {
                     if !content.contains("Cargo.lock") && !content.contains("cargo") {
-                        return Err(format!("{} uses cache key but not Cargo.lock", action_path));
+                        return Err(format!(
+                            "{} uses cache key but not Cargo.lock",
+                            action_path.display()
+                        ));
                     }
                 }
             }
@@ -28,11 +41,9 @@ mod ci_cost_optimization {
 
     #[test]
     fn test_workflow_concurrency_configured() -> Result<(), String> {
-        use std::fs;
-        use std::path::Path;
-
-        let workflows_dir = Path::new(".github/workflows");
-        let entries = fs::read_dir(workflows_dir).map_err(|e| e.to_string())?;
+        let root = workspace_root();
+        let workflows_dir = root.join(".github/workflows");
+        let entries = fs::read_dir(&workflows_dir).map_err(|e| e.to_string())?;
 
         let mut with_concurrency = 0;
 
