@@ -94,3 +94,5 @@ pub mod entry_dedup;
 pub mod conduit_pool;
 /// Selective replication filter for per-site policies.
 pub mod repl_filter;
+/// Quorum-based write coordination for multi-site writes.
+pub mod write_aware_quorum;
