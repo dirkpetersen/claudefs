@@ -17,6 +17,7 @@ const NUM_SHARDS: u32 = 8;
 const FUSE_MOUNT_PATH: &str = "/mnt/claudefs";
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct RoutingInfo {
     shard_id: u32,
     leader: String,
@@ -44,14 +45,14 @@ fn get_storage_nodes() -> Vec<String> {
     std::env::var("CLAUDEFS_STORAGE_NODE_IPS")
         .ok()
         .map(|v| v.split(',').map(|s| s.trim().to_string()).collect())
-        .unwrap_or_else(Vec::new)
+        .unwrap_or_default()
 }
 
 fn get_client_nodes() -> Vec<String> {
     std::env::var("CLAUDEFS_CLIENT_NODE_IPS")
         .ok()
         .map(|v| v.split(',').map(|s| s.trim().to_string()).collect())
-        .unwrap_or_else(Vec::new)
+        .unwrap_or_default()
 }
 
 fn get_prometheus_url() -> String {
@@ -91,6 +92,7 @@ fn ssh_exec(node_ip: &str, cmd: &str, _timeout_secs: u64) -> Result<String, Stri
     }
 }
 
+#[allow(dead_code)]
 fn identify_shard_leader(fingerprint_hash: u64) -> Result<String, String> {
     let nodes = get_storage_nodes();
     if nodes.is_empty() {
@@ -101,6 +103,7 @@ fn identify_shard_leader(fingerprint_hash: u64) -> Result<String, String> {
     Ok(nodes[leader_index].clone())
 }
 
+#[allow(dead_code)]
 fn get_shard_replicas(fingerprint_hash: u64) -> Result<Vec<String>, String> {
     let nodes = get_storage_nodes();
     if nodes.len() < 2 {
@@ -165,7 +168,7 @@ fn wait_for_replica_consistency(_fingerprint: &str, timeout_secs: u64) -> Result
 
         for node in &nodes {
             let cmd = "curl -s http://localhost:9090/metrics 2>/dev/null | head -5";
-            if let Err(_) = ssh_exec(node, cmd, 5) {
+            if ssh_exec(node, cmd, 5).is_err() {
                 all_consistent = false;
                 break;
             }
@@ -390,6 +393,7 @@ fn copy_file_fuse(src: &str, dst: &str) -> Result<(), String> {
     }
 }
 
+#[allow(dead_code)]
 fn wait_for_condition<F>(mut condition: F, timeout_secs: u64) -> Result<(), String>
 where
     F: FnMut() -> Result<bool, String>,
@@ -553,11 +557,11 @@ fn test_cluster_dedup_three_node_write_conflict() -> Result<(), String> {
     let test_file = "write_conflict_3nodes.bin";
     let size_mb = 20;
 
-    write_from_node(&nodes[0], &test_file, size_mb)?;
+    write_from_node(&nodes[0], test_file, size_mb)?;
     std::thread::sleep(Duration::from_millis(500));
-    write_from_node(&nodes[1], &test_file, size_mb)?;
+    write_from_node(&nodes[1], test_file, size_mb)?;
     std::thread::sleep(Duration::from_millis(500));
-    write_from_node(&nodes[2], &test_file, size_mb)?;
+    write_from_node(&nodes[2], test_file, size_mb)?;
 
     std::thread::sleep(Duration::from_secs(10));
 
