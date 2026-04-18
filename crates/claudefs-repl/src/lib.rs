@@ -96,3 +96,5 @@ pub mod conduit_pool;
 pub mod repl_filter;
 /// Quorum-based write coordination for multi-site writes.
 pub mod write_aware_quorum;
+/// Anti-entropy read-repair coordination across sites.
+pub mod read_repair_coordinator;
