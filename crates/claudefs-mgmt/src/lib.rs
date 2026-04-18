@@ -165,4 +165,9 @@ pub use web_api::{create_router, AppState, ApiError, TopUser, TopDir, StaleFile,
 
 /// Cluster recovery actions and execution
 pub mod recovery_actions;
-pub use recovery_actions::{RecoveryExecutor, RecoveryAction, RecoveryLog, ActionStatus, RecoveryError, ExecutionContext};
+pub mod backup_rotation;
+pub mod graceful_shutdown;
+
+pub use recovery_actions::{RecoveryAction, RecoveryExecutor, RecoveryLog, RecoveryConfig, ActionStatus, RecoveryError, cpu_to_action, memory_to_action, disk_to_action, should_remove_node, ExecutionContext};
+pub use backup_rotation::{BackupRotationManager, BackupConfig, BackupAction, BackupMetadata};
+pub use graceful_shutdown::{GracefulShutdownManager, ShutdownPhase, ShutdownAudit, PhaseAudit};

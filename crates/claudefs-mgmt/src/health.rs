@@ -1,11 +1,41 @@
+use std::sync::Arc;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
+
+use crate::recovery_actions::{
+    cpu_to_action, disk_to_action, memory_to_action, should_remove_node, RecoveryAction,
+    RecoveryConfig, RecoveryError, RecoveryExecutor, RecoveryLog,
+};
 
 #[derive(Debug, Error)]
 pub enum HealthError {
     #[error("Node not found: {0}")]
     NodeNotFound(String),
+}
+
+#[async_trait]
+pub trait RecoveryCallback: Send + Sync {
+    async fn on_high_cpu(&self, usage_pct: f64) -> Result<(), RecoveryError>;
+    async fn on_high_memory(&self, usage_pct: f64) -> Result<(), RecoveryError>;
+    async fn on_disk_critical(&self, free_pct: f64) -> Result<(), RecoveryError>;
+    async fn on_node_stale(&self, node_id: &str) -> Result<(), RecoveryError>;
+    async fn on_component_restart(&self, component: &str) -> Result<(), RecoveryError>;
+}
+
+#[derive(Debug, Clone)]
+pub struct SystemStatus {
+    pub cpu_usage_pct: f64,
+    pub memory_usage_pct: f64,
+    pub disk_free_pct: f64,
+    pub nodes: HashMap<String, NodeStatusSummary>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeStatusSummary {
+    pub missed_heartbeats: u32,
+    pub status: HealthStatus,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -175,6 +205,7 @@ impl ClusterHealth {
 pub struct HealthAggregator {
     nodes: HashMap<String, NodeHealth>,
     stale_threshold_secs: u64,
+    recovery_executor: Option<Arc<tokio::sync::Mutex<RecoveryExecutor>>>,
 }
 
 impl HealthAggregator {
@@ -182,7 +213,54 @@ impl HealthAggregator {
         Self {
             nodes: HashMap::new(),
             stale_threshold_secs,
+            recovery_executor: None,
         }
+    }
+
+    pub fn with_recovery_executor(mut self, config: RecoveryConfig) -> Self {
+        self.recovery_executor = Some(Arc::new(tokio::sync::Mutex::new(RecoveryExecutor::new(config))));
+        self
+    }
+
+    pub async fn check_and_execute_recovery(&mut self, system_status: &SystemStatus) -> Result<Vec<RecoveryLog>, RecoveryError> {
+        let mut logs = Vec::new();
+
+        if let Some(ref executor) = self.recovery_executor {
+            if system_status.cpu_usage_pct > 70.0 {
+                if let Some(action) = cpu_to_action(system_status.cpu_usage_pct) {
+                    let mut ex = executor.lock().await;
+                    let log = ex.execute(action).await?;
+                    logs.push(log);
+                }
+            }
+
+            if system_status.memory_usage_pct > 80.0 {
+                if let Some(action) = memory_to_action(system_status.memory_usage_pct) {
+                    let mut ex = executor.lock().await;
+                    let log = ex.execute(action).await?;
+                    logs.push(log);
+                }
+            }
+
+            if system_status.disk_free_pct < 10.0 {
+                if let Some(action) = disk_to_action(system_status.disk_free_pct) {
+                    let mut ex = executor.lock().await;
+                    let log = ex.execute(action).await?;
+                    logs.push(log);
+                }
+            }
+
+            for (node_id, node_status) in &system_status.nodes {
+                if should_remove_node(node_status.missed_heartbeats) {
+                    let action = RecoveryAction::RemoveDeadNode { node_id: node_id.clone() };
+                    let mut ex = executor.lock().await;
+                    let log = ex.execute(action).await?;
+                    logs.push(log);
+                }
+            }
+        }
+
+        Ok(logs)
     }
 
     pub fn update_node(&mut self, health: NodeHealth) {
