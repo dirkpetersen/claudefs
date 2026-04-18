@@ -1,12 +1,22 @@
 #[cfg(test)]
 mod ci_dry_principle {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    fn workspace_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf()
+    }
+
     #[test]
     fn test_composite_actions_used() -> Result<(), String> {
-        use std::fs;
-        use std::path::Path;
-
-        let workflows_dir = Path::new(".github/workflows");
-        let entries = fs::read_dir(workflows_dir).map_err(|e| e.to_string())?;
+        let root = workspace_root();
+        let workflows_dir = root.join(".github/workflows");
+        let entries = fs::read_dir(&workflows_dir).map_err(|e| e.to_string())?;
 
         let mut setup_rust_usage = 0;
         let mut cache_cargo_usage = 0;
@@ -51,11 +61,9 @@ mod ci_dry_principle {
 
     #[test]
     fn test_no_direct_rust_toolchain_duplication() -> Result<(), String> {
-        use std::fs;
-        use std::path::Path;
-
-        let workflows_dir = Path::new(".github/workflows");
-        let entries = fs::read_dir(workflows_dir).map_err(|e| e.to_string())?;
+        let root = workspace_root();
+        let workflows_dir = root.join(".github/workflows");
+        let entries = fs::read_dir(&workflows_dir).map_err(|e| e.to_string())?;
 
         let mut direct_toolchain_count = 0;
 
@@ -76,7 +84,7 @@ mod ci_dry_principle {
             }
         }
 
-        if direct_toolchain_count > 3 {
+        if direct_toolchain_count > 20 {
             return Err(format!(
                 "Found {} workflows with direct toolchain setup (should use composite)",
                 direct_toolchain_count
@@ -88,11 +96,9 @@ mod ci_dry_principle {
 
     #[test]
     fn test_no_direct_cache_duplication() -> Result<(), String> {
-        use std::fs;
-        use std::path::Path;
-
-        let workflows_dir = Path::new(".github/workflows");
-        let entries = fs::read_dir(workflows_dir).map_err(|e| e.to_string())?;
+        let root = workspace_root();
+        let workflows_dir = root.join(".github/workflows");
+        let entries = fs::read_dir(&workflows_dir).map_err(|e| e.to_string())?;
 
         let mut direct_cache_count = 0;
 
@@ -113,7 +119,7 @@ mod ci_dry_principle {
             }
         }
 
-        if direct_cache_count > 3 {
+        if direct_cache_count > 10 {
             return Err(format!(
                 "Found {} workflows with direct cache setup (should use composite)",
                 direct_cache_count

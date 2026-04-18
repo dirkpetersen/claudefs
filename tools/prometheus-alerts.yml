@@ -1,0 +1,334 @@
+# =============================================================================
+# ClaudeFS Prometheus Alert Rules
+# =============================================================================
+# This file defines alert rules for the ClaudeFS test cluster. Alerts are
+# grouped by category: availability, cost, CI/CD, and infrastructure.
+#
+# Installation location (managed by Terraform):
+#   /etc/prometheus/alerts.yml
+#
+# Loading: Referenced from prometheus.yml rule_files section
+#
+# For operators:
+# - Modify thresholds based on your cluster size and workload
+# - Add new alerts following the groups structure below
+# - Annotations use Prometheus template variables: {{ $labels.instance }}, etc.
+#
+# Validation: promtool check rules alerts.yml
+# Test firing: promtool test rules alerts.yml test.yml
+# =============================================================================
+
+groups:
+  # ==========================================================================
+  # Group 1: Availability Alerts (5 rules)
+  # ==========================================================================
+  # Core infrastructure health - these fire quickly when nodes go down
+  - name: availability
+    interval: 30s  # Evaluate more frequently for availability alerts
+    rules:
+      # -------------------------------------------------------------------------
+      # Alert: Node Exporter Down
+      # Severity: critical
+      # Purpose: Detect when a cluster node becomes unreachable
+      # -------------------------------------------------------------------------
+      - alert: NodeExporterDown
+        expr: up{job="node-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: infrastructure
+          component: monitoring
+        annotations:
+          summary: "Node {{ $labels.instance }} is unreachable"
+          description: |
+            The node exporter on {{ $labels.instance }} has been down for more than 2 minutes.
+            This usually indicates the node itself is down or network issues.
+            Cluster: {{ $labels.cluster }}
+            Environment: {{ $labels.environment }}
+            Job: {{ $labels.job }}
+          runbook_url: "https://claudefs.docs/runbooks/node-down"
+
+      # -------------------------------------------------------------------------
+      # Alert: Prometheus Down
+      # Severity: warning
+      # Purpose: Ensure monitoring itself is healthy
+      # -------------------------------------------------------------------------
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: monitoring
+        annotations:
+          summary: "Prometheus server is unreachable"
+          description: |
+            Prometheus has been unreachable for more than 5 minutes.
+            This could mean Prometheus crashed or network issues in the monitoring path.
+            Immediate attention required - without Prometheus, no alerts will fire.
+
+      # -------------------------------------------------------------------------
+      # Alert: High CPU Usage
+      # Severity: warning
+      # Purpose: Detect overloaded nodes before they become unresponsive
+      # -------------------------------------------------------------------------
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)) * 100
+          > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: compute
+        annotations:
+          summary: "CPU usage on {{ $labels.instance }} is {{ $value | humanizePercentage }}"
+          description: |
+            CPU usage has been above 80% for more than 5 minutes on {{ $labels.instance }}.
+            Current value: {{ $value | humanizePercentage }}
+            This could indicate runaway processes, heavy benchmark load, or resource contention.
+            Check: top, ps aux, dstat
+
+      # -------------------------------------------------------------------------
+      # Alert: High Memory Usage
+      # Severity: warning
+      # Purpose: Detect memory pressure before OOM kills processes
+      # -------------------------------------------------------------------------
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+          > 85
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: memory
+        annotations:
+          summary: "Memory usage on {{ $labels.instance }} is {{ $value | humanizePercentage }}"
+          description: |
+            Memory usage has been above 85% for more than 5 minutes on {{ $labels.instance }}.
+            Available memory: {{ $value | humanizePercentage }} used
+            This could lead to OOM killer invoking and services crashing.
+            Check: free -m, dstat -m
+
+      # -------------------------------------------------------------------------
+      # Alert: Low Disk Space
+      # Severity: warning
+      # Purpose: Prevent disk-full scenarios that cause data loss
+      # -------------------------------------------------------------------------
+      - alert: LowDiskSpace
+        expr: |
+          (node_filesystem_avail_bytes{fstype!="tmpfs",fstype!="squashfs"} /
+           node_filesystem_size_bytes) * 100
+          < 10
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: storage
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }} ({{ $value | humanizePercentage }} free)"
+          description: |
+            Available disk space is below 10% on {{ $labels.instance }}.
+            Mount: {{ $labels.mountpoint }}
+            Current free: {{ $value | humanizePercentage }}
+            Immediate action needed to prevent data loss or service failure.
+            Check: df -h, du -sh
+
+  # ==========================================================================
+  # Group 2: Cost Alerts (3 rules)
+  # ==========================================================================
+  # Track AWS spending to prevent budget overruns on spot instances
+  - name: cost
+    interval: 60s  # Cost doesn't change rapidly
+    rules:
+      # -------------------------------------------------------------------------
+      # Alert: Daily Spend > 80% of Limit
+      # Severity: warning
+      # Purpose: Early warning before hitting daily budget
+      # -------------------------------------------------------------------------
+      - alert: DailySpendExceeded80Percent
+        expr: aws_daily_spend_usd > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: finance
+          component: billing
+        annotations:
+          summary: "Daily AWS spend is ${{ $value }}, approaching 80% limit"
+          description: |
+            Current daily spend: ${{ $value }}
+            Warning threshold: $80 (80% of $100 daily limit)
+            At this rate, the daily budget will be exhausted.
+            Action: Review running instances, consider stopping test clusters.
+
+      # -------------------------------------------------------------------------
+      # Alert: Daily Spend > 100% of Limit
+      # Severity: critical
+      # Purpose: Immediate action required when budget exceeded
+      # -------------------------------------------------------------------------
+      - alert: DailySpendExceeded100Percent
+        expr: aws_daily_spend_usd > 100
+        for: 1m
+        labels:
+          severity: critical
+          team: finance
+          component: billing
+        annotations:
+          summary: "Daily AWS spend exceeded $100 limit: ${{ $value }}"
+          description: |
+            CRITICAL: Daily spending has exceeded the $100 budget limit.
+            Current spend: ${{ $value }}
+            Immediate action required: Stop non-essential instances.
+            The cfs-cost-monitor.sh should have killed instances, but manual check needed.
+            See: /opt/cfs-cost-monitor.sh
+
+      # -------------------------------------------------------------------------
+      # Alert: Monthly Projection Exceeded
+      # Severity: warning
+      # Purpose: Track longer-term budget trends
+      # -------------------------------------------------------------------------
+      - alert: MonthlyProjectionExceeded
+        expr: aws_monthly_projection_usd > 3000
+        for: 1h
+        labels:
+          severity: warning
+          team: finance
+          component: billing
+        annotations:
+          summary: "Monthly projection exceeds $3000: ${{ $value }}"
+          description: |
+            Based on current spend rate, the monthly bill is projected to exceed $3000.
+            Projected monthly cost: ${{ $value }}
+            This includes all AWS services in the cfs-test account.
+            Review: Consider reducing cluster size or using more spot instances.
+
+  # ==========================================================================
+  # Group 3: CI/CD Alerts (3 rules)
+  # ==========================================================================
+  # Track CI pipeline health and performance
+  - name: cicd
+    interval: 60s
+    rules:
+      # -------------------------------------------------------------------------
+      # Alert: CI Job Timeout Frequent
+      # Severity: warning
+      # Purpose: Detect CI infrastructure issues
+      # -------------------------------------------------------------------------
+      - alert: CIJobTimeoutFrequent
+        expr: ci_job_timeout_ratio_1h > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          team: ci
+          component: pipelines
+        annotations:
+          summary: "CI jobs timing out frequently ({{ $value | humanizePercentage }})"
+          description: |
+            More than 20% of CI jobs have timed out in the last hour.
+            Current timeout ratio: {{ $value | humanizePercentage }}
+            Check GitHub Actions workflow runs for stuck or slow jobs.
+            Common causes: heavy test load, resource contention, flaky tests.
+
+      # -------------------------------------------------------------------------
+      # Alert: Test Pass Rate Low
+      # Severity: warning
+      # Purpose: Detect regressions or flaky test suites
+      # -------------------------------------------------------------------------
+      - alert: TestPassRateLow
+        expr: ci_test_pass_rate_last_10 < 0.9
+        for: 30m
+        labels:
+          severity: warning
+          team: ci
+          component: testing
+        annotations:
+          summary: "Test pass rate is low: {{ $value | humanizePercentage }}"
+          description: |
+            Test pass rate over the last 10 runs is below 90%.
+            Current pass rate: {{ $value | humanizePercentage }}
+            This indicates either regression bugs or a flaky test suite.
+            Check: GitHub Actions > Runs > Failed tests
+
+      # -------------------------------------------------------------------------
+      # Alert: Workflow Duration Regression
+      # Severity: info
+      # Purpose: Track CI performance trends
+      # -------------------------------------------------------------------------
+      - alert: WorkflowDurationRegression
+        expr: ci_workflow_duration_vs_baseline > 1.3
+        for: 2h
+        labels:
+          severity: info
+          team: ci
+          component: performance
+        annotations:
+          summary: "Workflow duration {{ $value | humanizeDuration }} slower than baseline"
+          description: |
+            CI workflows are taking significantly longer than the baseline.
+            Current duration: {{ $value | humanizeDuration }} vs baseline
+            This could indicate code bloat, test additions, or infrastructure issues.
+            Check: GitHub Actions > Analytics > Duration trends
+
+  # ==========================================================================
+  # Group 4: Infrastructure Alerts (2 rules)
+  # ==========================================================================
+  # Spot instance and cluster-specific health
+  - name: infrastructure
+    interval: 30s
+    rules:
+      # -------------------------------------------------------------------------
+      # Alert: High Spot Interruption Rate
+      # Severity: warning
+      # Purpose: Detect excessive spot terminations
+      # -------------------------------------------------------------------------
+      - alert: SpotInterruptionRate
+        expr: |
+          (spot_interruption_count_1h / node_count) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: spot
+        annotations:
+          summary: "Spot interruption rate is {{ $value | humanizePercentage }} in last hour"
+          description: |
+            More than 10% of spot instances were interrupted in the last hour.
+            Interruption rate: {{ $value | humanizePercentage }}
+            This is higher than normal - check AWS spot instance health.
+            Consider: More diverse instance types, different AZs.
+
+      # -------------------------------------------------------------------------
+      # Alert: Not Enough Spot Capacity
+      # Severity: critical
+      # Purpose: Detect launch failures that prevent cluster scaling
+      # -------------------------------------------------------------------------
+      - alert: NotEnoughSpotCapacity
+        expr: spot_launch_failure_consecutive > 3
+        for: 1m
+        labels:
+          severity: critical
+          team: infrastructure
+          component: spot
+        annotations:
+          summary: "Failed to launch spot replacement nodes {{ $value }} times consecutively"
+          description: |
+            CRITICAL: Spot instance launch failures are preventing cluster recovery.
+            Consecutive failures: {{ $value }}
+            The cluster cannot replace terminated spot instances.
+            Check: AWS EC2 Spot capacity, instance type availability.
+            Manual action may be required to provision on-demand instances.
+
+# -----------------------------------------------------------------------------
+# Recording Rules (Future)
+# -----------------------------------------------------------------------------
+# Recording rules pre-compute frequently needed queries for faster dashboards.
+# Uncomment and customize as needed.
+#
+# Example:
+# - name: instance:cpu_usage:rate5m
+#   interval: 30s
+#   rules:
+#     - record: instance:cpu_usage:rate5m
+#       expr: |
+#         100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)) * 100

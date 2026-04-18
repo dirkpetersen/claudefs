@@ -1,16 +1,26 @@
 #[cfg(test)]
 mod ci_workflow_validation {
     use std::fs;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+
+    fn workspace_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf()
+    }
 
     #[test]
     fn test_workflow_syntax_valid() -> Result<(), String> {
-        let workflows_dir = Path::new(".github/workflows");
+        let root = workspace_root();
+        let workflows_dir = root.join(".github/workflows");
         if !workflows_dir.exists() {
             return Err("workflows directory not found".to_string());
         }
 
-        let entries = fs::read_dir(workflows_dir).map_err(|e| e.to_string())?;
+        let entries = fs::read_dir(&workflows_dir).map_err(|e| e.to_string())?;
 
         let mut yml_count = 0;
         for entry in entries.flatten() {
@@ -43,8 +53,9 @@ mod ci_workflow_validation {
 
     #[test]
     fn test_workflow_triggers_configured() -> Result<(), String> {
-        let workflows_dir = Path::new(".github/workflows");
-        let entries = fs::read_dir(workflows_dir).map_err(|e| e.to_string())?;
+        let root = workspace_root();
+        let workflows_dir = root.join(".github/workflows");
+        let entries = fs::read_dir(&workflows_dir).map_err(|e| e.to_string())?;
 
         let mut push_count = 0;
         let mut pull_request_count = 0;
@@ -78,8 +89,9 @@ mod ci_workflow_validation {
 
     #[test]
     fn test_workflow_timeout_configured() -> Result<(), String> {
-        let workflows_dir = Path::new(".github/workflows");
-        let entries = fs::read_dir(workflows_dir).map_err(|e| e.to_string())?;
+        let root = workspace_root();
+        let workflows_dir = root.join(".github/workflows");
+        let entries = fs::read_dir(&workflows_dir).map_err(|e| e.to_string())?;
 
         let mut jobs_with_timeout = 0;
         let mut jobs_without_timeout = 0;
@@ -111,8 +123,9 @@ mod ci_workflow_validation {
 
     #[test]
     fn test_workflow_artifact_lifecycle() -> Result<(), String> {
-        let workflows_dir = Path::new(".github/workflows");
-        let entries = fs::read_dir(workflows_dir).map_err(|e| e.to_string())?;
+        let root = workspace_root();
+        let workflows_dir = root.join(".github/workflows");
+        let entries = fs::read_dir(&workflows_dir).map_err(|e| e.to_string())?;
 
         let mut artifact_count = 0;
         let mut with_retention = 0;
