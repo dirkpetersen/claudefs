@@ -35,3 +35,12 @@ bytes = "1"
 tonic-build = "0.12"
 dashmap = "6"
 uuid = { version = "1", features = ["v4", "serde"] }
+
+# Release profile with LTO optimization for production binaries
+[profile.release]
+opt-level = 3                  # Maximum optimization
+lto = "fat"                    # Link-time optimization (significant binary size reduction)
+codegen-units = 1             # Single codegen unit for better optimization
+strip = false                 # We strip manually for better control
+panic = "abort"                # Abort on panic (smaller binary)
+split-debuginfo = "packed"    # Pack debug info separately for easier stripping
