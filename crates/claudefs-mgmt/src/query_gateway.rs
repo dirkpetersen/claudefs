@@ -107,11 +107,12 @@ impl QueryGateway {
         }
 
         let timeout = self.timeout;
-        let mut query_owned = query.to_string();
-        for i in 1..=params.len() {
-            query_owned = query_owned.replacen("?", &format!("${}", i), 1);
-        }
-        let params_owned = params;
+        let query_owned = query.to_string();
+
+        let params_refs: Vec<&dyn duckdb::types::ToSql> = params
+            .iter()
+            .map(|s| s as &dyn duckdb::types::ToSql)
+            .collect();
 
         let start = std::time::Instant::now();
         let query_result = match tokio::time::timeout(
@@ -130,42 +131,40 @@ impl QueryGateway {
 
                 let columns: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
 
-                let params: Vec<&dyn duckdb::ToSql> = params_owned
-                    .iter()
-                    .map(|s| s as &dyn duckdb::ToSql)
-                    .collect();
-
-                let mut rows = stmt.query(params.as_slice())
-                    .map_err(|e| QueryError::DuckDbError(e.to_string()))?;
-                let mut result_rows = Vec::new();
-
-                while let Some(row) = rows.next()
-                    .map_err(|e| QueryError::DuckDbError(e.to_string()))? {
-                    let mut row_values = Vec::new();
-                    for i in 0..columns.len() {
-                        let value: serde_json::Value = match row.get_ref(i) {
-                            Ok(duckdb::types::ValueRef::Null) => serde_json::Value::Null,
-                            Ok(duckdb::types::ValueRef::SmallInt(i)) => serde_json::json!(i),
-                            Ok(duckdb::types::ValueRef::Int(i)) => serde_json::json!(i),
-                            Ok(duckdb::types::ValueRef::BigInt(i)) => serde_json::json!(i),
-                            Ok(duckdb::types::ValueRef::Float(d)) => serde_json::json!(d),
-                            Ok(duckdb::types::ValueRef::Double(d)) => serde_json::json!(d),
-                            Ok(duckdb::types::ValueRef::Text(s)) => {
-                                serde_json::Value::String(String::from_utf8_lossy(s).to_string())
-                            }
-                            Ok(duckdb::types::ValueRef::Boolean(b)) => serde_json::json!(b),
-                            Ok(duckdb::types::ValueRef::USmallInt(i)) => serde_json::json!(i),
-                            Ok(duckdb::types::ValueRef::UInt(i)) => serde_json::json!(i),
-                            Ok(duckdb::types::ValueRef::UBigInt(i)) => serde_json::json!(i),
-                            Ok(duckdb::types::ValueRef::Blob(b)) => {
-                                serde_json::Value::String(format!("[blob {} bytes]", b.len()))
-                            }
-                            _ => serde_json::Value::Null,
-                        };
-                        row_values.push(value);
+                let result_rows = {
+                    let mut rows = stmt.query(params_refs.as_slice())
+                        .map_err(|e| QueryError::DuckDbError(e.to_string()))?;
+                    
+                    let mut result_rows = Vec::new();
+                    while let Some(row) = rows.next()
+                        .map_err(|e| QueryError::DuckDbError(e.to_string()))? {
+                        let mut row_values = Vec::new();
+                        for i in 0..columns.len() {
+                            let value: serde_json::Value = match row.get_ref(i) {
+                                Ok(duckdb::types::ValueRef::Null) => serde_json::Value::Null,
+                                Ok(duckdb::types::ValueRef::SmallInt(i)) => serde_json::json!(i),
+                                Ok(duckdb::types::ValueRef::Int(i)) => serde_json::json!(i),
+                                Ok(duckdb::types::ValueRef::BigInt(i)) => serde_json::json!(i),
+                                Ok(duckdb::types::ValueRef::Float(d)) => serde_json::json!(d),
+                                Ok(duckdb::types::ValueRef::Double(d)) => serde_json::json!(d),
+                                Ok(duckdb::types::ValueRef::Text(s)) => {
+                                    serde_json::Value::String(String::from_utf8_lossy(s).to_string())
+                                }
+                                Ok(duckdb::types::ValueRef::Boolean(b)) => serde_json::json!(b),
+                                Ok(duckdb::types::ValueRef::USmallInt(i)) => serde_json::json!(i),
+                                Ok(duckdb::types::ValueRef::UInt(i)) => serde_json::json!(i),
+                                Ok(duckdb::types::ValueRef::UBigInt(i)) => serde_json::json!(i),
+                                Ok(duckdb::types::ValueRef::Blob(b)) => {
+                                    serde_json::Value::String(format!("[blob {} bytes]", b.len()))
+                                }
+                                _ => serde_json::Value::Null,
+                            };
+                            row_values.push(value);
+                        }
+                        result_rows.push(row_values);
                     }
-                    result_rows.push(row_values);
-                }
+                    result_rows
+                };
 
                 Ok(QueryResult {
                     columns,

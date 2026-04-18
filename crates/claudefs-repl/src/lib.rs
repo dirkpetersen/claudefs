@@ -98,3 +98,5 @@ pub mod repl_filter;
 pub mod write_aware_quorum;
 /// Anti-entropy read-repair coordination across sites.
 pub mod read_repair_coordinator;
+/// Causal consistency tracking via vector clocks for multi-site replication.
+pub mod vector_clock_replication;
