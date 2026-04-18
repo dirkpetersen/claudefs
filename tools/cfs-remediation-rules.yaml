@@ -1,0 +1,102 @@
+apiVersion: claudefs.io/v1alpha1
+kind: RemediationRules
+metadata:
+  name: cfs-remediation-rules
+  version: 1.0
+
+spec:
+  rules:
+    - name: "High CPU on Node"
+      trigger: 'node_cpu_usage > 85'
+      duration_seconds: 300
+      severity: warning
+      actions:
+        - type: scale
+          target: affected_instance
+          new_instance_type: c7a.2xlarge
+          description: "Increase CPU resources"
+        - type: evict
+          workload: highest_cpu_consumer
+          description: "Move high-CPU workload"
+      fallback: notify_admin
+      max_retries: 2
+      enabled: true
+
+    - name: "High Memory Pressure"
+      trigger: 'node_memory_usage > 85'
+      duration_seconds: 300
+      severity: warning
+      actions:
+        - type: restart
+          service: prometheus
+          graceful_timeout: 60
+          description: "Restart Prometheus to clear memory"
+      fallback: escalate_to_human
+      max_retries: 1
+      enabled: true
+
+    - name: "Spot Interruption Detected"
+      trigger: 'spot_interruption_notice'
+      duration_seconds: 60
+      severity: critical
+      actions:
+        - type: drain
+          node: affected_instance
+          timeout_seconds: 300
+          description: "Gracefully drain node before termination"
+        - type: rebalance
+          strategy: consistent_hash
+          description: "Rebalance workload across remaining nodes"
+      fallback: manual_intervention
+      max_retries: 1
+      enabled: true
+
+    - name: "Prometheus Service Down"
+      trigger: 'alertmanager_prometheus_down'
+      duration_seconds: 300
+      severity: critical
+      actions:
+        - type: restart
+          service: prometheus
+          graceful_timeout: 30
+          description: "Restart Prometheus service"
+          max_retries: 3
+      fallback: escalate_to_human
+      max_retries: 2
+      enabled: true
+
+    - name: "Grafana Service Down"
+      trigger: 'alertmanager_grafana_down'
+      duration_seconds: 180
+      severity: warning
+      actions:
+        - type: restart
+          service: grafana
+          graceful_timeout: 20
+          description: "Restart Grafana service"
+      fallback: log_and_monitor
+      max_retries: 2
+      enabled: true
+
+    - name: "Disk Space Critical"
+      trigger: 'node_disk_available < 5'
+      duration_seconds: 60
+      severity: critical
+      actions:
+        - type: cleanup
+          target: affected_instance
+          description: "Trigger disk cleanup operations"
+      fallback: escalate_to_human
+      max_retries: 1
+      enabled: true
+
+    - name: "Multiple Critical Alerts"
+      trigger: 'critical_alerts > 3'
+      duration_seconds: 300
+      severity: critical
+      actions:
+        - type: rollback
+          description: "Rollback to last known-good state"
+      fallback: manual_incident_response
+      max_retries: 0
+      enabled: true

@@ -12,6 +12,7 @@ pub mod connectathon;
 pub mod crash;
 pub mod distributed_tests;
 pub mod fuzz_helpers;
+pub mod gitops_orchestration_tests;
 pub mod harness;
 pub mod integration;
 pub mod jepsen;
