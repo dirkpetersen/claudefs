@@ -6,6 +6,95 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A6: Replication — Phase 5 Planning: Production Hardening & Operational Readiness (2026-04-18 Session 9 - Planning Complete)
+
+**Status:** 🟡 **PHASE 5 PLANNING COMPLETE** — Ready for implementation
+
+**Summary - Production Hardening for Multi-Site Replication:**
+
+**Phase 4 Baseline (Completed 2026-04-18):**
+- ✅ 982 tests passing (878 baseline + 104 Phase 4)
+- ✅ All 4 core HA modules implemented
+- ✅ Production readiness: 85% (metrics and cluster testing gap)
+
+**Phase 5 Scope (5 blocks, 110-130 new tests, 3 weeks):**
+
+1. **Block 1: Metrics Integration (22-26 tests, 1.5 days)**
+   - Prometheus exporter for replication metrics
+   - Replication lag tracking per-site
+   - Split-brain event counter and resolution time
+   - Read-repair action metrics (triggered, successful)
+   - Quorum write latency percentiles (p50, p95, p99)
+   - Grafana dashboard (6+ visualization panels)
+   - Health check endpoint with lag-based alerting
+
+2. **Block 2: Operational Procedures (20-24 tests, 2 days)**
+   - Automated failover controller (health-check triggered)
+   - Split-brain detection and resolution strategies (LWW, quorum-based)
+   - Graceful degradation modes
+   - Complete operational runbook (300+ lines)
+   - Step-by-step procedures for common scenarios
+   - Performance tuning guide with lag targets
+
+3. **Block 3: Cluster-Level Testing (26-30 tests, 2-3 days)**
+   - Multi-node cluster simulator (3-5 sites)
+   - Network partition scenarios (Jepsen-style tests)
+   - Site failure and recovery cycles
+   - Concurrent writes across sites
+   - Consistency validation after all failure modes
+   - Cascade failure recovery
+
+4. **Block 4: Performance Validation (20-24 tests, 1.5 days)**
+   - Latency benchmarks (local + multi-node)
+   - Throughput scaling with site count
+   - Replication lag measurement under load
+   - Recovery time from partial failures
+   - Resource utilization (CPU, memory, disk I/O)
+   - 24h soak test for stability
+
+5. **Block 5: Integration & Production Readiness (18-22 tests, 1.5 days)**
+   - Full stack integration (A2+A6, A4+A6, A8+A6)
+   - Blue-green and canary deployment procedures
+   - Production deployment checklist
+   - Pre-flight validation scripts
+   - Rollback procedures
+
+**Target Outcomes:**
+- 1,100+ total tests passing
+- 100% production ready (from 85%)
+- Failover <5s recovery time with zero data loss
+- Replication lag <60s under normal load
+- Automatic failover on site unavailability
+- Full operational procedures documented and validated
+
+**Dependencies (All Available):**
+- ✅ A8 Management: Prometheus metrics infrastructure
+- ✅ A2 Metadata: Journal source integration
+- ✅ A4 Transport: RPC endpoints
+- ✅ A11 Infrastructure: Multi-node cluster provisioning
+
+**Plan Document:**
+- docs/A6-PHASE5-PLAN.md (484 lines) — comprehensive specification
+
+**Timeline:**
+- Week 1: Blocks 1-2 (metrics + operational procedures)
+- Week 2: Block 3 (cluster testing)
+- Week 3: Blocks 4-5 (performance + integration)
+
+**Success Criteria Met:**
+✅ Comprehensive Phase 5 specification created
+✅ All dependencies verified available
+✅ No technical blockers identified
+✅ OpenCode implementation ready
+✅ Fully scoped work plan with test targets
+✅ Integration points documented
+
+**Next:** Implementation approval → Block 1: Metrics Integration
+
+**Reference Commit:** f4bad83
+
+---
+
 ### A11: Infrastructure & CI — Phase 4 Block 4: Production Deployment & Release Pipeline (2026-04-18 Session 8 - Implementation Complete)
 
 **Status:** ✅ **BLOCK 4 COMPLETE** — All release automation and deployment scripts implemented and tested
