@@ -6,6 +6,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A2: Metadata Service — Phase 11 Planning & OpenCode Delegation (2026-04-18 Session 11)
+
+**Status:** 🟡 **PHASE 11 IMPLEMENTATION STARTING** — OpenCode Block A running (quota_replication.rs)
+
+**Phase 11 Roadmap — Cross-Site Coordination & Compliance:**
+
+Building on Phase 10's multi-tenancy foundation (1,035+ tests, 73 modules), Phase 11 delivers production-ready cross-site coordination, compliance audit logging, and billing infrastructure.
+
+**Implementation Blocks (Target: 1,100-1,150 total tests, 69-77 new):**
+
+**Block A: quota_replication.rs (20 tests, 450 LOC)** ✅ OpenCode running
+- Cross-site quota config sync with Lamport clock ordering (generation counter)
+- Conflict detection & resolution: MaxWins / TimestampWins / AdminReview
+- Full state sync after partition recovery with 30s timeout
+- Replication metrics: requests_sent, acks_received, conflicts_detected, lag_ms
+- Status: OpenCode iteratively fixing compilation errors (TenantId type mismatches)
+
+**Block B: tenant_audit.rs (18 tests, 420 LOC)** — Queued for OpenCode
+- Comprehensive compliance audit logging: SOC2 / HIPAA / GDPR / PCI-DSS
+- AuditEvent with immutable append-only semantics, retention policies
+- Compliance report generation, GDPR DSAR (Data Subject Access Request) export
+- Anomaly detection (>3 violations in 5 min → alert), event sampling (10% for data access)
+
+**Block C: qos_cross_site.rs (16 tests, 380 LOC)** — Queued for OpenCode
+- Global QoS coordination across sites with deadline propagation
+- GlobalQosPolicy, SLA targets per site, failover behavior (Strict → maintain SLAs / Relaxed → 1.5x)
+- SLA attainment tracking (p99 latency compliance), cross-site latency measurement w/ caching
+- Integration: A4 bandwidth_shaper (admission control), A6 conduit (deadline propagation)
+
+**Block D: billing_aggregator.rs (15 tests, 350 LOC)** — Queued for OpenCode
+- Tenant billing with 1-hour windows (UTC-aligned), usage metering (storage/IOPS/network/snapshots)
+- Cost breakdown: pricing per service + volume discounts + regional taxes
+- Monthly invoice generation (JSON), MRR forecasting, dispute handling, currency conversion
+
+**Optional Block E: capacity_planner.rs (8 tests, 200 LOC)** — Defer to Phase 12
+- Storage/IOPS forecasting: linear regression + seasonal pattern detection
+- Scaling recommendations, quota-approaching alerts (>80%)
+
+**Phase 11 Totals:**
+- New tests: 69-77 (target: 1,105 total)
+- New modules: 4-5 (target: 77-78 total)
+- New LOC: ~2,000 (quota_replication 450 + tenant_audit 420 + qos_cross_site 380 + billing_aggregator 350 + optional)
+- Compliance ready: SOC2 (90d), HIPAA (6yr, immutable), GDPR (30d, DSAR), PCI-DSS (1yr, quarterly)
+
+**Dependencies (All Available):**
+- ✅ A6 Replication: journal_tailer for cross-site sync (Phase 5 Block 1 complete)
+- ✅ A4 Transport: bandwidth_shaper RPC for admission control (Phase 13 complete)
+- ✅ A8 Management: Prometheus metrics for billing (Phase 4 Block 4 complete)
+- ✅ Phase 10 modules: quota_tracker, tenant_isolator, qos_coordinator
+
+**Deliverables Created (This Session):**
+1. ✅ docs/A2-PHASE11-PLAN.md (450+ lines) — Complete Phase 11 specification
+2. ✅ a2-phase11-block-a-input.md (400+ lines) — OpenCode delegation for quota_replication.rs
+3. ✅ a2-phase11-block-b-input.md (350+ lines) — OpenCode spec for tenant_audit.rs
+4. ✅ a2-phase11-block-c-input.md (280+ lines) — OpenCode spec for qos_cross_site.rs
+5. ✅ a2-phase11-block-d-input.md (270+ lines) — OpenCode spec for billing_aggregator.rs
+6. ✅ Memory files: A2-PHASE11-STATUS.md (comprehensive tracking)
+
+**Implementation Progress:**
+- Block A (quota_replication.rs): OpenCode running, fixing TenantId type issues (expecting ~30-45 min total)
+- Blocks B-D: OpenCode input files ready, queued for parallel delegation
+- Build status: Phase 10 at 1035+ tests, clean build
+- Next: Monitor Block A completion, merge code, then parallel Blocks B+C+D
+
+**Reference:** docs/A2-PHASE11-PLAN.md (complete 450+ line specification with all modules, tests, integration points)
+
+---
+
 ### A11: Infrastructure & CI — Phase 5 Planning Complete (2026-04-18 Session 10)
 
 **Status:** 🟡 **PHASE 5 PLANNING COMPLETE** — Ready for implementation

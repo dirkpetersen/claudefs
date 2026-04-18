@@ -178,15 +178,15 @@ impl Cli {
             Command::ReductionReport => self.reduction_report().await,
             Command::ReplicationStatus => self.replication_status().await,
             Command::Serve { ref config } => self.serve(config).await,
-            Command::Health { verbose, json, node } => self.health(verbose, json, node.as_deref()).await,
-            Command::Diagnostics { json, csv, output } => self.diagnostics(json, csv, output.as_deref()).await,
+            Command::Health { verbose, json, ref node } => self.health(verbose, json, node.as_deref()).await,
+            Command::Diagnostics { json, csv, ref output } => self.diagnostics(json, csv, output.as_deref()).await,
             Command::Recovery { ref cmd } => self.recovery(cmd).await,
             Command::Capacity { forecast_days, json } => self.capacity(forecast_days, json).await,
-            Command::Alerts { severity, alert_type, active, resolved, limit, acknowledge, silence, silence_duration, json } => {
+            Command::Alerts { ref severity, ref alert_type, active, resolved, limit, ref acknowledge, ref silence, silence_duration, json } => {
                 self.alerts(severity.as_deref(), alert_type.as_deref(), active, resolved, limit, acknowledge.as_deref(), silence.as_deref(), silence_duration, json).await
             },
-            Command::Dashboard { dashboard, time_from, time_to, open, grafana_host } => {
-                self.dashboard(&dashboard, &time_from, &time_to, open, &grafana_host).await
+            Command::Dashboard { ref dashboard, ref time_from, ref time_to, open, ref grafana_host } => {
+                self.dashboard(dashboard, time_from, time_to, open, grafana_host).await
             },
         }
     }
@@ -557,7 +557,7 @@ impl Cli {
                     println!("Diagnostics written to {}", out_path.display());
                 } else {
                     let file = std::fs::File::create(out_path)?;
-                    let mut wtr = csv::Writer::from_writer(file)?;
+                    let mut wtr = csv::Writer::from_writer(file);
                     wtr.write_record(&["check_name", "status", "message"])?;
                     for d in &diagnostics {
                         wtr.write_record(&[&d.check_name, &d.status, &d.message.clone().unwrap_or_default()])?;

@@ -154,6 +154,10 @@ impl QuotaTracker {
         self.quotas.get(tenant_id).map(|q| q.clone())
     }
 
+    pub fn iter_quotas(&self) -> impl Iterator<Item = (TenantId, TenantQuota)> + '_ {
+        self.quotas.iter().map(|entry| (entry.key().clone(), entry.value().clone()))
+    }
+
     pub fn get_usage(&self, tenant_id: &TenantId) -> Option<QuotaUsage> {
         self.usage.get(tenant_id).map(|u| {
             let usage = u.lock().unwrap();
