@@ -6,6 +6,62 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### A10: Security Audit — Phase 36: Comprehensive Security Architecture (2026-04-18 Session 8 - Planning Complete)
+
+**Status:** 🟡 **PHASE 36 PLANNING COMPLETE** — Ready for implementation
+
+**Summary - Security Testing for Storage, FUSE, Metadata Subsystems:**
+- ✅ Phase 35 complete: 2383+ security tests across 78 modules
+- ✅ Comprehensive Phase 36 plan created: `docs/A10-PHASE36-PLAN.md` (430 lines)
+- ✅ 5-module architecture designed for 95-100 new security tests
+- ✅ 41+ untested modules identified for coverage
+- ✅ No critical blockers identified; all builder modules stable
+
+**Phase 36 Test Modules (5 modules, 95-100 tests):**
+1. **Module 1: Storage Background Subsystems** (30 tests)
+   - background_scheduler, device_health_monitor, prefetch_engine, wear_leveling, node_rebalance
+   - Concurrency safety, memory bounds, state machines, overflow protection
+
+2. **Module 2: FUSE Cache Coherence & Advanced Features** (35 tests)
+   - readdir_cache, writeback_cache, mmap, otel_tracing, distributed_session_manager, worm, quota
+   - Cache coherence, crash consistency, session isolation, POSIX compliance
+
+3. **Module 3: Metadata Multi-Tenancy & Isolation** (25 tests)
+   - concurrent_inode_ops, cross_shard, fingerprint_index, hardlink, tenant_isolator, qos, space_accounting, quota
+   - Tenant isolation, QoS enforcement, quota accuracy, distributed consistency
+
+4. **Module 4: Protocol Security & Fuzzing** (20 tests)
+   - RPC protocol robustness, FUSE message parser, NFS gateway security
+   - Malformed input handling, buffer overflow prevention, protocol compliance
+
+5. **Module 5: Emerging Threats & Compliance** (15 tests)
+   - Supply chain security, Byzantine fault tolerance, key lifecycle, audit logging, rate limiting
+   - Compliance validation (SOC2, HIPAA, GDPR, PCI-DSS)
+
+**Security Properties Coverage:**
+- Concurrency safety (28 tests)
+- Memory bounds (16 tests)
+- Crash consistency (12 tests)
+- Tenant isolation (13 tests)
+- Protocol robustness (12 tests)
+- State machines (9 tests)
+- Cryptography (3 tests)
+- Distributed systems (8 tests)
+- Performance (4 tests)
+
+**Implementation Timeline:**
+- Session 2: Modules 1-2 implementation (65 tests)
+- Session 3: Modules 3-4 implementation (45 tests)
+- Session 4: Module 5 + validation (15 tests)
+- Session 5: Final commit + CHANGELOG update
+
+**Expected Outcome:**
+- Total security tests: 2480-2500 (vs Phase 35 baseline 2383)
+- Total test modules: 82-83 (vs Phase 35 of 78)
+- Comprehensive coverage of 41+ previously untested modules
+
+---
+
 ### A11: Infrastructure & CI — Phase 4 Block 3: Automated Recovery Actions (2026-04-18 Session 7 - Planning & Documentation)
 
 **Status:** 🟡 **BLOCK 3 PLANNING COMPLETE** — Ready for OpenCode implementation
