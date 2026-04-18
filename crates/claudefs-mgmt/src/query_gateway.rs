@@ -107,7 +107,10 @@ impl QueryGateway {
         }
 
         let timeout = self.timeout;
-        let query_owned = query.to_string();
+        let mut query_owned = query.to_string();
+        for i in 1..=params.len() {
+            query_owned = query_owned.replacen("?", &format!("${}", i), 1);
+        }
         let params_owned = params;
 
         let start = std::time::Instant::now();
@@ -127,12 +130,12 @@ impl QueryGateway {
 
                 let columns: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
 
-                let param_refs: Vec<&dyn duckdb::ToSql> = params_owned
+                let params: Vec<&dyn duckdb::ToSql> = params_owned
                     .iter()
                     .map(|s| s as &dyn duckdb::ToSql)
                     .collect();
 
-                let mut rows = stmt.query(param_refs.as_slice())
+                let mut rows = stmt.query(params.as_slice())
                     .map_err(|e| QueryError::DuckDbError(e.to_string()))?;
                 let mut result_rows = Vec::new();
 
@@ -172,8 +175,7 @@ impl QueryGateway {
                 })
             })
         ).await {
-            Ok(Ok(Ok(result))) => result,
-            Ok(Ok(Err(e))) => return Err(e),
+            Ok(Ok(result)) => result?,
             Ok(Err(_)) => return Err(QueryError::DuckDbError("Task execution failed".to_string())),
             Err(_) => return Err(QueryError::Timeout),
         };
@@ -263,7 +265,7 @@ mod tests {
         let gateway = QueryGateway::new(tmpdir.path().to_path_buf());
         
         let result = gateway.execute_query(
-            "SELECT ? as num",
+            "SELECT $1 as num",
             vec!["42".to_string()]
         ).await.unwrap();
         
@@ -327,7 +329,7 @@ mod tests {
         
         let mut values = Vec::new();
         for i in 0..5000 {
-            values.push(format!("{}", i));
+            values.push(format!("({})", i));
         }
         let values_str = values.join(",");
         let query = format!("SELECT * FROM (VALUES {}) as t(x)", values_str);
@@ -370,7 +372,7 @@ mod tests {
         for i in 0..10 {
             let gateway = Arc::new(QueryGateway::new(tmpdir.path().to_path_buf()));
             let handle = tokio::spawn(async move {
-                gateway.execute_query("SELECT ? as num", vec![i.to_string()]).await
+                gateway.execute_query("SELECT $1 as num", vec![i.to_string()]).await
             });
             handles.push(handle);
         }
