@@ -1,0 +1,99 @@
+name: Cache Cargo Dependencies & Artifacts
+description: Setup cargo registry, git, and build artifact caching with smart invalidation
+
+inputs:
+  cache-target-debug:
+    description: 'Cache debug build artifacts'
+    required: false
+    default: 'true'
+  cache-target-release:
+    description: 'Cache release build artifacts'
+    required: false
+    default: 'false'
+  cache-docs:
+    description: 'Cache documentation build output'
+    required: false
+    default: 'false'
+  save-always:
+    description: 'Always save cache (main) or only on cache hit (PR)'
+    required: false
+    default: 'false'
+
+outputs:
+  cache-hit:
+    description: 'true if cargo dependencies cache was hit'
+    value: ${{ steps.cargo-registry-cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Cache cargo registry index
+      id: cargo-registry-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    - name: Cache cargo registry cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/cache/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    - name: Cache cargo git databases
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-git-
+
+    - name: Cache cargo build artifacts (debug)
+      if: inputs.cache-target-debug == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          target/debug/
+          target/.fingerprint/
+        key: ${{ runner.os }}-cargo-build-debug-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-debug-${{ hashFiles('**/Cargo.lock') }}
+          ${{ runner.os }}-cargo-build-debug-
+
+    - name: Cache cargo build artifacts (release)
+      if: inputs.cache-target-release == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          target/release/
+          target/.fingerprint/
+        key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('**/Cargo.lock') }}-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-release-${{ hashFiles('**/Cargo.lock') }}
+          ${{ runner.os }}-cargo-build-release-
+
+    - name: Cache documentation output
+      if: inputs.cache-docs == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          target/doc/
+        key: ${{ runner.os }}-cargo-docs-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-docs-
+
+    - name: Log cache status
+      shell: bash
+      run: |
+        if [ "${{ steps.cargo-registry-cache.outputs.cache-hit }}" == "true" ]; then
+          echo "Cache hit: cargo dependencies"
+        else
+          echo "Cache miss: cargo dependencies (will restore from restore-keys)"
+        fi

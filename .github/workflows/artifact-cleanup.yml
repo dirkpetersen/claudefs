@@ -1,0 +1,45 @@
+name: Artifact Cleanup
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    name: Cleanup old artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete old artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const retentionDays = 30;
+            const { data: artifacts } = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            let deleted = 0;
+            for (const artifact of artifacts) {
+              const createdDate = new Date(artifact.created_at);
+              const daysOld = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+              
+              if (daysOld > retentionDays) {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+                deleted++;
+                console.log(`Deleted: ${artifact.name} (${Math.floor(daysOld)} days old)`);
+              }
+            }
+            
+            console.log(`Total artifacts deleted: ${deleted}`);
+            
+            if (deleted > 50) {
+              console.warn('High number of artifacts deleted. Consider reducing retention in workflows.');
+            }
